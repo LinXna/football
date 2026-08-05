@@ -1,0 +1,5405 @@
+{
+  "generated_at": "2026-07-29T20:21:09.720305+00:00",
+  "mode": "prematch",
+  "summary": {
+    "assessed": 41,
+    "research": 36,
+    "pass": 5,
+    "b_grade": 31
+  },
+  "research_queue": [
+    {
+      "match": "维诺廷托FC vs 圣安东尼奥(ECU)",
+      "ybty_match": "维诺廷托 vs 圣安东尼奥伊瓦拉",
+      "ybty_home": "维诺廷托",
+      "ybty_away": "圣安东尼奥伊瓦拉",
+      "league": "厄瓜乙",
+      "start_time": "2026-07-29T20:29:30.123000Z",
+      "ybty_start_time": "2026-07-29T20:29:30.123000Z",
+      "ybty_start_time_beijing": "2026-07-30 04:29",
+      "start_time_source": "YBTY",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.68,
+          "draw_odds": 3.1,
+          "away_odds": 4.85,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.75,
+          "away_line": 0.75,
+          "home_odds": 1.84,
+          "away_odds": 1.94,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.25,
+          "over_odds": 2.02,
+          "under_odds": 1.76,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.900",
+          "line": "0.75",
+          "away": "0.900"
+        },
+        "total_goals": {
+          "over": "1.000",
+          "line": "2.25",
+          "under": "0.800"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.25 / 雷速 2.25",
+        "YBTY主队让球线 -0.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "巴拉圭民族 vs 亚松森奥林匹亚",
+      "ybty_match": "亚松森国民 vs 亚松森奥林匹亚",
+      "ybty_home": "亚松森国民",
+      "ybty_away": "亚松森奥林匹亚",
+      "league": "巴拉甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 05:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 3.05,
+          "draw_odds": 3.05,
+          "away_odds": 2.27,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.25,
+          "away_line": -0.25,
+          "home_odds": 1.9,
+          "away_odds": 1.96,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.25,
+          "over_odds": 1.88,
+          "under_odds": 1.96,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.850",
+          "line": "-0.25",
+          "away": "0.950"
+        },
+        "total_goals": {
+          "over": "0.850",
+          "line": "2.25",
+          "under": "0.950"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.25 / 雷速 2.25",
+        "YBTY主队让球线 +0.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "国际帕尔米拉 vs 波哥大国际",
+      "ybty_match": "帕尔米拉国际 vs 国际波哥大",
+      "ybty_home": "帕尔米拉国际",
+      "ybty_away": "国际波哥大",
+      "league": "哥伦杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 06:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.44,
+          "draw_odds": 3.25,
+          "away_odds": 2.45,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.0,
+          "away_line": 0.0,
+          "home_odds": 1.91,
+          "away_odds": 1.93,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 2.02,
+          "under_odds": 1.8,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.900",
+          "line": "0.0",
+          "away": "0.900"
+        },
+        "total_goals": {
+          "over": "1.000",
+          "line": "2.5",
+          "under": "0.800"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 +0.00"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "拉普拉塔体操 vs 河床",
+      "ybty_match": "拉普拉塔体操 vs 河床",
+      "ybty_home": "拉普拉塔体操",
+      "ybty_away": "河床",
+      "league": "阿甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 06:15",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 4.0,
+          "draw_odds": 3.2,
+          "away_odds": 2.04,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.5,
+          "away_line": -0.5,
+          "home_odds": 1.86,
+          "away_odds": 2.04,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.0,
+          "over_odds": 1.97,
+          "under_odds": 1.91,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.800",
+          "line": "-0.5",
+          "away": "1.000"
+        },
+        "total_goals": {
+          "over": "0.900",
+          "line": "2.0",
+          "under": "0.900"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.00 / 雷速 2.00",
+        "YBTY主队让球线 +0.50"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "巴西国际 vs 弗拉门戈",
+      "ybty_match": "巴西国际 vs 弗拉门戈",
+      "ybty_home": "巴西国际",
+      "ybty_away": "弗拉门戈",
+      "league": "巴西甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 06:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 3.75,
+          "draw_odds": 3.6,
+          "away_odds": 1.94,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.5,
+          "away_line": -0.5,
+          "home_odds": 1.9,
+          "away_odds": 2.0,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.99,
+          "under_odds": 1.89,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.800",
+          "line": "-0.5",
+          "away": "1.050"
+        },
+        "total_goals": {
+          "over": "1.000",
+          "line": "2.5",
+          "under": "0.850"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 +0.50"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "米拉索 vs 雷莫",
+      "ybty_match": "迈拉索尔SP vs 雷默PA",
+      "ybty_home": "迈拉索尔SP",
+      "ybty_away": "雷默PA",
+      "league": "巴西甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 06:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.65,
+          "draw_odds": 4.05,
+          "away_odds": 4.8,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.75,
+          "away_line": 0.75,
+          "home_odds": 1.84,
+          "away_odds": 2.06,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.89,
+          "under_odds": 1.99,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.850",
+          "line": "0.75",
+          "away": "1.000"
+        },
+        "total_goals": {
+          "over": "0.870",
+          "line": "2.5",
+          "under": "0.970"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 -0.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "巴瑞库拉 vs 巴兰基亚青年",
+      "ybty_match": "巴瑞库拉 vs 巴兰基亚青年",
+      "ybty_home": "巴瑞库拉",
+      "ybty_away": "巴兰基亚青年",
+      "league": "哥伦杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 06:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 4.5,
+          "draw_odds": 3.3,
+          "away_odds": 1.67,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.75,
+          "away_line": -0.75,
+          "home_odds": 1.96,
+          "away_odds": 1.88,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.9,
+          "under_odds": 1.92,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.900",
+          "line": "-1.0",
+          "away": "0.900"
+        },
+        "total_goals": {
+          "over": "0.870",
+          "line": "2.5",
+          "under": "0.920"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 +0.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "戈亚尼亚 vs 格雷米奥阿纳波利斯",
+      "ybty_match": "戈亚尼亚GO vs 甘美奥阿纳波利斯GO",
+      "ybty_home": "戈亚尼亚GO",
+      "ybty_away": "甘美奥阿纳波利斯GO",
+      "league": "巴戈乙",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 06:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.46,
+          "draw_odds": 3.6,
+          "away_odds": 6.1,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -1.0,
+          "away_line": 1.0,
+          "home_odds": 1.99,
+          "away_odds": 1.79,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.0,
+          "over_odds": 1.79,
+          "under_odds": 1.99,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "1.020",
+          "line": "1.0",
+          "away": "0.770"
+        },
+        "total_goals": {
+          "over": "0.900",
+          "line": "2.0",
+          "under": "0.900"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.00 / 雷速 2.00",
+        "YBTY主队让球线 -1.00"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "格林维勒FC vs 博伊西AC",
+      "ybty_match": "格林维尔凯旋 vs 博伊西",
+      "ybty_home": "格林维尔凯旋",
+      "ybty_away": "博伊西",
+      "league": "美甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 07:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.73,
+          "draw_odds": 3.45,
+          "away_odds": 2.15,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.25,
+          "away_line": -0.25,
+          "home_odds": 1.85,
+          "away_odds": 1.99,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.81,
+          "under_odds": 2.01,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.850",
+          "line": "-0.25",
+          "away": "0.950"
+        },
+        "total_goals": {
+          "over": "0.800",
+          "line": "2.5",
+          "under": "1.000"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 +0.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "莫林荷斯 vs 邦热苏斯",
+      "ybty_match": "莫林荷斯GO vs 仁慈耶稣GO",
+      "ybty_home": "莫林荷斯GO",
+      "ybty_away": "仁慈耶稣GO",
+      "league": "巴戈乙",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 07:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.52,
+          "draw_odds": 2.9,
+          "away_odds": 2.63,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.0,
+          "away_line": 0.0,
+          "home_odds": 1.84,
+          "away_odds": 1.94,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 1.75,
+          "over_odds": 1.74,
+          "under_odds": 2.04,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.770",
+          "line": "0.0",
+          "away": "1.020"
+        },
+        "total_goals": {
+          "over": "1.020",
+          "line": "2.0",
+          "under": "0.770"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 1.75 / 雷速 2.00",
+        "YBTY主队让球线 +0.00"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "利梅诺 vs 印加阿鲁巴",
+      "ybty_match": "利梅诺市 vs CD印加",
+      "ybty_home": "利梅诺市",
+      "ybty_away": "CD印加",
+      "league": "萨尔超",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 07:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.31,
+          "draw_odds": 4.55,
+          "away_odds": 6.9,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -1.25,
+          "away_line": 1.25,
+          "home_odds": 1.78,
+          "away_odds": 2.0,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.75,
+          "over_odds": 1.88,
+          "under_odds": 1.9,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "1.000",
+          "line": "1.5",
+          "away": "0.800"
+        },
+        "total_goals": {
+          "over": "0.850",
+          "line": "2.75",
+          "under": "0.950"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.75 / 雷速 2.75",
+        "YBTY主队让球线 -1.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "利物浦 （中） vs 雷克瑟姆",
+      "ybty_match": "利物浦 vs 威斯汉姆",
+      "ybty_home": "利物浦",
+      "ybty_away": "威斯汉姆",
+      "league": "球会友谊",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 07:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.35,
+          "draw_odds": 5.5,
+          "away_odds": 6.1,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -1.5,
+          "away_line": 1.5,
+          "home_odds": 1.92,
+          "away_odds": 1.94,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 3.75,
+          "over_odds": 1.86,
+          "under_odds": 1.98,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.970",
+          "line": "1.5",
+          "away": "0.820"
+        },
+        "total_goals": {
+          "over": "0.850",
+          "line": "3.75",
+          "under": "0.950"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 3.75 / 雷速 3.75",
+        "YBTY主队让球线 -1.50"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "麦迪逊前锋足球俱乐部 vs 查塔努加红狼",
+      "ybty_match": "前锋麦迪逊 vs 查塔努加红狼",
+      "ybty_home": "前锋麦迪逊",
+      "ybty_away": "查塔努加红狼",
+      "league": "美甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.05,
+          "draw_odds": 3.1,
+          "away_odds": 3.15,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.5,
+          "away_line": 0.5,
+          "home_odds": 2.05,
+          "away_odds": 1.79,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.9,
+          "under_odds": 1.92,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.850",
+          "line": "0.25",
+          "away": "0.950"
+        },
+        "total_goals": {
+          "over": "0.950",
+          "line": "2.5",
+          "under": "0.850"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 -0.50"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "西恩夏诺 vs 拉努斯",
+      "ybty_match": "西恩夏诺 vs 拉努斯",
+      "ybty_home": "西恩夏诺",
+      "ybty_away": "拉努斯",
+      "league": "南美杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.23,
+          "draw_odds": 3.15,
+          "away_odds": 3.1,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.25,
+          "away_line": 0.25,
+          "home_odds": 1.93,
+          "away_odds": 1.95,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.25,
+          "over_odds": 1.99,
+          "under_odds": 1.87,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.900",
+          "line": "0.25",
+          "away": "0.950"
+        },
+        "total_goals": {
+          "over": "0.920",
+          "line": "2.25",
+          "under": "0.920"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.25 / 雷速 2.25",
+        "YBTY主队让球线 -0.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "布拉干蒂诺RB vs 水晶竞技",
+      "ybty_match": "布拉甘蒂诺红牛SP vs 水晶体育",
+      "ybty_home": "布拉甘蒂诺红牛SP",
+      "ybty_away": "水晶体育",
+      "league": "南美杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.29,
+          "draw_odds": 5.3,
+          "away_odds": 8.4,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -1.5,
+          "away_line": 1.5,
+          "home_odds": 1.9,
+          "away_odds": 1.98,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 3.0,
+          "over_odds": 2.01,
+          "under_odds": 1.85,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.870",
+          "line": "1.5",
+          "away": "0.970"
+        },
+        "total_goals": {
+          "over": "0.970",
+          "line": "3.0",
+          "under": "0.870"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 3.00 / 雷速 3.00",
+        "YBTY主队让球线 -1.50"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "卡塔根纳 vs 卡利美洲",
+      "ybty_match": "喀他基那 vs 卡利美洲",
+      "ybty_home": "喀他基那",
+      "ybty_away": "卡利美洲",
+      "league": "哥伦杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 09:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 3.0,
+          "draw_odds": 3.05,
+          "away_odds": 2.14,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.25,
+          "away_line": -0.25,
+          "home_odds": 1.96,
+          "away_odds": 1.88,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.25,
+          "over_odds": 1.78,
+          "under_odds": 2.04,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.950",
+          "line": "0.0",
+          "away": "0.850"
+        },
+        "total_goals": {
+          "over": "1.000",
+          "line": "2.5",
+          "under": "0.800"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.25 / 雷速 2.50",
+        "YBTY主队让球线 +0.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "路斯天使 vs 旧金山富尔特",
+      "ybty_match": "菲尔波 vs 旧金山富尔特",
+      "ybty_home": "菲尔波",
+      "ybty_away": "旧金山富尔特",
+      "league": "萨尔超",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 09:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.38,
+          "draw_odds": 4.1,
+          "away_odds": 6.4,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -1.25,
+          "away_line": 1.25,
+          "home_odds": 1.99,
+          "away_odds": 1.79,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.97,
+          "under_odds": 1.81,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "1.020",
+          "line": "1.25",
+          "away": "0.770"
+        },
+        "total_goals": {
+          "over": "0.870",
+          "line": "2.5",
+          "under": "0.920"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 -1.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "圣萨尔瓦多联盟 vs 安提瓜GFC",
+      "ybty_match": "联盟FC vs 安提瓜GFC",
+      "ybty_home": "联盟FC",
+      "ybty_away": "安提瓜GFC",
+      "league": "中美洲杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 10:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.76,
+          "draw_odds": 3.05,
+          "away_odds": 2.3,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.25,
+          "away_line": -0.25,
+          "home_odds": 1.76,
+          "away_odds": 2.08,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.0,
+          "over_odds": 1.77,
+          "under_odds": 2.05,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.750",
+          "line": "-0.25",
+          "away": "1.050"
+        },
+        "total_goals": {
+          "over": "0.750",
+          "line": "2.0",
+          "under": "1.050"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.00 / 雷速 2.00",
+        "YBTY主队让球线 +0.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "杜保尔 vs 帕尼维斯",
+      "ybty_match": "杜保尔 vs 帕纳瓦兹",
+      "ybty_home": "杜保尔",
+      "ybty_away": "帕纳瓦兹",
+      "league": "欧协联",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 22:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.21,
+          "draw_odds": 5.1,
+          "away_odds": 9.4,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -1.75,
+          "away_line": 1.75,
+          "home_odds": 2.02,
+          "away_odds": 1.8,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.75,
+          "over_odds": 1.96,
+          "under_odds": 1.84,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "1.000",
+          "line": "1.75",
+          "away": "0.800"
+        },
+        "total_goals": {
+          "over": "0.900",
+          "line": "2.75",
+          "under": "0.900"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.75 / 雷速 2.75",
+        "YBTY主队让球线 -1.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "加拿大U20 （中） vs 洪都拉斯U20",
+      "ybty_match": "加拿大U20 vs 洪都拉斯U20",
+      "ybty_home": "加拿大U20",
+      "ybty_away": "洪都拉斯U20",
+      "league": "美青杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 09:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 72.2,
+      "match_confidence": 0.9615,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.07,
+          "draw_odds": 3.35,
+          "away_odds": 2.91,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.25,
+          "away_line": 0.25,
+          "home_odds": 1.84,
+          "away_odds": 1.94,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.75,
+          "over_odds": 1.93,
+          "under_odds": 1.85,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.800",
+          "line": "0.25",
+          "away": "1.000"
+        },
+        "total_goals": {
+          "over": "0.950",
+          "line": "2.75",
+          "under": "0.850"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 96%",
+        "总进球线：YBTY 2.75 / 雷速 2.75",
+        "YBTY主队让球线 -0.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "瓦斯科达伽马 vs 麦德林独立",
+      "ybty_match": "瓦斯科达伽马RJ vs 麦德林独立",
+      "ybty_home": "瓦斯科达伽马RJ",
+      "ybty_away": "麦德林独立",
+      "league": "南美杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 06:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 71.5,
+      "match_confidence": 0.9286,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.49,
+          "draw_odds": 4.15,
+          "away_odds": 5.8,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -1.0,
+          "away_line": 1.0,
+          "home_odds": 1.88,
+          "away_odds": 2.0,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.92,
+          "under_odds": 1.94,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.870",
+          "line": "1.0",
+          "away": "0.970"
+        },
+        "total_goals": {
+          "over": "0.920",
+          "line": "2.5",
+          "under": "0.920"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 93%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 -1.00"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "乌梅西特 （中） vs 萨普里萨",
+      "ybty_match": "乌梅西特 vs 萨普里萨",
+      "ybty_home": "乌梅西特",
+      "ybty_away": "萨普里萨",
+      "league": "中美洲杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 71.5,
+      "match_confidence": 0.9444,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 3.35,
+          "draw_odds": 3.0,
+          "away_odds": 2.02,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.5,
+          "away_line": -0.5,
+          "home_odds": 1.82,
+          "away_odds": 2.02,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 2.0,
+          "under_odds": 1.82,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.850",
+          "line": "-0.5",
+          "away": "0.950"
+        },
+        "total_goals": {
+          "over": "0.970",
+          "line": "2.5",
+          "under": "0.820"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 94%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 +0.50"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "路易斯维尔FC vs 伯明翰军团",
+      "ybty_match": "路易斯维尔城 vs 伯明翰军团",
+      "ybty_home": "路易斯维尔城",
+      "ybty_away": "伯明翰军团",
+      "league": "美冠",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 07:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 70.0,
+      "match_confidence": 0.8846,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.35,
+          "draw_odds": 4.65,
+          "away_odds": 5.9,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -1.25,
+          "away_line": 1.25,
+          "home_odds": 1.8,
+          "away_odds": 2.02,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 3.25,
+          "over_odds": 2.02,
+          "under_odds": 1.78,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.820",
+          "line": "1.25",
+          "away": "0.970"
+        },
+        "total_goals": {
+          "over": "1.000",
+          "line": "3.25",
+          "under": "0.800"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 88%",
+        "总进球线：YBTY 3.25 / 雷速 3.25",
+        "YBTY主队让球线 -1.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "科尔多瓦学院 vs 普拉滕斯",
+      "ybty_match": "科尔多瓦学院 vs 普拉滕斯竞技",
+      "ybty_home": "科尔多瓦学院",
+      "ybty_away": "普拉滕斯竞技",
+      "league": "阿甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 70.0,
+      "match_confidence": 0.9,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.09,
+          "draw_odds": 3.1,
+          "away_odds": 3.95,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.5,
+          "away_line": 0.5,
+          "home_odds": 2.09,
+          "away_odds": 1.81,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.0,
+          "over_odds": 2.11,
+          "under_odds": 1.78,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "1.020",
+          "line": "0.5",
+          "away": "0.770"
+        },
+        "total_goals": {
+          "over": "0.770",
+          "line": "1.75",
+          "under": "1.020"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 90%",
+        "总进球线：YBTY 2.00 / 雷速 1.75",
+        "YBTY主队让球线 -0.50"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "艾斯卡迪斯 （中） vs 瓦杜兹",
+      "ybty_match": "艾斯卡迪斯竞技 vs 瓦杜兹",
+      "ybty_home": "艾斯卡迪斯竞技",
+      "ybty_away": "瓦杜兹",
+      "league": "欧协联",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 22:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 70.0,
+      "match_confidence": 0.8846,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 4.85,
+          "draw_odds": 4.0,
+          "away_odds": 1.5,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 1.0,
+          "away_line": -1.0,
+          "home_odds": 1.88,
+          "away_odds": 1.94,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.75,
+          "over_odds": 1.9,
+          "under_odds": 1.9,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.900",
+          "line": "-1.0",
+          "away": "0.900"
+        },
+        "total_goals": {
+          "over": "0.900",
+          "line": "2.75",
+          "under": "0.900"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 88%",
+        "总进球线：YBTY 2.75 / 雷速 2.75",
+        "YBTY主队让球线 +1.00"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "弗鲁米嫩塞 vs 巴伊亚",
+      "ybty_match": "弗鲁米嫩塞 vs 巴伊亚BA",
+      "ybty_home": "弗鲁米嫩塞",
+      "ybty_away": "巴伊亚BA",
+      "league": "巴西甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 69.2,
+      "match_confidence": 0.875,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.76,
+          "draw_odds": 3.75,
+          "away_odds": 4.5,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.75,
+          "away_line": 0.75,
+          "home_odds": 2.0,
+          "away_odds": 1.9,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.8,
+          "under_odds": 2.08,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.920",
+          "line": "0.75",
+          "away": "0.920"
+        },
+        "total_goals": {
+          "over": "0.870",
+          "line": "2.5",
+          "under": "0.970"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 88%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 -0.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "海湾女足 vs 哥谭女足",
+      "ybty_match": "海湾(女) vs 哥谭(女)",
+      "ybty_home": "海湾(女)",
+      "ybty_away": "哥谭(女)",
+      "league": "美女职",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 10:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 69.2,
+      "match_confidence": 0.8571,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 3.95,
+          "draw_odds": 3.5,
+          "away_odds": 1.71,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.75,
+          "away_line": -0.75,
+          "home_odds": 1.84,
+          "away_odds": 1.94,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.75,
+          "over_odds": 1.82,
+          "under_odds": 1.96,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.770",
+          "line": "-1.0",
+          "away": "1.020"
+        },
+        "total_goals": {
+          "over": "1.020",
+          "line": "3.0",
+          "under": "0.770"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 86%",
+        "总进球线：YBTY 2.75 / 雷速 3.00",
+        "YBTY主队让球线 +0.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "温哥华崛起女足 vs 蒙特利尔玫瑰女足",
+      "ybty_match": "温哥华崛起FC(女) vs 蒙特利尔玫瑰(女)",
+      "ybty_home": "温哥华崛起FC(女)",
+      "ybty_away": "蒙特利尔玫瑰(女)",
+      "league": "加北女超",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 10:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 69.2,
+      "match_confidence": 0.8667,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 3.55,
+          "draw_odds": 3.9,
+          "away_odds": 1.7,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.75,
+          "away_line": -0.75,
+          "home_odds": 1.77,
+          "away_odds": 1.91,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 3.25,
+          "over_odds": 1.86,
+          "under_odds": 1.82,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.820",
+          "line": "-0.75",
+          "away": "0.970"
+        },
+        "total_goals": {
+          "over": "0.900",
+          "line": "3.25",
+          "under": "0.900"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 87%",
+        "总进球线：YBTY 3.25 / 雷速 3.25",
+        "YBTY主队让球线 +0.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "乌金学院 vs RTC",
+      "ybty_match": "乌金学院 vs RTC学院",
+      "ybty_home": "乌金学院",
+      "ybty_away": "RTC学院",
+      "league": "不丹超",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 17:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 69.2,
+      "match_confidence": 0.875,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 7.3,
+          "draw_odds": 5.5,
+          "away_odds": 1.19,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 1.75,
+          "away_line": -1.75,
+          "home_odds": 1.93,
+          "away_odds": 1.75,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 3.75,
+          "over_odds": 1.93,
+          "under_odds": 1.75,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.850",
+          "line": "-1.75",
+          "away": "0.950"
+        },
+        "total_goals": {
+          "over": "0.820",
+          "line": "3.5",
+          "under": "0.970"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 88%",
+        "总进球线：YBTY 3.75 / 雷速 3.50",
+        "YBTY主队让球线 +1.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "帕尔梅拉斯女足 vs 科林蒂安女足",
+      "ybty_match": "帕尔梅拉斯SP(女) vs 科林蒂安(女)",
+      "ybty_home": "帕尔梅拉斯SP(女)",
+      "ybty_away": "科林蒂安(女)",
+      "league": "巴圣女联",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 06:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 68.5,
+      "match_confidence": 0.8545,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.18,
+          "draw_odds": 3.4,
+          "away_odds": 2.7,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.25,
+          "away_line": 0.25,
+          "home_odds": 1.99,
+          "away_odds": 1.79,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.83,
+          "under_odds": 1.95,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "1.000",
+          "line": "0.25",
+          "away": "0.800"
+        },
+        "total_goals": {
+          "over": "1.020",
+          "line": "2.5",
+          "under": "0.770"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 85%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 -0.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "阿拉胡埃伦斯 vs 夏拉祖",
+      "ybty_match": "阿拉胡埃拉人 vs 夏拉祖",
+      "ybty_home": "阿拉胡埃拉人",
+      "ybty_away": "夏拉祖",
+      "league": "中美洲杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 10:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 68.5,
+      "match_confidence": 0.8333,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.69,
+          "draw_odds": 3.0,
+          "away_odds": 4.95,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.75,
+          "away_line": 0.75,
+          "home_odds": 1.94,
+          "away_odds": 1.9,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.0,
+          "over_odds": 1.76,
+          "under_odds": 2.06,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.870",
+          "line": "0.75",
+          "away": "0.920"
+        },
+        "total_goals": {
+          "over": "0.770",
+          "line": "2.0",
+          "under": "1.020"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 83%",
+        "总进球线：YBTY 2.00 / 雷速 2.00",
+        "YBTY主队让球线 -0.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "维多利亚 vs 帕尔梅拉斯",
+      "ybty_match": "维多利亚BA vs 帕尔梅拉斯SP",
+      "ybty_home": "维多利亚BA",
+      "ybty_away": "帕尔梅拉斯SP",
+      "league": "巴西甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "C",
+      "model_score": 67.8,
+      "match_confidence": 0.8167,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 3.6,
+          "draw_odds": 3.35,
+          "away_odds": 2.07,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.5,
+          "away_line": -0.5,
+          "home_odds": 1.82,
+          "away_odds": 2.08,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.25,
+          "over_odds": 1.99,
+          "under_odds": 1.89,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.800",
+          "line": "-0.5",
+          "away": "1.050"
+        },
+        "total_goals": {
+          "over": "1.020",
+          "line": "2.25",
+          "under": "0.820"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 82%",
+        "总进球线：YBTY 2.25 / 雷速 2.25",
+        "YBTY主队让球线 +0.50"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "美职联明星队 vs 墨西超明星队",
+      "ybty_match": "美国足球职业大联盟明星队 vs 墨西哥超级联赛明星队",
+      "ybty_home": "美国足球职业大联盟明星队",
+      "ybty_away": "墨西哥超级联赛明星队",
+      "league": "美职联全明星",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "C",
+      "model_score": 61.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.11,
+          "draw_odds": 4.55,
+          "away_odds": 2.55,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.25,
+          "away_line": 0.25,
+          "home_odds": 1.92,
+          "away_odds": 1.96,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 4.75,
+          "over_odds": 1.8,
+          "under_odds": 2.06,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "1.020",
+          "line": "0.25",
+          "away": "0.770"
+        },
+        "total_goals": {
+          "over": "0.900",
+          "line": "3.5",
+          "under": "0.900"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 4.75 / 雷速 3.50",
+        "YBTY主队让球线 -0.25"
+      ],
+      "risks": [
+        "两个来源的总进球线差异超过0.5球",
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "符拉迪沃斯托克安里 vs 巴尔瑙尔迪纳摩",
+      "ybty_match": "安里弗拉迪沃斯托克 vs 巴尔瑙尔戴拿模",
+      "ybty_home": "安里弗拉迪沃斯托克",
+      "ybty_away": "巴尔瑙尔戴拿模",
+      "league": "俄杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 17:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "C",
+      "model_score": 61.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 7.1,
+          "draw_odds": 5.7,
+          "away_odds": 1.24,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 1.75,
+          "away_line": -1.75,
+          "home_odds": 1.96,
+          "away_odds": 1.88,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 3.75,
+          "over_odds": 1.87,
+          "under_odds": 1.95,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": null,
+          "line": null,
+          "away": null
+        },
+        "total_goals": {
+          "over": null,
+          "line": null,
+          "under": null
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "YBTY主队让球线 +1.75"
+      ],
+      "risks": [
+        "雷速未提供可解析的总进球参考线",
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "巴尔瑙尔节奏 vs KDV托木斯克",
+      "ybty_match": "巴尔瑙尔坦佩 vs KDV托木斯克",
+      "ybty_home": "巴尔瑙尔坦佩",
+      "ybty_away": "KDV托木斯克",
+      "league": "俄杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 20:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "C",
+      "model_score": 56.5,
+      "match_confidence": 0.8333,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 6.4,
+          "draw_odds": 5.2,
+          "away_odds": 1.29,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 1.5,
+          "away_line": -1.5,
+          "home_odds": 1.98,
+          "away_odds": 1.86,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 3.5,
+          "over_odds": 1.86,
+          "under_odds": 1.96,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": null,
+          "line": null,
+          "away": null
+        },
+        "total_goals": {
+          "over": null,
+          "line": null,
+          "under": null
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 83%",
+        "YBTY主队让球线 +1.50"
+      ],
+      "risks": [
+        "雷速未提供可解析的总进球参考线",
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "犹他王室女足 vs 华盛顿精神女足",
+      "ybty_match": "犹他皇家(女) vs 华盛顿思比瑞特(女)",
+      "ybty_home": "犹他皇家(女)",
+      "ybty_away": "华盛顿思比瑞特(女)",
+      "league": "美女职",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 09:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "C",
+      "model_score": 51.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": null,
+          "draw_odds": null,
+          "away_odds": null,
+          "home_suspended": true,
+          "draw_suspended": true,
+          "away_suspended": true
+        },
+        "spread": {
+          "home_line": null,
+          "away_line": null,
+          "home_odds": null,
+          "away_odds": null,
+          "home_suspended": true,
+          "away_suspended": true
+        },
+        "total": {
+          "line": null,
+          "over_odds": null,
+          "under_odds": null,
+          "over_suspended": true,
+          "under_suspended": true
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.770",
+          "line": "-0.25",
+          "away": "1.020"
+        },
+        "total_goals": {
+          "over": "0.820",
+          "line": "2.75",
+          "under": "0.970"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    }
+  ],
+  "single_best": null,
+  "parlay_5x": null,
+  "decisions": [
+    {
+      "match": "维诺廷托FC vs 圣安东尼奥(ECU)",
+      "ybty_match": "维诺廷托 vs 圣安东尼奥伊瓦拉",
+      "ybty_home": "维诺廷托",
+      "ybty_away": "圣安东尼奥伊瓦拉",
+      "league": "厄瓜乙",
+      "start_time": "2026-07-29T20:29:30.123000Z",
+      "ybty_start_time": "2026-07-29T20:29:30.123000Z",
+      "ybty_start_time_beijing": "2026-07-30 04:29",
+      "start_time_source": "YBTY",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.68,
+          "draw_odds": 3.1,
+          "away_odds": 4.85,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.75,
+          "away_line": 0.75,
+          "home_odds": 1.84,
+          "away_odds": 1.94,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.25,
+          "over_odds": 2.02,
+          "under_odds": 1.76,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.900",
+          "line": "0.75",
+          "away": "0.900"
+        },
+        "total_goals": {
+          "over": "1.000",
+          "line": "2.25",
+          "under": "0.800"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.25 / 雷速 2.25",
+        "YBTY主队让球线 -0.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "巴拉圭民族 vs 亚松森奥林匹亚",
+      "ybty_match": "亚松森国民 vs 亚松森奥林匹亚",
+      "ybty_home": "亚松森国民",
+      "ybty_away": "亚松森奥林匹亚",
+      "league": "巴拉甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 05:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 3.05,
+          "draw_odds": 3.05,
+          "away_odds": 2.27,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.25,
+          "away_line": -0.25,
+          "home_odds": 1.9,
+          "away_odds": 1.96,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.25,
+          "over_odds": 1.88,
+          "under_odds": 1.96,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.850",
+          "line": "-0.25",
+          "away": "0.950"
+        },
+        "total_goals": {
+          "over": "0.850",
+          "line": "2.25",
+          "under": "0.950"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.25 / 雷速 2.25",
+        "YBTY主队让球线 +0.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "国际帕尔米拉 vs 波哥大国际",
+      "ybty_match": "帕尔米拉国际 vs 国际波哥大",
+      "ybty_home": "帕尔米拉国际",
+      "ybty_away": "国际波哥大",
+      "league": "哥伦杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 06:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.44,
+          "draw_odds": 3.25,
+          "away_odds": 2.45,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.0,
+          "away_line": 0.0,
+          "home_odds": 1.91,
+          "away_odds": 1.93,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 2.02,
+          "under_odds": 1.8,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.900",
+          "line": "0.0",
+          "away": "0.900"
+        },
+        "total_goals": {
+          "over": "1.000",
+          "line": "2.5",
+          "under": "0.800"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 +0.00"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "拉普拉塔体操 vs 河床",
+      "ybty_match": "拉普拉塔体操 vs 河床",
+      "ybty_home": "拉普拉塔体操",
+      "ybty_away": "河床",
+      "league": "阿甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 06:15",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 4.0,
+          "draw_odds": 3.2,
+          "away_odds": 2.04,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.5,
+          "away_line": -0.5,
+          "home_odds": 1.86,
+          "away_odds": 2.04,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.0,
+          "over_odds": 1.97,
+          "under_odds": 1.91,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.800",
+          "line": "-0.5",
+          "away": "1.000"
+        },
+        "total_goals": {
+          "over": "0.900",
+          "line": "2.0",
+          "under": "0.900"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.00 / 雷速 2.00",
+        "YBTY主队让球线 +0.50"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "巴西国际 vs 弗拉门戈",
+      "ybty_match": "巴西国际 vs 弗拉门戈",
+      "ybty_home": "巴西国际",
+      "ybty_away": "弗拉门戈",
+      "league": "巴西甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 06:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 3.75,
+          "draw_odds": 3.6,
+          "away_odds": 1.94,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.5,
+          "away_line": -0.5,
+          "home_odds": 1.9,
+          "away_odds": 2.0,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.99,
+          "under_odds": 1.89,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.800",
+          "line": "-0.5",
+          "away": "1.050"
+        },
+        "total_goals": {
+          "over": "1.000",
+          "line": "2.5",
+          "under": "0.850"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 +0.50"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "米拉索 vs 雷莫",
+      "ybty_match": "迈拉索尔SP vs 雷默PA",
+      "ybty_home": "迈拉索尔SP",
+      "ybty_away": "雷默PA",
+      "league": "巴西甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 06:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.65,
+          "draw_odds": 4.05,
+          "away_odds": 4.8,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.75,
+          "away_line": 0.75,
+          "home_odds": 1.84,
+          "away_odds": 2.06,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.89,
+          "under_odds": 1.99,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.850",
+          "line": "0.75",
+          "away": "1.000"
+        },
+        "total_goals": {
+          "over": "0.870",
+          "line": "2.5",
+          "under": "0.970"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 -0.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "巴瑞库拉 vs 巴兰基亚青年",
+      "ybty_match": "巴瑞库拉 vs 巴兰基亚青年",
+      "ybty_home": "巴瑞库拉",
+      "ybty_away": "巴兰基亚青年",
+      "league": "哥伦杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 06:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 4.5,
+          "draw_odds": 3.3,
+          "away_odds": 1.67,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.75,
+          "away_line": -0.75,
+          "home_odds": 1.96,
+          "away_odds": 1.88,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.9,
+          "under_odds": 1.92,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.900",
+          "line": "-1.0",
+          "away": "0.900"
+        },
+        "total_goals": {
+          "over": "0.870",
+          "line": "2.5",
+          "under": "0.920"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 +0.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "戈亚尼亚 vs 格雷米奥阿纳波利斯",
+      "ybty_match": "戈亚尼亚GO vs 甘美奥阿纳波利斯GO",
+      "ybty_home": "戈亚尼亚GO",
+      "ybty_away": "甘美奥阿纳波利斯GO",
+      "league": "巴戈乙",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 06:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.46,
+          "draw_odds": 3.6,
+          "away_odds": 6.1,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -1.0,
+          "away_line": 1.0,
+          "home_odds": 1.99,
+          "away_odds": 1.79,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.0,
+          "over_odds": 1.79,
+          "under_odds": 1.99,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "1.020",
+          "line": "1.0",
+          "away": "0.770"
+        },
+        "total_goals": {
+          "over": "0.900",
+          "line": "2.0",
+          "under": "0.900"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.00 / 雷速 2.00",
+        "YBTY主队让球线 -1.00"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "格林维勒FC vs 博伊西AC",
+      "ybty_match": "格林维尔凯旋 vs 博伊西",
+      "ybty_home": "格林维尔凯旋",
+      "ybty_away": "博伊西",
+      "league": "美甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 07:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.73,
+          "draw_odds": 3.45,
+          "away_odds": 2.15,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.25,
+          "away_line": -0.25,
+          "home_odds": 1.85,
+          "away_odds": 1.99,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.81,
+          "under_odds": 2.01,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.850",
+          "line": "-0.25",
+          "away": "0.950"
+        },
+        "total_goals": {
+          "over": "0.800",
+          "line": "2.5",
+          "under": "1.000"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 +0.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "莫林荷斯 vs 邦热苏斯",
+      "ybty_match": "莫林荷斯GO vs 仁慈耶稣GO",
+      "ybty_home": "莫林荷斯GO",
+      "ybty_away": "仁慈耶稣GO",
+      "league": "巴戈乙",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 07:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.52,
+          "draw_odds": 2.9,
+          "away_odds": 2.63,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.0,
+          "away_line": 0.0,
+          "home_odds": 1.84,
+          "away_odds": 1.94,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 1.75,
+          "over_odds": 1.74,
+          "under_odds": 2.04,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.770",
+          "line": "0.0",
+          "away": "1.020"
+        },
+        "total_goals": {
+          "over": "1.020",
+          "line": "2.0",
+          "under": "0.770"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 1.75 / 雷速 2.00",
+        "YBTY主队让球线 +0.00"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "利梅诺 vs 印加阿鲁巴",
+      "ybty_match": "利梅诺市 vs CD印加",
+      "ybty_home": "利梅诺市",
+      "ybty_away": "CD印加",
+      "league": "萨尔超",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 07:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.31,
+          "draw_odds": 4.55,
+          "away_odds": 6.9,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -1.25,
+          "away_line": 1.25,
+          "home_odds": 1.78,
+          "away_odds": 2.0,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.75,
+          "over_odds": 1.88,
+          "under_odds": 1.9,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "1.000",
+          "line": "1.5",
+          "away": "0.800"
+        },
+        "total_goals": {
+          "over": "0.850",
+          "line": "2.75",
+          "under": "0.950"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.75 / 雷速 2.75",
+        "YBTY主队让球线 -1.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "利物浦 （中） vs 雷克瑟姆",
+      "ybty_match": "利物浦 vs 威斯汉姆",
+      "ybty_home": "利物浦",
+      "ybty_away": "威斯汉姆",
+      "league": "球会友谊",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 07:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.35,
+          "draw_odds": 5.5,
+          "away_odds": 6.1,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -1.5,
+          "away_line": 1.5,
+          "home_odds": 1.92,
+          "away_odds": 1.94,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 3.75,
+          "over_odds": 1.86,
+          "under_odds": 1.98,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.970",
+          "line": "1.5",
+          "away": "0.820"
+        },
+        "total_goals": {
+          "over": "0.850",
+          "line": "3.75",
+          "under": "0.950"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 3.75 / 雷速 3.75",
+        "YBTY主队让球线 -1.50"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "美职联明星队 vs 墨西超明星队",
+      "ybty_match": "美国足球职业大联盟明星队 vs 墨西哥超级联赛明星队",
+      "ybty_home": "美国足球职业大联盟明星队",
+      "ybty_away": "墨西哥超级联赛明星队",
+      "league": "美职联全明星",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "C",
+      "model_score": 61.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.11,
+          "draw_odds": 4.55,
+          "away_odds": 2.55,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.25,
+          "away_line": 0.25,
+          "home_odds": 1.92,
+          "away_odds": 1.96,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 4.75,
+          "over_odds": 1.8,
+          "under_odds": 2.06,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "1.020",
+          "line": "0.25",
+          "away": "0.770"
+        },
+        "total_goals": {
+          "over": "0.900",
+          "line": "3.5",
+          "under": "0.900"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 4.75 / 雷速 3.50",
+        "YBTY主队让球线 -0.25"
+      ],
+      "risks": [
+        "两个来源的总进球线差异超过0.5球",
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "麦迪逊前锋足球俱乐部 vs 查塔努加红狼",
+      "ybty_match": "前锋麦迪逊 vs 查塔努加红狼",
+      "ybty_home": "前锋麦迪逊",
+      "ybty_away": "查塔努加红狼",
+      "league": "美甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.05,
+          "draw_odds": 3.1,
+          "away_odds": 3.15,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.5,
+          "away_line": 0.5,
+          "home_odds": 2.05,
+          "away_odds": 1.79,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.9,
+          "under_odds": 1.92,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.850",
+          "line": "0.25",
+          "away": "0.950"
+        },
+        "total_goals": {
+          "over": "0.950",
+          "line": "2.5",
+          "under": "0.850"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 -0.50"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "西恩夏诺 vs 拉努斯",
+      "ybty_match": "西恩夏诺 vs 拉努斯",
+      "ybty_home": "西恩夏诺",
+      "ybty_away": "拉努斯",
+      "league": "南美杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.23,
+          "draw_odds": 3.15,
+          "away_odds": 3.1,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.25,
+          "away_line": 0.25,
+          "home_odds": 1.93,
+          "away_odds": 1.95,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.25,
+          "over_odds": 1.99,
+          "under_odds": 1.87,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.900",
+          "line": "0.25",
+          "away": "0.950"
+        },
+        "total_goals": {
+          "over": "0.920",
+          "line": "2.25",
+          "under": "0.920"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.25 / 雷速 2.25",
+        "YBTY主队让球线 -0.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "布拉干蒂诺RB vs 水晶竞技",
+      "ybty_match": "布拉甘蒂诺红牛SP vs 水晶体育",
+      "ybty_home": "布拉甘蒂诺红牛SP",
+      "ybty_away": "水晶体育",
+      "league": "南美杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.29,
+          "draw_odds": 5.3,
+          "away_odds": 8.4,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -1.5,
+          "away_line": 1.5,
+          "home_odds": 1.9,
+          "away_odds": 1.98,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 3.0,
+          "over_odds": 2.01,
+          "under_odds": 1.85,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.870",
+          "line": "1.5",
+          "away": "0.970"
+        },
+        "total_goals": {
+          "over": "0.970",
+          "line": "3.0",
+          "under": "0.870"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 3.00 / 雷速 3.00",
+        "YBTY主队让球线 -1.50"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "卡塔根纳 vs 卡利美洲",
+      "ybty_match": "喀他基那 vs 卡利美洲",
+      "ybty_home": "喀他基那",
+      "ybty_away": "卡利美洲",
+      "league": "哥伦杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 09:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 3.0,
+          "draw_odds": 3.05,
+          "away_odds": 2.14,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.25,
+          "away_line": -0.25,
+          "home_odds": 1.96,
+          "away_odds": 1.88,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.25,
+          "over_odds": 1.78,
+          "under_odds": 2.04,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.950",
+          "line": "0.0",
+          "away": "0.850"
+        },
+        "total_goals": {
+          "over": "1.000",
+          "line": "2.5",
+          "under": "0.800"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.25 / 雷速 2.50",
+        "YBTY主队让球线 +0.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "犹他王室女足 vs 华盛顿精神女足",
+      "ybty_match": "犹他皇家(女) vs 华盛顿思比瑞特(女)",
+      "ybty_home": "犹他皇家(女)",
+      "ybty_away": "华盛顿思比瑞特(女)",
+      "league": "美女职",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 09:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "C",
+      "model_score": 51.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": null,
+          "draw_odds": null,
+          "away_odds": null,
+          "home_suspended": true,
+          "draw_suspended": true,
+          "away_suspended": true
+        },
+        "spread": {
+          "home_line": null,
+          "away_line": null,
+          "home_odds": null,
+          "away_odds": null,
+          "home_suspended": true,
+          "away_suspended": true
+        },
+        "total": {
+          "line": null,
+          "over_odds": null,
+          "under_odds": null,
+          "over_suspended": true,
+          "under_suspended": true
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.770",
+          "line": "-0.25",
+          "away": "1.020"
+        },
+        "total_goals": {
+          "over": "0.820",
+          "line": "2.75",
+          "under": "0.970"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "路斯天使 vs 旧金山富尔特",
+      "ybty_match": "菲尔波 vs 旧金山富尔特",
+      "ybty_home": "菲尔波",
+      "ybty_away": "旧金山富尔特",
+      "league": "萨尔超",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 09:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.38,
+          "draw_odds": 4.1,
+          "away_odds": 6.4,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -1.25,
+          "away_line": 1.25,
+          "home_odds": 1.99,
+          "away_odds": 1.79,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.97,
+          "under_odds": 1.81,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "1.020",
+          "line": "1.25",
+          "away": "0.770"
+        },
+        "total_goals": {
+          "over": "0.870",
+          "line": "2.5",
+          "under": "0.920"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 -1.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "圣萨尔瓦多联盟 vs 安提瓜GFC",
+      "ybty_match": "联盟FC vs 安提瓜GFC",
+      "ybty_home": "联盟FC",
+      "ybty_away": "安提瓜GFC",
+      "league": "中美洲杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 10:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.76,
+          "draw_odds": 3.05,
+          "away_odds": 2.3,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.25,
+          "away_line": -0.25,
+          "home_odds": 1.76,
+          "away_odds": 2.08,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.0,
+          "over_odds": 1.77,
+          "under_odds": 2.05,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.750",
+          "line": "-0.25",
+          "away": "1.050"
+        },
+        "total_goals": {
+          "over": "0.750",
+          "line": "2.0",
+          "under": "1.050"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.00 / 雷速 2.00",
+        "YBTY主队让球线 +0.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "符拉迪沃斯托克安里 vs 巴尔瑙尔迪纳摩",
+      "ybty_match": "安里弗拉迪沃斯托克 vs 巴尔瑙尔戴拿模",
+      "ybty_home": "安里弗拉迪沃斯托克",
+      "ybty_away": "巴尔瑙尔戴拿模",
+      "league": "俄杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 17:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "C",
+      "model_score": 61.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 7.1,
+          "draw_odds": 5.7,
+          "away_odds": 1.24,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 1.75,
+          "away_line": -1.75,
+          "home_odds": 1.96,
+          "away_odds": 1.88,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 3.75,
+          "over_odds": 1.87,
+          "under_odds": 1.95,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": null,
+          "line": null,
+          "away": null
+        },
+        "total_goals": {
+          "over": null,
+          "line": null,
+          "under": null
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "YBTY主队让球线 +1.75"
+      ],
+      "risks": [
+        "雷速未提供可解析的总进球参考线",
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "杜保尔 vs 帕尼维斯",
+      "ybty_match": "杜保尔 vs 帕纳瓦兹",
+      "ybty_home": "杜保尔",
+      "ybty_away": "帕纳瓦兹",
+      "league": "欧协联",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 22:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 73.8,
+      "match_confidence": 1.0,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.21,
+          "draw_odds": 5.1,
+          "away_odds": 9.4,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -1.75,
+          "away_line": 1.75,
+          "home_odds": 2.02,
+          "away_odds": 1.8,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.75,
+          "over_odds": 1.96,
+          "under_odds": 1.84,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "1.000",
+          "line": "1.75",
+          "away": "0.800"
+        },
+        "total_goals": {
+          "over": "0.900",
+          "line": "2.75",
+          "under": "0.900"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 100%",
+        "总进球线：YBTY 2.75 / 雷速 2.75",
+        "YBTY主队让球线 -1.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "加拿大U20 （中） vs 洪都拉斯U20",
+      "ybty_match": "加拿大U20 vs 洪都拉斯U20",
+      "ybty_home": "加拿大U20",
+      "ybty_away": "洪都拉斯U20",
+      "league": "美青杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 09:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 72.2,
+      "match_confidence": 0.9615,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.07,
+          "draw_odds": 3.35,
+          "away_odds": 2.91,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.25,
+          "away_line": 0.25,
+          "home_odds": 1.84,
+          "away_odds": 1.94,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.75,
+          "over_odds": 1.93,
+          "under_odds": 1.85,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.800",
+          "line": "0.25",
+          "away": "1.000"
+        },
+        "total_goals": {
+          "over": "0.950",
+          "line": "2.75",
+          "under": "0.850"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 96%",
+        "总进球线：YBTY 2.75 / 雷速 2.75",
+        "YBTY主队让球线 -0.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "瓦斯科达伽马 vs 麦德林独立",
+      "ybty_match": "瓦斯科达伽马RJ vs 麦德林独立",
+      "ybty_home": "瓦斯科达伽马RJ",
+      "ybty_away": "麦德林独立",
+      "league": "南美杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 06:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 71.5,
+      "match_confidence": 0.9286,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.49,
+          "draw_odds": 4.15,
+          "away_odds": 5.8,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -1.0,
+          "away_line": 1.0,
+          "home_odds": 1.88,
+          "away_odds": 2.0,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.92,
+          "under_odds": 1.94,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.870",
+          "line": "1.0",
+          "away": "0.970"
+        },
+        "total_goals": {
+          "over": "0.920",
+          "line": "2.5",
+          "under": "0.920"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 93%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 -1.00"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "乌梅西特 （中） vs 萨普里萨",
+      "ybty_match": "乌梅西特 vs 萨普里萨",
+      "ybty_home": "乌梅西特",
+      "ybty_away": "萨普里萨",
+      "league": "中美洲杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 71.5,
+      "match_confidence": 0.9444,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 3.35,
+          "draw_odds": 3.0,
+          "away_odds": 2.02,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.5,
+          "away_line": -0.5,
+          "home_odds": 1.82,
+          "away_odds": 2.02,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 2.0,
+          "under_odds": 1.82,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.850",
+          "line": "-0.5",
+          "away": "0.950"
+        },
+        "total_goals": {
+          "over": "0.970",
+          "line": "2.5",
+          "under": "0.820"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 94%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 +0.50"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "路易斯维尔FC vs 伯明翰军团",
+      "ybty_match": "路易斯维尔城 vs 伯明翰军团",
+      "ybty_home": "路易斯维尔城",
+      "ybty_away": "伯明翰军团",
+      "league": "美冠",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 07:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 70.0,
+      "match_confidence": 0.8846,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.35,
+          "draw_odds": 4.65,
+          "away_odds": 5.9,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -1.25,
+          "away_line": 1.25,
+          "home_odds": 1.8,
+          "away_odds": 2.02,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 3.25,
+          "over_odds": 2.02,
+          "under_odds": 1.78,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.820",
+          "line": "1.25",
+          "away": "0.970"
+        },
+        "total_goals": {
+          "over": "1.000",
+          "line": "3.25",
+          "under": "0.800"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 88%",
+        "总进球线：YBTY 3.25 / 雷速 3.25",
+        "YBTY主队让球线 -1.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "科尔多瓦学院 vs 普拉滕斯",
+      "ybty_match": "科尔多瓦学院 vs 普拉滕斯竞技",
+      "ybty_home": "科尔多瓦学院",
+      "ybty_away": "普拉滕斯竞技",
+      "league": "阿甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 70.0,
+      "match_confidence": 0.9,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.09,
+          "draw_odds": 3.1,
+          "away_odds": 3.95,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.5,
+          "away_line": 0.5,
+          "home_odds": 2.09,
+          "away_odds": 1.81,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.0,
+          "over_odds": 2.11,
+          "under_odds": 1.78,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "1.020",
+          "line": "0.5",
+          "away": "0.770"
+        },
+        "total_goals": {
+          "over": "0.770",
+          "line": "1.75",
+          "under": "1.020"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 90%",
+        "总进球线：YBTY 2.00 / 雷速 1.75",
+        "YBTY主队让球线 -0.50"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "艾斯卡迪斯 （中） vs 瓦杜兹",
+      "ybty_match": "艾斯卡迪斯竞技 vs 瓦杜兹",
+      "ybty_home": "艾斯卡迪斯竞技",
+      "ybty_away": "瓦杜兹",
+      "league": "欧协联",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 22:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 70.0,
+      "match_confidence": 0.8846,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 4.85,
+          "draw_odds": 4.0,
+          "away_odds": 1.5,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 1.0,
+          "away_line": -1.0,
+          "home_odds": 1.88,
+          "away_odds": 1.94,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.75,
+          "over_odds": 1.9,
+          "under_odds": 1.9,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.900",
+          "line": "-1.0",
+          "away": "0.900"
+        },
+        "total_goals": {
+          "over": "0.900",
+          "line": "2.75",
+          "under": "0.900"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 88%",
+        "总进球线：YBTY 2.75 / 雷速 2.75",
+        "YBTY主队让球线 +1.00"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "弗鲁米嫩塞 vs 巴伊亚",
+      "ybty_match": "弗鲁米嫩塞 vs 巴伊亚BA",
+      "ybty_home": "弗鲁米嫩塞",
+      "ybty_away": "巴伊亚BA",
+      "league": "巴西甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 69.2,
+      "match_confidence": 0.875,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.76,
+          "draw_odds": 3.75,
+          "away_odds": 4.5,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.75,
+          "away_line": 0.75,
+          "home_odds": 2.0,
+          "away_odds": 1.9,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.8,
+          "under_odds": 2.08,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.920",
+          "line": "0.75",
+          "away": "0.920"
+        },
+        "total_goals": {
+          "over": "0.870",
+          "line": "2.5",
+          "under": "0.970"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 88%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 -0.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "海湾女足 vs 哥谭女足",
+      "ybty_match": "海湾(女) vs 哥谭(女)",
+      "ybty_home": "海湾(女)",
+      "ybty_away": "哥谭(女)",
+      "league": "美女职",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 10:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 69.2,
+      "match_confidence": 0.8571,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 3.95,
+          "draw_odds": 3.5,
+          "away_odds": 1.71,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.75,
+          "away_line": -0.75,
+          "home_odds": 1.84,
+          "away_odds": 1.94,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.75,
+          "over_odds": 1.82,
+          "under_odds": 1.96,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.770",
+          "line": "-1.0",
+          "away": "1.020"
+        },
+        "total_goals": {
+          "over": "1.020",
+          "line": "3.0",
+          "under": "0.770"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 86%",
+        "总进球线：YBTY 2.75 / 雷速 3.00",
+        "YBTY主队让球线 +0.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "温哥华崛起女足 vs 蒙特利尔玫瑰女足",
+      "ybty_match": "温哥华崛起FC(女) vs 蒙特利尔玫瑰(女)",
+      "ybty_home": "温哥华崛起FC(女)",
+      "ybty_away": "蒙特利尔玫瑰(女)",
+      "league": "加北女超",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 10:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 69.2,
+      "match_confidence": 0.8667,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 3.55,
+          "draw_odds": 3.9,
+          "away_odds": 1.7,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.75,
+          "away_line": -0.75,
+          "home_odds": 1.77,
+          "away_odds": 1.91,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 3.25,
+          "over_odds": 1.86,
+          "under_odds": 1.82,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.820",
+          "line": "-0.75",
+          "away": "0.970"
+        },
+        "total_goals": {
+          "over": "0.900",
+          "line": "3.25",
+          "under": "0.900"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 87%",
+        "总进球线：YBTY 3.25 / 雷速 3.25",
+        "YBTY主队让球线 +0.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "乌金学院 vs RTC",
+      "ybty_match": "乌金学院 vs RTC学院",
+      "ybty_home": "乌金学院",
+      "ybty_away": "RTC学院",
+      "league": "不丹超",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 17:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 69.2,
+      "match_confidence": 0.875,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 7.3,
+          "draw_odds": 5.5,
+          "away_odds": 1.19,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 1.75,
+          "away_line": -1.75,
+          "home_odds": 1.93,
+          "away_odds": 1.75,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 3.75,
+          "over_odds": 1.93,
+          "under_odds": 1.75,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.850",
+          "line": "-1.75",
+          "away": "0.950"
+        },
+        "total_goals": {
+          "over": "0.820",
+          "line": "3.5",
+          "under": "0.970"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 88%",
+        "总进球线：YBTY 3.75 / 雷速 3.50",
+        "YBTY主队让球线 +1.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "帕尔梅拉斯女足 vs 科林蒂安女足",
+      "ybty_match": "帕尔梅拉斯SP(女) vs 科林蒂安(女)",
+      "ybty_home": "帕尔梅拉斯SP(女)",
+      "ybty_away": "科林蒂安(女)",
+      "league": "巴圣女联",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 06:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 68.5,
+      "match_confidence": 0.8545,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.18,
+          "draw_odds": 3.4,
+          "away_odds": 2.7,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.25,
+          "away_line": 0.25,
+          "home_odds": 1.99,
+          "away_odds": 1.79,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.5,
+          "over_odds": 1.83,
+          "under_odds": 1.95,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "1.000",
+          "line": "0.25",
+          "away": "0.800"
+        },
+        "total_goals": {
+          "over": "1.020",
+          "line": "2.5",
+          "under": "0.770"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 85%",
+        "总进球线：YBTY 2.50 / 雷速 2.50",
+        "YBTY主队让球线 -0.25"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "阿拉胡埃伦斯 vs 夏拉祖",
+      "ybty_match": "阿拉胡埃拉人 vs 夏拉祖",
+      "ybty_home": "阿拉胡埃拉人",
+      "ybty_away": "夏拉祖",
+      "league": "中美洲杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 10:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "B",
+      "model_score": 68.5,
+      "match_confidence": 0.8333,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.69,
+          "draw_odds": 3.0,
+          "away_odds": 4.95,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.75,
+          "away_line": 0.75,
+          "home_odds": 1.94,
+          "away_odds": 1.9,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.0,
+          "over_odds": 1.76,
+          "under_odds": 2.06,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.870",
+          "line": "0.75",
+          "away": "0.920"
+        },
+        "total_goals": {
+          "over": "0.770",
+          "line": "2.0",
+          "under": "1.020"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 83%",
+        "总进球线：YBTY 2.00 / 雷速 2.00",
+        "YBTY主队让球线 -0.75"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "巴尔瑙尔节奏 vs KDV托木斯克",
+      "ybty_match": "巴尔瑙尔坦佩 vs KDV托木斯克",
+      "ybty_home": "巴尔瑙尔坦佩",
+      "ybty_away": "KDV托木斯克",
+      "league": "俄杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 20:00",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "C",
+      "model_score": 56.5,
+      "match_confidence": 0.8333,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 6.4,
+          "draw_odds": 5.2,
+          "away_odds": 1.29,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 1.5,
+          "away_line": -1.5,
+          "home_odds": 1.98,
+          "away_odds": 1.86,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 3.5,
+          "over_odds": 1.86,
+          "under_odds": 1.96,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": null,
+          "line": null,
+          "away": null
+        },
+        "total_goals": {
+          "over": null,
+          "line": null,
+          "under": null
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 83%",
+        "YBTY主队让球线 +1.50"
+      ],
+      "risks": [
+        "雷速未提供可解析的总进球参考线",
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "维多利亚 vs 帕尔梅拉斯",
+      "ybty_match": "维多利亚BA vs 帕尔梅拉斯SP",
+      "ybty_home": "维多利亚BA",
+      "ybty_away": "帕尔梅拉斯SP",
+      "league": "巴西甲",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:30",
+      "start_time_source": "雷速补充",
+      "status": "RESEARCH",
+      "grade": "C",
+      "model_score": 67.8,
+      "match_confidence": 0.8167,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 3.6,
+          "draw_odds": 3.35,
+          "away_odds": 2.07,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.5,
+          "away_line": -0.5,
+          "home_odds": 1.82,
+          "away_odds": 2.08,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.25,
+          "over_odds": 1.99,
+          "under_odds": 1.89,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.800",
+          "line": "-0.5",
+          "away": "1.050"
+        },
+        "total_goals": {
+          "over": "1.020",
+          "line": "2.25",
+          "under": "0.820"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 82%",
+        "总进球线：YBTY 2.25 / 雷速 2.25",
+        "YBTY主队让球线 +0.50"
+      ],
+      "risks": [
+        "尚未核验积分战意、近期状态、首发伤停及当地媒体信息"
+      ],
+      "stop_conditions": [],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "匹兹堡猎犬河队 vs 塔尔萨钻机工",
+      "ybty_match": "匹兹堡猎犬河 vs 塔尔萨",
+      "ybty_home": "匹兹堡猎犬河",
+      "ybty_away": "塔尔萨",
+      "league": "美冠",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 07:00",
+      "start_time_source": "雷速补充",
+      "status": "PASS",
+      "grade": "C",
+      "model_score": 67.0,
+      "match_confidence": 0.7949,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.87,
+          "draw_odds": 2.97,
+          "away_odds": 3.95,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -0.5,
+          "away_line": 0.5,
+          "home_odds": 1.87,
+          "away_odds": 1.95,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.25,
+          "over_odds": 2.09,
+          "under_odds": 1.71,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.820",
+          "line": "0.5",
+          "away": "0.970"
+        },
+        "total_goals": {
+          "over": "0.750",
+          "line": "2.0",
+          "under": "1.050"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 79%",
+        "总进球线：YBTY 2.25 / 雷速 2.00",
+        "YBTY主队让球线 -0.50"
+      ],
+      "risks": [],
+      "stop_conditions": [
+        "球队名称匹配置信度不足80%"
+      ],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "堪萨斯城女足 vs 路易斯维尔竞赛女足",
+      "ybty_match": "堪萨斯城洋行(女) vs 路易斯维尔竞技(女)",
+      "ybty_home": "堪萨斯城洋行(女)",
+      "ybty_away": "路易斯维尔竞技(女)",
+      "league": "美女职",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:00",
+      "start_time_source": "雷速补充",
+      "status": "PASS",
+      "grade": "C",
+      "model_score": 67.0,
+      "match_confidence": 0.7964,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.41,
+          "draw_odds": 4.45,
+          "away_odds": 5.3,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -1.25,
+          "away_line": 1.25,
+          "home_odds": 1.96,
+          "away_odds": 1.82,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 3.0,
+          "over_odds": 1.78,
+          "under_odds": 2.0,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.970",
+          "line": "1.25",
+          "away": "0.820"
+        },
+        "total_goals": {
+          "over": "1.000",
+          "line": "3.25",
+          "under": "0.800"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 80%",
+        "总进球线：YBTY 3.00 / 雷速 3.25",
+        "YBTY主队让球线 -1.25"
+      ],
+      "risks": [],
+      "stop_conditions": [
+        "球队名称匹配置信度不足80%"
+      ],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "巴拉圭河床 vs 美洲太阳",
+      "ybty_match": "巴拉圭河床 vs 索尔美洲",
+      "ybty_home": "巴拉圭河床",
+      "ybty_away": "索尔美洲",
+      "league": "巴拉杯",
+      "start_time": "2026-07-29T20:59:30.681000Z",
+      "ybty_start_time": "2026-07-29T20:59:30.681000Z",
+      "ybty_start_time_beijing": "2026-07-30 04:59",
+      "start_time_source": "YBTY",
+      "status": "PASS",
+      "grade": "C",
+      "model_score": 65.5,
+      "match_confidence": 0.75,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 2.82,
+          "draw_odds": 3.1,
+          "away_odds": 2.23,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": 0.25,
+          "away_line": -0.25,
+          "home_odds": 1.79,
+          "away_odds": 2.03,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 2.25,
+          "over_odds": 2.01,
+          "under_odds": 1.79,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.800",
+          "line": "-0.25",
+          "away": "1.000"
+        },
+        "total_goals": {
+          "over": "1.000",
+          "line": "2.25",
+          "under": "0.800"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 75%",
+        "总进球线：YBTY 2.25 / 雷速 2.25",
+        "YBTY主队让球线 +0.25"
+      ],
+      "risks": [],
+      "stop_conditions": [
+        "球队名称匹配置信度不足80%"
+      ],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "费罗维里亚女足 vs 陶巴特女足",
+      "ybty_match": "费罗维里亚SP(女) vs 陶巴特SP(女)",
+      "ybty_home": "费罗维里亚SP(女)",
+      "ybty_away": "陶巴特SP(女)",
+      "league": "巴圣女联",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:00",
+      "start_time_source": "雷速补充",
+      "status": "PASS",
+      "grade": "C",
+      "model_score": 65.5,
+      "match_confidence": 0.7636,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.1,
+          "draw_odds": 7.0,
+          "away_odds": 14.0,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -2.25,
+          "away_line": 2.25,
+          "home_odds": 1.97,
+          "away_odds": 1.81,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 3.0,
+          "over_odds": 1.88,
+          "under_odds": 1.9,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.770",
+          "line": "2.0",
+          "away": "1.020"
+        },
+        "total_goals": {
+          "over": "0.920",
+          "line": "3.0",
+          "under": "0.870"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 76%",
+        "总进球线：YBTY 3.00 / 雷速 3.00",
+        "YBTY主队让球线 -2.25"
+      ],
+      "risks": [],
+      "stop_conditions": [
+        "球队名称匹配置信度不足80%"
+      ],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    },
+    {
+      "match": "山谷独立 vs 曼塔",
+      "ybty_match": "约森独立队 vs 曼塔",
+      "ybty_home": "约森独立队",
+      "ybty_away": "曼塔",
+      "league": "厄瓜杯",
+      "start_time": null,
+      "ybty_start_time": null,
+      "ybty_start_time_beijing": "2026-07-30 08:00",
+      "start_time_source": "雷速补充",
+      "status": "PASS",
+      "grade": "C",
+      "model_score": 64.0,
+      "match_confidence": 0.7222,
+      "ybty_markets": {
+        "h2h": {
+          "home_odds": 1.12,
+          "draw_odds": 6.5,
+          "away_odds": 12.0,
+          "home_suspended": false,
+          "draw_suspended": false,
+          "away_suspended": false
+        },
+        "spread": {
+          "home_line": -2.0,
+          "away_line": 2.0,
+          "home_odds": 1.81,
+          "away_odds": 2.03,
+          "home_suspended": false,
+          "away_suspended": false
+        },
+        "total": {
+          "line": 3.0,
+          "over_odds": 1.83,
+          "under_odds": 1.99,
+          "over_suspended": false,
+          "under_suspended": false
+        }
+      },
+      "reference_market": {
+        "asian_handicap": {
+          "home": "0.800",
+          "line": "2.0",
+          "away": "1.000"
+        },
+        "total_goals": {
+          "over": "1.020",
+          "line": "3.25",
+          "under": "0.770"
+        }
+      },
+      "evidence": [
+        "赛事匹配置信度 72%",
+        "总进球线：YBTY 3.00 / 雷速 3.25",
+        "YBTY主队让球线 -2.00"
+      ],
+      "risks": [],
+      "stop_conditions": [
+        "球队名称匹配置信度不足80%"
+      ],
+      "required_research": [
+        "确认开赛时间和赛事性质",
+        "积分排名、战意与赛程密度",
+        "近5至10场及主客场表现",
+        "正式首发、伤停、停赛和轮换",
+        "当地媒体与至少一个独立统计来源",
+        "初盘至当前盘变化及热门风险"
+      ],
+      "recommendation": null
+    }
+  ],
+  "notice": "这是赛前自动筛选结果，不是最终投注建议。最终单场和串子必须由AI完成基本面、战意、阵容、媒体和盘口变化核验后生成。"
+}

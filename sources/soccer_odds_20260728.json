@@ -1,0 +1,856 @@
+[
+  {
+    "match_id": "e51972466047219c9d643949ee0c5a2c",
+    "league": "soccer_brazil_serie_b",
+    "league_title": "Brazil Série B",
+    "teams": {
+      "home": "Atletico Goianiense",
+      "away": "Operario PR"
+    },
+    "commence_time_utc": "2026-07-27T22:30:00Z",
+    "commence_time_local": "2026-07-28 06:30:00",
+    "timezone": "Asia/Shanghai",
+    "market_odds": {
+      "unibet_uk": {
+        "h2h": [
+          {
+            "name": "Atletico Goianiense",
+            "description": null,
+            "point": null,
+            "price": 2.08
+          },
+          {
+            "name": "Operario PR",
+            "description": null,
+            "point": null,
+            "price": 3.7
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.1
+          }
+        ]
+      },
+      "onexbet": {
+        "h2h": [
+          {
+            "name": "Atletico Goianiense",
+            "description": null,
+            "point": null,
+            "price": 2.09
+          },
+          {
+            "name": "Operario PR",
+            "description": null,
+            "point": null,
+            "price": 3.69
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.08
+          }
+        ],
+        "spreads": [
+          {
+            "name": "Atletico Goianiense",
+            "description": null,
+            "point": 0.0,
+            "price": 1.46
+          },
+          {
+            "name": "Operario PR",
+            "description": null,
+            "point": 0.0,
+            "price": 2.57
+          }
+        ],
+        "totals": [
+          {
+            "name": "Over",
+            "description": null,
+            "point": 2.5,
+            "price": 2.23
+          },
+          {
+            "name": "Under",
+            "description": null,
+            "point": 2.5,
+            "price": 1.62
+          }
+        ]
+      },
+      "williamhill": {
+        "h2h": [
+          {
+            "name": "Atletico Goianiense",
+            "description": null,
+            "point": null,
+            "price": 2.05
+          },
+          {
+            "name": "Operario PR",
+            "description": null,
+            "point": null,
+            "price": 3.7
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.0
+          }
+        ],
+        "totals": [
+          {
+            "name": "Over",
+            "description": null,
+            "point": 2.5,
+            "price": 2.2
+          },
+          {
+            "name": "Under",
+            "description": null,
+            "point": 2.5,
+            "price": 1.62
+          }
+        ]
+      },
+      "pinnacle": {
+        "h2h": [
+          {
+            "name": "Atletico Goianiense",
+            "description": null,
+            "point": null,
+            "price": 2.14
+          },
+          {
+            "name": "Operario PR",
+            "description": null,
+            "point": null,
+            "price": 3.91
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.16
+          }
+        ],
+        "spreads": [
+          {
+            "name": "Atletico Goianiense",
+            "description": null,
+            "point": -0.25,
+            "price": 1.82
+          },
+          {
+            "name": "Operario PR",
+            "description": null,
+            "point": 0.25,
+            "price": 2.08
+          }
+        ],
+        "totals": [
+          {
+            "name": "Over",
+            "description": null,
+            "point": 2.25,
+            "price": 2.07
+          },
+          {
+            "name": "Under",
+            "description": null,
+            "point": 2.25,
+            "price": 1.81
+          }
+        ]
+      },
+      "betfair_ex_eu": {
+        "h2h": [
+          {
+            "name": "Atletico Goianiense",
+            "description": null,
+            "point": null,
+            "price": 2.18
+          },
+          {
+            "name": "Operario PR",
+            "description": null,
+            "point": null,
+            "price": 4.1
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.3
+          }
+        ],
+        "h2h_lay": [
+          {
+            "name": "Atletico Goianiense",
+            "description": null,
+            "point": null,
+            "price": 2.2
+          },
+          {
+            "name": "Operario PR",
+            "description": null,
+            "point": null,
+            "price": 4.2
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.35
+          }
+        ]
+      }
+    }
+  },
+  {
+    "match_id": "849046b2ceb8f919b038362706280ddb",
+    "league": "soccer_brazil_serie_b",
+    "league_title": "Brazil Série B",
+    "teams": {
+      "home": "Clube de Regatas Brasil",
+      "away": "Vila Nova"
+    },
+    "commence_time_utc": "2026-07-27T22:30:00Z",
+    "commence_time_local": "2026-07-28 06:30:00",
+    "timezone": "Asia/Shanghai",
+    "market_odds": {
+      "pinnacle": {
+        "h2h": [
+          {
+            "name": "Clube de Regatas Brasil",
+            "description": null,
+            "point": null,
+            "price": 2.05
+          },
+          {
+            "name": "Vila Nova",
+            "description": null,
+            "point": null,
+            "price": 3.88
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.39
+          }
+        ],
+        "spreads": [
+          {
+            "name": "Clube de Regatas Brasil",
+            "description": null,
+            "point": -0.5,
+            "price": 2.06
+          },
+          {
+            "name": "Vila Nova",
+            "description": null,
+            "point": 0.5,
+            "price": 1.84
+          }
+        ],
+        "totals": [
+          {
+            "name": "Over",
+            "description": null,
+            "point": 2.25,
+            "price": 1.89
+          },
+          {
+            "name": "Under",
+            "description": null,
+            "point": 2.25,
+            "price": 1.98
+          }
+        ]
+      },
+      "unibet_uk": {
+        "h2h": [
+          {
+            "name": "Clube de Regatas Brasil",
+            "description": null,
+            "point": null,
+            "price": 2.0
+          },
+          {
+            "name": "Vila Nova",
+            "description": null,
+            "point": null,
+            "price": 3.7
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.3
+          }
+        ]
+      },
+      "onexbet": {
+        "h2h": [
+          {
+            "name": "Clube de Regatas Brasil",
+            "description": null,
+            "point": null,
+            "price": 1.99
+          },
+          {
+            "name": "Vila Nova",
+            "description": null,
+            "point": null,
+            "price": 3.69
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.34
+          }
+        ],
+        "spreads": [
+          {
+            "name": "Clube de Regatas Brasil",
+            "description": null,
+            "point": 0.0,
+            "price": 1.44
+          },
+          {
+            "name": "Vila Nova",
+            "description": null,
+            "point": 0.0,
+            "price": 2.64
+          }
+        ],
+        "totals": [
+          {
+            "name": "Over",
+            "description": null,
+            "point": 2.5,
+            "price": 2.08
+          },
+          {
+            "name": "Under",
+            "description": null,
+            "point": 2.5,
+            "price": 1.71
+          }
+        ]
+      },
+      "williamhill": {
+        "h2h": [
+          {
+            "name": "Clube de Regatas Brasil",
+            "description": null,
+            "point": null,
+            "price": 2.0
+          },
+          {
+            "name": "Vila Nova",
+            "description": null,
+            "point": null,
+            "price": 3.6
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.1
+          }
+        ],
+        "totals": [
+          {
+            "name": "Over",
+            "description": null,
+            "point": 2.5,
+            "price": 2.05
+          },
+          {
+            "name": "Under",
+            "description": null,
+            "point": 2.5,
+            "price": 1.73
+          }
+        ]
+      },
+      "betfair_ex_eu": {
+        "h2h": [
+          {
+            "name": "Clube de Regatas Brasil",
+            "description": null,
+            "point": null,
+            "price": 2.12
+          },
+          {
+            "name": "Vila Nova",
+            "description": null,
+            "point": null,
+            "price": 3.95
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.5
+          }
+        ],
+        "h2h_lay": [
+          {
+            "name": "Clube de Regatas Brasil",
+            "description": null,
+            "point": null,
+            "price": 2.14
+          },
+          {
+            "name": "Vila Nova",
+            "description": null,
+            "point": null,
+            "price": 4.1
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.6
+          }
+        ]
+      }
+    }
+  },
+  {
+    "match_id": "6ba941f951c71b5e0530f92fc18c48b3",
+    "league": "soccer_brazil_serie_b",
+    "league_title": "Brazil Série B",
+    "teams": {
+      "home": "Sport Recife",
+      "away": "Cuiabá"
+    },
+    "commence_time_utc": "2026-07-27T22:30:00Z",
+    "commence_time_local": "2026-07-28 06:30:00",
+    "timezone": "Asia/Shanghai",
+    "market_odds": {
+      "onexbet": {
+        "h2h": [
+          {
+            "name": "Cuiabá",
+            "description": null,
+            "point": null,
+            "price": 4.16
+          },
+          {
+            "name": "Sport Recife",
+            "description": null,
+            "point": null,
+            "price": 2.02
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 2.96
+          }
+        ],
+        "spreads": [
+          {
+            "name": "Cuiabá",
+            "description": null,
+            "point": 0.0,
+            "price": 2.82
+          },
+          {
+            "name": "Sport Recife",
+            "description": null,
+            "point": 0.0,
+            "price": 1.39
+          }
+        ],
+        "totals": [
+          {
+            "name": "Over",
+            "description": null,
+            "point": 1.5,
+            "price": 1.46
+          },
+          {
+            "name": "Under",
+            "description": null,
+            "point": 1.5,
+            "price": 2.38
+          }
+        ]
+      },
+      "williamhill": {
+        "h2h": [
+          {
+            "name": "Cuiabá",
+            "description": null,
+            "point": null,
+            "price": 3.9
+          },
+          {
+            "name": "Sport Recife",
+            "description": null,
+            "point": null,
+            "price": 2.05
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 2.8
+          }
+        ],
+        "totals": [
+          {
+            "name": "Over",
+            "description": null,
+            "point": 2.5,
+            "price": 2.5
+          },
+          {
+            "name": "Under",
+            "description": null,
+            "point": 2.5,
+            "price": 1.44
+          }
+        ]
+      },
+      "unibet_uk": {
+        "h2h": [
+          {
+            "name": "Cuiabá",
+            "description": null,
+            "point": null,
+            "price": 4.0
+          },
+          {
+            "name": "Sport Recife",
+            "description": null,
+            "point": null,
+            "price": 2.0
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.0
+          }
+        ]
+      },
+      "pinnacle": {
+        "h2h": [
+          {
+            "name": "Cuiabá",
+            "description": null,
+            "point": null,
+            "price": 4.38
+          },
+          {
+            "name": "Sport Recife",
+            "description": null,
+            "point": null,
+            "price": 2.07
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.04
+          }
+        ],
+        "spreads": [
+          {
+            "name": "Cuiabá",
+            "description": null,
+            "point": 0.5,
+            "price": 1.82
+          },
+          {
+            "name": "Sport Recife",
+            "description": null,
+            "point": -0.5,
+            "price": 2.08
+          }
+        ],
+        "totals": [
+          {
+            "name": "Over",
+            "description": null,
+            "point": 2.0,
+            "price": 1.98
+          },
+          {
+            "name": "Under",
+            "description": null,
+            "point": 2.0,
+            "price": 1.88
+          }
+        ]
+      },
+      "betfair_ex_eu": {
+        "h2h": [
+          {
+            "name": "Cuiabá",
+            "description": null,
+            "point": null,
+            "price": 4.4
+          },
+          {
+            "name": "Sport Recife",
+            "description": null,
+            "point": null,
+            "price": 2.18
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.1
+          }
+        ],
+        "h2h_lay": [
+          {
+            "name": "Cuiabá",
+            "description": null,
+            "point": null,
+            "price": 4.6
+          },
+          {
+            "name": "Sport Recife",
+            "description": null,
+            "point": null,
+            "price": 2.2
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.15
+          }
+        ]
+      }
+    }
+  },
+  {
+    "match_id": "e14d44c14afe0d36b259682b81716231",
+    "league": "soccer_chile_campeonato",
+    "league_title": "Primera División - Chile",
+    "teams": {
+      "home": "Union La Calera",
+      "away": "Everton de Viña del Mar"
+    },
+    "commence_time_utc": "2026-07-27T23:00:00Z",
+    "commence_time_local": "2026-07-28 07:00:00",
+    "timezone": "Asia/Shanghai",
+    "market_odds": {
+      "onexbet": {
+        "h2h": [
+          {
+            "name": "Everton de Viña del Mar",
+            "description": null,
+            "point": null,
+            "price": 2.99
+          },
+          {
+            "name": "Union La Calera",
+            "description": null,
+            "point": null,
+            "price": 2.42
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.08
+          }
+        ],
+        "spreads": [
+          {
+            "name": "Everton de Viña del Mar",
+            "description": null,
+            "point": 0.0,
+            "price": 2.08
+          },
+          {
+            "name": "Union La Calera",
+            "description": null,
+            "point": 0.0,
+            "price": 1.69
+          }
+        ],
+        "totals": [
+          {
+            "name": "Over",
+            "description": null,
+            "point": 2.5,
+            "price": 2.11
+          },
+          {
+            "name": "Under",
+            "description": null,
+            "point": 2.5,
+            "price": 1.69
+          }
+        ]
+      },
+      "betfair_ex_eu": {
+        "h2h": [
+          {
+            "name": "Everton de Viña del Mar",
+            "description": null,
+            "point": null,
+            "price": 3.05
+          },
+          {
+            "name": "Union La Calera",
+            "description": null,
+            "point": null,
+            "price": 2.56
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.3
+          }
+        ],
+        "h2h_lay": [
+          {
+            "name": "Everton de Viña del Mar",
+            "description": null,
+            "point": null,
+            "price": 3.2
+          },
+          {
+            "name": "Union La Calera",
+            "description": null,
+            "point": null,
+            "price": 2.62
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.45
+          }
+        ]
+      },
+      "pinnacle": {
+        "h2h": [
+          {
+            "name": "Everton de Viña del Mar",
+            "description": null,
+            "point": null,
+            "price": 3.1
+          },
+          {
+            "name": "Union La Calera",
+            "description": null,
+            "point": null,
+            "price": 2.49
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.18
+          }
+        ],
+        "spreads": [
+          {
+            "name": "Everton de Viña del Mar",
+            "description": null,
+            "point": 0.25,
+            "price": 1.79
+          },
+          {
+            "name": "Union La Calera",
+            "description": null,
+            "point": -0.25,
+            "price": 2.13
+          }
+        ],
+        "totals": [
+          {
+            "name": "Over",
+            "description": null,
+            "point": 2.25,
+            "price": 1.89
+          },
+          {
+            "name": "Under",
+            "description": null,
+            "point": 2.25,
+            "price": 1.97
+          }
+        ]
+      }
+    }
+  },
+  {
+    "match_id": "a4deac762eca98ae98f006307396923c",
+    "league": "soccer_uefa_champs_league_qualification",
+    "league_title": "UEFA Champions League Qualification",
+    "teams": {
+      "home": "KuPS Kuopio",
+      "away": "Sabah FK"
+    },
+    "commence_time_utc": "2026-07-28T15:00:00Z",
+    "commence_time_local": "2026-07-28 23:00:00",
+    "timezone": "Asia/Shanghai",
+    "market_odds": {
+      "betfair_ex_eu": {
+        "h2h": [
+          {
+            "name": "KuPS Kuopio",
+            "description": null,
+            "point": null,
+            "price": 3.1
+          },
+          {
+            "name": "Sabah FK",
+            "description": null,
+            "point": null,
+            "price": 2.42
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.65
+          }
+        ],
+        "h2h_lay": [
+          {
+            "name": "KuPS Kuopio",
+            "description": null,
+            "point": null,
+            "price": 3.2
+          },
+          {
+            "name": "Sabah FK",
+            "description": null,
+            "point": null,
+            "price": 2.44
+          },
+          {
+            "name": "Draw",
+            "description": null,
+            "point": null,
+            "price": 3.75
+          }
+        ]
+      }
+    }
+  }
+]

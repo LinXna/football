@@ -1,0 +1,64 @@
+{
+  "generated_at": "2026-07-28T01:55:07.028491+00:00",
+  "summary": {
+    "assessed": 2,
+    "watch": 0,
+    "pass": 2,
+    "a_grade": 0,
+    "b_grade": 0
+  },
+  "single_best": null,
+  "parlay_5x": null,
+  "decisions": [
+    {
+      "match": "卡利竞技 vs 云博独立",
+      "minute": 34,
+      "score": {
+        "home": 2,
+        "away": 1
+      },
+      "status": "PASS",
+      "grade": "C",
+      "model_score": 0,
+      "recommendation": null,
+      "market_age_seconds": 3014.900491,
+      "reference_market": {
+        "company_count": 14,
+        "opening_line": 2.25,
+        "current_line": 1.5,
+        "source": "detail_consensus"
+      },
+      "evidence": [],
+      "risks": [],
+      "stop_conditions": [
+        "YBTY盘口已过期约50分钟"
+      ]
+    },
+    {
+      "match": "昆卡竞技 vs 埃梅莱克",
+      "minute": 45,
+      "score": {
+        "home": 0,
+        "away": 2
+      },
+      "status": "PASS",
+      "grade": "C",
+      "model_score": 0,
+      "recommendation": null,
+      "market_age_seconds": 3015.452491,
+      "reference_market": {
+        "company_count": 16,
+        "opening_line": 2.0,
+        "current_line": 2.25,
+        "source": "detail_consensus"
+      },
+      "evidence": [],
+      "risks": [],
+      "stop_conditions": [
+        "YBTY盘口已过期约50分钟",
+        "YBTY大小球、让球和胜平负均无可投注盘口"
+      ]
+    }
+  ],
+  "notice": "模型只输出满足数据、时效和盘口一致性要求的候选，不承诺获利。"
+}

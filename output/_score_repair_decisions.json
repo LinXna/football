@@ -1,0 +1,135 @@
+{
+  "generated_at": "2026-07-29T02:51:44.069690+00:00",
+  "summary": {
+    "assessed": 5,
+    "watch": 0,
+    "pass": 5,
+    "a_grade": 0,
+    "b_grade": 0
+  },
+  "single_best": null,
+  "parlay_5x": null,
+  "decisions": [
+    {
+      "match": "骑兵队 vs 魁北克苏普拉",
+      "minute": 68,
+      "score": {
+        "home": 1,
+        "away": 1
+      },
+      "status": "PASS",
+      "grade": "C",
+      "model_score": 0,
+      "recommendation": null,
+      "market_age_seconds": 871.59569,
+      "reference_market": {
+        "company_count": 0,
+        "opening_line": null,
+        "current_line": null,
+        "source": "list_current"
+      },
+      "evidence": [],
+      "risks": [],
+      "stop_conditions": [
+        "YBTY盘口已过期约14分钟"
+      ]
+    },
+    {
+      "match": "萨尔瓦多U20 （中） vs 美国U20",
+      "minute": 38,
+      "score": {
+        "home": 0,
+        "away": 1
+      },
+      "status": "PASS",
+      "grade": "C",
+      "model_score": 0,
+      "recommendation": null,
+      "market_age_seconds": 871.04269,
+      "reference_market": {
+        "company_count": 0,
+        "opening_line": null,
+        "current_line": null,
+        "source": "list_current"
+      },
+      "evidence": [],
+      "risks": [],
+      "stop_conditions": [
+        "YBTY盘口已过期约14分钟"
+      ]
+    },
+    {
+      "match": "CD奥林匹亚 vs 拉科鲁尼亚米斯科",
+      "minute": 32,
+      "score": {
+        "home": 1,
+        "away": 0
+      },
+      "status": "PASS",
+      "grade": "C",
+      "model_score": 0,
+      "recommendation": null,
+      "market_age_seconds": 870.48769,
+      "reference_market": {
+        "company_count": 0,
+        "opening_line": null,
+        "current_line": null,
+        "source": "list_current"
+      },
+      "evidence": [],
+      "risks": [],
+      "stop_conditions": [
+        "YBTY盘口已过期约14分钟"
+      ]
+    },
+    {
+      "match": "锡帕基拉老虎 vs 国民竞技",
+      "minute": 45,
+      "score": {
+        "home": 0,
+        "away": 2
+      },
+      "status": "PASS",
+      "grade": "C",
+      "model_score": 0,
+      "recommendation": null,
+      "market_age_seconds": 871.04269,
+      "reference_market": {
+        "company_count": 0,
+        "opening_line": null,
+        "current_line": null,
+        "source": "list_current"
+      },
+      "evidence": [],
+      "risks": [],
+      "stop_conditions": [
+        "YBTY盘口已过期约14分钟"
+      ]
+    },
+    {
+      "match": "迪利安格恩 vs 阿马多尔广场",
+      "minute": 31,
+      "score": {
+        "home": 3,
+        "away": 0
+      },
+      "status": "PASS",
+      "grade": "C",
+      "model_score": 0,
+      "recommendation": null,
+      "market_age_seconds": 869.92969,
+      "reference_market": {
+        "company_count": 0,
+        "opening_line": null,
+        "current_line": null,
+        "source": "list_current"
+      },
+      "evidence": [],
+      "risks": [],
+      "stop_conditions": [
+        "YBTY盘口已过期约14分钟"
+      ]
+    }
+  ],
+  "notice": "模型只输出满足数据、时效和盘口一致性要求的候选，不承诺获利。"
+}

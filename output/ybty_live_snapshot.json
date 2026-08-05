@@ -1,0 +1,1286 @@
+{
+  "captured_at": "2026-07-27T21:51:08.864Z",
+  "count": 4,
+  "matches": [
+    {
+      "away": "布基纳法索(女)",
+      "away_red": "1",
+      "away_score": "1",
+      "clock": "84:14",
+      "home": "科特迪瓦(女)",
+      "home_red": "0",
+      "home_score": "4",
+      "league": "非洲女子国家杯(在摩洛哥)",
+      "markets": [
+        {
+          "line_index": 0,
+          "market": "full_h2h",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "full_spread",
+          "options": [
+            {
+              "odds": "2.29",
+              "selection": "-0/0.5",
+              "suspended": false,
+              "text": "-0/0.52.29"
+            },
+            {
+              "odds": "1.59",
+              "selection": "+0/0.5",
+              "suspended": false,
+              "text": "+0/0.51.59"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "full_total",
+          "options": [
+            {
+              "odds": "2.44",
+              "selection": "5.5",
+              "suspended": false,
+              "text": "大  5.52.44"
+            },
+            {
+              "odds": "1.49",
+              "selection": "5.5",
+              "suspended": false,
+              "text": "小  5.51.49"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "half_h2h",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "half_spread",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "half_total",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "full_h2h",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "full_spread",
+          "options": [
+            {
+              "odds": "3.00",
+              "selection": "-0.5",
+              "suspended": false,
+              "text": "-0.53.00"
+            },
+            {
+              "odds": "1.32",
+              "selection": "+0.5",
+              "suspended": false,
+              "text": "+0.51.32"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "full_total",
+          "options": [
+            {
+              "odds": "3.22",
+              "selection": "5.5/6",
+              "suspended": false,
+              "text": "大  5.5/63.22"
+            },
+            {
+              "odds": "1.25",
+              "selection": "5.5/6",
+              "suspended": false,
+              "text": "小  5.5/61.25"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "half_h2h",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "half_spread",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "half_total",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        }
+      ],
+      "period": "下半场",
+      "play_count": "26+"
+    },
+    {
+      "away": "皇家索阿昆迪纳马",
+      "away_red": "0",
+      "away_score": "0",
+      "clock": "57:33",
+      "home": "恩维加多",
+      "home_red": "0",
+      "home_score": "1",
+      "league": "哥伦比亚乙级联赛",
+      "markets": [
+        {
+          "line_index": 0,
+          "market": "full_h2h",
+          "options": [
+            {
+              "odds": "1.15",
+              "selection": "主",
+              "suspended": false,
+              "text": "主1.15"
+            },
+            {
+              "odds": "18.0",
+              "selection": "客",
+              "suspended": false,
+              "text": "客18.0"
+            },
+            {
+              "odds": "4.95",
+              "selection": "平",
+              "suspended": false,
+              "text": "平4.95"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "full_spread",
+          "options": [
+            {
+              "odds": "2.21",
+              "selection": "-0/0.5",
+              "suspended": false,
+              "text": "-0/0.52.21"
+            },
+            {
+              "odds": "1.64",
+              "selection": "+0/0.5",
+              "suspended": false,
+              "text": "+0/0.51.64"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "full_total",
+          "options": [
+            {
+              "odds": "1.87",
+              "selection": "1.5/2",
+              "suspended": false,
+              "text": "大  1.5/21.87"
+            },
+            {
+              "odds": "1.93",
+              "selection": "1.5/2",
+              "suspended": false,
+              "text": "小  1.5/21.93"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "half_h2h",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "half_spread",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "half_total",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "full_h2h",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "full_spread",
+          "options": [
+            {
+              "odds": "1.53",
+              "selection": "0",
+              "suspended": false,
+              "text": "01.53"
+            },
+            {
+              "odds": "2.40",
+              "selection": "0",
+              "suspended": false,
+              "text": "02.40"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "full_total",
+          "options": [
+            {
+              "odds": "1.58",
+              "selection": "1.5",
+              "suspended": false,
+              "text": "大  1.51.58"
+            },
+            {
+              "odds": "2.28",
+              "selection": "1.5",
+              "suspended": false,
+              "text": "小  1.52.28"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "half_h2h",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "half_spread",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "half_total",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 2,
+          "market": "full_h2h",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 2,
+          "market": "full_spread",
+          "options": [
+            {
+              "odds": "2.75",
+              "selection": "-0.5",
+              "suspended": false,
+              "text": "-0.52.75"
+            },
+            {
+              "odds": "1.39",
+              "selection": "+0.5",
+              "suspended": false,
+              "text": "+0.51.39"
+            }
+          ]
+        },
+        {
+          "line_index": 2,
+          "market": "full_total",
+          "options": [
+            {
+              "odds": "2.47",
+              "selection": "2",
+              "suspended": false,
+              "text": "大  22.47"
+            },
+            {
+              "odds": "1.48",
+              "selection": "2",
+              "suspended": false,
+              "text": "小  21.48"
+            }
+          ]
+        },
+        {
+          "line_index": 2,
+          "market": "half_h2h",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 2,
+          "market": "half_spread",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 2,
+          "market": "half_total",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        }
+      ],
+      "period": "下半场",
+      "play_count": "51+"
+    },
+    {
+      "away": "莱万特U20",
+      "away_red": "0",
+      "away_score": "0",
+      "clock": "46:42",
+      "home": "索里索EC U20",
+      "home_red": "0",
+      "home_score": "0",
+      "league": "拉尔库迪亚国际足球锦标赛U20 (2x40分钟)",
+      "markets": [
+        {
+          "line_index": 0,
+          "market": "full_h2h",
+          "options": [
+            {
+              "odds": "4.75",
+              "selection": "主",
+              "suspended": false,
+              "text": "主4.75"
+            },
+            {
+              "odds": "2.05",
+              "selection": "客",
+              "suspended": false,
+              "text": "客2.05"
+            },
+            {
+              "odds": "2.60",
+              "selection": "平",
+              "suspended": false,
+              "text": "平2.60"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "full_spread",
+          "options": [
+            {
+              "odds": "1.69",
+              "selection": "+0.5",
+              "suspended": false,
+              "text": "+0.51.69"
+            },
+            {
+              "odds": "1.99",
+              "selection": "-0.5",
+              "suspended": false,
+              "text": "-0.51.99"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "full_total",
+          "options": [
+            {
+              "odds": "1.94",
+              "selection": "1/1.5",
+              "suspended": false,
+              "text": "大  1/1.51.94"
+            },
+            {
+              "odds": "1.74",
+              "selection": "1/1.5",
+              "suspended": false,
+              "text": "小  1/1.51.74"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "half_h2h",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "half_spread",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "half_total",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "full_h2h",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "full_spread",
+          "options": [
+            {
+              "odds": "2.03",
+              "selection": "+0/0.5",
+              "suspended": false,
+              "text": "+0/0.52.03"
+            },
+            {
+              "odds": "1.65",
+              "selection": "-0/0.5",
+              "suspended": false,
+              "text": "-0/0.51.65"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "full_total",
+          "options": [
+            {
+              "odds": "2.28",
+              "selection": "1.5",
+              "suspended": false,
+              "text": "大  1.52.28"
+            },
+            {
+              "odds": "1.46",
+              "selection": "1.5",
+              "suspended": false,
+              "text": "小  1.51.46"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "half_h2h",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "half_spread",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "half_total",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        }
+      ],
+      "period": "下半场",
+      "play_count": "40+"
+    },
+    {
+      "away": "基多天主教大学",
+      "away_red": "0",
+      "away_score": "0",
+      "clock": "21:10",
+      "home": "瓜亚基尔城",
+      "home_red": "0",
+      "home_score": "0",
+      "league": "厄瓜多尔甲级联赛",
+      "markets": [
+        {
+          "line_index": 0,
+          "market": "full_h2h",
+          "options": [
+            {
+              "odds": "3.80",
+              "selection": "主",
+              "suspended": false,
+              "text": "主3.80"
+            },
+            {
+              "odds": "1.85",
+              "selection": "客",
+              "suspended": false,
+              "text": "客1.85"
+            },
+            {
+              "odds": "3.10",
+              "selection": "平",
+              "suspended": false,
+              "text": "平3.10"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "full_spread",
+          "options": [
+            {
+              "odds": "1.90",
+              "selection": "+0.5",
+              "suspended": false,
+              "text": "+0.51.90"
+            },
+            {
+              "odds": "1.92",
+              "selection": "-0.5",
+              "suspended": false,
+              "text": "-0.51.92"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "full_total",
+          "options": [
+            {
+              "odds": "1.99",
+              "selection": "2/2.5",
+              "suspended": false,
+              "text": "大  2/2.51.99"
+            },
+            {
+              "odds": "1.81",
+              "selection": "2/2.5",
+              "suspended": false,
+              "text": "小  2/2.51.81"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "half_h2h",
+          "options": [
+            {
+              "odds": "4.40",
+              "selection": "主",
+              "suspended": false,
+              "text": "主4.40"
+            },
+            {
+              "odds": "2.76",
+              "selection": "客",
+              "suspended": false,
+              "text": "客2.76"
+            },
+            {
+              "odds": "1.87",
+              "selection": "平",
+              "suspended": false,
+              "text": "平1.87"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "half_spread",
+          "options": [
+            {
+              "odds": "1.67",
+              "selection": "+0/0.5",
+              "suspended": false,
+              "text": "+0/0.51.67"
+            },
+            {
+              "odds": "2.17",
+              "selection": "-0/0.5",
+              "suspended": false,
+              "text": "-0/0.52.17"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 0,
+          "market": "half_total",
+          "options": [
+            {
+              "odds": "1.88",
+              "selection": "0.5/1",
+              "suspended": false,
+              "text": "大  0.5/11.88"
+            },
+            {
+              "odds": "1.92",
+              "selection": "0.5/1",
+              "suspended": false,
+              "text": "小  0.5/11.92"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "full_h2h",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "full_spread",
+          "options": [
+            {
+              "odds": "1.70",
+              "selection": "+0.5/1",
+              "suspended": false,
+              "text": "+0.5/11.70"
+            },
+            {
+              "odds": "2.13",
+              "selection": "-0.5/1",
+              "suspended": false,
+              "text": "-0.5/12.13"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "full_total",
+          "options": [
+            {
+              "odds": "1.67",
+              "selection": "2",
+              "suspended": false,
+              "text": "大  21.67"
+            },
+            {
+              "odds": "2.14",
+              "selection": "2",
+              "suspended": false,
+              "text": "小  22.14"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "half_h2h",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "half_spread",
+          "options": [
+            {
+              "odds": "2.51",
+              "selection": "0",
+              "suspended": false,
+              "text": "02.51"
+            },
+            {
+              "odds": "1.48",
+              "selection": "0",
+              "suspended": false,
+              "text": "01.48"
+            }
+          ]
+        },
+        {
+          "line_index": 1,
+          "market": "half_total",
+          "options": [
+            {
+              "odds": "1.60",
+              "selection": "0.5",
+              "suspended": false,
+              "text": "大  0.51.60"
+            },
+            {
+              "odds": "2.25",
+              "selection": "0.5",
+              "suspended": false,
+              "text": "小  0.52.25"
+            }
+          ]
+        },
+        {
+          "line_index": 2,
+          "market": "full_h2h",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 2,
+          "market": "full_spread",
+          "options": [
+            {
+              "odds": "2.21",
+              "selection": "+0/0.5",
+              "suspended": false,
+              "text": "+0/0.52.21"
+            },
+            {
+              "odds": "1.64",
+              "selection": "-0/0.5",
+              "suspended": false,
+              "text": "-0/0.51.64"
+            }
+          ]
+        },
+        {
+          "line_index": 2,
+          "market": "full_total",
+          "options": [
+            {
+              "odds": "2.23",
+              "selection": "2.5",
+              "suspended": false,
+              "text": "大  2.52.23"
+            },
+            {
+              "odds": "1.61",
+              "selection": "2.5",
+              "suspended": false,
+              "text": "小  2.51.61"
+            }
+          ]
+        },
+        {
+          "line_index": 2,
+          "market": "half_h2h",
+          "options": [
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            },
+            {
+              "odds": "",
+              "selection": "",
+              "suspended": true,
+              "text": "-"
+            }
+          ]
+        },
+        {
+          "line_index": 2,
+          "market": "half_spread",
+          "options": [
+            {
+              "odds": "1.41",
+              "selection": "+0.5",
+              "suspended": false,
+              "text": "+0.51.41"
+            },
+            {
+              "odds": "2.69",
+              "selection": "-0.5",
+              "suspended": false,
+              "text": "-0.52.69"
+            }
+          ]
+        },
+        {
+          "line_index": 2,
+          "market": "half_total",
+          "options": [
+            {
+              "odds": "2.47",
+              "selection": "1",
+              "suspended": false,
+              "text": "大  12.47"
+            },
+            {
+              "odds": "1.48",
+              "selection": "1",
+              "suspended": false,
+              "text": "小  11.48"
+            }
+          ]
+        }
+      ],
+      "period": "上半场",
+      "play_count": "138+"
+    }
+  ]
+}

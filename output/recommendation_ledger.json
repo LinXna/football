@@ -1,0 +1,5967 @@
+[
+  {
+    "id": "e14e4dab63e79a03",
+    "created_at": "2026-07-28T18:21:52.057249+00:00",
+    "match": "格林斯比 vs 林肯城",
+    "minute": 22,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 70.8,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 2.0,
+      "odds": 1.84
+    },
+    "evidence": [
+      "累计射门2、射正1",
+      "模型预计剩余进球约0.96",
+      "实时优势指数：主队+1.64"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比",
+      "5/15分钟趋势尚未同时完整"
+    ],
+    "review": {
+      "status": "reviewed",
+      "final_score": {
+        "home": 5,
+        "away": 1
+      },
+      "added_goals": 6,
+      "outcome": "loss"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "7507dde5da32f905",
+    "created_at": "2026-07-28T18:21:52.057249+00:00",
+    "match": "奥尔德姆 vs 斯托克港",
+    "minute": 22,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 72.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 2.0,
+      "odds": 1.81
+    },
+    "evidence": [
+      "累计射门0、射正0",
+      "模型预计剩余进球约0.00",
+      "实时优势指数：主队+0.40"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比",
+      "5/15分钟趋势尚未同时完整"
+    ],
+    "review": {
+      "status": "reviewed",
+      "final_score": {
+        "home": 0,
+        "away": 1
+      },
+      "added_goals": 1,
+      "outcome": "win"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "bb45c0fc8778596f",
+    "created_at": "2026-07-28T18:21:52.057249+00:00",
+    "match": "京达米士特 vs 艾华乔奇",
+    "minute": 22,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 66.2,
+    "recommendation": {
+      "market": "主队让球",
+      "line": -1.0,
+      "odds": 2.02
+    },
+    "evidence": [
+      "累计射门3、射正2",
+      "模型预计剩余进球约1.82",
+      "实时优势指数：主队+3.95"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比",
+      "5/15分钟趋势尚未同时完整"
+    ],
+    "review": {
+      "status": "reviewed",
+      "final_score": {
+        "home": 0,
+        "away": 0
+      },
+      "added_goals": 0,
+      "outcome": "loss"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "5c70cfebafc3bd43",
+    "created_at": "2026-07-28T18:21:52.057249+00:00",
+    "match": "皇后大学 vs 巴利卡拉尔",
+    "minute": 21,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 72.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 2.5,
+      "odds": 1.98
+    },
+    "evidence": [
+      "累计射门2、射正1",
+      "模型预计剩余进球约1.02",
+      "实时优势指数：主队+2.62"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比",
+      "5/15分钟趋势尚未同时完整"
+    ],
+    "review": {
+      "status": "reviewed",
+      "final_score": {
+        "home": 1,
+        "away": 0
+      },
+      "added_goals": 1,
+      "outcome": "win"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "1e8e4aad4a71ec31",
+    "created_at": "2026-07-28T18:21:52.057249+00:00",
+    "match": "弗利特伍德 vs 博尔顿",
+    "minute": 20,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 72.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 2.25,
+      "odds": 1.8
+    },
+    "evidence": [
+      "累计射门4、射正0",
+      "模型预计剩余进球约0.42",
+      "实时优势指数：主队+0.08"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比",
+      "5/15分钟趋势尚未同时完整"
+    ],
+    "review": {
+      "status": "reviewed",
+      "final_score": {
+        "home": 1,
+        "away": 1
+      },
+      "added_goals": 2,
+      "outcome": "win"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "77d21a142e8f3d0c",
+    "created_at": "2026-07-28T18:21:52.057249+00:00",
+    "match": "韦尔瓦 （中） vs 赫尔曼斯",
+    "minute": 20,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 72.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 2.5,
+      "odds": 1.84
+    },
+    "evidence": [
+      "累计射门2、射正1",
+      "模型预计剩余进球约1.08",
+      "实时优势指数：主队+3.34"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比",
+      "5/15分钟趋势尚未同时完整"
+    ],
+    "review": {
+      "status": "reviewed",
+      "final_score": {
+        "home": 0,
+        "away": 0
+      },
+      "added_goals": 0,
+      "outcome": "win"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "ff8f02b2205b9c6e",
+    "created_at": "2026-07-28T18:21:52.057249+00:00",
+    "match": "莫雷坎比 vs 菲尔德",
+    "minute": 18,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 69.2,
+    "recommendation": {
+      "market": "主队让球",
+      "line": 0.0,
+      "odds": 1.98
+    },
+    "evidence": [
+      "累计射门7、射正2",
+      "模型预计剩余进球约2.84",
+      "实时优势指数：主队+4.77"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比",
+      "5/15分钟趋势尚未同时完整"
+    ],
+    "review": {
+      "status": "reviewed",
+      "final_score": {
+        "home": 0,
+        "away": 0
+      },
+      "added_goals": 0,
+      "outcome": "push"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "06f5a518c5510ed7",
+    "created_at": "2026-07-28T22:21:23.365570+00:00",
+    "match": "海地U20 （中） vs 古巴U20",
+    "minute": 62,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 74.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 3.25,
+      "odds": 1.78
+    },
+    "evidence": [
+      "累计射门16、射正11",
+      "模型预计剩余进球约1.76",
+      "最近5分钟：射门2、射正1",
+      "实时优势指数：主队+13.17",
+      "控球率：64%—36%",
+      "进攻/危险进攻：95/49—69/42"
+    ],
+    "risks": [
+      "5/15分钟趋势未完全形成，采用首次快照保守评分",
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "review": {
+      "status": "pending"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "150705e3126fb013",
+    "created_at": "2026-07-28T22:34:29.772223+00:00",
+    "match": "海地U20 （中） vs 古巴U20",
+    "minute": 75,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 1
+    },
+    "grade": "B",
+    "model_score": 84.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 2.75,
+      "odds": 1.78
+    },
+    "evidence": [
+      "累计射门19、射正13",
+      "模型预计剩余进球约1.33",
+      "最近5分钟：射门1、射正1",
+      "最近15分钟：射门3、射正2",
+      "实时优势指数：主队+13.12",
+      "控球率：60%—40%",
+      "进攻/危险进攻：106/56—83/53"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "review": {
+      "status": "pending"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "25cc7be318a519b7",
+    "created_at": "2026-07-28T22:34:29.772223+00:00",
+    "match": "布拉干蒂诺女足 vs 桑托斯女足",
+    "minute": 35,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 77.2,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 1.75,
+      "odds": 1.83
+    },
+    "evidence": [
+      "累计射门5、射正1",
+      "模型预计剩余进球约0.74",
+      "最近5分钟：射门1、射正0",
+      "最近15分钟：射门1、射正0",
+      "实时优势指数：主队-3.52",
+      "控球率：35%—65%",
+      "进攻/危险进攻：26/11—41/21"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "review": {
+      "status": "pending"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "e47dedcc4486cf60",
+    "created_at": "2026-07-28T22:34:29.772223+00:00",
+    "match": "SC国际女足U20 vs 格雷米奥女足U20",
+    "minute": 32,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 79.0,
+    "recommendation": {
+      "market": "主队让球",
+      "line": -0.5,
+      "odds": 1.81
+    },
+    "evidence": [
+      "累计射门9、射正2",
+      "模型预计剩余进球约1.77",
+      "最近5分钟：射门2、射正0",
+      "最近15分钟：射门5、射正1",
+      "实时优势指数：主队+6.16",
+      "控球率：61%—39%",
+      "进攻/危险进攻：64/32—43/16"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "review": {
+      "status": "pending"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "2373f05f1b6e4b34",
+    "created_at": "2026-07-29T01:04:02.335075+00:00",
+    "match": "桑托斯 vs 委内瑞拉中央大学",
+    "minute": 33,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 1
+    },
+    "grade": "B",
+    "model_score": 79.9,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 3.25,
+      "odds": 2.04
+    },
+    "evidence": [
+      "累计射门7、射正4",
+      "模型预计剩余进球约2.37",
+      "最近5分钟：射门1、射正0",
+      "最近15分钟：射门3、射正1",
+      "实时优势指数：主队+1.46",
+      "控球率：66%—34%",
+      "进攻/危险进攻：32/18—27/12"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "review": {
+      "status": "pending"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "7f504c0cab3a281d",
+    "created_at": "2026-07-29T02:38:08.557907+00:00",
+    "match": "骑兵队 vs 魁北克苏普拉",
+    "minute": 68,
+    "score_at_recommendation": {
+      "home": 1,
+      "away": 1
+    },
+    "grade": "B",
+    "model_score": 84.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 2.75,
+      "odds": 1.99
+    },
+    "evidence": [
+      "累计射门12、射正6",
+      "模型预计剩余进球约0.97",
+      "最近5分钟：射门0、射正0",
+      "最近15分钟：射门4、射正3",
+      "实时优势指数：主队-0.38",
+      "控球率：53%—47%",
+      "进攻/危险进攻：46/29—51/23"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "review": {
+      "status": "pending"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "7a04aa6ecbb7e1cc",
+    "created_at": "2026-07-29T02:38:08.557907+00:00",
+    "match": "锡帕基拉老虎 vs 国民竞技",
+    "minute": 45,
+    "score_at_recommendation": {
+      "home": 1,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 84.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 3.5,
+      "odds": 1.79
+    },
+    "evidence": [
+      "累计射门10、射正4",
+      "模型预计剩余进球约1.37",
+      "最近5分钟：射门0、射正0",
+      "最近15分钟：射门0、射正0",
+      "实时优势指数：主队-9.79",
+      "控球率：30%—70%",
+      "进攻/危险进攻：40/16—74/63"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "review": {
+      "status": "pending"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "1f7520b1ef390fef",
+    "created_at": "2026-07-29T02:38:08.557907+00:00",
+    "match": "萨尔瓦多U20 （中） vs 美国U20",
+    "minute": 38,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 79.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 3.25,
+      "odds": 1.85
+    },
+    "evidence": [
+      "累计射门6、射正2",
+      "模型预计剩余进球约1.35",
+      "最近5分钟：射门1、射正1",
+      "最近15分钟：射门3、射正1",
+      "实时优势指数：主队-7.72",
+      "控球率：19%—81%",
+      "进攻/危险进攻：29/6—62/23"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "review": {
+      "status": "pending"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "6610fe6f92158f77",
+    "created_at": "2026-07-29T02:38:08.557907+00:00",
+    "match": "CD奥林匹亚 vs 拉科鲁尼亚米斯科",
+    "minute": 32,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 84.0,
+    "recommendation": {
+      "market": "主队让球",
+      "line": -0.75,
+      "odds": 1.84
+    },
+    "evidence": [
+      "累计射门9、射正5",
+      "模型预计剩余进球约3.51",
+      "最近5分钟：射门4、射正2",
+      "最近15分钟：射门7、射正0",
+      "实时优势指数：主队+7.07",
+      "控球率：61%—39%",
+      "进攻/危险进攻：34/29—25/13"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "review": {
+      "status": "pending"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "4ffa43a33cfd43dd",
+    "created_at": "2026-07-29T02:38:08.557907+00:00",
+    "match": "迪利安格恩 vs 阿马多尔广场",
+    "minute": 31,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 84.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 5.25,
+      "odds": 1.88
+    },
+    "evidence": [
+      "累计射门10、射正6",
+      "模型预计剩余进球约3.99",
+      "最近5分钟：射门1、射正1",
+      "最近15分钟：射门3、射正2",
+      "实时优势指数：主队+1.42",
+      "控球率：29%—71%",
+      "进攻/危险进攻：16/10—30/33"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "review": {
+      "status": "pending"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "309ddc06c5589599",
+    "created_at": "2026-07-29T03:15:48.227442+00:00",
+    "match": "萨尔瓦多U20 （中） vs 美国U20",
+    "minute": 57,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 1
+    },
+    "grade": "B",
+    "model_score": 79.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 2.25,
+      "odds": 1.84
+    },
+    "evidence": [
+      "累计射门8、射正3",
+      "模型预计剩余进球约0.79",
+      "最近5分钟：射门0、射正0",
+      "最近15分钟：射门2、射正1",
+      "实时优势指数：主队-10.86",
+      "控球率：22%—78%",
+      "进攻/危险进攻：48/13—101/42"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "review": {
+      "status": "pending"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "ac0b09f0cd97dd17",
+    "created_at": "2026-07-29T03:15:48.227442+00:00",
+    "match": "CD奥林匹亚 vs 拉科鲁尼亚米斯科",
+    "minute": 51,
+    "score_at_recommendation": {
+      "home": 1,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 84.0,
+    "recommendation": {
+      "market": "主队让球",
+      "line": -0.5,
+      "odds": 1.93
+    },
+    "evidence": [
+      "累计射门19、射正9",
+      "模型预计剩余进球约2.55",
+      "最近5分钟：射门2、射正0",
+      "最近15分钟：射门4、射正2",
+      "实时优势指数：主队+6.63",
+      "控球率：54%—46%",
+      "进攻/危险进攻：55/44—44/31"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "review": {
+      "status": "pending"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "36122e62b70d6692",
+    "created_at": "2026-07-29T03:15:48.227442+00:00",
+    "match": "迪利安格恩 vs 阿马多尔广场",
+    "minute": 52,
+    "score_at_recommendation": {
+      "home": 3,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 84.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 4.5,
+      "odds": 1.76
+    },
+    "evidence": [
+      "累计射门16、射正7",
+      "模型预计剩余进球约1.84",
+      "最近5分钟：射门1、射正0",
+      "最近15分钟：射门2、射正1",
+      "实时优势指数：主队-2.24",
+      "控球率：33%—67%",
+      "进攻/危险进攻：30/15—48/53"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "review": {
+      "status": "pending"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "3c8f7d9f63e7f338",
+    "created_at": "2026-07-29T03:22:39.794954+00:00",
+    "match": "CD奥林匹亚 vs 拉科鲁尼亚米斯科",
+    "minute": 58,
+    "score_at_recommendation": {
+      "home": 1,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 83.4,
+    "recommendation": {
+      "market": "主队让球",
+      "line": -0.25,
+      "odds": 1.71
+    },
+    "evidence": [
+      "累计射门22、射正9",
+      "模型预计剩余进球约1.94",
+      "最近5分钟：射门3、射正0",
+      "最近15分钟：射门5、射正0",
+      "实时优势指数：主队+5.39",
+      "控球率：54%—46%",
+      "进攻/危险进攻：61/47—50/39"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "review": {
+      "status": "pending"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "3c257a16f409aea6",
+    "created_at": "2026-07-29T03:22:39.794954+00:00",
+    "match": "萨尔瓦多U20 （中） vs 美国U20",
+    "minute": 63,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 2
+    },
+    "grade": "B",
+    "model_score": 84.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 3.0,
+      "odds": 2.09
+    },
+    "evidence": [
+      "累计射门9、射正4",
+      "模型预计剩余进球约0.95",
+      "最近5分钟：射门1、射正1",
+      "最近15分钟：射门1、射正1",
+      "实时优势指数：主队-13.13",
+      "控球率：24%—76%",
+      "进攻/危险进攻：50/13—107/46"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "review": {
+      "status": "pending"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "2be6f6f70c1291fc",
+    "created_at": "2026-07-29T03:22:39.794954+00:00",
+    "match": "迪利安格恩 vs 阿马多尔广场",
+    "minute": 58,
+    "score_at_recommendation": {
+      "home": 3,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 84.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 4.25,
+      "odds": 1.79
+    },
+    "evidence": [
+      "累计射门17、射正7",
+      "模型预计剩余进球约1.41",
+      "最近5分钟：射门1、射正0",
+      "最近15分钟：射门2、射正0",
+      "实时优势指数：主队-2.50",
+      "控球率：35%—65%",
+      "进攻/危险进攻：35/18—51/57"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "review": {
+      "status": "pending"
+    },
+    "record_type": "machine_candidate",
+    "formal_recommendation": false
+  },
+  {
+    "id": "prematch-3x-20260729-114605",
+    "created_at": "2026-07-29T11:46:05.1835341+08:00",
+    "match": "非滚球3串：蔚山市民 vs 蔚山HD / 忠北清州 vs 安养FC / 釜山偶像 vs FC首尔",
+    "minute": null,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 73.0,
+    "recommendation": {
+      "market": "非滚球3串（常规时间独赢）",
+      "odds": 3.95,
+      "legs": [
+        {
+          "match": "蔚山市民 vs 蔚山HD",
+          "selection": "蔚山HD独赢",
+          "odds": 1.27
+        },
+        {
+          "match": "忠北清州 vs 安养FC",
+          "selection": "安养FC独赢",
+          "odds": 1.98
+        },
+        {
+          "match": "釜山偶像 vs FC首尔",
+          "selection": "FC首尔独赢",
+          "odds": 1.57
+        }
+      ]
+    },
+    "evidence": [
+      "三场均为2026年7月29日韩国杯未开赛赛事",
+      "蔚山HD级别、杯赛履历和近期反弹优于蔚山市民",
+      "安养FC近四场三胜一平且客场表现较强",
+      "FC首尔为顶级联赛领跑方，釜山近期走势下降"
+    ],
+    "risks": [
+      "杯赛轮换及常规时间平局风险",
+      "正式首发尚未公布",
+      "赔率来自10:37左右的YBTY快照，临场变化需取消或重评"
+    ],
+    "review": {
+      "status": "reviewed",
+      "outcome": "loss",
+      "leg_results": [
+        {
+          "match": "蔚山市民 vs 蔚山HD",
+          "selection": "蔚山HD独赢",
+          "final_score": {
+            "home": 1,
+            "away": 0
+          },
+          "outcome": "loss",
+          "source": "https://www.sportytrader.com/en/results-live/ulsan-citizen-fc-ulsan-hyundai-8650491/"
+        },
+        {
+          "match": "忠北清州 vs 安养FC",
+          "selection": "安养FC独赢",
+          "final_score": {
+            "home": 1,
+            "away": 3
+          },
+          "outcome": "win",
+          "source": "https://www.sportytrader.com/en/results-live/cheongju-fc-fc-anyang-8650485/"
+        },
+        {
+          "match": "釜山偶像 vs FC首尔",
+          "selection": "FC首尔独赢",
+          "outcome": "pending"
+        }
+      ],
+      "review_method": "verified_result_file"
+    },
+    "record_type": "formal_ai_recommendation",
+    "formal_recommendation": true
+  },
+  {
+    "id": "prematch-4x-20260729-115207",
+    "created_at": "2026-07-29T11:52:07.3560956+08:00",
+    "match": "非滚球4串：蔚山HD让球 / 富川小球 / 安养让球 / FC首尔让球",
+    "minute": null,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 71.0,
+    "recommendation": {
+      "market": "非滚球混合4串",
+      "odds": 8.92,
+      "legs": [
+        {
+          "match": "蔚山市民 vs 蔚山HD",
+          "selection": "蔚山HD -1/1.5",
+          "odds": 1.67
+        },
+        {
+          "match": "富川FC vs 坡州前线",
+          "selection": "全场小2.5/3",
+          "odds": 1.67
+        },
+        {
+          "match": "忠北清州 vs 安养FC",
+          "selection": "安养FC -0/0.5",
+          "odds": 1.78
+        },
+        {
+          "match": "釜山偶像 vs FC首尔",
+          "selection": "FC首尔 -0.5/1",
+          "odds": 1.8
+        }
+      ]
+    },
+    "evidence": [
+      "四场均已由YBTY与雷速成功匹配",
+      "蔚山HD实力和杯赛履历占优",
+      "富川与坡州近期胜势不足，采用小2.75控制方向风险",
+      "安养近期状态及客场表现优于忠北清州",
+      "FC首尔整体级别和近期竞争力高于釜山"
+    ],
+    "risks": [
+      "杯赛轮换",
+      "让球盘需要热门球队在常规时间建立优势",
+      "正式首发公布后需重新确认"
+    ],
+    "review": {
+      "status": "reviewed",
+      "outcome": "loss",
+      "leg_results": [
+        {
+          "match": "蔚山市民 vs 蔚山HD",
+          "selection": "蔚山HD -1/1.5",
+          "final_score": {
+            "home": 1,
+            "away": 0
+          },
+          "outcome": "loss",
+          "source": "https://www.sportytrader.com/en/results-live/ulsan-citizen-fc-ulsan-hyundai-8650491/"
+        },
+        {
+          "match": "富川FC vs 坡州前线",
+          "selection": "全场小2.5/3",
+          "outcome": "pending"
+        },
+        {
+          "match": "忠北清州 vs 安养FC",
+          "selection": "安养FC -0/0.5",
+          "final_score": {
+            "home": 1,
+            "away": 3
+          },
+          "outcome": "win",
+          "source": "https://www.sportytrader.com/en/results-live/cheongju-fc-fc-anyang-8650485/"
+        },
+        {
+          "match": "釜山偶像 vs FC首尔",
+          "selection": "FC首尔 -0.5/1",
+          "outcome": "pending"
+        }
+      ],
+      "review_method": "verified_result_file"
+    },
+    "record_type": "formal_ai_recommendation",
+    "formal_recommendation": true
+  },
+  {
+    "id": "prematch-early-3x-20260729-115623",
+    "created_at": "2026-07-29T11:56:23.4472954+08:00",
+    "match": "18:00早场3串：蔚山HD独赢 / 富川小2.75 / FC首尔-0.75",
+    "minute": null,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 72.0,
+    "recommendation": {
+      "market": "非滚球早场混合3串",
+      "odds": 3.82,
+      "legs": [
+        {
+          "match": "蔚山市民 vs 蔚山HD",
+          "selection": "蔚山HD独赢",
+          "odds": 1.27
+        },
+        {
+          "match": "富川FC vs 坡州前线",
+          "selection": "全场小2.5/3",
+          "odds": 1.67
+        },
+        {
+          "match": "釜山偶像 vs FC首尔",
+          "selection": "FC首尔 -0.5/1",
+          "odds": 1.8
+        }
+      ]
+    },
+    "evidence": [
+      "三场北京时间18:00开赛",
+      "赛事与盘口双源匹配",
+      "采用独赢、大小球和让球混合降低单一玩法偏差"
+    ],
+    "risks": [
+      "韩国杯轮换",
+      "正式首发尚未公布"
+    ],
+    "review": {
+      "status": "reviewed",
+      "outcome": "loss",
+      "leg_results": [
+        {
+          "match": "蔚山市民 vs 蔚山HD",
+          "selection": "蔚山HD独赢",
+          "final_score": {
+            "home": 1,
+            "away": 0
+          },
+          "outcome": "loss",
+          "source": "https://www.sportytrader.com/en/results-live/ulsan-citizen-fc-ulsan-hyundai-8650491/"
+        },
+        {
+          "match": "富川FC vs 坡州前线",
+          "selection": "全场小2.5/3",
+          "outcome": "pending"
+        },
+        {
+          "match": "釜山偶像 vs FC首尔",
+          "selection": "FC首尔 -0.5/1",
+          "outcome": "pending"
+        }
+      ],
+      "review_method": "verified_result_file"
+    },
+    "record_type": "formal_ai_recommendation",
+    "formal_recommendation": true
+  },
+  {
+    "id": "prematch-early-4x-20260729-115623",
+    "created_at": "2026-07-29T11:56:23.4472954+08:00",
+    "match": "18:00早场4串：蔚山HD独赢 / 富川小2.75 / FC首尔-0.75 / 光州-0.25",
+    "minute": null,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "grade": "B",
+    "model_score": 70.0,
+    "recommendation": {
+      "market": "非滚球早场混合4串",
+      "odds": 6.0,
+      "legs": [
+        {
+          "match": "蔚山市民 vs 蔚山HD",
+          "selection": "蔚山HD独赢",
+          "odds": 1.27
+        },
+        {
+          "match": "富川FC vs 坡州前线",
+          "selection": "全场小2.5/3",
+          "odds": 1.67
+        },
+        {
+          "match": "釜山偶像 vs FC首尔",
+          "selection": "FC首尔 -0.5/1",
+          "odds": 1.8
+        },
+        {
+          "match": "光州FC vs 天安城",
+          "selection": "光州FC -0/0.5",
+          "odds": 1.57
+        }
+      ]
+    },
+    "evidence": [
+      "四场北京时间18:00开赛",
+      "第四腿用光州-0.25而非深盘控制风险",
+      "天安近期连续失利"
+    ],
+    "risks": [
+      "韩国杯轮换",
+      "光州联赛状态较弱",
+      "正式首发尚未公布"
+    ],
+    "review": {
+      "status": "reviewed",
+      "outcome": "loss",
+      "leg_results": [
+        {
+          "match": "蔚山市民 vs 蔚山HD",
+          "selection": "蔚山HD独赢",
+          "final_score": {
+            "home": 1,
+            "away": 0
+          },
+          "outcome": "loss",
+          "source": "https://www.sportytrader.com/en/results-live/ulsan-citizen-fc-ulsan-hyundai-8650491/"
+        },
+        {
+          "match": "富川FC vs 坡州前线",
+          "selection": "全场小2.5/3",
+          "outcome": "pending"
+        },
+        {
+          "match": "釜山偶像 vs FC首尔",
+          "selection": "FC首尔 -0.5/1",
+          "outcome": "pending"
+        },
+        {
+          "match": "光州FC vs 天安城",
+          "selection": "光州FC -0/0.5",
+          "final_score": {
+            "home": 1,
+            "away": 0
+          },
+          "outcome": "win",
+          "source": "https://www.sofascore.com/football/match/gwangju-fc-cheonan-city-fc/nAqsmDu"
+        }
+      ],
+      "review_method": "verified_result_file"
+    },
+    "record_type": "formal_ai_recommendation",
+    "formal_recommendation": true
+  },
+  {
+    "id": "63d8150d9e7d7d8b",
+    "created_at": "2026-07-29T21:00:01.594659+00:00",
+    "record_type": "machine_candidate",
+    "formal_recommendation": false,
+    "match": "艾尔维吉亚 vs 拉腊体育",
+    "ybty_match": "艾尔维吉亚 vs 拉腊体育",
+    "ybty_home": "艾尔维吉亚",
+    "ybty_away": "拉腊体育",
+    "ybty_start_time": null,
+    "ybty_start_time_beijing": null,
+    "minute": 70,
+    "score_at_recommendation": {
+      "home": 1,
+      "away": 0
+    },
+    "score_source": "ybty_market",
+    "score_verified": true,
+    "grade": "B",
+    "model_score": 81.2,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 1.5,
+      "odds": 1.93,
+      "basis": "remaining_goals"
+    },
+    "evidence": [
+      "累计射门12、射正4",
+      "模型预计剩余进球约0.77",
+      "当地天气：多云、759mmHg、34°C、2.6m/s、55%",
+      "已取得文字直播事件20条",
+      "最近5分钟：射门1、射正0",
+      "最近15分钟：射门4、射正1",
+      "实时优势指数：主队+3.34",
+      "控球率：52%—48%",
+      "进攻/危险进攻：54/39—77/57"
+    ],
+    "risks": [
+      "仅取得双方注册名单，未确认本场正式首发",
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "data_context": {
+      "state_source": {
+        "minute": "ybty",
+        "score": "ybty",
+        "start_time": "ybty"
+      },
+      "provider_state": {
+        "minute": 71,
+        "score": {
+          "home": 1,
+          "away": 0
+        },
+        "score_source": "score_canvas",
+        "start_time": "03:30"
+      },
+      "weather": {
+        "available": true,
+        "text": [
+          "多云",
+          "759mmHg",
+          "34°C",
+          "2.6m/s",
+          "55%"
+        ]
+      },
+      "lineups": {
+        "available": false,
+        "source": "namitiyu_api_squad",
+        "home": {
+          "team": "艾尔维吉亚",
+          "players": [
+            "亨德里·门多萨",
+            "威廉姆斯·布埃纳诺斯",
+            "约翰·切尔尼基亚罗",
+            "阿德里安·罗德里格斯",
+            "埃迪克森·梅纳",
+            "罗纳尔多·里瓦斯",
+            "华金·桑切斯",
+            "维斯林托斯·伦特里亚·梅纳斯",
+            "恩吉尔伯特·拉米雷斯",
+            "乌尔弗兰·莱昂",
+            "阿尔格尼斯·马尔克斯",
+            "何塞·埃尔南德斯",
+            "达尔文·约翰·梅希亚·萨帕塔",
+            "路易斯·罗梅罗",
+            "阿德里安·瓦莱罗",
+            "伊万·阿兰德特",
+            "安东尼奥·塞萨尔",
+            "耶稣·奇马",
+            "耶弗森·马尔克斯",
+            "维克多·罗哈斯",
+            "曼努埃尔·莫拉",
+            "梅希亚",
+            "拉瓦多",
+            "安赫尔·埃尔南德斯",
+            "卢奇",
+            "格雷戈里·维拉",
+            "卡斯蒂略",
+            "米歇尔·金特罗",
+            "丹尼尔·梅希亚",
+            "里巴尔多·杜兰",
+            "何塞·拉蒂瓦",
+            "维克多·伊巴拉",
+            "克莱纳·埃斯科西亚·拉米雷斯",
+            "埃尔利斯·巴斯克斯",
+            "卡洛斯·帕迪利亚",
+            "埃德森·萨拉查",
+            "詹·格雷罗",
+            "迭戈·卡斯特利亚诺斯",
+            "胡安·维加拉",
+            "希尔伯·弗洛雷斯",
+            "路伊尔梅·加西亚",
+            "里瓦尔多·帕伦西亚",
+            "亨利·门多萨",
+            "罗伊内尔·杜克",
+            "丹尼·希门尼斯"
+          ],
+          "starters": [],
+          "substitutes": []
+        },
+        "away": {
+          "team": "拉腊体育",
+          "players": [
+            "埃斯皮诺萨·卡尔沃·埃利埃",
+            "曼努埃尔·格拉纳多斯",
+            "让·安布伊拉",
+            "热苏斯·席尔瓦",
+            "佩鲁吉尼"
+          ],
+          "starters": [],
+          "substitutes": []
+        },
+        "entries": [],
+        "status": "squad_only_no_confirmed_match_lineup"
+      },
+      "live_text": {
+        "available": true,
+        "source": "leisu_detail_dom",
+        "captured_at": 1785358770040,
+        "entries": [
+          "艾尔维吉亚 拉腊体育 90' 75' 60' HT 30' 15' 0'",
+          "90'",
+          "75'",
+          "60'",
+          "30'",
+          "15'",
+          "64'",
+          "- 第3个角球 - (艾尔维吉亚)",
+          "- 第2个角球 - (艾尔维吉亚)",
+          "45'",
+          "- 随着裁判一声哨响，上半场结束，目前比分1-0",
+          "- 第1个进球！球进啦！艾尔维吉亚取得本场比赛领先！",
+          "38'",
+          "- 第2张黄牌 - (拉腊体育)",
+          "29'",
+          "- 第1张黄牌，裁判出示了本场比赛的第一张黄牌，给了(拉腊体育)",
+          "20'",
+          "- 20分钟，艾尔维吉亚获得本场第1个角球",
+          "比赛开始!",
+          "随着主裁判一声哨响，上半场比赛开始"
+        ]
+      },
+      "incidents": []
+    },
+    "review": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "59e6e58fc8c01e45",
+    "created_at": "2026-07-29T21:00:01.594659+00:00",
+    "record_type": "machine_candidate",
+    "formal_recommendation": false,
+    "match": "乌勒纳 vs 卡贝略港学院B队",
+    "ybty_match": "乌勒纳 vs 卡贝略港大学B队",
+    "ybty_home": "乌勒纳",
+    "ybty_away": "卡贝略港大学B队",
+    "ybty_start_time": null,
+    "ybty_start_time_beijing": null,
+    "minute": 70,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "score_source": "ybty_market",
+    "score_verified": true,
+    "grade": "B",
+    "model_score": 79.1,
+    "recommendation": {
+      "market": "全场大球",
+      "line": 0.5,
+      "odds": 1.72,
+      "basis": "remaining_goals"
+    },
+    "evidence": [
+      "累计射门16、射正5",
+      "模型预计剩余进球约1.12",
+      "当地天气：局部有云、759mmHg、32°C、3.2m/s、41%",
+      "已取得文字直播事件20条",
+      "最近5分钟：射门2、射正0",
+      "最近15分钟：射门9、射正3",
+      "实时优势指数：主队-2.69",
+      "控球率：49%—51%",
+      "进攻/危险进攻：94/50—95/53"
+    ],
+    "risks": [
+      "仅取得双方注册名单，未确认本场正式首发",
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "data_context": {
+      "state_source": {
+        "minute": "ybty",
+        "score": "ybty",
+        "start_time": "ybty"
+      },
+      "provider_state": {
+        "minute": 71,
+        "score": {
+          "home": 0,
+          "away": 0
+        },
+        "score_source": "score_canvas",
+        "start_time": "03:30"
+      },
+      "weather": {
+        "available": true,
+        "text": [
+          "局部有云",
+          "759mmHg",
+          "32°C",
+          "3.2m/s",
+          "41%"
+        ]
+      },
+      "lineups": {
+        "available": false,
+        "source": "namitiyu_api_squad",
+        "home": {
+          "team": "乌勒纳",
+          "players": [
+            "乔安·巴尔加斯",
+            "伊曼纽尔·弗洛雷斯",
+            "何塞·维拉",
+            "哈里·梅纳",
+            "埃德温·桑切斯",
+            "布雷纳·罗巴约",
+            "耶尔森·帕伦西亚",
+            "冈萨雷斯",
+            "Castro",
+            "Mena",
+            "Chacon",
+            "Veliz",
+            "Caicedo",
+            "Urbina",
+            "Ortiz",
+            "奥斯瓦尔多·鲁吉耶里",
+            "Salazar",
+            "Valera",
+            "詹纳·冈萨雷斯",
+            "Badillo",
+            "威尔顿·阿尔梅达",
+            "吉尔森·艾默·奥尔蒂斯·卡拉巴利",
+            "梅克尔·洛佩兹",
+            "何塞·大卫·阿尔瓦雷斯",
+            "迈科尔·维瓦斯",
+            "丹尼尔·托雷斯",
+            "华金·桑切斯",
+            "杰克森·维瓦斯",
+            "约尼弗·耶稣·阿尔瓦雷斯·尼诺",
+            "罗纳尔迪·孔特雷拉斯",
+            "安德烈斯·佩纳",
+            "马文·阿斯卡尼奥",
+            "耶弗森·帕特阿罗约",
+            "何塞·乌尔比纳",
+            "耶弗森·莫雷诺",
+            "耶里克森·穆里略",
+            "杰克逊·平松",
+            "克里斯蒂安·门多萨",
+            "威廉·包蒂斯塔",
+            "胡里奥·凯塞多",
+            "内斯托尔·罗德里格斯",
+            "马伯·苏亚雷斯",
+            "艾尔顿·卡多纳",
+            "路易斯·查孔",
+            "布兰登·阿吉拉尔",
+            "莱昂内尔·莫雷诺",
+            "拜伦·阿尔图韦",
+            "凯文·罗梅罗",
+            "克里斯蒂安·孔特雷拉斯",
+            "约瑟夫·莫雷诺",
+            "罗伯特·卡洛斯·查克·罗德里格斯",
+            "路易斯·帕拉",
+            "比·卡雷罗",
+            "阿尔贝·莫斯克拉",
+            "约瑟夫·曼努埃尔·莫雷诺·维瓦斯",
+            "杰·塞利斯",
+            "杰·贝特兰",
+            "布兰登·哈维尔·卡雷罗·乌尔比纳",
+            "罗伯特·洛佩兹",
+            "海梅斯",
+            "胡安·卡洛斯·查韦斯",
+            "耶稣·曼努埃尔·奥罗斯科·埃尔南德斯",
+            "马塞洛·亚历山大·莫雷诺·博雷罗",
+            "胡安·卡洛斯·冈萨雷斯·金特罗",
+            "吉尔森·萨拉扎",
+            "丹尼尔·卡斯特里隆·哈拉米略",
+            "卡洛斯·纳瓦罗"
+          ],
+          "starters": [],
+          "substitutes": []
+        },
+        "away": {
+          "team": "卡贝略港学院B队",
+          "players": [],
+          "starters": [],
+          "substitutes": []
+        },
+        "entries": [],
+        "status": "squad_only_no_confirmed_match_lineup"
+      },
+      "live_text": {
+        "available": true,
+        "source": "leisu_detail_dom",
+        "captured_at": 1785358770040,
+        "entries": [
+          "乌勒纳 卡贝略港学院B队 90' 75' 60' HT 30' 15' 0'",
+          "90'",
+          "75'",
+          "60'",
+          "30'",
+          "15'",
+          "69'",
+          "- 第2张黄牌 - (乌勒纳)",
+          "62'",
+          "- 第3个角球 - (卡贝略港学院B队)",
+          "56'",
+          "- 第2个角球 - (乌勒纳)",
+          "45'",
+          "- 随着裁判一声哨响，上半场结束，目前比分0-0",
+          "41'",
+          "- 第1张黄牌，裁判出示了本场比赛的第一张黄牌，给了(乌勒纳)",
+          "23'",
+          "- 23分钟，卡贝略港学院B队获得本场第1个角球",
+          "比赛开始!",
+          "随着主裁判一声哨响，上半场比赛开始"
+        ]
+      },
+      "incidents": []
+    },
+    "review": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "a5ed09bf0de22824",
+    "created_at": "2026-07-29T21:00:01.594659+00:00",
+    "record_type": "machine_candidate",
+    "formal_recommendation": false,
+    "match": "特罗图尔 vs 阿费查尔丁",
+    "ybty_match": "斯洛图尔 vs 阿费查尔丁",
+    "ybty_home": "斯洛图尔",
+    "ybty_away": "阿费查尔丁",
+    "ybty_start_time": null,
+    "ybty_start_time_beijing": null,
+    "minute": 57,
+    "score_at_recommendation": {
+      "home": 4,
+      "away": 0
+    },
+    "score_source": "ybty_market",
+    "score_verified": true,
+    "grade": "B",
+    "model_score": 91.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 5.5,
+      "odds": 2.01,
+      "basis": "remaining_goals"
+    },
+    "evidence": [
+      "累计射门13、射正6",
+      "模型预计剩余进球约1.51",
+      "当地天气：局部有云、761mmHg、12°C、5.1m/s、52%",
+      "正式阵容已映射：主队11人、客队11人",
+      "已取得文字直播事件34条",
+      "最近5分钟：射门1、射正0",
+      "最近15分钟：射门5、射正3",
+      "实时优势指数：主队+12.51",
+      "控球率：52%—48%",
+      "进攻/危险进攻：35/21—42/22"
+    ],
+    "risks": [
+      "文字直播存在红牌、VAR或点球等重大事件，需确认盘口已稳定",
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "data_context": {
+      "state_source": {
+        "minute": "ybty",
+        "score": "ybty",
+        "start_time": "ybty"
+      },
+      "provider_state": {
+        "minute": 59,
+        "score": {
+          "home": 4,
+          "away": 0
+        },
+        "score_source": "score_canvas",
+        "start_time": "03:45"
+      },
+      "weather": {
+        "available": true,
+        "text": [
+          "局部有云",
+          "761mmHg",
+          "12°C",
+          "5.1m/s",
+          "52%"
+        ]
+      },
+      "lineups": {
+        "available": true,
+        "source": "namitiyu_api_match_lineup",
+        "home": {
+          "team": "特罗图尔",
+          "players": [
+            {
+              "id": 1656576,
+              "name": "索尔哈松",
+              "shirt_number": 25,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1414075,
+              "name": "艾里克·索尔斯泰因森·布朗达尔",
+              "shirt_number": 2,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1082505,
+              "name": "特里格维·斯纳尔·盖尔森",
+              "shirt_number": 7,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1504539,
+              "name": "哈达森·高图尔·布林贾尔",
+              "shirt_number": 21,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1891431,
+              "name": "奥恩·欣里克森",
+              "shirt_number": 27,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1173663,
+              "name": "阿隆·斯纳",
+              "shirt_number": 32,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1417923,
+              "name": "卡里·克里斯蒂安森",
+              "shirt_number": 22,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 96522,
+              "name": "亚当·阿尼·罗伯茨森",
+              "shirt_number": 9,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1063681,
+              "name": "鲍德·汉尼斯·斯蒂芬森",
+              "shirt_number": 8,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1782134,
+              "name": "伊萨克·托哈鲁尔·古德蒙森",
+              "shirt_number": 1,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1511191,
+              "name": "恩乔杜·索哈尔松",
+              "shirt_number": 4,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1007747,
+              "name": "阿隆·达古尔·伯努森",
+              "shirt_number": 12,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1719178,
+              "name": "科尔宾·古德伯格森",
+              "shirt_number": 5,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1894445,
+              "name": "雅各布·克里斯坦松",
+              "shirt_number": 6,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1540153,
+              "name": "维尔贾穆尔·西居尔松",
+              "shirt_number": 45,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1504474,
+              "name": "斯蒂芬·斯蒂芬森",
+              "shirt_number": 3,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1507655,
+              "name": "维克多·施泰纳松",
+              "shirt_number": 20,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1082135,
+              "name": "马格努斯·索达尔森",
+              "shirt_number": 11,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            }
+          ],
+          "starters": [
+            {
+              "id": 1656576,
+              "name": "索尔哈松",
+              "shirt_number": 25,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1414075,
+              "name": "艾里克·索尔斯泰因森·布朗达尔",
+              "shirt_number": 2,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1082505,
+              "name": "特里格维·斯纳尔·盖尔森",
+              "shirt_number": 7,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1504539,
+              "name": "哈达森·高图尔·布林贾尔",
+              "shirt_number": 21,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1891431,
+              "name": "奥恩·欣里克森",
+              "shirt_number": 27,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1173663,
+              "name": "阿隆·斯纳",
+              "shirt_number": 32,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1417923,
+              "name": "卡里·克里斯蒂安森",
+              "shirt_number": 22,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 96522,
+              "name": "亚当·阿尼·罗伯茨森",
+              "shirt_number": 9,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1063681,
+              "name": "鲍德·汉尼斯·斯蒂芬森",
+              "shirt_number": 8,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1782134,
+              "name": "伊萨克·托哈鲁尔·古德蒙森",
+              "shirt_number": 1,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1511191,
+              "name": "恩乔杜·索哈尔松",
+              "shirt_number": 4,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            }
+          ],
+          "substitutes": [
+            {
+              "id": 1007747,
+              "name": "阿隆·达古尔·伯努森",
+              "shirt_number": 12,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1719178,
+              "name": "科尔宾·古德伯格森",
+              "shirt_number": 5,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1894445,
+              "name": "雅各布·克里斯坦松",
+              "shirt_number": 6,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1540153,
+              "name": "维尔贾穆尔·西居尔松",
+              "shirt_number": 45,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1504474,
+              "name": "斯蒂芬·斯蒂芬森",
+              "shirt_number": 3,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1507655,
+              "name": "维克多·施泰纳松",
+              "shirt_number": 20,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1082135,
+              "name": "马格努斯·索达尔森",
+              "shirt_number": 11,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            }
+          ]
+        },
+        "away": {
+          "team": "阿费查尔丁",
+          "players": [
+            {
+              "id": 86601,
+              "name": "阿隆·埃利·萨瓦森",
+              "shirt_number": 6,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 94317,
+              "name": "阿克塞尔·奥斯卡·安德烈森",
+              "shirt_number": 3,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1061448,
+              "name": "巴甲图尔·比耶米·巴卡尔森",
+              "shirt_number": 16,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1743058,
+              "name": "奥丁·比贾卡森",
+              "shirt_number": 11,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1262958,
+              "name": "埃尔玛·科吉",
+              "shirt_number": 10,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1244115,
+              "name": "乔西姆·霍尔坦",
+              "shirt_number": 9,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1145982,
+              "name": "安迪·霍蒂",
+              "shirt_number": 33,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1543292,
+              "name": "萨瓦·阿尔蒂·胡加森",
+              "shirt_number": 19,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1908758,
+              "name": "巴特·库伊斯特拉",
+              "shirt_number": 8,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1482357,
+              "name": "阿纳尔·达迪·约翰内松",
+              "shirt_number": 1,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 15528,
+              "name": "博尔基·马尔·塞瓦尔森",
+              "shirt_number": 2,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1631975,
+              "name": "豪克·布林克",
+              "shirt_number": 17,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1542545,
+              "name": "埃内斯·奥罗尔·埃内森·科吉",
+              "shirt_number": 27,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1904365,
+              "name": "罗伯特·达达森",
+              "shirt_number": 79,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1417755,
+              "name": "琼·佩图尔松",
+              "shirt_number": 5,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1540644,
+              "name": "贡纳尔·伯格曼·西格马松",
+              "shirt_number": 4,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1545273,
+              "name": "克里斯蒂安·萨夫卡尔松·哈乔瓦",
+              "shirt_number": 85,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1627579,
+              "name": "特劳斯蒂·特莱森",
+              "shirt_number": 24,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            }
+          ],
+          "starters": [
+            {
+              "id": 86601,
+              "name": "阿隆·埃利·萨瓦森",
+              "shirt_number": 6,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 94317,
+              "name": "阿克塞尔·奥斯卡·安德烈森",
+              "shirt_number": 3,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1061448,
+              "name": "巴甲图尔·比耶米·巴卡尔森",
+              "shirt_number": 16,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1743058,
+              "name": "奥丁·比贾卡森",
+              "shirt_number": 11,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1262958,
+              "name": "埃尔玛·科吉",
+              "shirt_number": 10,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1244115,
+              "name": "乔西姆·霍尔坦",
+              "shirt_number": 9,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1145982,
+              "name": "安迪·霍蒂",
+              "shirt_number": 33,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1543292,
+              "name": "萨瓦·阿尔蒂·胡加森",
+              "shirt_number": 19,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1908758,
+              "name": "巴特·库伊斯特拉",
+              "shirt_number": 8,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1482357,
+              "name": "阿纳尔·达迪·约翰内松",
+              "shirt_number": 1,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 15528,
+              "name": "博尔基·马尔·塞瓦尔森",
+              "shirt_number": 2,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            }
+          ],
+          "substitutes": [
+            {
+              "id": 1631975,
+              "name": "豪克·布林克",
+              "shirt_number": 17,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1542545,
+              "name": "埃内斯·奥罗尔·埃内森·科吉",
+              "shirt_number": 27,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1904365,
+              "name": "罗伯特·达达森",
+              "shirt_number": 79,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1417755,
+              "name": "琼·佩图尔松",
+              "shirt_number": 5,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1540644,
+              "name": "贡纳尔·伯格曼·西格马松",
+              "shirt_number": 4,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1545273,
+              "name": "克里斯蒂安·萨夫卡尔松·哈乔瓦",
+              "shirt_number": 85,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1627579,
+              "name": "特劳斯蒂·特莱森",
+              "shirt_number": 24,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            }
+          ]
+        },
+        "entries": [],
+        "status": "home_away_mapped_role_mapping_pending"
+      },
+      "live_text": {
+        "available": true,
+        "source": "leisu_detail_dom",
+        "captured_at": 1785358769079,
+        "entries": [
+          "特罗图尔 阿费查尔丁 90' 75' 60' HT 30' 15' 0'",
+          "90'",
+          "75'",
+          "60'",
+          "30'",
+          "15'",
+          "53'",
+          "- 第4个进球 - (特罗图尔)",
+          "50'",
+          "- 第5个角球 - (特罗图尔)",
+          "45'",
+          "- 随着裁判一声哨响，上半场结束，目前比分3-0",
+          "45+2'",
+          "- 第3个进球 - (特罗图尔)",
+          "37'",
+          "- 第1张红牌 - (阿费查尔丁)",
+          "35'",
+          "- 第2个进球 - (特罗图尔)",
+          "32'",
+          "- 第2张黄牌 - (阿费查尔丁)",
+          "31'",
+          "- 第1张黄牌，裁判出示了本场比赛的第一张黄牌，给了(特罗图尔)",
+          "28'",
+          "- 第1个进球！球进啦！特罗图尔取得本场比赛领先！",
+          "27'",
+          "- 第4个角球 - (特罗图尔)",
+          "20'",
+          "- 第3个角球 - (阿费查尔丁)",
+          "18'",
+          "- 第2个角球 - (阿费查尔丁)",
+          "07'",
+          "- 7分钟，特罗图尔获得本场第1个角球",
+          "比赛开始!",
+          "随着主裁判一声哨响，上半场比赛开始"
+        ]
+      },
+      "incidents": []
+    },
+    "review": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "8db93b349e74e4ad",
+    "created_at": "2026-07-29T21:00:01.594659+00:00",
+    "record_type": "machine_candidate",
+    "formal_recommendation": false,
+    "match": "巴利纳斯竞技 vs 弗龙特拉",
+    "ybty_match": "巴里纳斯 vs 皇家富恩特拉",
+    "ybty_home": "巴里纳斯",
+    "ybty_away": "皇家富恩特拉",
+    "ybty_start_time": null,
+    "ybty_start_time_beijing": null,
+    "minute": 72,
+    "score_at_recommendation": {
+      "home": 2,
+      "away": 0
+    },
+    "score_source": "ybty_market",
+    "score_verified": true,
+    "grade": "B",
+    "model_score": 88.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 2.5,
+      "odds": 1.94,
+      "basis": "remaining_goals"
+    },
+    "evidence": [
+      "累计射门11、射正6",
+      "模型预计剩余进球约0.56",
+      "当地天气：多云有雨、761mmHg、31°C、3.4m/s、64%",
+      "已取得文字直播事件37条",
+      "最近5分钟：射门-3、射正1",
+      "最近15分钟：射门-1、射正2",
+      "实时优势指数：主队+2.94",
+      "控球率：48%—52%",
+      "进攻/危险进攻：71/34—80/36"
+    ],
+    "risks": [
+      "仅取得双方注册名单，未确认本场正式首发",
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "data_context": {
+      "state_source": {
+        "minute": "ybty",
+        "score": "ybty",
+        "start_time": "ybty"
+      },
+      "provider_state": {
+        "minute": 74,
+        "score": {
+          "home": 2,
+          "away": 0
+        },
+        "score_source": "score_canvas",
+        "start_time": "03:30"
+      },
+      "weather": {
+        "available": true,
+        "text": [
+          "多云有雨",
+          "761mmHg",
+          "31°C",
+          "3.4m/s",
+          "64%"
+        ]
+      },
+      "lineups": {
+        "available": false,
+        "source": "namitiyu_api_squad",
+        "home": {
+          "team": "巴利纳斯竞技",
+          "players": [],
+          "starters": [],
+          "substitutes": []
+        },
+        "away": {
+          "team": "弗龙特拉",
+          "players": [
+            "胡里奥·卡纳特",
+            "翁贝托·拉拉",
+            "威廉·包蒂斯塔",
+            "凯文·孔特雷拉斯",
+            "若昂·席尔瓦",
+            "布莱恩·包蒂斯塔",
+            "拜伦·阿尔图韦",
+            "耶夫林·马丁内斯",
+            "埃德森·门多萨",
+            "克莱弗·孔特雷拉斯",
+            "布兰科·门多萨，爱德华多·安东尼奥",
+            "费斯默·安古洛",
+            "乔纳森·巴里恩托斯",
+            "罗森维尔特·阿里埃塔",
+            "欧文斯·博拉诺斯",
+            "拉斐尔·塔皮亚",
+            "塞萨尔·卡巴里科",
+            "弗雷贝尔·迪亚斯",
+            "埃德加多·席尔瓦",
+            "迭戈·席尔瓦",
+            "欧文斯·加西亚",
+            "何塞·兰赫尔",
+            "何塞·卡斯蒂略",
+            "大卫·查孔",
+            "赫克托·萨利纳斯",
+            "阿德里安·罗德里格斯",
+            "米歇尔·迪亚斯",
+            "曼努埃尔·杜尔塞伊",
+            "安德烈斯·贝尼特斯",
+            "莱昂内尔·梅迪纳",
+            "安东尼·兰赫尔",
+            "斯奈德·萨拉查尔",
+            "德乌迪斯·莫斯克拉",
+            "胡安·罗哈斯",
+            "胡安·瓦内加斯",
+            "让·伊巴拉",
+            "凯文·埃尔南德斯",
+            "爱德华多·卡斯特罗",
+            "克里斯蒂安·亚历山德罗·索勒·费尔南德斯",
+            "里戈贝尔特·阿曼多·托雷斯·维拉米萨尔",
+            "安德鲁·耶稣·罗梅罗·孔特雷拉斯",
+            "里克尔梅·阿方索·费尔南德斯·德尔加多",
+            "伊达尔戈",
+            "乔尔·埃斯奈德·萨纳布里亚·瓦卡",
+            "马伯·何塞·苏亚雷斯·拉米雷斯",
+            "埃弗·阿尔贝托·拉米雷斯·卢皮",
+            "伊尔伯·亚历山大·加西亚·穆希卡",
+            "马科斯·爱德华多·加法罗·梅迪纳",
+            "胡安·罗多尔福·马丁内斯·格雷罗",
+            "克里斯蒂安·恩里克·克鲁斯·梅莱安",
+            "胡安·何塞·阿马德奥·基诺涅斯·卡巴列罗",
+            "阿曼多·科尔梅纳雷斯",
+            "迭戈·阿拉尔孔",
+            "安赫尔·利纳雷斯",
+            "路易斯·罗德里格斯",
+            "耶拉尔多·桑切斯"
+          ],
+          "starters": [],
+          "substitutes": []
+        },
+        "entries": [],
+        "status": "squad_only_no_confirmed_match_lineup"
+      },
+      "live_text": {
+        "available": true,
+        "source": "leisu_detail_dom",
+        "captured_at": 1785358765042,
+        "entries": [
+          "巴利纳斯竞技 弗龙特拉 90' 75' 60' HT 30' 15' 0'",
+          "90'",
+          "75'",
+          "60'",
+          "30'",
+          "15'",
+          "73'",
+          "- 第8个角球 - (弗龙特拉)",
+          "64'",
+          "- 第4张黄牌 - (巴利纳斯竞技)",
+          "62'",
+          "- 第7个角球 - (弗龙特拉)",
+          "56'",
+          "- 第3张黄牌 - (弗龙特拉)",
+          "55'",
+          "- 第2张黄牌 - (弗龙特拉)",
+          "45'",
+          "- 随着裁判一声哨响，上半场结束，目前比分2-0",
+          "42'",
+          "- 第6个角球 - (巴利纳斯竞技)",
+          "36'",
+          "- 第1张黄牌，裁判出示了本场比赛的第一张黄牌，给了(巴利纳斯竞技)",
+          "29'",
+          "- 第2个进球 - (巴利纳斯竞技)",
+          "26'",
+          "- 第5个角球 - (弗龙特拉)",
+          "25'",
+          "- 第4个角球 - (弗龙特拉)",
+          "23'",
+          "- 第3个角球 - (巴利纳斯竞技)",
+          "- 第2个角球 - (巴利纳斯竞技)",
+          "12'",
+          "- 第1个进球！Goooooooal！巴利纳斯竞技打进本场比赛第一个进球！",
+          "04'",
+          "- 比赛第4分钟，巴利纳斯竞技取得了本场比赛的第1个角球",
+          "比赛开始!",
+          "随着主裁判一声哨响，上半场比赛开始"
+        ]
+      },
+      "incidents": []
+    },
+    "review": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "a3e96eb8c474d668",
+    "created_at": "2026-07-29T21:00:01.594659+00:00",
+    "record_type": "machine_candidate",
+    "formal_recommendation": false,
+    "match": "圣保罗女足U20 vs 帕尔梅拉斯女足U20",
+    "ybty_match": "圣保罗U20(女) vs 帕尔梅拉斯U20(女)",
+    "ybty_home": "圣保罗U20(女)",
+    "ybty_away": "帕尔梅拉斯U20(女)",
+    "ybty_start_time": null,
+    "ybty_start_time_beijing": null,
+    "minute": 65,
+    "score_at_recommendation": {
+      "home": 2,
+      "away": 0
+    },
+    "score_source": "ybty_market",
+    "score_verified": true,
+    "grade": "B",
+    "model_score": 84.3,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 2.75,
+      "odds": 1.94,
+      "basis": "remaining_goals"
+    },
+    "evidence": [
+      "累计射门19、射正10",
+      "模型预计剩余进球约1.84",
+      "当地天气：763mmHg、18°C、3.4m/s、77%",
+      "已取得文字直播事件30条",
+      "最近5分钟：射门0、射正0",
+      "最近15分钟：射门8、射正5",
+      "实时优势指数：主队+21.44",
+      "控球率：55%—45%",
+      "进攻/危险进攻：69/55—45/8"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "data_context": {
+      "state_source": {
+        "minute": "ybty",
+        "score": "ybty",
+        "start_time": "ybty"
+      },
+      "provider_state": {
+        "minute": 67,
+        "score": {
+          "home": 2,
+          "away": 0
+        },
+        "score_source": "score_canvas",
+        "start_time": "03:30"
+      },
+      "weather": {
+        "available": true,
+        "text": [
+          "763mmHg",
+          "18°C",
+          "3.4m/s",
+          "77%"
+        ]
+      },
+      "lineups": {
+        "available": false,
+        "source": "namitiyu_api_squad",
+        "home": {
+          "team": "圣保罗女足U20",
+          "players": [],
+          "starters": [],
+          "substitutes": []
+        },
+        "away": {
+          "team": "帕尔梅拉斯女足U20",
+          "players": [],
+          "starters": [],
+          "substitutes": []
+        },
+        "entries": [],
+        "status": "not_published_or_not_exposed"
+      },
+      "live_text": {
+        "available": true,
+        "source": "leisu_detail_dom",
+        "captured_at": 1785358770040,
+        "entries": [
+          "圣保罗女足U20 帕尔梅拉斯女足U20 90' 75' 60' HT 30' 15' 0'",
+          "90'",
+          "75'",
+          "60'",
+          "30'",
+          "15'",
+          "65'",
+          "- 第7个角球 - (圣保罗女足U20)",
+          "62'",
+          "- 第6个角球 - (圣保罗女足U20)",
+          "- 第2张黄牌 - (帕尔梅拉斯女足U20)",
+          "46'",
+          "- 第5个角球 - (圣保罗女足U20)",
+          "45'",
+          "- 随着裁判一声哨响，上半场结束，目前比分2-0",
+          "45+4'",
+          "- 第2个进球 - (圣保罗女足U20)",
+          "34'",
+          "- 第1个进球！Goooooooal！圣保罗女足U20打进本场比赛第一个进球！",
+          "- 第4个角球 - (圣保罗女足U20)",
+          "28'",
+          "- 第1张黄牌，裁判出示了本场比赛的第一张黄牌，给了(圣保罗女足U20)",
+          "13'",
+          "- 第3个角球 - (圣保罗女足U20)",
+          "09'",
+          "- 第2个角球 - (圣保罗女足U20)",
+          "04'",
+          "- 比赛第4分钟，圣保罗女足U20取得了本场比赛的第1个角球",
+          "比赛开始!",
+          "随着主裁判一声哨响，上半场比赛开始"
+        ]
+      },
+      "incidents": []
+    },
+    "review": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "a87cc7e8ff539c9e",
+    "created_at": "2026-07-29T21:07:33.667169+00:00",
+    "record_type": "machine_candidate",
+    "formal_recommendation": false,
+    "match": "哥斯达黎加女足 （中） vs 委内瑞拉女足",
+    "ybty_match": "哥斯达黎加(女) vs 委内瑞拉(女)",
+    "ybty_home": "哥斯达黎加(女)",
+    "ybty_away": "委内瑞拉(女)",
+    "ybty_start_time": null,
+    "ybty_start_time_beijing": null,
+    "minute": 49,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 1
+    },
+    "score_source": "ybty_market",
+    "score_verified": true,
+    "grade": "B",
+    "model_score": 88.0,
+    "recommendation": {
+      "market": "客队后续时段让球",
+      "line": -1.0,
+      "odds": 1.96,
+      "basis": "remaining_period_dominance",
+      "scope": "remaining_time"
+    },
+    "evidence": [
+      "累计射门17、射正10",
+      "模型预计剩余进球约3.36",
+      "当地天气：局部有云、761mmHg、34°C、6.1m/s、51%",
+      "已取得文字直播事件26条",
+      "最近5分钟：射门3、射正2",
+      "最近15分钟：射门4、射正3",
+      "实时优势指数：主队-17.02",
+      "控球率：38%—62%",
+      "进攻/危险进攻：35/8—54/45"
+    ],
+    "risks": [
+      "仅取得双方注册名单，未确认本场正式首发",
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "data_context": {
+      "state_source": {
+        "minute": "ybty",
+        "score": "ybty",
+        "start_time": "ybty"
+      },
+      "provider_state": {
+        "minute": 50,
+        "score": {
+          "home": 0,
+          "away": 1
+        },
+        "score_source": "score_canvas",
+        "start_time": "04:00"
+      },
+      "weather": {
+        "available": true,
+        "text": [
+          "局部有云",
+          "761mmHg",
+          "34°C",
+          "6.1m/s",
+          "51%"
+        ]
+      },
+      "lineups": {
+        "available": false,
+        "source": "namitiyu_api_squad",
+        "home": {
+          "team": "哥斯达黎加女足 （中）",
+          "players": [
+            "加布里埃拉·吉伦",
+            "玛丽安娜·贝纳维德斯",
+            "拉奎尔·罗德里格斯",
+            "普里西拉·钦吉尔",
+            "法比奥拉·维拉洛沃斯",
+            "丹妮拉·索莱拉·维加",
+            "格洛里亚娜·维拉洛沃斯",
+            "谢卡·斯科特",
+            "诺莉亚·百慕德斯",
+            "阿什利·帕梅拉·埃利松多·布雷内斯",
+            "斯蒂芬妮·布兰科",
+            "瓦莱里亚·德尔坎波",
+            "凯瑟琳·阿尔瓦拉多",
+            "吉内西斯·佩雷兹",
+            "安娜·吉尔伯森",
+            "玛丽亚·阿尔塞",
+            "玛丽亚·科托",
+            "普里西拉·罗德里格斯",
+            "玛丽安·索拉诺·皮卡多",
+            "卢西亚·帕尼亚瓜",
+            "艾玛·阿索费法·卢苏里亚加",
+            "保拉·阿尔塞",
+            "迪亚兹",
+            "马里莱尼斯·奥波尔塔·维加"
+          ],
+          "starters": [],
+          "substitutes": []
+        },
+        "away": {
+          "team": "委内瑞拉女足",
+          "players": [
+            "乔马尔·瓜雷库科",
+            "奈露莎·卡塞雷斯",
+            "叶尼弗·吉梅内兹",
+            "米歇尔·罗梅罗",
+            "弗洛里安格尔·阿波斯托尔",
+            "梅拉妮·奇里诺斯",
+            "艾琳·埃雷拉",
+            "瓦莱里娅·雷巴纳莱斯",
+            "雷德尔林·纳撒勒·卡拉斯科·巴尔加斯",
+            "斯派克梅尔",
+            "加布里埃拉·加西亚",
+            "戴娜·卡斯特拉诺斯",
+            "达亚娜·罗德里格斯",
+            "达纽斯卡·罗德里格斯",
+            "芭芭拉·奥莉维利",
+            "萨布丽娜·埃洛扎·阿劳霍",
+            "克里斯贝利斯·芭芭拉·弗洛雷斯·马丁内斯",
+            "埃雷拉",
+            "弗洛里安格尔·阿盖尔",
+            "吉拉里·迪亚兹",
+            "杰内西斯·弗洛雷斯",
+            "埃耶尔利安尼斯·希格拉",
+            "卢德斯·莫雷诺",
+            "G.雷耶斯",
+            "耶西卡·维拉斯奎兹",
+            "阿劳霍-埃洛萨",
+            "弗洛雷斯",
+            "雷耶斯",
+            "芭芭拉·马丁内斯"
+          ],
+          "starters": [],
+          "substitutes": []
+        },
+        "entries": [],
+        "status": "squad_only_no_confirmed_match_lineup"
+      },
+      "live_text": {
+        "available": true,
+        "source": "leisu_detail_dom",
+        "captured_at": 1785359241986,
+        "entries": [
+          "哥斯达黎加女足 委内瑞拉女足 90' 75' 60' HT 30' 15' 0'",
+          "90'",
+          "75'",
+          "60'",
+          "30'",
+          "15'",
+          "49'",
+          "- 第8个角球 - (委内瑞拉女足)",
+          "45'",
+          "- 随着裁判一声哨响，上半场结束，目前比分0-1",
+          "45+2'",
+          "- 第1个进球！Goooooooal！委内瑞拉女足打进本场比赛第一个进球！",
+          "43'",
+          "- 第7个角球 - (委内瑞拉女足)",
+          "- 第6个角球 - (委内瑞拉女足)",
+          "31'",
+          "- 第5个角球 - (委内瑞拉女足)",
+          "- 第4个角球 - (委内瑞拉女足)",
+          "26'",
+          "- 第3个角球 - (委内瑞拉女足)",
+          "17'",
+          "- 第2个角球 - (哥斯达黎加女足)",
+          "08'",
+          "- 比赛第8分钟，委内瑞拉女足取得了本场比赛的第1个角球",
+          "比赛开始!",
+          "随着主裁判一声哨响，上半场比赛开始"
+        ]
+      },
+      "incidents": []
+    },
+    "review": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "b464c828f3bc4f44",
+    "created_at": "2026-07-29T21:07:33.667169+00:00",
+    "record_type": "machine_candidate",
+    "formal_recommendation": false,
+    "match": "瓜拉塞奥 vs 马卡拉",
+    "ybty_match": "瓜拉塞奥 vs 马卡拉",
+    "ybty_home": "瓜拉塞奥",
+    "ybty_away": "马卡拉",
+    "ybty_start_time": null,
+    "ybty_start_time_beijing": null,
+    "minute": 48,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "score_source": "ybty_market",
+    "score_verified": true,
+    "grade": "B",
+    "model_score": 82.9,
+    "recommendation": {
+      "market": "全场大球",
+      "line": 0.75,
+      "odds": 1.73,
+      "basis": "remaining_goals"
+    },
+    "evidence": [
+      "累计射门12、射正5",
+      "模型预计剩余进球约1.58",
+      "当地天气：770mmHg、20°C、44%",
+      "已取得文字直播事件30条",
+      "最近5分钟：射门2、射正0",
+      "最近15分钟：射门3、射正0",
+      "实时优势指数：主队-0.32",
+      "控球率：56%—44%",
+      "进攻/危险进攻：42/28—34/19"
+    ],
+    "risks": [
+      "仅取得双方注册名单，未确认本场正式首发",
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "data_context": {
+      "state_source": {
+        "minute": "ybty",
+        "score": "ybty",
+        "start_time": "ybty"
+      },
+      "provider_state": {
+        "minute": 49,
+        "score": {
+          "home": 0,
+          "away": 0
+        },
+        "score_source": "score_canvas",
+        "start_time": "04:00"
+      },
+      "weather": {
+        "available": true,
+        "text": [
+          "770mmHg",
+          "20°C",
+          "44%"
+        ]
+      },
+      "lineups": {
+        "available": false,
+        "source": "namitiyu_api_squad",
+        "home": {
+          "team": "瓜拉塞奥",
+          "players": [
+            "维尼奇奥·安古洛",
+            "亨利·奎因内斯",
+            "耶稣普雷",
+            "曼努埃尔·努涅斯",
+            "约翰·梅迪纳",
+            "让·卡里恩",
+            "泰尔莫·埃拉斯",
+            "安德烈斯·坎帕斯",
+            "豪尔赫·贡戈拉",
+            "斯大林·莫罗乔",
+            "德尼尔森·奥万多",
+            "亨利·帕塔",
+            "亚德利·罗德里格斯",
+            "拜伦·托瑞斯",
+            "拜伦·米纳",
+            "亚历山大·罗索",
+            "J.皮塔",
+            "威尔默·戈多伊·奎诺内斯",
+            "拜伦·安德烈斯·托雷斯·米纳",
+            "达尔文·苏亚雷斯",
+            "耶森·格雷罗",
+            "卢卡斯·蒂诺罗",
+            "杰斐逊·帕迪拉"
+          ],
+          "starters": [],
+          "substitutes": []
+        },
+        "away": {
+          "team": "马卡拉",
+          "players": [
+            "海罗·希门尼斯",
+            "何塞·马鲁夫",
+            "马丁·特洛",
+            "马特奥·维埃拉",
+            "帕特里西奥·拉莫斯",
+            "达尔文·库罗",
+            "约瑟夫·卡扎雷斯",
+            "费德里科·巴斯",
+            "胡安·马西亚斯",
+            "路易斯·阿亚拉",
+            "埃斯皮诺萨",
+            "加斯顿·布兰科",
+            "安赫尔·莱德斯马",
+            "乔丹·莫霍尔",
+            "罗德里戈·罗德里格斯",
+            "约扬·沙拉",
+            "马龙·梅德兰达",
+            "圣地亚哥·埃切巴内",
+            "德尼尔森·博拉诺斯",
+            "佛朗哥·波西",
+            "汤米·查巴",
+            "玛蒂亚斯·米兰达",
+            "埃斯塔西奥",
+            "何塞·安德烈斯·克林格·索萨",
+            "阿古斯丁·坎帕纳"
+          ],
+          "starters": [],
+          "substitutes": []
+        },
+        "entries": [],
+        "status": "squad_only_no_confirmed_match_lineup"
+      },
+      "live_text": {
+        "available": true,
+        "source": "leisu_detail_dom",
+        "captured_at": 1785359237001,
+        "entries": [
+          "瓜拉塞奥 马卡拉 90' 75' 60' HT 30' 15' 0'",
+          "90'",
+          "75'",
+          "60'",
+          "30'",
+          "15'",
+          "48'",
+          "- 第3张黄牌 - (马卡拉)",
+          "47'",
+          "- 第7个角球 - (马卡拉)",
+          "45'",
+          "- 随着裁判一声哨响，上半场结束，目前比分0-0",
+          "45+4'",
+          "- 第2张黄牌 - (马卡拉)",
+          "42'",
+          "- 第6个角球 - (瓜拉塞奥)",
+          "41'",
+          "- 第5个角球 - (瓜拉塞奥)",
+          "39'",
+          "- 第1张黄牌，裁判出示了本场比赛的第一张黄牌，给了(瓜拉塞奥)",
+          "38'",
+          "- 第4个角球 - (瓜拉塞奥)",
+          "31'",
+          "- 第3个角球 - (马卡拉)",
+          "26'",
+          "- 第2个角球 - (瓜拉塞奥)",
+          "10'",
+          "- 10分钟，马卡拉获得本场第1个角球",
+          "比赛开始!",
+          "随着主裁判一声哨响，上半场比赛开始"
+        ]
+      },
+      "incidents": []
+    },
+    "review": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "9ee33e308ac90640",
+    "created_at": "2026-07-29T21:07:33.667169+00:00",
+    "record_type": "machine_candidate",
+    "formal_recommendation": false,
+    "match": "特罗图尔 vs 阿费查尔丁",
+    "ybty_match": "斯洛图尔 vs 阿费查尔丁",
+    "ybty_home": "斯洛图尔",
+    "ybty_away": "阿费查尔丁",
+    "ybty_start_time": null,
+    "ybty_start_time_beijing": null,
+    "minute": 66,
+    "score_at_recommendation": {
+      "home": 4,
+      "away": 0
+    },
+    "score_source": "ybty_market",
+    "score_verified": true,
+    "grade": "B",
+    "model_score": 91.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 5.25,
+      "odds": 1.86,
+      "basis": "remaining_goals"
+    },
+    "evidence": [
+      "累计射门15、射正6",
+      "模型预计剩余进球约1.23",
+      "当地天气：局部有云、761mmHg、12°C、5.1m/s、51%",
+      "正式阵容已映射：主队11人、客队11人",
+      "已取得文字直播事件36条",
+      "最近5分钟：射门1、射正0",
+      "最近15分钟：射门7、射正3",
+      "实时优势指数：主队+11.80",
+      "控球率：51%—49%",
+      "进攻/危险进攻：42/25—46/26"
+    ],
+    "risks": [
+      "文字直播存在红牌、VAR或点球等重大事件，需确认盘口已稳定",
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "data_context": {
+      "state_source": {
+        "minute": "ybty",
+        "score": "ybty",
+        "start_time": "ybty"
+      },
+      "provider_state": {
+        "minute": 66,
+        "score": {
+          "home": 4,
+          "away": 0
+        },
+        "score_source": "score_canvas",
+        "start_time": "03:45"
+      },
+      "weather": {
+        "available": true,
+        "text": [
+          "局部有云",
+          "761mmHg",
+          "12°C",
+          "5.1m/s",
+          "51%"
+        ]
+      },
+      "lineups": {
+        "available": true,
+        "source": "namitiyu_api_match_lineup",
+        "home": {
+          "team": "特罗图尔",
+          "players": [
+            {
+              "id": 1656576,
+              "name": "索尔哈松",
+              "shirt_number": 25,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1414075,
+              "name": "艾里克·索尔斯泰因森·布朗达尔",
+              "shirt_number": 2,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1082505,
+              "name": "特里格维·斯纳尔·盖尔森",
+              "shirt_number": 7,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1504539,
+              "name": "哈达森·高图尔·布林贾尔",
+              "shirt_number": 21,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1891431,
+              "name": "奥恩·欣里克森",
+              "shirt_number": 27,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1173663,
+              "name": "阿隆·斯纳",
+              "shirt_number": 32,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1417923,
+              "name": "卡里·克里斯蒂安森",
+              "shirt_number": 22,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 96522,
+              "name": "亚当·阿尼·罗伯茨森",
+              "shirt_number": 9,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1063681,
+              "name": "鲍德·汉尼斯·斯蒂芬森",
+              "shirt_number": 8,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1782134,
+              "name": "伊萨克·托哈鲁尔·古德蒙森",
+              "shirt_number": 1,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1511191,
+              "name": "恩乔杜·索哈尔松",
+              "shirt_number": 4,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1007747,
+              "name": "阿隆·达古尔·伯努森",
+              "shirt_number": 12,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1719178,
+              "name": "科尔宾·古德伯格森",
+              "shirt_number": 5,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1894445,
+              "name": "雅各布·克里斯坦松",
+              "shirt_number": 6,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1540153,
+              "name": "维尔贾穆尔·西居尔松",
+              "shirt_number": 45,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1504474,
+              "name": "斯蒂芬·斯蒂芬森",
+              "shirt_number": 3,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1507655,
+              "name": "维克多·施泰纳松",
+              "shirt_number": 20,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1082135,
+              "name": "马格努斯·索达尔森",
+              "shirt_number": 11,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            }
+          ],
+          "starters": [
+            {
+              "id": 1656576,
+              "name": "索尔哈松",
+              "shirt_number": 25,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1414075,
+              "name": "艾里克·索尔斯泰因森·布朗达尔",
+              "shirt_number": 2,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1082505,
+              "name": "特里格维·斯纳尔·盖尔森",
+              "shirt_number": 7,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1504539,
+              "name": "哈达森·高图尔·布林贾尔",
+              "shirt_number": 21,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1891431,
+              "name": "奥恩·欣里克森",
+              "shirt_number": 27,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1173663,
+              "name": "阿隆·斯纳",
+              "shirt_number": 32,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1417923,
+              "name": "卡里·克里斯蒂安森",
+              "shirt_number": 22,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 96522,
+              "name": "亚当·阿尼·罗伯茨森",
+              "shirt_number": 9,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1063681,
+              "name": "鲍德·汉尼斯·斯蒂芬森",
+              "shirt_number": 8,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1782134,
+              "name": "伊萨克·托哈鲁尔·古德蒙森",
+              "shirt_number": 1,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1511191,
+              "name": "恩乔杜·索哈尔松",
+              "shirt_number": 4,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            }
+          ],
+          "substitutes": [
+            {
+              "id": 1007747,
+              "name": "阿隆·达古尔·伯努森",
+              "shirt_number": 12,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1719178,
+              "name": "科尔宾·古德伯格森",
+              "shirt_number": 5,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1894445,
+              "name": "雅各布·克里斯坦松",
+              "shirt_number": 6,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1540153,
+              "name": "维尔贾穆尔·西居尔松",
+              "shirt_number": 45,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1504474,
+              "name": "斯蒂芬·斯蒂芬森",
+              "shirt_number": 3,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1507655,
+              "name": "维克多·施泰纳松",
+              "shirt_number": 20,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1082135,
+              "name": "马格努斯·索达尔森",
+              "shirt_number": 11,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            }
+          ]
+        },
+        "away": {
+          "team": "阿费查尔丁",
+          "players": [
+            {
+              "id": 86601,
+              "name": "阿隆·埃利·萨瓦森",
+              "shirt_number": 6,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 94317,
+              "name": "阿克塞尔·奥斯卡·安德烈森",
+              "shirt_number": 3,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1061448,
+              "name": "巴甲图尔·比耶米·巴卡尔森",
+              "shirt_number": 16,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1743058,
+              "name": "奥丁·比贾卡森",
+              "shirt_number": 11,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1262958,
+              "name": "埃尔玛·科吉",
+              "shirt_number": 10,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1244115,
+              "name": "乔西姆·霍尔坦",
+              "shirt_number": 9,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1145982,
+              "name": "安迪·霍蒂",
+              "shirt_number": 33,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1543292,
+              "name": "萨瓦·阿尔蒂·胡加森",
+              "shirt_number": 19,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1908758,
+              "name": "巴特·库伊斯特拉",
+              "shirt_number": 8,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1482357,
+              "name": "阿纳尔·达迪·约翰内松",
+              "shirt_number": 1,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 15528,
+              "name": "博尔基·马尔·塞瓦尔森",
+              "shirt_number": 2,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1631975,
+              "name": "豪克·布林克",
+              "shirt_number": 17,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1542545,
+              "name": "埃内斯·奥罗尔·埃内森·科吉",
+              "shirt_number": 27,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1904365,
+              "name": "罗伯特·达达森",
+              "shirt_number": 79,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1417755,
+              "name": "琼·佩图尔松",
+              "shirt_number": 5,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1540644,
+              "name": "贡纳尔·伯格曼·西格马松",
+              "shirt_number": 4,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1545273,
+              "name": "克里斯蒂安·萨夫卡尔松·哈乔瓦",
+              "shirt_number": 85,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1627579,
+              "name": "特劳斯蒂·特莱森",
+              "shirt_number": 24,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            }
+          ],
+          "starters": [
+            {
+              "id": 86601,
+              "name": "阿隆·埃利·萨瓦森",
+              "shirt_number": 6,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 94317,
+              "name": "阿克塞尔·奥斯卡·安德烈森",
+              "shirt_number": 3,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1061448,
+              "name": "巴甲图尔·比耶米·巴卡尔森",
+              "shirt_number": 16,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1743058,
+              "name": "奥丁·比贾卡森",
+              "shirt_number": 11,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1262958,
+              "name": "埃尔玛·科吉",
+              "shirt_number": 10,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1244115,
+              "name": "乔西姆·霍尔坦",
+              "shirt_number": 9,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1145982,
+              "name": "安迪·霍蒂",
+              "shirt_number": 33,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1543292,
+              "name": "萨瓦·阿尔蒂·胡加森",
+              "shirt_number": 19,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1908758,
+              "name": "巴特·库伊斯特拉",
+              "shirt_number": 8,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1482357,
+              "name": "阿纳尔·达迪·约翰内松",
+              "shirt_number": 1,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            },
+            {
+              "id": 15528,
+              "name": "博尔基·马尔·塞瓦尔森",
+              "shirt_number": 2,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": null
+            }
+          ],
+          "substitutes": [
+            {
+              "id": 1631975,
+              "name": "豪克·布林克",
+              "shirt_number": 17,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1542545,
+              "name": "埃内斯·奥罗尔·埃内森·科吉",
+              "shirt_number": 27,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1904365,
+              "name": "罗伯特·达达森",
+              "shirt_number": 79,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1417755,
+              "name": "琼·佩图尔松",
+              "shirt_number": 5,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1540644,
+              "name": "贡纳尔·伯格曼·西格马松",
+              "shirt_number": 4,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1545273,
+              "name": "克里斯蒂安·萨夫卡尔松·哈乔瓦",
+              "shirt_number": 85,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1627579,
+              "name": "特劳斯蒂·特莱森",
+              "shirt_number": 24,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            }
+          ]
+        },
+        "entries": [],
+        "status": "home_away_mapped_role_mapping_pending"
+      },
+      "live_text": {
+        "available": true,
+        "source": "leisu_detail_dom",
+        "captured_at": 1785359237001,
+        "entries": [
+          "特罗图尔 阿费查尔丁 90' 75' 60' HT 30' 15' 0'",
+          "90'",
+          "75'",
+          "60'",
+          "30'",
+          "15'",
+          "65'",
+          "- 第6个角球 - (阿费查尔丁)",
+          "53'",
+          "- 第4个进球 - (特罗图尔)",
+          "50'",
+          "- 第5个角球 - (特罗图尔)",
+          "45'",
+          "- 随着裁判一声哨响，上半场结束，目前比分3-0",
+          "45+2'",
+          "- 第3个进球 - (特罗图尔)",
+          "37'",
+          "- 第1张红牌 - (阿费查尔丁)",
+          "35'",
+          "- 第2个进球 - (特罗图尔)",
+          "32'",
+          "- 第2张黄牌 - (阿费查尔丁)",
+          "31'",
+          "- 第1张黄牌，裁判出示了本场比赛的第一张黄牌，给了(特罗图尔)",
+          "28'",
+          "- 第1个进球！球进啦！特罗图尔取得本场比赛领先！",
+          "27'",
+          "- 第4个角球 - (特罗图尔)",
+          "20'",
+          "- 第3个角球 - (阿费查尔丁)",
+          "18'",
+          "- 第2个角球 - (阿费查尔丁)",
+          "07'",
+          "- 7分钟，特罗图尔获得本场第1个角球",
+          "比赛开始!",
+          "随着主裁判一声哨响，上半场比赛开始"
+        ]
+      },
+      "incidents": []
+    },
+    "review": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "08c840e6b0baf2e2",
+    "created_at": "2026-07-29T21:07:33.667169+00:00",
+    "record_type": "machine_candidate",
+    "formal_recommendation": false,
+    "match": "圣保罗女足U20 vs 帕尔梅拉斯女足U20",
+    "ybty_match": "圣保罗U20(女) vs 帕尔梅拉斯U20(女)",
+    "ybty_home": "圣保罗U20(女)",
+    "ybty_away": "帕尔梅拉斯U20(女)",
+    "ybty_start_time": null,
+    "ybty_start_time_beijing": null,
+    "minute": 74,
+    "score_at_recommendation": {
+      "home": 2,
+      "away": 0
+    },
+    "score_source": "ybty_market",
+    "score_verified": true,
+    "grade": "B",
+    "model_score": 88.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 2.5,
+      "odds": 1.96,
+      "basis": "remaining_goals"
+    },
+    "evidence": [
+      "累计射门19、射正10",
+      "模型预计剩余进球约1.35",
+      "当地天气：763mmHg、18°C、3.4m/s、77%",
+      "已取得文字直播事件30条",
+      "最近5分钟：射门0、射正0",
+      "最近15分钟：射门8、射正5",
+      "实时优势指数：主队+21.70",
+      "控球率：54%—46%",
+      "进攻/危险进攻：77/60—46/8"
+    ],
+    "risks": [
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "data_context": {
+      "state_source": {
+        "minute": "ybty",
+        "score": "ybty",
+        "start_time": "ybty"
+      },
+      "provider_state": {
+        "minute": 75,
+        "score": {
+          "home": 2,
+          "away": 0
+        },
+        "score_source": "score_canvas",
+        "start_time": "03:30"
+      },
+      "weather": {
+        "available": true,
+        "text": [
+          "763mmHg",
+          "18°C",
+          "3.4m/s",
+          "77%"
+        ]
+      },
+      "lineups": {
+        "available": false,
+        "source": "namitiyu_api_squad",
+        "home": {
+          "team": "圣保罗女足U20",
+          "players": [],
+          "starters": [],
+          "substitutes": []
+        },
+        "away": {
+          "team": "帕尔梅拉斯女足U20",
+          "players": [],
+          "starters": [],
+          "substitutes": []
+        },
+        "entries": [],
+        "status": "not_published_or_not_exposed"
+      },
+      "live_text": {
+        "available": true,
+        "source": "leisu_detail_dom",
+        "captured_at": 1785359237000,
+        "entries": [
+          "圣保罗女足U20 帕尔梅拉斯女足U20 90' 75' 60' HT 30' 15' 0'",
+          "90'",
+          "75'",
+          "60'",
+          "30'",
+          "15'",
+          "65'",
+          "- 第7个角球 - (圣保罗女足U20)",
+          "62'",
+          "- 第6个角球 - (圣保罗女足U20)",
+          "- 第2张黄牌 - (帕尔梅拉斯女足U20)",
+          "46'",
+          "- 第5个角球 - (圣保罗女足U20)",
+          "45'",
+          "- 随着裁判一声哨响，上半场结束，目前比分2-0",
+          "45+4'",
+          "- 第2个进球 - (圣保罗女足U20)",
+          "34'",
+          "- 第1个进球！Goooooooal！圣保罗女足U20打进本场比赛第一个进球！",
+          "- 第4个角球 - (圣保罗女足U20)",
+          "28'",
+          "- 第1张黄牌，裁判出示了本场比赛的第一张黄牌，给了(圣保罗女足U20)",
+          "13'",
+          "- 第3个角球 - (圣保罗女足U20)",
+          "09'",
+          "- 第2个角球 - (圣保罗女足U20)",
+          "04'",
+          "- 比赛第4分钟，圣保罗女足U20取得了本场比赛的第1个角球",
+          "比赛开始!",
+          "随着主裁判一声哨响，上半场比赛开始"
+        ]
+      },
+      "incidents": []
+    },
+    "review": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "aca968a9a998727a",
+    "created_at": "2026-07-29T21:07:33.667169+00:00",
+    "record_type": "machine_candidate",
+    "formal_recommendation": false,
+    "match": "牙买加女足 （中） vs 哥伦比亚女足",
+    "ybty_match": "牙买加(女) vs 哥伦比亚(女)",
+    "ybty_home": "牙买加(女)",
+    "ybty_away": "哥伦比亚(女)",
+    "ybty_start_time": null,
+    "ybty_start_time_beijing": null,
+    "minute": 46,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 3
+    },
+    "score_source": "ybty_market",
+    "score_verified": true,
+    "grade": "B",
+    "model_score": 88.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 5.0,
+      "odds": 2.01,
+      "basis": "remaining_goals"
+    },
+    "evidence": [
+      "累计射门17、射正10",
+      "模型预计剩余进球约3.12",
+      "当地天气：局部有云、761mmHg、34°C、6.1m/s、51%",
+      "已取得文字直播事件24条",
+      "最近5分钟：射门0、射正0",
+      "最近15分钟：射门4、射正2",
+      "实时优势指数：主队-26.01",
+      "控球率：21%—79%",
+      "进攻/危险进攻：26/5—44/31"
+    ],
+    "risks": [
+      "仅取得双方注册名单，未确认本场正式首发",
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "data_context": {
+      "state_source": {
+        "minute": "ybty",
+        "score": "ybty",
+        "start_time": "ybty"
+      },
+      "provider_state": {
+        "minute": 47,
+        "score": {
+          "home": 0,
+          "away": 3
+        },
+        "score_source": "score_canvas",
+        "start_time": "04:00"
+      },
+      "weather": {
+        "available": true,
+        "text": [
+          "局部有云",
+          "761mmHg",
+          "34°C",
+          "6.1m/s",
+          "51%"
+        ]
+      },
+      "lineups": {
+        "available": false,
+        "source": "namitiyu_api_squad",
+        "home": {
+          "team": "牙买加女足 （中）",
+          "players": [
+            "沙尼尔·巴克利",
+            "蒂凡尼·卡梅伦",
+            "娜塔莎·托马斯",
+            "阿米莉亚·唐娜·范·赞滕",
+            "卡丽莎·赞滕·范",
+            "索莱·华盛顿",
+            "奥卢福拉萨德·阿达姆卡伦",
+            "雷安娜·布拉德斯",
+            "乔迪·布朗",
+            "尚特勒·斯比",
+            "纳雅·卡多萨",
+            "沙尼亚·海尔斯",
+            "尼玛·英格尔顿",
+            "凯拉·麦考伊",
+            "塞雷娜·门萨",
+            "西德尼·施耐德",
+            "卡梅隆·西蒙斯",
+            "阿利森·斯比",
+            "维安·桑普森",
+            "亚特兰大·普里默斯",
+            "孔亚·普拉默",
+            "丹妮莎·布莱克伍德",
+            "莉亚·布鲁克斯"
+          ],
+          "starters": [],
+          "substitutes": []
+        },
+        "away": {
+          "team": "哥伦比亚女足",
+          "players": [
+            "丹妮拉·蒙托亚",
+            "丹妮拉·阿里亚斯",
+            "琳达·卡塞多",
+            "乔琳·卡拉巴利",
+            "卡罗琳娜·阿里亚斯",
+            "雷斯特雷波",
+            "加拉加斯",
+            "卢斯·塔皮亚",
+            "伊尔莱迪斯·克哈达",
+            "莱西·桑托斯",
+            "伊拉娜·伊斯奎尔多",
+            "M·塞普尔韦达",
+            "娜塔莉亚·吉拉尔多",
+            "路易莎·阿古德洛",
+            "玛丽·埃斯皮塔莱塔",
+            "洛雷娜·贝多亚",
+            "阿纳·古兹曼",
+            "凯特琳·温迪·坎德罗·伯尼拉",
+            "瓦莱林·洛博阿",
+            "伊冯·查孔",
+            "凯莉·凯塞多",
+            "格雷希·兰达祖里",
+            "胡安娜·奥尔特贡",
+            "奥尔特贡",
+            "凯利·伊巴古恩"
+          ],
+          "starters": [],
+          "substitutes": []
+        },
+        "entries": [],
+        "status": "squad_only_no_confirmed_match_lineup"
+      },
+      "live_text": {
+        "available": true,
+        "source": "leisu_detail_dom",
+        "captured_at": 1785359241985,
+        "entries": [
+          "牙买加女足 哥伦比亚女足 90' 75' 60' HT 30' 15' 0'",
+          "90'",
+          "75'",
+          "60'",
+          "30'",
+          "15'",
+          "45'",
+          "- 随着裁判一声哨响，上半场结束，目前比分0-3",
+          "45+2'",
+          "- 第4个角球 - (哥伦比亚女足)",
+          "41'",
+          "- 第3个角球 - (哥伦比亚女足)",
+          "36'",
+          "- 第3个进球 - (哥伦比亚女足)",
+          "35'",
+          "- 第2个进球 - (哥伦比亚女足)",
+          "16'",
+          "- 第2个角球 - (哥伦比亚女足)",
+          "08'",
+          "- 第1个进球！球进啦！哥伦比亚女足取得本场比赛领先！",
+          "07'",
+          "- 7分钟，哥伦比亚女足获得本场第1个角球",
+          "比赛开始!",
+          "随着主裁判一声哨响，上半场比赛开始"
+        ]
+      },
+      "incidents": []
+    },
+    "review": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "formal-live-a56280098ac73ae9",
+    "created_at": "2026-07-29T21:09:24.689375+00:00",
+    "record_type": "formal_ai_recommendation",
+    "formal_recommendation": true,
+    "match": "牙买加U20 （中） vs 巴拿马U20",
+    "ybty_match": "牙买加U20 vs 巴拿马U20",
+    "ybty_home": "牙买加U20",
+    "ybty_away": "巴拿马U20",
+    "ybty_start_time": null,
+    "ybty_start_time_beijing": "2026-07-30 04:00",
+    "minute": 45,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 2
+    },
+    "score_source": "ybty_market",
+    "score_verified": true,
+    "grade": "B",
+    "model_score": 91.0,
+    "recommendation": {
+      "market": "全场小球",
+      "line": 3.5,
+      "odds": 1.94,
+      "basis": "full_match_total"
+    },
+    "evidence": [
+      "YBTY 45分钟比分0-2，YBTY与雷速比分一致且快照仅相差0.9秒",
+      "上半场双方合计仅5次射门、4次射正，最近15分钟双方均无射门和射正",
+      "巴拿马两球领先后具备控节奏条件；牙买加虽控球62%，但有效射门仅2次",
+      "双方正式首发各11人已映射，赛事为中北美U20锦标赛而非友谊赛",
+      "巴拿马首轮0-3负加拿大、牙买加首轮2-1胜洪都拉斯，本轮有明确小组积分需求"
+    ],
+    "risks": [
+      "青年赛事下半场体能和防守失误波动较大；牙买加落后必须压上",
+      "缺少完整多公司初盘至即时盘对比"
+    ],
+    "data_context": {
+      "state_source": {
+        "minute": "ybty",
+        "score": "ybty",
+        "start_time": "ybty"
+      },
+      "provider_state": {
+        "minute": 45,
+        "score": {
+          "home": 0,
+          "away": 2
+        },
+        "score_source": "score_canvas",
+        "start_time": "04:00"
+      },
+      "weather": {
+        "available": true,
+        "text": [
+          "局部有云",
+          "771mmHg",
+          "24°C",
+          "5.1m/s",
+          "45%"
+        ]
+      },
+      "lineups": {
+        "available": true,
+        "source": "namitiyu_api_match_lineup",
+        "home": {
+          "team": "牙买加U20 （中）",
+          "players": [
+            {
+              "id": 1869151,
+              "name": "乔瓦尼·泰勒",
+              "shirt_number": 9,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 75
+              }
+            },
+            {
+              "id": 1778844,
+              "name": "贾赫马尼贝尔",
+              "shirt_number": 11,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 87,
+                "y": 62
+              }
+            },
+            {
+              "id": 1815926,
+              "name": "加德纳",
+              "shirt_number": 20,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 13,
+                "y": 32
+              }
+            },
+            {
+              "id": 1863105,
+              "name": "杜韦恩·伯格",
+              "shirt_number": 14,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 87,
+                "y": 32
+              }
+            },
+            {
+              "id": 1626663,
+              "name": "布兰登·安东尼·本特",
+              "shirt_number": 19,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 64,
+                "y": 32
+              }
+            },
+            {
+              "id": 1875240,
+              "name": "杰昆·布朗",
+              "shirt_number": 3,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 36,
+                "y": 32
+              }
+            },
+            {
+              "id": 1881549,
+              "name": "肖恩·海德利",
+              "shirt_number": 17,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 36,
+                "y": 62
+              }
+            },
+            {
+              "id": 2068504,
+              "name": "杰梅因·杨",
+              "shirt_number": 8,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 13,
+                "y": 62
+              }
+            },
+            {
+              "id": 2059078,
+              "name": "基马利·斯科特",
+              "shirt_number": 18,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 64,
+                "y": 62
+              }
+            },
+            {
+              "id": 2068503,
+              "name": "贾巴里·豪厄尔",
+              "shirt_number": 10,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 90
+              }
+            },
+            {
+              "id": 1859092,
+              "name": "贾马里·诺兰",
+              "shirt_number": 7,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 12
+              }
+            },
+            {
+              "id": 1700781,
+              "name": "乔舒亚·格兰特",
+              "shirt_number": 1,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2029943,
+              "name": "雷奎恩·坎贝尔-丹尼斯",
+              "shirt_number": 16,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1859100,
+              "name": "欧文·贾姆普",
+              "shirt_number": 6,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1862217,
+              "name": "肖恩·雷顿",
+              "shirt_number": 12,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2068498,
+              "name": "贾蒙·莱尔",
+              "shirt_number": 15,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2068499,
+              "name": "蔡-安东尼·麦克林",
+              "shirt_number": 5,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2068500,
+              "name": "奥雷尔·米勒",
+              "shirt_number": 4,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2068501,
+              "name": "贾斯汀·默里",
+              "shirt_number": 21,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2068502,
+              "name": "约诺伊·斯特德曼",
+              "shirt_number": 13,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1847575,
+              "name": "塔波特",
+              "shirt_number": 2,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            }
+          ],
+          "starters": [
+            {
+              "id": 1869151,
+              "name": "乔瓦尼·泰勒",
+              "shirt_number": 9,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 75
+              }
+            },
+            {
+              "id": 1778844,
+              "name": "贾赫马尼贝尔",
+              "shirt_number": 11,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 87,
+                "y": 62
+              }
+            },
+            {
+              "id": 1815926,
+              "name": "加德纳",
+              "shirt_number": 20,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 13,
+                "y": 32
+              }
+            },
+            {
+              "id": 1863105,
+              "name": "杜韦恩·伯格",
+              "shirt_number": 14,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 87,
+                "y": 32
+              }
+            },
+            {
+              "id": 1626663,
+              "name": "布兰登·安东尼·本特",
+              "shirt_number": 19,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 64,
+                "y": 32
+              }
+            },
+            {
+              "id": 1875240,
+              "name": "杰昆·布朗",
+              "shirt_number": 3,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 36,
+                "y": 32
+              }
+            },
+            {
+              "id": 1881549,
+              "name": "肖恩·海德利",
+              "shirt_number": 17,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 36,
+                "y": 62
+              }
+            },
+            {
+              "id": 2068504,
+              "name": "杰梅因·杨",
+              "shirt_number": 8,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 13,
+                "y": 62
+              }
+            },
+            {
+              "id": 2059078,
+              "name": "基马利·斯科特",
+              "shirt_number": 18,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 64,
+                "y": 62
+              }
+            },
+            {
+              "id": 2068503,
+              "name": "贾巴里·豪厄尔",
+              "shirt_number": 10,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 90
+              }
+            },
+            {
+              "id": 1859092,
+              "name": "贾马里·诺兰",
+              "shirt_number": 7,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 12
+              }
+            }
+          ],
+          "substitutes": [
+            {
+              "id": 1700781,
+              "name": "乔舒亚·格兰特",
+              "shirt_number": 1,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2029943,
+              "name": "雷奎恩·坎贝尔-丹尼斯",
+              "shirt_number": 16,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1859100,
+              "name": "欧文·贾姆普",
+              "shirt_number": 6,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1862217,
+              "name": "肖恩·雷顿",
+              "shirt_number": 12,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2068498,
+              "name": "贾蒙·莱尔",
+              "shirt_number": 15,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2068499,
+              "name": "蔡-安东尼·麦克林",
+              "shirt_number": 5,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2068500,
+              "name": "奥雷尔·米勒",
+              "shirt_number": 4,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2068501,
+              "name": "贾斯汀·默里",
+              "shirt_number": 21,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2068502,
+              "name": "约诺伊·斯特德曼",
+              "shirt_number": 13,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1847575,
+              "name": "塔波特",
+              "shirt_number": 2,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            }
+          ]
+        },
+        "away": {
+          "team": "巴拿马U20",
+          "players": [
+            {
+              "id": 1945441,
+              "name": "赫尔森·戈登",
+              "shirt_number": 11,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 65,
+                "y": 90
+              }
+            },
+            {
+              "id": 1729036,
+              "name": "阿尔贝托·鲁伊斯",
+              "shirt_number": 1,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 12
+              }
+            },
+            {
+              "id": 1888407,
+              "name": "拉莫斯",
+              "shirt_number": 2,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 64,
+                "y": 32
+              }
+            },
+            {
+              "id": 1934429,
+              "name": "乔苏埃·伍德",
+              "shirt_number": 4,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 13,
+                "y": 32
+              }
+            },
+            {
+              "id": 1945434,
+              "name": "谢龙·斯图尔特",
+              "shirt_number": 15,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 87,
+                "y": 32
+              }
+            },
+            {
+              "id": 1638667,
+              "name": "埃内斯托·戈麦斯",
+              "shirt_number": 18,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 64,
+                "y": 62
+              }
+            },
+            {
+              "id": 1878981,
+              "name": "克里斯曼·格拉西亚",
+              "shirt_number": 6,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 36,
+                "y": 62
+              }
+            },
+            {
+              "id": 1968697,
+              "name": "罗本贝尼特斯",
+              "shirt_number": 5,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 36,
+                "y": 32
+              }
+            },
+            {
+              "id": 1767769,
+              "name": "科林",
+              "shirt_number": 19,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 87,
+                "y": 62
+              }
+            },
+            {
+              "id": 1964937,
+              "name": "卡洛斯·罗德里格斯",
+              "shirt_number": 8,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 13,
+                "y": 62
+              }
+            },
+            {
+              "id": 1945440,
+              "name": "莫伊塞斯·理查兹",
+              "shirt_number": 7,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 35,
+                "y": 90
+              }
+            },
+            {
+              "id": 2068405,
+              "name": "J. 崔",
+              "shirt_number": 10,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1817045,
+              "name": "爱德华",
+              "shirt_number": 12,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2029346,
+              "name": "西马奥·加尔塞斯",
+              "shirt_number": 20,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2068404,
+              "name": "路易斯·戈麦斯",
+              "shirt_number": 13,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1958474,
+              "name": "埃德米尔森·冈萨雷斯",
+              "shirt_number": 16,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1959152,
+              "name": "雷纳尔多·格雷厄姆",
+              "shirt_number": 9,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2068403,
+              "name": "埃. 洛萨诺",
+              "shirt_number": 21,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1959930,
+              "name": "阿德里安·皮内达",
+              "shirt_number": 17,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2068402,
+              "name": "吉诺·萨索",
+              "shirt_number": 14,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            }
+          ],
+          "starters": [
+            {
+              "id": 1945441,
+              "name": "赫尔森·戈登",
+              "shirt_number": 11,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 65,
+                "y": 90
+              }
+            },
+            {
+              "id": 1729036,
+              "name": "阿尔贝托·鲁伊斯",
+              "shirt_number": 1,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 12
+              }
+            },
+            {
+              "id": 1888407,
+              "name": "拉莫斯",
+              "shirt_number": 2,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 64,
+                "y": 32
+              }
+            },
+            {
+              "id": 1934429,
+              "name": "乔苏埃·伍德",
+              "shirt_number": 4,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 13,
+                "y": 32
+              }
+            },
+            {
+              "id": 1945434,
+              "name": "谢龙·斯图尔特",
+              "shirt_number": 15,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 87,
+                "y": 32
+              }
+            },
+            {
+              "id": 1638667,
+              "name": "埃内斯托·戈麦斯",
+              "shirt_number": 18,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 64,
+                "y": 62
+              }
+            },
+            {
+              "id": 1878981,
+              "name": "克里斯曼·格拉西亚",
+              "shirt_number": 6,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 36,
+                "y": 62
+              }
+            },
+            {
+              "id": 1968697,
+              "name": "罗本贝尼特斯",
+              "shirt_number": 5,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 36,
+                "y": 32
+              }
+            },
+            {
+              "id": 1767769,
+              "name": "科林",
+              "shirt_number": 19,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 87,
+                "y": 62
+              }
+            },
+            {
+              "id": 1964937,
+              "name": "卡洛斯·罗德里格斯",
+              "shirt_number": 8,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 13,
+                "y": 62
+              }
+            },
+            {
+              "id": 1945440,
+              "name": "莫伊塞斯·理查兹",
+              "shirt_number": 7,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 35,
+                "y": 90
+              }
+            }
+          ],
+          "substitutes": [
+            {
+              "id": 2068405,
+              "name": "J. 崔",
+              "shirt_number": 10,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1817045,
+              "name": "爱德华",
+              "shirt_number": 12,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2029346,
+              "name": "西马奥·加尔塞斯",
+              "shirt_number": 20,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2068404,
+              "name": "路易斯·戈麦斯",
+              "shirt_number": 13,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1958474,
+              "name": "埃德米尔森·冈萨雷斯",
+              "shirt_number": 16,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1959152,
+              "name": "雷纳尔多·格雷厄姆",
+              "shirt_number": 9,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2068403,
+              "name": "埃. 洛萨诺",
+              "shirt_number": 21,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1959930,
+              "name": "阿德里安·皮内达",
+              "shirt_number": 17,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 2068402,
+              "name": "吉诺·萨索",
+              "shirt_number": 14,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            }
+          ]
+        },
+        "entries": [],
+        "status": "home_away_mapped_role_mapping_pending"
+      },
+      "live_text": {
+        "available": true,
+        "source": "leisu_detail_dom",
+        "captured_at": 1785359241995,
+        "entries": [
+          "牙买加U20 巴拿马U20 90' 75' 60' HT 30' 15' 0'",
+          "90'",
+          "75'",
+          "60'",
+          "30'",
+          "15'",
+          "45'",
+          "- 随着裁判一声哨响，上半场结束，目前比分0-2",
+          "44'",
+          "- 第5个角球 - (牙买加U20)",
+          "35'",
+          "- 第4个角球 - (巴拿马U20)",
+          "33'",
+          "- 第3个角球 - (牙买加U20)",
+          "22'",
+          "- 第2个进球 - (巴拿马U20)",
+          "- 第2个角球 - (巴拿马U20)",
+          "13'",
+          "- 第1个进球！球进啦！巴拿马U20取得本场比赛领先！",
+          "10'",
+          "- 10分钟，牙买加U20获得本场第1个角球",
+          "比赛开始!",
+          "随着主裁判一声哨响，上半场比赛开始，本场开球：巴拿马U20"
+        ]
+      },
+      "incidents": []
+    },
+    "review": {
+      "status": "reviewed",
+      "final_score": {
+        "home": 2,
+        "away": 2
+      },
+      "outcome": "loss",
+      "source": "用户确认完场赛果：牙买加U20 2-2 巴拿马U20",
+      "error_types": [
+        "B类：盘口口径错误",
+        "C类：趋势权重与有效性错误",
+        "E类：中场静止快照被当成实际比赛趋势"
+      ],
+      "diagnosis": [
+        "YBTY全场大小球3.5被错误地与预计剩余进球1.16比较，漏加推荐时已有2球，虚构出2.34球的安全边际；正确安全边际仅约0.34球。",
+        "两次历史快照均为45分钟且统计不变，程序却按墙钟间隔生成最近5/15分钟零射门趋势；实际为中场休息，没有比赛时间推进。",
+        "人工复核继续采用了模型输出的错误语义，没有对盘口单位做独立算术复核。"
+      ],
+      "model_corrections": [
+        "滚球全场大小球改用已有进球加预计剩余进球，与全场盘口同口径比较",
+        "趋势窗口必须包含足够的实际比赛分钟，中场静止时间不再计入低压趋势",
+        "累计技术统计回退时趋势直接判无效，禁止产生负射门或负进攻增量"
+      ]
+    },
+    "start_time_source": "雷速补充",
+    "stop_conditions": [
+      "下注前比分若不再是0-2则取消",
+      "小3.5赔率低于1.80或盘口降至3/3.5则取消",
+      "出现红牌、点球、VAR重大事件或下半场已明显持续高压后取消"
+    ]
+  },
+  {
+    "id": "c8509818a81dee89",
+    "created_at": "2026-07-29T22:52:39.882777+00:00",
+    "record_type": "machine_candidate",
+    "formal_recommendation": false,
+    "match": "巴拉圭河床 vs 美洲太阳",
+    "ybty_match": "巴拉圭河床 vs 索尔美洲",
+    "ybty_home": "巴拉圭河床",
+    "ybty_away": "索尔美洲",
+    "ybty_start_time": null,
+    "ybty_start_time_beijing": null,
+    "minute": 73,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 1
+    },
+    "score_source": "ybty_market",
+    "score_verified": true,
+    "grade": "B",
+    "model_score": 88.0,
+    "recommendation": {
+      "market": "全场大球",
+      "line": 1.5,
+      "odds": 2.12,
+      "basis": "full_match_total"
+    },
+    "evidence": [
+      "累计射门14、射正7",
+      "模型预计剩余进球约2.30",
+      "模型预计全场总进球约3.30",
+      "当地天气：局部有云、758mmHg、28°C、1.8m/s、71%",
+      "已取得文字直播事件31条",
+      "最近5分钟：射门9、射正2",
+      "最近15分钟：射门9、射正2",
+      "实时优势指数：主队-9.65",
+      "控球率：53%—47%",
+      "进攻/危险进攻：65/60—65/45"
+    ],
+    "risks": [
+      "仅取得双方注册名单，未确认本场正式首发",
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "data_context": {
+      "state_source": {
+        "minute": "ybty",
+        "score": "ybty",
+        "start_time": "ybty"
+      },
+      "provider_state": {
+        "minute": 74,
+        "score": {
+          "home": 0,
+          "away": 1
+        },
+        "score_source": "score_canvas",
+        "start_time": "05:00"
+      },
+      "weather": {
+        "available": true,
+        "text": [
+          "局部有云",
+          "758mmHg",
+          "28°C",
+          "1.8m/s",
+          "71%"
+        ]
+      },
+      "lineups": {
+        "available": false,
+        "source": "namitiyu_api_squad",
+        "home": {
+          "team": "巴拉圭河床",
+          "players": [
+            "马里奥·萨尔迪瓦",
+            "费德里科·欧提兹·洛佩斯",
+            "埃米尼奥·米兰达",
+            "克里斯蒂安·古斯塔沃·索萨",
+            "里布拉多·阿斯科纳",
+            "奥兰多·加拉多",
+            "古斯塔沃·塞尔丹",
+            "奥斯马尔·科尔曼"
+          ],
+          "starters": [],
+          "substitutes": []
+        },
+        "away": {
+          "team": "美洲太阳",
+          "players": [
+            "维克托·巴里奥斯",
+            "罗兰多.加西亚",
+            "豪尔赫·莫拉",
+            "马蒂亚斯·博登",
+            "丹尼尔·迪特兹",
+            "罗德里戈·杜阿尔特",
+            "迭戈·阿兰达",
+            "卡塞雷斯",
+            "马塞洛·卡内特",
+            "埃德加多·奥祖萨",
+            "塞吉奥·巴雷罗",
+            "马蒂亚斯·苏亚雷斯",
+            "马科斯·高纳",
+            "巴勃罗·埃泽奎尔·阿兰达",
+            "豪尔赫·冈萨雷斯",
+            "古斯塔沃·马雷科斯"
+          ],
+          "starters": [],
+          "substitutes": []
+        },
+        "entries": [],
+        "status": "squad_only_no_confirmed_match_lineup"
+      },
+      "live_text": {
+        "available": true,
+        "source": "leisu_detail_dom",
+        "captured_at": 1785365528828,
+        "entries": [
+          "巴拉圭河床 美洲太阳 90' 75' 60' HT 30' 15' 0'",
+          "90'",
+          "75'",
+          "60'",
+          "30'",
+          "15'",
+          "61'",
+          "- 第5张黄牌 - (美洲太阳)",
+          "59'",
+          "- 第5个角球 - (巴拉圭河床)",
+          "57'",
+          "- 第4张黄牌 - (美洲太阳)",
+          "45'",
+          "- 随着裁判一声哨响，上半场结束，目前比分0-1",
+          "43'",
+          "- 第1个进球！球进啦！美洲太阳取得本场比赛领先！",
+          "40'",
+          "- 第4个角球 - (巴拉圭河床)",
+          "36'",
+          "- 第3张黄牌 - (巴拉圭河床)",
+          "- 第3个角球 - (巴拉圭河床)",
+          "21'",
+          "- 第2张黄牌 - (巴拉圭河床)",
+          "11'",
+          "- 第2个角球 - (巴拉圭河床)",
+          "05'",
+          "- 第1张黄牌，裁判出示了本场比赛的第一张黄牌，给了(巴拉圭河床)",
+          "02'",
+          "- 2分钟，美洲太阳获得本场第1个角球",
+          "比赛开始!",
+          "随着主裁判一声哨响，上半场比赛开始"
+        ]
+      },
+      "incidents": []
+    },
+    "review": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "bc7390db6d8fd40e",
+    "created_at": "2026-07-29T23:25:04.163483+00:00",
+    "record_type": "machine_candidate",
+    "formal_recommendation": false,
+    "match": "瓦斯科达伽马 vs 麦德林独立",
+    "ybty_match": "瓦斯科达伽马RJ vs 麦德林独立",
+    "ybty_home": "瓦斯科达伽马RJ",
+    "ybty_away": "麦德林独立",
+    "ybty_start_time": null,
+    "ybty_start_time_beijing": null,
+    "minute": 65,
+    "score_at_recommendation": {
+      "home": 0,
+      "away": 0
+    },
+    "score_source": "ybty_market",
+    "score_verified": true,
+    "grade": "B",
+    "model_score": 76.0,
+    "recommendation": {
+      "market": "主队独赢",
+      "line": null,
+      "odds": 2.36,
+      "basis": "dominance"
+    },
+    "evidence": [
+      "累计射门10、射正2",
+      "模型预计剩余进球约0.38",
+      "模型预计全场总进球约0.38",
+      "当地天气：765mmHg、24°C、3.1m/s、68%",
+      "正式阵容已映射：主队11人、客队11人",
+      "已取得文字直播事件56条",
+      "最近5分钟：射门1、射正0",
+      "实时优势指数：主队+7.09",
+      "控球率：62%—38%",
+      "进攻/危险进攻：93/44—63/18"
+    ],
+    "risks": [
+      "5/15分钟趋势未完全形成，采用首次快照保守评分",
+      "缺少多公司初盘至即时盘对比"
+    ],
+    "data_context": {
+      "state_source": {
+        "minute": "ybty",
+        "score": "ybty",
+        "start_time": "ybty"
+      },
+      "provider_state": {
+        "minute": 66,
+        "score": {
+          "home": 0,
+          "away": 0
+        },
+        "score_source": "score_canvas",
+        "start_time": "06:00"
+      },
+      "weather": {
+        "available": true,
+        "text": [
+          "765mmHg",
+          "24°C",
+          "3.1m/s",
+          "68%"
+        ]
+      },
+      "lineups": {
+        "available": true,
+        "source": "namitiyu_api_match_lineup",
+        "home": {
+          "team": "瓦斯科达伽马",
+          "players": [
+            {
+              "id": 105256,
+              "name": "丹尼尔·福扎托",
+              "shirt_number": 13,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 12
+              }
+            },
+            {
+              "id": 1778799,
+              "name": "若昂·佩德罗",
+              "shirt_number": 98,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 13,
+                "y": 32
+              }
+            },
+            {
+              "id": 1368197,
+              "name": "卢卡斯·弗雷塔斯",
+              "shirt_number": 43,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 36,
+                "y": 32
+              }
+            },
+            {
+              "id": 106104,
+              "name": "布伦纳",
+              "shirt_number": 20,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 64,
+                "y": 32
+              }
+            },
+            {
+              "id": 1505761,
+              "name": "库亚巴诺",
+              "shirt_number": 66,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 87,
+                "y": 32
+              }
+            },
+            {
+              "id": 1557103,
+              "name": "阿兰·萨尔迪维亚",
+              "shirt_number": 4,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 70
+              }
+            },
+            {
+              "id": 1506804,
+              "name": "约翰·罗雅斯",
+              "shirt_number": 10,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 64,
+                "y": 50
+              }
+            },
+            {
+              "id": 94038,
+              "name": "何塞·路易斯·罗德里格斯",
+              "shirt_number": 2,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 36,
+                "y": 50
+              }
+            },
+            {
+              "id": 45785,
+              "name": "雅伊尔",
+              "shirt_number": 8,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 78,
+                "y": 70
+              }
+            },
+            {
+              "id": 1134881,
+              "name": "马里尼奥·希内斯特罗扎",
+              "shirt_number": 18,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 85
+              }
+            },
+            {
+              "id": 1139422,
+              "name": "阿德森",
+              "shirt_number": 28,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 22,
+                "y": 70
+              }
+            },
+            {
+              "id": 79618,
+              "name": "戴维",
+              "shirt_number": 7,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 56963,
+              "name": "莱奥·雅尔丁",
+              "shirt_number": 1,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1210878,
+              "name": "保罗·亨里克",
+              "shirt_number": 96,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 79098,
+              "name": "卡洛斯·库斯塔",
+              "shirt_number": 46,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1521128,
+              "name": "罗伯特·雷南",
+              "shirt_number": 30,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1139354,
+              "name": "卢卡斯·皮顿",
+              "shirt_number": 6,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1808245,
+              "name": "拉蒙·里克·桑托斯·德·索萨·巴罗斯",
+              "shirt_number": 83,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 79660,
+              "name": "切切",
+              "shirt_number": 3,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 49432,
+              "name": "蒂亚戈·门德斯",
+              "shirt_number": 23,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1206909,
+              "name": "努诺·莫雷拉",
+              "shirt_number": 17,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 91127,
+              "name": "克劳迪奥·斯皮内利",
+              "shirt_number": 77,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1489195,
+              "name": "安德烈斯·戈麦斯",
+              "shirt_number": 11,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            }
+          ],
+          "starters": [
+            {
+              "id": 105256,
+              "name": "丹尼尔·福扎托",
+              "shirt_number": 13,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 12
+              }
+            },
+            {
+              "id": 1778799,
+              "name": "若昂·佩德罗",
+              "shirt_number": 98,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 13,
+                "y": 32
+              }
+            },
+            {
+              "id": 1368197,
+              "name": "卢卡斯·弗雷塔斯",
+              "shirt_number": 43,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 36,
+                "y": 32
+              }
+            },
+            {
+              "id": 106104,
+              "name": "布伦纳",
+              "shirt_number": 20,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 64,
+                "y": 32
+              }
+            },
+            {
+              "id": 1505761,
+              "name": "库亚巴诺",
+              "shirt_number": 66,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 87,
+                "y": 32
+              }
+            },
+            {
+              "id": 1557103,
+              "name": "阿兰·萨尔迪维亚",
+              "shirt_number": 4,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 70
+              }
+            },
+            {
+              "id": 1506804,
+              "name": "约翰·罗雅斯",
+              "shirt_number": 10,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 64,
+                "y": 50
+              }
+            },
+            {
+              "id": 94038,
+              "name": "何塞·路易斯·罗德里格斯",
+              "shirt_number": 2,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 36,
+                "y": 50
+              }
+            },
+            {
+              "id": 45785,
+              "name": "雅伊尔",
+              "shirt_number": 8,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 78,
+                "y": 70
+              }
+            },
+            {
+              "id": 1134881,
+              "name": "马里尼奥·希内斯特罗扎",
+              "shirt_number": 18,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 85
+              }
+            },
+            {
+              "id": 1139422,
+              "name": "阿德森",
+              "shirt_number": 28,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 22,
+                "y": 70
+              }
+            }
+          ],
+          "substitutes": [
+            {
+              "id": 79618,
+              "name": "戴维",
+              "shirt_number": 7,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 56963,
+              "name": "莱奥·雅尔丁",
+              "shirt_number": 1,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1210878,
+              "name": "保罗·亨里克",
+              "shirt_number": 96,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 79098,
+              "name": "卡洛斯·库斯塔",
+              "shirt_number": 46,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1521128,
+              "name": "罗伯特·雷南",
+              "shirt_number": 30,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1139354,
+              "name": "卢卡斯·皮顿",
+              "shirt_number": 6,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1808245,
+              "name": "拉蒙·里克·桑托斯·德·索萨·巴罗斯",
+              "shirt_number": 83,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 79660,
+              "name": "切切",
+              "shirt_number": 3,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 49432,
+              "name": "蒂亚戈·门德斯",
+              "shirt_number": 23,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1206909,
+              "name": "努诺·莫雷拉",
+              "shirt_number": 17,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 91127,
+              "name": "克劳迪奥·斯皮内利",
+              "shirt_number": 77,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1489195,
+              "name": "安德烈斯·戈麦斯",
+              "shirt_number": 11,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            }
+          ]
+        },
+        "away": {
+          "team": "麦德林独立",
+          "players": [
+            {
+              "id": 1420539,
+              "name": "阿方索·西马拉·瓦尔迪兹",
+              "shirt_number": 19,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 12
+              }
+            },
+            {
+              "id": 1930863,
+              "name": "西蒙·罗梅罗",
+              "shirt_number": 12,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 13,
+                "y": 32
+              }
+            },
+            {
+              "id": 46674,
+              "name": "巴尔多梅罗·佩拉萨",
+              "shirt_number": 14,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 36,
+                "y": 32
+              }
+            },
+            {
+              "id": 113933,
+              "name": "海恩·帕拉西奥斯",
+              "shirt_number": 30,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 64,
+                "y": 32
+              }
+            },
+            {
+              "id": 71545,
+              "name": "迭戈·莫雷诺",
+              "shirt_number": 31,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 87,
+                "y": 32
+              }
+            },
+            {
+              "id": 1970263,
+              "name": "凯纳尔·大卫·克林格·巴斯克斯",
+              "shirt_number": 34,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 36,
+                "y": 50
+              }
+            },
+            {
+              "id": 38008,
+              "name": "萨尔瓦多·伊查佐",
+              "shirt_number": 1,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 64,
+                "y": 50
+              }
+            },
+            {
+              "id": 51681,
+              "name": "尤尼·冈萨雷斯",
+              "shirt_number": 11,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 22,
+                "y": 70
+              }
+            },
+            {
+              "id": 1510914,
+              "name": "路易斯·埃斯科利西亚",
+              "shirt_number": 39,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 70
+              }
+            },
+            {
+              "id": 76073,
+              "name": "丹尼尔·卡托尼奥",
+              "shirt_number": 10,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 78,
+                "y": 70
+              }
+            },
+            {
+              "id": 48265,
+              "name": "伊德·查奥斯",
+              "shirt_number": 25,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 85
+              }
+            },
+            {
+              "id": 92952,
+              "name": "埃斯尼德·梅纳",
+              "shirt_number": 26,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1511934,
+              "name": "凯文·安德烈斯·曼蒂拉·卡马戈",
+              "shirt_number": 4,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 66023,
+              "name": "华金·瓦雷拉",
+              "shirt_number": 5,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1904368,
+              "name": "詹·卡洛斯·梅纳·希内斯特罗萨",
+              "shirt_number": 13,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1895698,
+              "name": "哈拉姆·洛博亚",
+              "shirt_number": 16,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 38002,
+              "name": "迪迪埃·莫雷诺",
+              "shirt_number": 6,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1491374,
+              "name": "胡安·科尔多瓦",
+              "shirt_number": 70,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1145003,
+              "name": "阿古斯丁·马特加尼",
+              "shirt_number": 21,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1638436,
+              "name": "约翰·蒙塔诺",
+              "shirt_number": 20,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 911569,
+              "name": "杰森·梅迪纳",
+              "shirt_number": 9,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            }
+          ],
+          "starters": [
+            {
+              "id": 1420539,
+              "name": "阿方索·西马拉·瓦尔迪兹",
+              "shirt_number": 19,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 12
+              }
+            },
+            {
+              "id": 1930863,
+              "name": "西蒙·罗梅罗",
+              "shirt_number": 12,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 13,
+                "y": 32
+              }
+            },
+            {
+              "id": 46674,
+              "name": "巴尔多梅罗·佩拉萨",
+              "shirt_number": 14,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 36,
+                "y": 32
+              }
+            },
+            {
+              "id": 113933,
+              "name": "海恩·帕拉西奥斯",
+              "shirt_number": 30,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 64,
+                "y": 32
+              }
+            },
+            {
+              "id": 71545,
+              "name": "迭戈·莫雷诺",
+              "shirt_number": 31,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 87,
+                "y": 32
+              }
+            },
+            {
+              "id": 1970263,
+              "name": "凯纳尔·大卫·克林格·巴斯克斯",
+              "shirt_number": 34,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 36,
+                "y": 50
+              }
+            },
+            {
+              "id": 38008,
+              "name": "萨尔瓦多·伊查佐",
+              "shirt_number": 1,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 64,
+                "y": 50
+              }
+            },
+            {
+              "id": 51681,
+              "name": "尤尼·冈萨雷斯",
+              "shirt_number": 11,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 22,
+                "y": 70
+              }
+            },
+            {
+              "id": 1510914,
+              "name": "路易斯·埃斯科利西亚",
+              "shirt_number": 39,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 70
+              }
+            },
+            {
+              "id": 76073,
+              "name": "丹尼尔·卡托尼奥",
+              "shirt_number": 10,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 78,
+                "y": 70
+              }
+            },
+            {
+              "id": 48265,
+              "name": "伊德·查奥斯",
+              "shirt_number": 25,
+              "starter": true,
+              "substitute": false,
+              "formation_coordinate": {
+                "x": 50,
+                "y": 85
+              }
+            }
+          ],
+          "substitutes": [
+            {
+              "id": 92952,
+              "name": "埃斯尼德·梅纳",
+              "shirt_number": 26,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1511934,
+              "name": "凯文·安德烈斯·曼蒂拉·卡马戈",
+              "shirt_number": 4,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 66023,
+              "name": "华金·瓦雷拉",
+              "shirt_number": 5,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1904368,
+              "name": "詹·卡洛斯·梅纳·希内斯特罗萨",
+              "shirt_number": 13,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1895698,
+              "name": "哈拉姆·洛博亚",
+              "shirt_number": 16,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 38002,
+              "name": "迪迪埃·莫雷诺",
+              "shirt_number": 6,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1491374,
+              "name": "胡安·科尔多瓦",
+              "shirt_number": 70,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1145003,
+              "name": "阿古斯丁·马特加尼",
+              "shirt_number": 21,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 1638436,
+              "name": "约翰·蒙塔诺",
+              "shirt_number": 20,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            },
+            {
+              "id": 911569,
+              "name": "杰森·梅迪纳",
+              "shirt_number": 9,
+              "starter": false,
+              "substitute": true,
+              "formation_coordinate": null
+            }
+          ]
+        },
+        "entries": [],
+        "status": "home_away_mapped_role_mapping_pending"
+      },
+      "live_text": {
+        "available": true,
+        "source": "leisu_detail_dom",
+        "captured_at": 1785367442775,
+        "entries": [
+          "瓦斯科达伽马 麦德林独立 90' 75' 60' HT 30' 15' 0'",
+          "90'",
+          "75'",
+          "60'",
+          "30'",
+          "15'",
+          "黄牌-瓦雷拉(麦德林独立) 犯规",
+          "2026-07-30 07:23",
+          "黄牌-斯皮内利(瓦斯科达伽马) 犯规",
+          "65' - 第13个射偏 - (麦德林独立)",
+          "65'",
+          "- 瓦斯科达伽马换人，萨尔迪维亚↑ 雷南↓",
+          "59'",
+          "- 麦德林独立换人，冈萨雷斯↑ 洛博亚↓",
+          "59' - 第12个射偏 - (麦德林独立)",
+          "57'",
+          "- 瓦斯科达伽马换人，阿德森↑ 切切↓",
+          "- 瓦斯科达伽马换人，库亚巴诺↑ 皮顿↓",
+          "56' - 第11个射偏 - (麦德林独立)",
+          "56'",
+          "56' - 第10个射偏 - (麦德林独立)",
+          "55'",
+          "- 第5个角球 - (麦德林独立)",
+          "51' - 第9个射偏 - (瓦斯科达伽马)",
+          "51'",
+          "46'",
+          "- 第2个射正 - (瓦斯科达伽马)",
+          "45'",
+          "- 随着裁判一声哨响，上半场结束，目前比分0-0",
+          "45+1' - 第8个射偏 - (瓦斯科达伽马)",
+          "45+1'",
+          "45+1' - 第7个射偏 - (瓦斯科达伽马)",
+          "- 第1个射正 - (瓦斯科达伽马)",
+          "41' - 第6个射偏 - (瓦斯科达伽马)",
+          "41'",
+          "39'",
+          "- 第2张黄牌 - 瓦雷拉(麦德林独立)",
+          "33' - 第5个射偏 - (麦德林独立)",
+          "33'",
+          "30' - 第4个射偏 - (瓦斯科达伽马)",
+          "24'",
+          "- 第4个角球 - (瓦斯科达伽马)",
+          "23' - 第3个射偏 - (瓦斯科达伽马)",
+          "23'",
+          "16' - 第2个射偏 - (瓦斯科达伽马)",
+          "16'",
+          "- 第3个角球 - (瓦斯科达伽马)",
+          "09'",
+          "- 第2个角球 - (麦德林独立)",
+          "09' - 第1个射偏 - (麦德林独立)",
+          "07'",
+          "- 比赛第7分钟，麦德林独立取得了本场比赛的第1个角球",
+          "04'",
+          "- 第1张黄牌，裁判出示了本场比赛的第一张黄牌，给了瓦斯科达伽马",
+          "比赛开始!",
+          "随着主裁判一声哨响，上半场比赛开始，本场开球：瓦斯科达伽马"
+        ]
+      },
+      "incidents": []
+    },
+    "review": {
+      "status": "pending"
+    }
+  }
+]

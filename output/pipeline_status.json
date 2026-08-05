@@ -1,0 +1,17 @@
+﻿{
+    "generated_at":  "2026-08-03T13:21:50.3444184+00:00",
+    "ybty_file":  "C:\\Users\\lin\\Downloads\\ybty_live_2026-08-03T13-20-57-890Z.json",
+    "leisu_file":  "C:\\Users\\lin\\Downloads\\leisu_live_2026-08-03T13-20-56-624Z.json",
+    "snapshot_gap_seconds":  1.3,
+    "ybty_age_seconds":  52,
+    "leisu_age_seconds":  53.3,
+    "market_events":  8,
+    "live_events":  14,
+    "matched":  4,
+    "unmatched":  4,
+    "watch":  0,
+    "pass":  4,
+    "candidate_file":  "C:\\Users\\lin\\.codex\\.chatgpt-projects\\g-p-6a66a56060348191a58b74704f70d4f9\\output\\ybty_leisu_candidates.json",
+    "decision_file":  "C:\\Users\\lin\\.codex\\.chatgpt-projects\\g-p-6a66a56060348191a58b74704f70d4f9\\output\\ybty_leisu_decisions.json",
+    "ledger_file":  "C:\\Users\\lin\\.codex\\.chatgpt-projects\\g-p-6a66a56060348191a58b74704f70d4f9\\output\\recommendation_ledger.json"
+}
