@@ -37,7 +37,7 @@ interface ParsedMatchItem {
   elapsed_time_text?: string;
   score_verified: boolean;
   score_source: string;
-  source_type: 'ybty' | 'leisu' | 'combined';
+  source_type: 'ybty' | 'leisu' | 'combined' | 'live' | string;
   captured_at: string;
   minute?: number;
   is_live?: boolean;
@@ -680,7 +680,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
   };
 
   // Handle Drag & Drop Multiple Files
-  const handleDropFiles = async (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDropFiles = async (e: React.DragEvent<HTMLElement>) => {
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const fileList = Array.from(e.dataTransfer.files);

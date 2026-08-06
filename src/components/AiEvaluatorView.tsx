@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DecisionItem, AIAnalysisResponse } from '../types';
+import { DecisionItem, AIAnalysisResponse, getLeagueName, getTeamDisplay } from '../types';
 import { 
   Sparkles, 
   ShieldCheck, 
@@ -9,7 +9,9 @@ import {
   XCircle, 
   Loader2, 
   BookOpen,
-  Info
+  Info,
+  Send,
+  Trophy
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -69,23 +71,44 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, on
   const handlePromoteCurrentToLedger = async () => {
     if (!result) return;
     try {
+      let payloadMatch = matchName || `${ybtyHome} vs ${ybtyAway}`;
+      let payloadHome = ybtyHome;
+      let payloadAway = ybtyAway;
+      let payloadMarket = result.recommendation?.market || 'AI精选建议';
+      let payloadLine = result.recommendation?.line ?? null;
+      let payloadOdds = Number(result.recommendation?.odds || 1.85);
+
+      if (mode === 'parlay_check' && parlaySelected.length > 0) {
+        payloadMatch = `【AI 精选 ${parlaySelected.length}串1】${parlaySelected[0].ybty_home || parlaySelected[0].match} 等 ${parlaySelected.length} 场`;
+        payloadHome = parlaySelected[0].ybty_home || '多场串关';
+        payloadAway = parlaySelected[0].ybty_away || '';
+        const legsSummary = parlaySelected
+          .map((p, i) => `腿${i + 1}: [${p.match}] ${p.recommendation?.market || '独赢'} ${p.recommendation?.line || ''} @${p.recommendation?.odds || 1.85}`)
+          .join(' | ');
+        payloadMarket = `【${parlaySelected.length}串1精选彩票】${legsSummary}`;
+        
+        const calcTotalOdds = parlaySelected.reduce((acc, p) => acc * Number(p.recommendation?.odds || 1.85), 1).toFixed(2);
+        payloadLine = `总赔率 @${calcTotalOdds}`;
+        payloadOdds = Number(calcTotalOdds);
+      }
+
       const resp = await fetch('/api/ledger/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          match: matchName || `${ybtyHome} vs ${ybtyAway}`,
-          ybty_home: ybtyHome,
-          ybty_away: ybtyAway,
+          match: payloadMatch,
+          ybty_home: payloadHome,
+          ybty_away: payloadAway,
           minute,
           score_at_recommendation: { home: scoreHome, away: scoreAway },
           score_source: result.score_source || 'ybty_market',
           score_verified: result.score_verified ?? true,
           grade: result.grade || 'B',
-          model_score: 80.0,
-          recommendation: result.recommendation || {
-            market: 'AI精选建议',
-            line: null,
-            odds: 1.85,
+          model_score: result.grade === 'A' ? 88.0 : 78.0,
+          recommendation: {
+            market: payloadMarket,
+            line: payloadLine,
+            odds: payloadOdds,
           },
           evidence: result.evidence || [],
           risks: result.risks || [],
@@ -216,12 +239,28 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, on
                       : 'bg-slate-950 border-slate-800/80 text-slate-400 hover:border-slate-700'
                   }`}
                 >
-                  <div className="flex items-center justify-between font-semibold">
-                    <span>{m.match}</span>
-                    <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300">
-                      {m.grade || 'C'}级
-                    </span>
-                  </div>
+                  {(() => {
+                    const teams = getTeamDisplay(m);
+                    return (
+                      <>
+                        <div className="flex items-center justify-between font-semibold">
+                          <span className="flex items-center gap-1.5 flex-wrap">
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-purple-950/80 text-purple-300 border border-purple-800/60 flex items-center gap-0.5">
+                              <Trophy className="w-3 h-3 text-purple-400 shrink-0" />
+                              {getLeagueName(m)}
+                            </span>
+                            <span className="text-slate-100">{teams.homeYbty} vs {teams.awayYbty}</span>
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300">
+                            {m.grade || 'C'}级
+                          </span>
+                        </div>
+                        <div className="text-[11px] font-semibold text-purple-300 mt-0.5">
+                          {teams.homeLeisu} vs {teams.awayLeisu}
+                        </div>
+                      </>
+                    );
+                  })()}
                   <div className="mt-1 text-[11px] text-slate-500 flex justify-between">
                     <span>分钟: {m.minute ? `${m.minute}'` : '赛前'}</span>
                     <span>比分: {m.score ? `${m.score.home}-${m.score.away}` : '0-0'}</span>
@@ -257,11 +296,14 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, on
                   className="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-500 max-w-xs"
                 >
                   <option value="">-- 选择实时/赛前比赛 --</option>
-                  {allMatches.map((m, idx) => (
-                    <option key={m.match + idx} value={m.match}>
-                      [{m.grade || 'C'}级] {m.match} ({m.minute ? `${m.minute}'` : '赛前'})
-                    </option>
-                  ))}
+                  {allMatches.map((m, idx) => {
+                    const t = getTeamDisplay(m);
+                    return (
+                      <option key={m.match + idx} value={m.match}>
+                        [{getLeagueName(m)}] [{m.grade || 'C'}级] {t.homeYbty} vs {t.awayYbty} ({m.minute ? `${m.minute}'` : '赛前'})
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             )}
@@ -439,8 +481,8 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, on
           </div>
 
           {result.parlay_safety_check && (
-            <div className="bg-indigo-950/30 border border-indigo-800/40 p-3 rounded-lg text-xs">
-              <div className="font-semibold text-indigo-300 mb-1 flex items-center gap-1">
+            <div className="bg-indigo-950/30 border border-indigo-800/40 p-3 rounded-lg text-xs space-y-2">
+              <div className="font-semibold text-indigo-300 flex items-center gap-1">
                 <Info className="w-3.5 h-3.5" /> 串关安全与风控判定 (Parlay Safety)
               </div>
               <div className="text-slate-300">
@@ -454,6 +496,53 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, on
                     <li key={idx}>{res}</li>
                   ))}
                 </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Detailed Ticket preview for Parlay Check */}
+          {mode === 'parlay_check' && parlaySelected.length > 0 && (
+            <div className="bg-gradient-to-r from-slate-950 via-indigo-950/40 to-slate-950 border border-indigo-500/40 p-4 rounded-xl space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded font-bold text-xs">
+                    精选 {parlaySelected.length} 串 1 实单
+                  </span>
+                  <span className="text-xs text-amber-300 font-mono font-bold">
+                    组合估算总赔率 @{parlaySelected.reduce((acc, p) => acc * Number(p.recommendation?.odds || 1.85), 1).toFixed(2)}
+                  </span>
+                </div>
+
+                <button
+                  onClick={handlePromoteCurrentToLedger}
+                  disabled={savedToLedger}
+                  className={`px-4 py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-md transition-all ${
+                    savedToLedger
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-700'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  }`}
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {savedToLedger ? '已将该串关单写入正式台账' : '📥 一键将该串关单写入正式推荐台账'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 text-xs">
+                {parlaySelected.map((leg, idx) => (
+                  <div key={leg.match + idx} className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 space-y-1">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400">
+                      <span>腿 #{idx + 1}</span>
+                      <span className="px-1.5 py-0.2 bg-slate-800 text-slate-300 rounded">{leg.grade || 'B'}级</span>
+                    </div>
+                    <div className="font-bold text-slate-200 text-xs truncate">
+                      {leg.ybty_home || leg.match} vs {leg.ybty_away || ''}
+                    </div>
+                    <div className="flex justify-between text-[11px] font-mono text-emerald-400">
+                      <span>{leg.recommendation?.market || '全场独赢'} ({leg.recommendation?.line || '盘'})</span>
+                      <span className="text-amber-300 font-bold">@{leg.recommendation?.odds || 1.85}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

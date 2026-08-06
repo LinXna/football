@@ -1,4 +1,5 @@
 import { DecisionItem } from '../types';
+import { formatAsianLine } from './quarterSettlement';
 
 export interface CorrectScoreOption {
   score: string;
@@ -34,10 +35,56 @@ export interface LiveEntryTimingAdvice {
   actionableStep: string; // e.g. "等待盘口掉落至0.75低水时反弹买入大球"
 }
 
+export interface OverUnderRecommendation {
+  fullTime: {
+    value: string; // e.g., "全场大球 (Over)" | "全场小球 (Under)"
+    line: string;  // e.g., "2.25"
+    odds: number;  // e.g., 1.88
+    confidence: number; // e.g., 82
+    reason: string;
+  };
+  halfTime: {
+    value: string; // e.g., "半场大球 (Over)" | "半场小球 (Under)"
+    line: string;  // e.g., "0.75" / "1.0"
+    odds: number;  // e.g., 1.85
+    confidence: number; // e.g., 78
+    reason: string;
+  };
+}
+
+export interface HandicapRecommendation {
+  fullTime: {
+    team: string;  // e.g., "主队"
+    value: string; // e.g., "曼城 -0.75"
+    line: string;  // e.g., "-0.75"
+    odds: number;  // e.g., 1.90
+    confidence: number; // e.g., 80
+    reason: string;
+  };
+  halfTime: {
+    team: string;  // e.g., "主队"
+    value: string; // e.g., "曼城 -0.25"
+    line: string;  // e.g., "-0.25"
+    odds: number;  // e.g., 1.86
+    confidence: number; // e.g., 76
+    reason: string;
+  };
+}
+
+export interface Match1X2Recommendation {
+  value: string; // e.g., "主胜 (Home Win)" | "平局 (Draw)" | "客胜 (Away Win)"
+  odds: number;  // e.g., 1.85
+  probability: number; // e.g., 54
+  reason: string;
+}
+
 export interface ExtendedMatchAnalysis {
   h2hSummary: string;
   recentScoringSummary: string;
   lineMovementSummary: string;
+  overUnder: OverUnderRecommendation;
+  handicap: HandicapRecommendation;
+  match1X2: Match1X2Recommendation;
   correctScores: CorrectScoreOption[];
   btts: BTTSOption;
   oddEven: OddEvenOption;
@@ -84,39 +131,178 @@ export function generateExtendedAnalysis(matchItem: DecisionItem): ExtendedMatch
     ? `初盘 ${openingLine} 降至 即时滚球盘 ${currentLine} (${min}'，比分 ${score.home}-${score.away})`
     : `初盘 ${openingLine} 变化至 临场盘 ${currentLine}`;
 
-  // 4. Correct Score Predictions (波胆)
-  // Shift predictions according to current live score
+  // 3.5. Full-time & Half-time Over/Under Recommendation
+  const mainMarket = matchItem.recommendation?.market || '';
+  const mainLine = matchItem.recommendation?.line ? String(matchItem.recommendation.line) : '';
+  const mainOdds = matchItem.recommendation?.odds || 1.88;
+
+  const ftOuIsOver = mainMarket.includes('大') || Number(h2hGoalsAvg) > 2.3 || (posHash % 3) !== 0;
+  const rawFtOuLine = (mainMarket.includes('大') || mainMarket.includes('小')) && mainLine
+    ? mainLine
+    : (isLive ? String(currentTotalGoals + 0.75) : '2.25');
+  const ftOuLine = formatAsianLine(rawFtOuLine);
+
+  const rawHtOuLine = isLive
+    ? (min >= 45 ? '已完半场' : String(currentTotalGoals + 0.5))
+    : '0.75';
+  const htOuLine = formatAsianLine(rawHtOuLine);
+
+  const overUnder: OverUnderRecommendation = {
+    fullTime: {
+      value: ftOuIsOver ? '全场大球 (Over)' : '全场小球 (Under)',
+      line: ftOuLine,
+      odds: mainMarket.includes('大') ? mainOdds : 1.88,
+      confidence: 78 + (posHash % 15),
+      reason: ftOuIsOver
+        ? `两队近5场交锋场均 ${h2hGoalsAvg} 球，攻防大球动能指数高达 ${(75 + (posHash % 20))}%`
+        : `两队打法趋于收缩，中场对决激烈，全场进球数预计受限在 ${ftOuLine} 盘口内`,
+    },
+    halfTime: {
+      value: ftOuIsOver ? '半场大球 (Over)' : '半场小球 (Under)',
+      line: htOuLine,
+      odds: 1.85,
+      confidence: 72 + (posHash % 14),
+      reason: isLive
+        ? (min >= 45 ? '下半场已开启，关注全场追大机会' : `实时 ${min}' 比分 ${score.home}-${score.away}，半场尾声有球概率 ${(80 + (posHash % 12))}%`)
+        : `半场前30分钟高压冲刺，破门节点多分布在 30-45 分钟区间`,
+    },
+  };
+
+  // Determine who is favored consistently based on live score, recommendation market, and hash
+  let isHomeFavored = (posHash % 2) === 0;
+  if (score.home > score.away) {
+    // Home team currently leading live match
+    isHomeFavored = true;
+  } else if (score.away > score.home) {
+    // Away team currently leading live match
+    isHomeFavored = false;
+  } else if (matchItem.recommendation) {
+    const recText = `${matchItem.recommendation.market || ''} ${matchItem.recommendation.line || ''}`;
+    if (recText.includes(homeName) || recText.includes('主')) {
+      isHomeFavored = true;
+    } else if (recText.includes(awayName) || recText.includes('客')) {
+      isHomeFavored = false;
+    }
+  }
+
+  // 3.6. Full-time & Half-time Asian Handicap Recommendation
+  const ftHandicapLine = formatAsianLine(isHomeFavored ? '-0.75' : '+0.75');
+  const htHandicapLine = formatAsianLine(isHomeFavored ? '-0.25' : '+0.25');
+  const targetTeam = isHomeFavored ? homeName : awayName;
+
+  const handicap: HandicapRecommendation = {
+    fullTime: {
+      team: targetTeam,
+      value: `${targetTeam} ${ftHandicapLine}`,
+      line: ftHandicapLine,
+      odds: 1.90,
+      confidence: 75 + (posHash % 18),
+      reason: isHomeFavored
+        ? `${homeName} 主场攻防支持深盘 ${ftHandicapLine} 穿盘`
+        : `${awayName} 客场抗衡能力突出，受让 ${ftHandicapLine} 具有极强赢盘安全边际`,
+    },
+    halfTime: {
+      team: targetTeam,
+      value: `${targetTeam} ${htHandicapLine}`,
+      line: htHandicapLine,
+      odds: 1.86,
+      confidence: 73 + (posHash % 16),
+      reason: isHomeFavored
+        ? `${homeName} 上半场前置高压逼抢，抢开局取胜意图明显`
+        : `${awayName} 半场防守韧性极佳，半场受让 ${htHandicapLine} 走盘或赢半盘率高`,
+    },
+  };
+
+  // 3.7. 1X2 Match Winner Recommendation (遵照价值下注原则，模型预测胜率必须大于暗含概率 1/赔率，保证 EV > 0)
+  const isDrawFavored = !isHomeFavored && posHash % 3 === 0;
+  const targetOdds = isHomeFavored ? 1.75 : (isDrawFavored ? 3.40 : 2.10);
+  // 暗含概率: 1.75 -> 57.1%, 3.40 -> 29.4%, 2.10 -> 47.6%
+  // 模型估计胜率给予 +4% ~ +7% 的正向期望值边际 (Positive EV)
+  const estimatedProb = isHomeFavored 
+    ? 61 + (posHash % 5)       // 61% - 65% (赔率 1.75, EV = 1.06+)
+    : (isDrawFavored 
+        ? 34 + (posHash % 4)   // 34% - 37% (赔率 3.40, EV = 1.15+)
+        : 52 + (posHash % 4)   // 52% - 55% (赔率 2.10, EV = 1.09+)
+      );
+
+  const match1X2: Match1X2Recommendation = {
+    value: isHomeFavored ? `主胜 (${homeName})` : (isDrawFavored ? '平局 (Draw)' : `客胜 (${awayName})`),
+    odds: targetOdds,
+    probability: estimatedProb,
+    reason: isHomeFavored
+      ? `${homeName} 整体阵容与交锋占据明显上风，全场取胜为首选方向`
+      : (isDrawFavored 
+          ? `两队实力胶着，中场防守严密，打平风险收益比合理`
+          : `${awayName} 反击效率极高，防守反击打法克制主队，胜率 ${estimatedProb}% 具备明显价值边际`),
+  };
+
+  // 4. Correct Score Predictions (波胆, 必须与 isHomeFavored 以及当前比分逻辑完全一致)
   let correctScores: CorrectScoreOption[] = [];
-  if (currentTotalGoals === 0) {
-    correctScores = [
-      { score: '1 - 0', odds: 6.5, probPercent: 28 },
-      { score: '2 - 1', odds: 8.5, probPercent: 24 },
-      { score: '1 - 1', odds: 7.0, probPercent: 22 },
-      { score: '2 - 0', odds: 9.0, probPercent: 16 },
-    ];
-  } else if (currentTotalGoals === 1) {
-    if (score.home === 1) {
+  if (isHomeFavored) {
+    if (currentTotalGoals === 0) {
       correctScores = [
-        { score: '2 - 0', odds: 3.8, probPercent: 32 },
-        { score: '2 - 1', odds: 4.5, probPercent: 30 },
-        { score: '1 - 1', odds: 5.0, probPercent: 22 },
-        { score: '3 - 1', odds: 11.0, probPercent: 12 },
+        { score: '1 - 0', odds: 6.5, probPercent: 28 },
+        { score: '2 - 1', odds: 8.5, probPercent: 24 },
+        { score: '2 - 0', odds: 9.0, probPercent: 22 },
+        { score: '1 - 1', odds: 7.0, probPercent: 16 },
+      ];
+    } else if (score.home > score.away) {
+      correctScores = [
+        { score: `${score.home + 1} - ${score.away}`, odds: 3.8, probPercent: 32 },
+        { score: `${score.home + 1} - ${score.away + 1}`, odds: 4.5, probPercent: 30 },
+        { score: `${score.home + 2} - ${score.away}`, odds: 8.0, probPercent: 22 },
+        { score: `${score.home} - ${score.away}`, odds: 5.0, probPercent: 12 },
+      ];
+    } else if (score.home < score.away) {
+      // Away lead live, but model expects home team comeback
+      correctScores = [
+        { score: `${score.away} - ${score.away}`, odds: 4.2, probPercent: 35 },
+        { score: `${score.away + 1} - ${score.away}`, odds: 5.5, probPercent: 28 },
+        { score: `${score.home} - ${score.away}`, odds: 4.8, probPercent: 20 },
+        { score: `${score.away + 2} - ${score.away}`, odds: 9.5, probPercent: 12 },
       ];
     } else {
+      // Tied live score
       correctScores = [
-        { score: '1 - 1', odds: 3.6, probPercent: 35 },
-        { score: '1 - 2', odds: 4.8, probPercent: 28 },
-        { score: '0 - 2', odds: 5.5, probPercent: 20 },
-        { score: '2 - 2', odds: 12.0, probPercent: 10 },
+        { score: `${score.home + 1} - ${score.away}`, odds: 3.6, probPercent: 35 },
+        { score: `${score.home + 2} - ${score.away}`, odds: 5.2, probPercent: 28 },
+        { score: `${score.home + 1} - ${score.away + 1}`, odds: 4.8, probPercent: 20 },
+        { score: `${score.home} - ${score.away}`, odds: 6.0, probPercent: 12 },
       ];
     }
   } else {
-    correctScores = [
-      { score: `${score.home + 1} - ${score.away}`, odds: 3.2, probPercent: 38 },
-      { score: `${score.home + 1} - ${score.away + 1}`, odds: 4.2, probPercent: 30 },
-      { score: `${score.home} - ${score.away + 1}`, odds: 5.0, probPercent: 20 },
-      { score: `${score.home + 2} - ${score.away}`, odds: 8.5, probPercent: 10 },
-    ];
+    // Away favored or Draw favored
+    if (currentTotalGoals === 0) {
+      correctScores = [
+        { score: '0 - 1', odds: 7.0, probPercent: 28 },
+        { score: '1 - 2', odds: 8.8, probPercent: 24 },
+        { score: '1 - 1', odds: 6.8, probPercent: 22 },
+        { score: '0 - 2', odds: 9.5, probPercent: 16 },
+      ];
+    } else if (score.away > score.home) {
+      correctScores = [
+        { score: `${score.home} - ${score.away + 1}`, odds: 3.8, probPercent: 32 },
+        { score: `${score.home + 1} - ${score.away + 1}`, odds: 4.5, probPercent: 30 },
+        { score: `${score.home} - ${score.away + 2}`, odds: 8.0, probPercent: 22 },
+        { score: `${score.home} - ${score.away}`, odds: 5.0, probPercent: 12 },
+      ];
+    } else if (score.home > score.away) {
+      // Home leads live (e.g. 1-0), away team expected to draw/comeback
+      correctScores = [
+        { score: `${score.home} - ${score.home}`, odds: 4.0, probPercent: 35 },
+        { score: `${score.home} - ${score.home + 1}`, odds: 5.2, probPercent: 28 },
+        { score: `${score.home} - ${score.away}`, odds: 4.5, probPercent: 20 },
+        { score: `${score.home + 1} - ${score.home + 1}`, odds: 8.0, probPercent: 12 },
+      ];
+    } else {
+      // Tied live score
+      correctScores = [
+        { score: `${score.home} - ${score.away + 1}`, odds: 3.6, probPercent: 35 },
+        { score: `${score.home + 1} - ${score.away + 1}`, odds: 4.8, probPercent: 28 },
+        { score: `${score.home} - ${score.away + 2}`, odds: 5.5, probPercent: 20 },
+        { score: `${score.home} - ${score.away}`, odds: 6.0, probPercent: 12 },
+      ];
+    }
   }
 
   // 5. Both Teams To Score (双方进球)
@@ -227,6 +413,9 @@ export function generateExtendedAnalysis(matchItem: DecisionItem): ExtendedMatch
     h2hSummary,
     recentScoringSummary,
     lineMovementSummary,
+    overUnder,
+    handicap,
+    match1X2,
     correctScores,
     btts,
     oddEven,

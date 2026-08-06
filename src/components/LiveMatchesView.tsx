@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DecisionItem, PipelineStatus } from '../types';
+import { DecisionItem, PipelineStatus, getLeagueName, getTeamDisplay } from '../types';
 import { DataSupplementModal } from './DataSupplementModal';
 import { BatchSupplementModal } from './BatchSupplementModal';
 import { 
@@ -22,7 +22,8 @@ import {
   CheckSquare,
   Square,
   CheckCircle2,
-  Send
+  Send,
+  Trophy
 } from 'lucide-react';
 
 interface Props {
@@ -389,6 +390,10 @@ export const LiveMatchesView: React.FC<Props> = ({
                       {m.status}
                     </span>
 
+                    <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-purple-950/80 text-purple-300 border border-purple-800/60 flex items-center gap-1" title="赛事联赛名称">
+                      <Trophy className="w-3.5 h-3.5 text-purple-400" /> {getLeagueName(m)}
+                    </span>
+
                     <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-800 text-slate-300">
                       {m.grade || 'C'}级候选
                     </span>
@@ -444,26 +449,31 @@ export const LiveMatchesView: React.FC<Props> = ({
 
                 {/* Match Teams & Score Line */}
                 <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                  <div className="col-span-2 flex items-center justify-between bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
-                    <div className="text-right flex-1 pr-4">
-                      <div className="text-sm font-bold text-slate-100">{m.ybty_home || m.match.split('vs')[0]}</div>
-                      <div className="text-[11px] text-slate-500">YBTY 原始主队</div>
-                    </div>
+                  {(() => {
+                    const teams = getTeamDisplay(m);
+                    return (
+                      <div className="col-span-2 flex items-center justify-between bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
+                        <div className="text-right flex-1 pr-4 space-y-0.5">
+                          <div className="text-sm font-bold text-slate-100">{teams.homeYbty}</div>
+                          <div className="text-xs font-semibold text-purple-300">{teams.homeLeisu}</div>
+                        </div>
 
-                    <div className="px-4 py-1.5 bg-slate-900 border border-slate-700 rounded-md text-center min-w-[80px]">
-                      <div className="text-xl font-mono font-bold text-emerald-400">
-                        {m.score ? `${m.score.home} - ${m.score.away}` : '0 - 0'}
-                      </div>
-                      <div className="text-[10px] text-slate-400 tracking-wider">
-                        当前比分 {m.commence_time || m.ybty_start_time_beijing ? `(${m.commence_time || m.ybty_start_time_beijing})` : ''}
-                      </div>
-                    </div>
+                        <div className="px-4 py-1.5 bg-slate-900 border border-slate-700 rounded-md text-center min-w-[80px] shrink-0">
+                          <div className="text-xl font-mono font-bold text-emerald-400">
+                            {m.score ? `${m.score.home} - ${m.score.away}` : '0 - 0'}
+                          </div>
+                          <div className="text-[10px] text-slate-400 tracking-wider">
+                            当前比分 {m.commence_time || m.ybty_start_time_beijing ? `(${m.commence_time || m.ybty_start_time_beijing})` : ''}
+                          </div>
+                        </div>
 
-                    <div className="text-left flex-1 pl-4">
-                      <div className="text-sm font-bold text-slate-100">{m.ybty_away || m.match.split('vs')[1]}</div>
-                      <div className="text-[11px] text-slate-500">YBTY 原始客队</div>
-                    </div>
-                  </div>
+                        <div className="text-left flex-1 pl-4 space-y-0.5">
+                          <div className="text-sm font-bold text-slate-100">{teams.awayYbty}</div>
+                          <div className="text-xs font-semibold text-purple-300">{teams.awayLeisu}</div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Recommendation Preview / Risk */}
                   <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800/80 text-xs space-y-1">

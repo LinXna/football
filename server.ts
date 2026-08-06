@@ -48,8 +48,8 @@ function writeJsonFile(filePath: string, data: any): boolean {
 // Live Pipeline Status & Decisions
 app.get('/api/pipeline/live', (req, res) => {
   const status = readJsonFile('output/pipeline_status.json', {});
-  const decisions = readJsonFile('output/ybty_leisu_decisions.json', { decisions: [], summary: {} });
-  const candidates = readJsonFile('output/ybty_leisu_candidates.json', { candidates: [] });
+  const decisions = readJsonFile<any>('output/ybty_leisu_decisions.json', { decisions: [], summary: {} });
+  const candidates = readJsonFile<any>('output/ybty_leisu_candidates.json', { candidates: [] });
 
   res.json({
     status,
@@ -64,8 +64,8 @@ app.get('/api/pipeline/live', (req, res) => {
 // Prematch Pipeline Status & Decisions
 app.get('/api/pipeline/prematch', (req, res) => {
   const status = readJsonFile('output/prematch_pipeline_status.json', {});
-  const decisions = readJsonFile('output/ybty_leisu_prematch_decisions.json', { decisions: [], summary: {} });
-  const candidates = readJsonFile('output/ybty_leisu_prematch_candidates.json', { candidates: [] });
+  const decisions = readJsonFile<any>('output/ybty_leisu_prematch_decisions.json', { decisions: [], summary: {} });
+  const candidates = readJsonFile<any>('output/ybty_leisu_prematch_candidates.json', { candidates: [] });
   const brief = readJsonFile('output/prematch_ai_brief.json', {});
 
   res.json({
@@ -131,38 +131,115 @@ app.post('/api/ledger/add', (req, res) => {
   }
 });
 
-// Update single ledger item review
+// Helper to normalize team names for cross-provider and alias matching
+function cleanTeamName(str: string): string {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .replace(/-(ybty|leisu|雷速|YBTY|LEISU)$/gi, '')
+    .replace(/football club|fc|俱乐部|体育|（女）|\(女\)/gi, '')
+    .replace(/[\s\(\)\（\）\【\】\[\]]/g, '')
+    .trim();
+}
+
+function getSingleMatchTeams(item: any) {
+  let home = cleanTeamName(item.ybty_home || '');
+  let away = cleanTeamName(item.ybty_away || '');
+
+  if ((!home || !away) && item.match && typeof item.match === 'string' && !item.match.startsWith('【AI')) {
+    const parts = item.match.split(/\s+vs\s+/i);
+    if (parts.length === 2) {
+      if (!home) home = cleanTeamName(parts[0]);
+      if (!away) away = cleanTeamName(parts[1]);
+    }
+  }
+  return { home, away };
+}
+
+function areSameMatch(itemA: any, itemB: any): boolean {
+  if (itemA.id && itemB.id && itemA.id === itemB.id) return true;
+
+  const teamsA = getSingleMatchTeams(itemA);
+  const teamsB = getSingleMatchTeams(itemB);
+
+  if (teamsA.home && teamsA.away && teamsB.home && teamsB.away) {
+    const homeMatches =
+      teamsA.home === teamsB.home ||
+      (teamsA.home.length >= 2 && teamsB.home.length >= 2 && (teamsA.home.includes(teamsB.home) || teamsB.home.includes(teamsA.home)));
+
+    const awayMatches =
+      teamsA.away === teamsB.away ||
+      (teamsA.away.length >= 2 && teamsB.away.length >= 2 && (teamsA.away.includes(teamsB.away) || teamsB.away.includes(teamsA.away)));
+
+    if (homeMatches && awayMatches) {
+      return true;
+    }
+  }
+
+  if (itemA.match && itemB.match && !itemA.match.startsWith('【AI') && !itemB.match.startsWith('【AI')) {
+    if (itemA.match === itemB.match) return true;
+  }
+
+  return false;
+}
+
+// Update ledger item review (supports auto-syncing same match records)
 app.post('/api/ledger/update-review', (req, res) => {
   try {
-    const { id, final_score, score_verified, outcome } = req.body;
-    if (!id) {
-      return res.status(400).json({ error: 'ID is required' });
+    const { id, match, ybty_home, ybty_away, final_score, score_verified, outcome, syncSameMatch = true } = req.body;
+    if (!id && !match) {
+      return res.status(400).json({ error: 'ID or match identifier is required' });
     }
 
-    const ledger = readJsonFile<any[]>('output/recommendation_ledger.json', []);
-    const itemIndex = ledger.findIndex((i: any) => i.id === id);
-
-    if (itemIndex === -1) {
+    let ledger = readJsonFile<any[]>('output/recommendation_ledger.json', []);
+    
+    // Find target item
+    const targetItem = ledger.find((i: any) => i.id === id || (match && i.match === match));
+    if (!targetItem) {
       return res.status(404).json({ error: 'Ledger item not found' });
     }
 
-    const item = ledger[itemIndex];
-    item.review = item.review || {};
-    if (final_score) {
-      item.review.final_score = final_score;
-      item.review.status = 'reviewed';
-    }
-    if (outcome) {
-      item.review.outcome = outcome;
-    }
-    if (score_verified !== undefined) {
-      item.score_verified = score_verified;
-    }
+    let updatedCount = 0;
+    ledger = ledger.map((item: any) => {
+      if (syncSameMatch ? areSameMatch(targetItem, item) : item.id === id) {
+        updatedCount++;
+        item.review = item.review || {};
+        if (final_score) {
+          item.review.final_score = final_score;
+          item.review.status = 'reviewed';
+        }
+        if (outcome && item.id === id) {
+          item.review.outcome = outcome;
+        }
+        if (score_verified !== undefined) {
+          item.score_verified = score_verified;
+        }
+      }
+      return item;
+    });
 
-    ledger[itemIndex] = item;
     writeJsonFile('output/recommendation_ledger.json', ledger);
+    res.json({ success: true, updatedCount, ledger });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-    res.json({ success: true, item });
+// Delete selected items or clear all ledger items
+app.post('/api/ledger/delete', (req, res) => {
+  try {
+    const { ids, clearAll } = req.body;
+    let ledger = readJsonFile<any[]>('output/recommendation_ledger.json', []);
+
+    if (clearAll) {
+      ledger = [];
+    } else if (Array.isArray(ids) && ids.length > 0) {
+      const idSet = new Set(ids);
+      ledger = ledger.filter((i: any) => !idSet.has(i.id));
+    }
+
+    writeJsonFile('output/recommendation_ledger.json', ledger);
+    res.json({ success: true, ledger });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -680,6 +757,22 @@ app.post('/api/ai/evaluate', async (req, res) => {
       console.warn('Rules file missing or unreadable', e);
     }
 
+    let candidatesInfoText = '';
+    if (Array.isArray(selected_candidates) && selected_candidates.length > 0) {
+      candidatesInfoText = selected_candidates.map((c: any, idx: number) => {
+        const home = c.ybty_home || (c.match ? c.match.split('vs')[0]?.trim() : '主队');
+        const away = c.ybty_away || (c.match ? c.match.split('vs')[1]?.trim() : '客队');
+        const scHome = c.score?.home ?? 0;
+        const scAway = c.score?.away ?? 0;
+        const minStr = c.minute ? `${c.minute}'` : '赛前';
+        const mkt = c.recommendation?.market || '全场大球';
+        const line = c.recommendation?.line ?? '2.25';
+        const odds = c.recommendation?.odds ?? 1.85;
+        const grade = c.grade || 'B';
+        return `腿 #${idx + 1}: 赛事 [${c.match || (home + ' vs ' + away)}] (主队: ${home}, 客队: ${away}) | 比分: ${scHome}-${scAway} (${minStr}) | 评估等级: ${grade}级 | 推荐玩法: ${mkt} 盘口: ${line} @ 赔率: ${odds}`;
+      }).join('\n');
+    }
+
     const prompt = `
 你是一个顶尖、严肃且专业的足球投注评估与精选推荐 AI，严格遵循以下项目的最新足球分析与硬性风控协议：
 
@@ -693,42 +786,43 @@ app.post('/api/ai/evaluate', async (req, res) => {
 3. 四分之一盘口 (2.25 / 2.75 / -0.75 / -1.25)：
    - 必须精确拆分计算赢半 (+50% 利润)、输半 (-50% 本金) 与走盘 (0%)，禁止粗暴判全赢或全输。
 
----【最佳投注时机与专业策略】---
-1. 降水降盘等待策略：若预测半场大概率进球，但当前盘口开在大 1/1.5，建议提示用户：“在开赛 5-10 分钟盘口掉至大 0.5 或 0.5/1 时重仓买入”。
-2. 多分段与丰富玩法覆盖：综合评估波胆(Correct Score)、半全场(HT/FT)、角球大小、分段投注(0-15min, 16-30min, 31min-HT, HT-60min, 61-75min, 76min-FT)以及双方是否进球(BTTS)。
-
 ---【串关风控与高信心例外规则】---
 1. 基础硬性约束：同一场比赛不能重复暴露多个方向；普通候选核心腿最多进入 1 组正式串关。
 2. 【高信心 A级 例外规则】：若比赛经评估达到 A级 (模型评分 ≥ 85 分，首发阵容与战意明确，胜率极高)，则允许作为超高确定性锚点进入最多 2 组独立串关（配合不同边缘腿），不可超过2组！
+3. 同场重复暴露与相关性拦截：如果多腿包含相同比赛，或者同一杯赛中多场存在强相关轮换风险，必须触发拦截并说明具体风险腿。
 
-待评估请求模式: ${mode}
+请求模式: ${mode}
+${mode === 'parlay_check' ? `
+---【当前待审验的串关多腿组合 (${selected_candidates?.length || 0} 腿)】---
+${candidatesInfoText || '无具体腿数据'}
+` : `
 赛事名称: ${match_name || `${ybty_home} vs ${ybty_away}`}
 YBTY队名: 主队 [${ybty_home}] vs 客队 [${ybty_away}]
 比赛分钟: ${minute ?? '未指定'}
 当前比分: ${score ? `${score.home}-${score.away}` : '未指定'}
 盘口与赔率信息: ${odds_info || '无'}
-选中候选数量: ${selected_candidates ? selected_candidates.length : 1}
+`}
 
-请输出严格的 JSON 结构：
+请针对上述串关腿组合进行同场暴露、重复方向、相关风险及等级风控核查，输出严格的 JSON 结构：
 {
-  "summary": "简洁专业的高层总结",
+  "summary": "针对这 ${selected_candidates?.length || 1} 腿串关组合的具体硬性风控核对总结",
   "grade": "A | B | C",
   "recommendation": {
-    "market": "如 全场大球 / 滚球让球 / 波胆 / 半场大球",
-    "line": "如 2.25 或 -0.5",
-    "odds": 1.88,
-    "best_timing_tip": "如: 建议观望5-10分钟，待盘口降至大0.5/1水位1.90以上时择机重仓买入"
+    "market": "串关组合核对结论 (如: 3串1组合通过 / 被风控拦截)",
+    "line": "N/A",
+    "odds": 1.85,
+    "best_timing_tip": "串关下注建议与资金配比分配"
   },
   "score_verified": true,
   "score_source": "ybty_market",
   "verification_passed": true,
-  "evidence": ["支持证据1", "支持证据2"],
-  "risks": ["潜在风险1", "潜在风险2"],
-  "timing_strategy": "针对半场/全场、角球及时间段(0-15m/16-30m/下半场)的进球节奏专业投注规划",
+  "evidence": ["串关安全点1", "串关安全点2"],
+  "risks": ["串关风险拦截项1", "串关风险拦截项2"],
+  "timing_strategy": "串关资金策略与注码管理建议",
   "parlay_safety_check": {
     "is_valid_parlay": true,
-    "allow_max_parlay_tickets": 2,
-    "reasons": ["串关风控通过说明与串关配比建议"]
+    "allow_max_parlay_tickets": 1,
+    "reasons": ["关于这5腿比赛是否有同场重复、核心腿重叠或杯赛风险的逐条分析说明"]
   }
 }
 `;
@@ -768,7 +862,7 @@ async function start() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*all', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

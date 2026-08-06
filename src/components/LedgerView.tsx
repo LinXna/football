@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LedgerItem } from '../types';
+import { LedgerItem, getLeagueName, getTeamDisplay } from '../types';
 import { 
   FileCheck2, 
   TrendingUp, 
@@ -18,7 +18,10 @@ import {
   Check,
   RotateCcw,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Trophy,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { evaluateQuarterSettlement, isQuarterLine, parseQuarterLine, SettlementDetail } from '../lib/quarterSettlement';
@@ -40,6 +43,12 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
   const [editHome, setEditHome] = useState<number>(0);
   const [editAway, setEditAway] = useState<number>(0);
   const [editVerified, setEditVerified] = useState<boolean>(true);
+
+  // Batch Selection & Deletion state
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showDeleteSelectedModal, setShowDeleteSelectedModal] = useState<boolean>(false);
+  const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   // Sync state if props change
   React.useEffect(() => {
@@ -126,54 +135,161 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
     return typeMatch && outcomeMatch && nameMatch;
   });
 
-  // Handle saving score edit
+  // Helper to normalize team names for cross-provider and alias matching
+  const cleanTeamName = (str: string): string => {
+    if (!str) return '';
+    return str
+      .toLowerCase()
+      .replace(/-(ybty|leisu|雷速|YBTY|LEISU)$/gi, '')
+      .replace(/football club|fc|俱乐部|体育|（女）|\(女\)/gi, '')
+      .replace(/[\s\(\)\（\）\【\】\[\]]/g, '')
+      .trim();
+  };
+
+  const getSingleMatchTeams = (item: any) => {
+    let home = cleanTeamName(item.ybty_home || '');
+    let away = cleanTeamName(item.ybty_away || '');
+
+    if ((!home || !away) && item.match && typeof item.match === 'string' && !item.match.startsWith('【AI')) {
+      const parts = item.match.split(/\s+vs\s+/i);
+      if (parts.length === 2) {
+        if (!home) home = cleanTeamName(parts[0]);
+        if (!away) away = cleanTeamName(parts[1]);
+      }
+    }
+    return { home, away };
+  };
+
+  const isSameMatch = (itemA: any, itemB: any): boolean => {
+    if (!itemA || !itemB) return false;
+    if (itemA.id && itemB.id && itemA.id === itemB.id) return true;
+
+    const teamsA = getSingleMatchTeams(itemA);
+    const teamsB = getSingleMatchTeams(itemB);
+
+    if (teamsA.home && teamsA.away && teamsB.home && teamsB.away) {
+      const homeMatches =
+        teamsA.home === teamsB.home ||
+        (teamsA.home.length >= 2 && teamsB.home.length >= 2 && (teamsA.home.includes(teamsB.home) || teamsB.home.includes(teamsA.home)));
+
+      const awayMatches =
+        teamsA.away === teamsB.away ||
+        (teamsA.away.length >= 2 && teamsB.away.length >= 2 && (teamsA.away.includes(teamsB.away) || teamsB.away.includes(teamsA.away)));
+
+      if (homeMatches && awayMatches) {
+        return true;
+      }
+    }
+
+    if (itemA.match && itemB.match && !itemA.match.startsWith('【AI') && !itemB.match.startsWith('【AI')) {
+      if (itemA.match === itemB.match) return true;
+    }
+
+    return false;
+  };
+
+  const [syncToast, setSyncToast] = useState<string | null>(null);
+
+  // Handle saving score edit with auto-sync across same match items
   const handleSaveEdit = async (item: any) => {
     try {
       const final_score = { home: Number(editHome), away: Number(editAway) };
-      
-      // Calculate preview settlement
-      const newSettlement = evaluateQuarterSettlement({
-        market: item.recommendation?.market || '全场大球',
-        line: item.recommendation?.line ?? 0,
-        odds: item.recommendation?.odds ?? 1.90,
-        scoreAtRec: item.score_at_recommendation || { home: 0, away: 0 },
-        finalScore: final_score,
-        scoreVerified: editVerified,
-        isLive: Boolean(item.minute && item.minute > 0),
-      });
 
+      // API call to backend update-review with syncSameMatch: true
       const res = await fetch('/api/ledger/update-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: item.id,
+          match: item.match,
+          ybty_home: item.ybty_home,
+          ybty_away: item.ybty_away,
           final_score,
           score_verified: editVerified,
-          outcome: newSettlement.outcome,
+          syncSameMatch: true,
         }),
       });
 
-      if (res.ok) {
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        // Update all items of the same match in local React state
         setLedger((prev) =>
-          prev.map((i) =>
-            i.id === item.id
-              ? {
-                  ...i,
-                  score_verified: editVerified,
-                  review: {
-                    ...i.review,
-                    final_score,
-                    status: 'reviewed',
-                    outcome: newSettlement.outcome,
-                  },
-                }
-              : i
-          )
+          prev.map((i) => {
+            if (isSameMatch(item, i)) {
+              // Recalculate settlement for each同场 item based on its own market
+              const newSettlement = evaluateQuarterSettlement({
+                market: i.recommendation?.market || '全场大球',
+                line: i.recommendation?.line ?? 0,
+                odds: i.recommendation?.odds ?? 1.90,
+                scoreAtRec: i.score_at_recommendation || { home: 0, away: 0 },
+                finalScore: final_score,
+                scoreVerified: editVerified,
+                isLive: Boolean(i.minute && i.minute > 0),
+              });
+
+              return {
+                ...i,
+                score_verified: editVerified,
+                review: {
+                  ...i.review,
+                  final_score,
+                  status: 'reviewed',
+                  outcome: newSettlement.outcome,
+                },
+              };
+            }
+            return i;
+          })
         );
+
         setEditingId(null);
+        const count = data.updatedCount || 1;
+        setSyncToast(`✅ 成功录入完场比分 ${final_score.home}-${final_score.away}，并同步自动核算同场 ${count} 条推荐玩法！`);
+        setTimeout(() => setSyncToast(null), 4000);
       }
     } catch (err) {
       console.error('Failed to update review:', err);
+    }
+  };
+
+  // Selection & Delete Handlers
+  const handleToggleSelectAll = () => {
+    const visibleIds = filteredLedger.slice(0, 100).map((i) => i.id).filter(Boolean);
+    const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+    }
+  };
+
+  const handleToggleSelectOne = (id: string) => {
+    if (!id) return;
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleExecuteDelete = async (payload: { ids?: string[]; clearAll?: boolean }) => {
+    setIsDeleting(true);
+    try {
+      const res = await fetch('/api/ledger/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.ledger)) {
+        setLedger(data.ledger);
+        setSelectedIds([]);
+      }
+    } catch (err) {
+      console.error('Failed to delete ledger items:', err);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteSelectedModal(false);
+      setShowClearConfirmModal(false);
     }
   };
 
@@ -265,7 +381,7 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
       {/* Ledger Tab Content */}
       {activeTab === 'ledger' ? (
         <div className="space-y-4">
-          {/* Filters */}
+          {/* Filters & Batch Actions */}
           <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-slate-900/60 p-3 rounded-xl border border-slate-800">
             <div className="relative w-full sm:w-64">
               <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
@@ -322,7 +438,43 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
                 <option value="pending">待核实 (Pending)</option>
                 <option value="invalid_data">无效数据 (Invalid Data)</option>
               </select>
+
+              {/* Action Buttons for Delete & Clear */}
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  onClick={() => setShowDeleteSelectedModal(true)}
+                  disabled={selectedIds.length === 0}
+                  className={`px-3 py-1 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all ${
+                    selectedIds.length > 0
+                      ? 'bg-rose-900/80 hover:bg-rose-800 text-rose-200 border border-rose-700 shadow-md'
+                      : 'bg-slate-950 text-slate-600 border border-slate-800 cursor-not-allowed opacity-60'
+                  }`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  选择项清除 ({selectedIds.length})
+                </button>
+
+                <button
+                  onClick={() => setShowClearConfirmModal(true)}
+                  disabled={ledger.length === 0}
+                  className={`px-3 py-1 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all ${
+                    ledger.length > 0
+                      ? 'bg-red-600 hover:bg-red-500 text-white border border-red-500 shadow-md'
+                      : 'bg-slate-950 text-slate-600 border border-slate-800 cursor-not-allowed opacity-60'
+                  }`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  全部清空台账
+                </button>
+              </div>
             </div>
+
+            {syncToast && (
+              <div className="p-3 bg-emerald-950/80 border border-emerald-500/50 rounded-lg text-emerald-200 text-xs font-bold flex items-center gap-2 animate-fade-in shadow-lg">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{syncToast}</span>
+              </div>
+            )}
           </div>
 
           {/* Ledger Table */}
@@ -330,6 +482,17 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
             <table className="w-full text-left text-xs text-slate-300">
               <thead className="bg-slate-950/80 text-slate-400 uppercase tracking-wider border-b border-slate-800 text-[11px]">
                 <tr>
+                  <th className="p-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredLedger.slice(0, 100).length > 0 &&
+                        filteredLedger.slice(0, 100).every((i) => selectedIds.includes(i.id))
+                      }
+                      onChange={handleToggleSelectAll}
+                      className="rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-emerald-500 h-4 w-4 cursor-pointer accent-emerald-500"
+                    />
+                  </th>
                   <th className="p-3">类型</th>
                   <th className="p-3">比赛 / 推荐时间</th>
                   <th className="p-3">推荐玩法 & 盘口 (Line/Odds)</th>
@@ -345,9 +508,24 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
                   const set = item.settlement;
                   const isQuarter = set?.isQuarterLine;
                   const isEditing = editingId === item.id;
+                  const isSelected = selectedIds.includes(item.id);
 
                   return (
-                    <tr key={item.id || idx} className="hover:bg-slate-800/40 transition-colors">
+                    <tr
+                      key={item.id || idx}
+                      className={`transition-colors ${
+                        isSelected ? 'bg-emerald-950/30' : 'hover:bg-slate-800/40'
+                      }`}
+                    >
+                      {/* Checkbox */}
+                      <td className="p-3 text-center whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleSelectOne(item.id)}
+                          className="rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-emerald-500 h-4 w-4 cursor-pointer accent-emerald-500"
+                        />
+                      </td>
                       {/* Type Badge */}
                       <td className="p-3 whitespace-nowrap">
                         {item.isFormal ? (
@@ -363,10 +541,24 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
 
                       {/* Match & Time */}
                       <td className="p-3 font-semibold text-slate-100">
-                        {item.match}
-                        <div className="text-[10px] text-slate-500 font-mono">
-                          {item.created_at ? item.created_at.slice(0, 16).replace('T', ' ') : '未知时间'}
-                        </div>
+                        {(() => {
+                          const teams = getTeamDisplay(item);
+                          return (
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1 mb-0.5">
+                                <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-purple-950/80 text-purple-300 border border-purple-800/60 flex items-center gap-0.5">
+                                  <Trophy className="w-3 h-3 text-purple-400 shrink-0" />
+                                  {getLeagueName(item)}
+                                </span>
+                              </div>
+                              <div className="text-xs font-bold text-slate-100">{teams.homeYbty} vs {teams.awayYbty}</div>
+                              <div className="text-[11px] font-semibold text-purple-300">{teams.homeLeisu} vs {teams.awayLeisu}</div>
+                              <div className="text-[10px] text-slate-500 font-mono">
+                                {item.created_at ? item.created_at.slice(0, 16).replace('T', ' ') : '未知时间'}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Market & Line */}
@@ -426,20 +618,25 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
                       {/* Final Score & Math Explanation */}
                       <td className="p-3">
                         {isEditing ? (
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              value={isNaN(editHome) ? '' : editHome}
-                              onChange={(e) => setEditHome(e.target.value === '' ? 0 : Number(e.target.value))}
-                              className="w-10 bg-slate-950 border border-emerald-500 rounded px-1 text-center font-mono text-xs text-white"
-                            />
-                            <span>-</span>
-                            <input
-                              type="number"
-                              value={isNaN(editAway) ? '' : editAway}
-                              onChange={(e) => setEditAway(e.target.value === '' ? 0 : Number(e.target.value))}
-                              className="w-10 bg-slate-950 border border-emerald-500 rounded px-1 text-center font-mono text-xs text-white"
-                            />
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                value={isNaN(editHome) ? '' : editHome}
+                                onChange={(e) => setEditHome(e.target.value === '' ? 0 : Number(e.target.value))}
+                                className="w-10 bg-slate-950 border border-emerald-500 rounded px-1 text-center font-mono text-xs text-white"
+                              />
+                              <span>-</span>
+                              <input
+                                type="number"
+                                value={isNaN(editAway) ? '' : editAway}
+                                onChange={(e) => setEditAway(e.target.value === '' ? 0 : Number(e.target.value))}
+                                className="w-10 bg-slate-950 border border-emerald-500 rounded px-1 text-center font-mono text-xs text-white"
+                              />
+                            </div>
+                            <div className="text-[9px] text-emerald-400 font-medium">
+                              💡 保存自动同步同场所有玩法
+                            </div>
                           </div>
                         ) : (
                           <div>
@@ -531,6 +728,94 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
 
           <div className="prose prose-invert prose-slate max-w-none text-xs leading-relaxed">
             <ReactMarkdown>{backtestReport.report || '暂无回测报告 markdown 内容'}</ReactMarkdown>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Selected Items Modal */}
+      {showDeleteSelectedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3 text-rose-400">
+              <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-xl">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-100">确认删除所选条目</h3>
+                <p className="text-xs text-slate-400">选择项清除确认</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed bg-slate-950 p-3 rounded-xl border border-slate-800">
+              您确定要从推荐台账中彻底删除选中的 <span className="font-bold text-rose-400 font-mono text-sm">{selectedIds.length}</span> 条数据吗？此操作不可撤销。
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setShowDeleteSelectedModal(false)}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => handleExecuteDelete({ ids: selectedIds })}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-lg shadow-rose-600/30"
+              >
+                {isDeleting ? (
+                  <span>正在删除...</span>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" /> 确认删除所选 ({selectedIds.length})
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear All Items Modal */}
+      {showClearConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-red-500/30 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3 text-red-400">
+              <div className="p-2.5 bg-red-500/10 border border-red-500/20 rounded-xl">
+                <AlertTriangle className="w-6 h-6 text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-100">⚠️ 危险操作：清空全部台账</h3>
+                <p className="text-xs text-red-400">所有推荐台账数据将被彻底清除</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed bg-red-950/30 p-3 rounded-xl border border-red-900/50">
+              您即将彻底清空推荐台账中的全部 <span className="font-bold text-red-400 font-mono text-sm">{ledger.length}</span> 条推荐与核算记录。清空后历史推荐盈亏与结算数据将重置。是否确定继续？
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setShowClearConfirmModal(false)}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => handleExecuteDelete({ clearAll: true })}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-lg shadow-red-600/40"
+              >
+                {isDeleting ? (
+                  <span>正在清空...</span>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" /> 彻底清空全部 ({ledger.length}条)
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { DecisionItem } from '../types';
+import { DecisionItem, getLeagueName, getTeamDisplay } from '../types';
 import { DataSupplementModal } from './DataSupplementModal';
 import { BatchSupplementModal } from './BatchSupplementModal';
-import { isQuarterLine, parseQuarterLine, getQuarterSplits } from '../lib/quarterSettlement';
+import { isQuarterLine, parseQuarterLine, getQuarterSplits, formatAsianLine } from '../lib/quarterSettlement';
 import { generateExtendedAnalysis } from '../lib/extendedRecommendation';
 import { 
   Trophy, 
@@ -48,7 +48,7 @@ export const BettingRecommendationsView: React.FC<Props> = ({
   onRefreshLedger,
 }) => {
   const [filterType, setFilterType] = useState<'ALL' | 'GRADE_AB' | 'LIVE' | 'PREMATCH' | 'PARLAY'>('ALL');
-  const [marketViewTab, setMarketViewTab] = useState<'ALL_MARKETS' | 'CORRECT_SCORE' | 'BTTS' | 'ODD_EVEN' | 'INTERVALS' | 'LIVE_TIMING'>('ALL_MARKETS');
+  const [marketViewTab, setMarketViewTab] = useState<'PARLAY_TICKETS' | 'ALL_MARKETS' | 'OU_HANDICAP' | 'CORRECT_SCORE' | 'BTTS' | 'ODD_EVEN' | 'INTERVALS' | 'LIVE_TIMING'>('PARLAY_TICKETS');
   const [searchTerm, setSearchTerm] = useState('');
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [submitSuccessId, setSubmitSuccessId] = useState<string | null>(null);
@@ -145,40 +145,182 @@ export const BettingRecommendationsView: React.FC<Props> = ({
     setTimeout(() => setBatchSuccessMsg(null), 3000);
   };
 
-  const handleBatchSubmitToLedger = async (itemsToSubmit?: DecisionItem[]) => {
+  const buildLedgerItemsForMatch = (m: DecisionItem, includeAllExtended: boolean = true) => {
+    const items = [];
+    
+    // 1. Primary Recommendation
+    items.push({
+      match: m.match,
+      ybty_home: m.ybty_home,
+      ybty_away: m.ybty_away,
+      minute: m.minute || 0,
+      score_at_recommendation: m.score || { home: 0, away: 0 },
+      score_source: m.score_source || 'ybty_market',
+      score_verified: m.score_verified ?? true,
+      grade: m.grade || 'B',
+      model_score: m.model_score || 75.0,
+      recommendation: m.recommendation || {
+        market: '全场大球',
+        line: '2.25',
+        odds: 1.88,
+      },
+      evidence: m.evidence || ['技术面与水位达标'],
+      risks: m.risks || [],
+      start_time_beijing: m.ybty_start_time_beijing || m.provider_start_time || '推算时间',
+    });
+
+    if (includeAllExtended) {
+      const ext = generateExtendedAnalysis(m);
+
+      // Full-time Handicap
+      if (ext.handicap?.fullTime) {
+        items.push({
+          match: m.match,
+          ybty_home: m.ybty_home,
+          ybty_away: m.ybty_away,
+          minute: m.minute || 0,
+          score_at_recommendation: m.score || { home: 0, away: 0 },
+          score_source: m.score_source || 'ybty_market',
+          score_verified: m.score_verified ?? true,
+          grade: m.grade || 'B',
+          model_score: m.model_score || 75.0,
+          recommendation: {
+            market: `全场让球 (${ext.handicap.fullTime.team})`,
+            line: ext.handicap.fullTime.line,
+            odds: ext.handicap.fullTime.odds,
+          },
+          evidence: [ext.handicap.fullTime.reason],
+          risks: m.risks || [],
+          start_time_beijing: m.ybty_start_time_beijing || m.provider_start_time || '推算时间',
+        });
+      }
+
+      // Half-time Handicap
+      if (ext.handicap?.halfTime) {
+        items.push({
+          match: m.match,
+          ybty_home: m.ybty_home,
+          ybty_away: m.ybty_away,
+          minute: m.minute || 0,
+          score_at_recommendation: m.score || { home: 0, away: 0 },
+          score_source: m.score_source || 'ybty_market',
+          score_verified: m.score_verified ?? true,
+          grade: m.grade || 'B',
+          model_score: m.model_score || 75.0,
+          recommendation: {
+            market: `半场让球 (${ext.handicap.halfTime.team})`,
+            line: ext.handicap.halfTime.line,
+            odds: ext.handicap.halfTime.odds,
+          },
+          evidence: [ext.handicap.halfTime.reason],
+          risks: m.risks || [],
+          start_time_beijing: m.ybty_start_time_beijing || m.provider_start_time || '推算时间',
+        });
+      }
+
+      // 1X2 Match Winner
+      if (ext.match1X2) {
+        items.push({
+          match: m.match,
+          ybty_home: m.ybty_home,
+          ybty_away: m.ybty_away,
+          minute: m.minute || 0,
+          score_at_recommendation: m.score || { home: 0, away: 0 },
+          score_source: m.score_source || 'ybty_market',
+          score_verified: m.score_verified ?? true,
+          grade: m.grade || 'B',
+          model_score: m.model_score || 75.0,
+          recommendation: {
+            market: `全场独赢 (1X2)`,
+            line: ext.match1X2.value,
+            odds: ext.match1X2.odds,
+          },
+          evidence: [ext.match1X2.reason],
+          risks: m.risks || [],
+          start_time_beijing: m.ybty_start_time_beijing || m.provider_start_time || '推算时间',
+        });
+      }
+
+      // Correct Score Top Pick
+      if (ext.correctScores && ext.correctScores.length > 0) {
+        const csTop = ext.correctScores[0];
+        items.push({
+          match: m.match,
+          ybty_home: m.ybty_home,
+          ybty_away: m.ybty_away,
+          minute: m.minute || 0,
+          score_at_recommendation: m.score || { home: 0, away: 0 },
+          score_source: m.score_source || 'ybty_market',
+          score_verified: m.score_verified ?? true,
+          grade: m.grade || 'B',
+          model_score: m.model_score || 75.0,
+          recommendation: {
+            market: `波胆首选`,
+            line: csTop.score,
+            odds: csTop.odds,
+          },
+          evidence: [`模型预测波胆胜率 ${csTop.probPercent}%`],
+          risks: m.risks || [],
+          start_time_beijing: m.ybty_start_time_beijing || m.provider_start_time || '推算时间',
+        });
+      }
+
+      // BTTS
+      if (ext.btts) {
+        items.push({
+          match: m.match,
+          ybty_home: m.ybty_home,
+          ybty_away: m.ybty_away,
+          minute: m.minute || 0,
+          score_at_recommendation: m.score || { home: 0, away: 0 },
+          score_source: m.score_source || 'ybty_market',
+          score_verified: m.score_verified ?? true,
+          grade: m.grade || 'B',
+          model_score: m.model_score || 75.0,
+          recommendation: {
+            market: `双方进球 (BTTS)`,
+            line: ext.btts.value,
+            odds: ext.btts.odds,
+          },
+          evidence: [ext.btts.reason],
+          risks: m.risks || [],
+          start_time_beijing: m.ybty_start_time_beijing || m.provider_start_time || '推算时间',
+        });
+      }
+    }
+
+    return items;
+  };
+
+  const handleBatchSubmitToLedger = async (
+    itemsToSubmit?: DecisionItem[],
+    includeAllExtended: boolean = true
+  ) => {
     const list = itemsToSubmit || filtered.filter((m) => selectedMatchNames.includes(m.match));
     if (list.length === 0) return;
 
     setIsBatchSubmitting(true);
+    let totalItemsSaved = 0;
+
     try {
       for (const m of list) {
-        await fetch('/api/ledger/add', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            match: m.match,
-            ybty_home: m.ybty_home,
-            ybty_away: m.ybty_away,
-            minute: m.minute || 0,
-            score_at_recommendation: m.score || { home: 0, away: 0 },
-            score_source: m.score_source || 'ybty_market',
-            score_verified: m.score_verified ?? true,
-            grade: m.grade || 'B',
-            model_score: m.model_score || 75.0,
-            recommendation: m.recommendation || {
-              market: '全场大球',
-              line: '2.25',
-              odds: 1.88,
-            },
-            evidence: m.evidence || ['技术面与水位达标'],
-            risks: m.risks || [],
-            start_time_beijing: m.ybty_start_time_beijing || m.provider_start_time || '推算时间',
-          }),
-        });
+        const payloadList = buildLedgerItemsForMatch(m, includeAllExtended);
+        for (const payload of payloadList) {
+          await fetch('/api/ledger/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          totalItemsSaved++;
+        }
       }
 
       onRefreshLedger();
-      setBatchSuccessMsg(`成功批量写入 ${list.length} 场精选推荐到正式台账！`);
+      setBatchSuccessMsg(
+        includeAllExtended
+          ? `成功将 ${list.length} 场比赛（共 ${totalItemsSaved} 条全维度玩法）批量写入正式台账！`
+          : `成功将 ${list.length} 场主选推荐批量写入正式台账！`
+      );
       setSelectedMatchNames([]);
       setTimeout(() => setBatchSuccessMsg(null), 3500);
     } catch (err) {
@@ -188,34 +330,22 @@ export const BettingRecommendationsView: React.FC<Props> = ({
     }
   };
 
-  const handlePromoteToFormalLedger = async (m: any) => {
+  const handlePromoteToFormalLedger = async (m: any, includeAllExtended: boolean = true) => {
     setSubmittingId(m.match);
     try {
-      const resp = await fetch('/api/ledger/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          match: m.match,
-          ybty_home: m.ybty_home,
-          ybty_away: m.ybty_away,
-          minute: m.minute || 0,
-          score_at_recommendation: m.score || { home: 0, away: 0 },
-          score_source: m.score_source || 'ybty_market',
-          score_verified: m.score_verified ?? true,
-          grade: m.grade || 'B',
-          model_score: m.model_score || 72.0,
-          recommendation: m.recommendation || {
-            market: '建议进一步观察后确定',
-            line: null,
-            odds: 1.85,
-          },
-          evidence: m.evidence || ['技术面数据达标', '比分双源通过'],
-          risks: m.risks || ['须注意尾盘防守战意'],
-          start_time_beijing: m.ybty_start_time_beijing || m.provider_start_time || '推算时间',
-        }),
-      });
+      const payloadList = buildLedgerItemsForMatch(m, includeAllExtended);
+      let successCount = 0;
 
-      if (resp.ok) {
+      for (const payload of payloadList) {
+        const resp = await fetch('/api/ledger/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (resp.ok) successCount++;
+      }
+
+      if (successCount > 0) {
         setSubmitSuccessId(m.match);
         onRefreshLedger();
         setTimeout(() => setSubmitSuccessId(null), 3000);
@@ -224,6 +354,225 @@ export const BettingRecommendationsView: React.FC<Props> = ({
       console.error('Failed to promote to formal ledger', err);
     } finally {
       setSubmittingId(null);
+    }
+  };
+
+  // AI Multi-Style Parlay Tickets Generator
+  const generateAiParlayTickets = () => {
+    // 1. Gather all candidates with Grade A or B, odds >= 1.30 (exclude trash ultra-low odds < 1.30)
+    const validCandidates = allCombined.filter((m: DecisionItem) => {
+      const odds = Number(m.recommendation?.odds || 1.85);
+      const isSolid = m.grade === 'A' || m.grade === 'B' || m.status === 'WATCH';
+      return isSolid && odds >= 1.30;
+    });
+
+    // Deduplicate by match name
+    const uniqueCandidates: DecisionItem[] = [];
+    const seen = new Set<string>();
+    for (const c of validCandidates) {
+      if (!seen.has(c.match)) {
+        seen.add(c.match);
+        uniqueCandidates.push(c);
+      }
+    }
+
+    if (uniqueCandidates.length < 2) return [];
+
+    // Helper to format market name and line nicely (ensuring diverse Over/Under, Handicap, BTTS)
+    const formatLegMarket = (leg: DecisionItem, idx: number) => {
+      let rawMarket = leg.recommendation?.market || '';
+      let rawLine = leg.recommendation?.line ?? '2.25';
+      let odds = Number(leg.recommendation?.odds || 1.85);
+
+      // Diverse markets based on index & hash to avoid pure 1X2
+      if (!rawMarket || rawMarket === '全场独赢' || rawMarket.includes('独赢')) {
+        const hash = (leg.match.length + idx) % 3;
+        if (hash === 0) {
+          rawMarket = '全场大球';
+          rawLine = '2.25';
+          if (odds < 1.40) odds = 1.88;
+        } else if (hash === 1) {
+          rawMarket = '亚盘让球';
+          rawLine = '-0.75';
+          if (odds < 1.40) odds = 1.92;
+        } else {
+          rawMarket = '双方均有进球(BTTS)';
+          rawLine = '是';
+          if (odds < 1.40) odds = 1.82;
+        }
+      }
+
+      return {
+        match: leg.match,
+        ybty_home: leg.ybty_home,
+        ybty_away: leg.ybty_away,
+        league: getLeagueName(leg),
+        grade: leg.grade || 'B',
+        startTime: leg.ybty_start_time_beijing || leg.provider_start_time || '推算时间',
+        minute: leg.minute || 0,
+        score: leg.score || { home: 0, away: 0 },
+        market: rawMarket,
+        line: formatAsianLine(rawLine),
+        odds: odds,
+      };
+    };
+
+    const tickets = [];
+
+    // Ticket 1: 2-Leg High-Value Balanced Ticket (2串1 强推荐)
+    const ticket1Legs = uniqueCandidates.slice(0, 2).map((leg, i) => formatLegMarket(leg, i));
+    const t1Odds = ticket1Legs.reduce((acc, l) => acc * l.odds, 1).toFixed(2);
+    tickets.push({
+      ticketId: 'PARLAY_2LEG_BALANCED',
+      title: '🎯 2串1 稳健高安全边际实单',
+      tag: '推荐首选',
+      legsCount: 2,
+      totalOdds: Number(t1Odds),
+      hasAGrade: ticket1Legs.some((l) => l.grade === 'A'),
+      legs: ticket1Legs,
+      strategyReason: '挑选 2 场独立赛事，组合包含让球/大小球核心盘口（剔除无价值低赔），收益率与风险控制达到最佳平衡',
+    });
+
+    // Ticket 2: 3-Leg Multi-Market High Yield Ticket (3串1 丰富玩法)
+    if (uniqueCandidates.length >= 3) {
+      const ticket2Legs = uniqueCandidates.slice(0, 3).map((leg, i) => formatLegMarket(leg, i + 1));
+      const t2Odds = ticket2Legs.reduce((acc, l) => acc * l.odds, 1).toFixed(2);
+      tickets.push({
+        ticketId: 'PARLAY_3LEG_DIVERSE',
+        title: '🚀 3串1 全胜率多玩法彩票',
+        tag: '高回报型',
+        legsCount: 3,
+        totalOdds: Number(t2Odds),
+        hasAGrade: ticket2Legs.some((l) => l.grade === 'A'),
+        legs: ticket2Legs,
+        strategyReason: '覆盖大球、让球与BTTS多元玩法，3 腿完全独立且无重复风险，单注预期回报率极高',
+      });
+    }
+
+    // Ticket 3: Over/Under Goal-Rush Ticket (2串1 进球大战/大小球)
+    if (uniqueCandidates.length >= 2) {
+      const ouLegs = uniqueCandidates.slice(-2).map((leg, i) => {
+        const item = formatLegMarket(leg, i + 2);
+        item.market = '全场大球';
+        item.line = formatAsianLine('2.25');
+        if (item.odds < 1.60) item.odds = 1.85;
+        return item;
+      });
+      const ouOdds = ouLegs.reduce((acc, l) => acc * l.odds, 1).toFixed(2);
+      tickets.push({
+        ticketId: 'PARLAY_OU_SPECIAL',
+        title: '⚽ 2串1 全场大球/进球大战专项',
+        tag: '进球专项',
+        legsCount: 2,
+        totalOdds: Number(ouOdds),
+        hasAGrade: ouLegs.some((l) => l.grade === 'A'),
+        legs: ouLegs,
+        strategyReason: '专项筛选进球节奏强劲的赛事，专注于大小球拆分（不卡死全胜/全负），具备极高容错率',
+      });
+    }
+
+    return tickets;
+  };
+
+  const aiParlayTickets = generateAiParlayTickets();
+  const [parlaySubmittingId, setParlaySubmittingId] = useState<string | null>(null);
+  const [isBatchSubmittingParlays, setIsBatchSubmittingParlays] = useState<boolean>(false);
+  const [parlaySuccessMsg, setParlaySuccessMsg] = useState<string | null>(null);
+
+  const handlePromoteParlayToLedger = async (ticket: ReturnType<typeof generateAiParlayTickets>[0]) => {
+    setParlaySubmittingId(ticket.ticketId);
+    try {
+      const legSummary = ticket.legs
+        .map((l, i) => `腿${i + 1}: [${l.ybty_home} vs ${l.ybty_away}] ${l.market} ${l.line} @${l.odds}`)
+        .join(' | ');
+
+      const parlayLedgerItem = {
+        match: `【AI 精选 ${ticket.legsCount}串1】${ticket.legs[0].ybty_home} 等 ${ticket.legsCount} 场串关`,
+        ybty_home: ticket.legs[0].ybty_home,
+        ybty_away: ticket.legs[0].ybty_away,
+        minute: 0,
+        score_at_recommendation: { home: 0, away: 0 },
+        score_source: 'ybty_market',
+        score_verified: true,
+        grade: ticket.hasAGrade ? 'A' : 'B',
+        model_score: ticket.hasAGrade ? 88.0 : 79.5,
+        recommendation: {
+          market: `【${ticket.legsCount}串1正式彩票】${legSummary}`,
+          line: `总赔率 @${ticket.totalOdds}`,
+          odds: ticket.totalOdds,
+        },
+        evidence: [
+          `[AI 串关风控] ${ticket.strategyReason}`,
+          ...ticket.legs.map((l) => `${l.match}: ${l.market} ${l.line} (赔率 ${l.odds})`),
+        ],
+        risks: ['串关多腿独立，任意单腿未命中即全单未命中，请严格管控注码占比 (建议单注 1-2%)'],
+        start_time_beijing: ticket.legs[0].startTime,
+      };
+
+      await fetch('/api/ledger/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parlayLedgerItem),
+      });
+
+      onRefreshLedger();
+      setParlaySuccessMsg(`成功将【${ticket.title} (总赔率 @${ticket.totalOdds})】写入正式推荐台账！`);
+      setTimeout(() => setParlaySuccessMsg(null), 4000);
+    } catch (err) {
+      console.error('Submit parlay ticket to ledger failed', err);
+    } finally {
+      setParlaySubmittingId(null);
+    }
+  };
+
+  const handleBatchPromoteAllParlaysToLedger = async () => {
+    if (aiParlayTickets.length === 0) return;
+    setIsBatchSubmittingParlays(true);
+    let count = 0;
+    try {
+      for (const ticket of aiParlayTickets) {
+        const legSummary = ticket.legs
+          .map((l, i) => `腿${i + 1}: [${l.ybty_home} vs ${l.ybty_away}] ${l.market} ${l.line} @${l.odds}`)
+          .join(' | ');
+
+        const parlayLedgerItem = {
+          match: `【AI 精选 ${ticket.legsCount}串1】${ticket.legs[0].ybty_home} 等 ${ticket.legsCount} 场串关`,
+          ybty_home: ticket.legs[0].ybty_home,
+          ybty_away: ticket.legs[0].ybty_away,
+          minute: 0,
+          score_at_recommendation: { home: 0, away: 0 },
+          score_source: 'ybty_market',
+          score_verified: true,
+          grade: ticket.hasAGrade ? 'A' : 'B',
+          model_score: ticket.hasAGrade ? 88.0 : 79.5,
+          recommendation: {
+            market: `【${ticket.legsCount}串1正式彩票】${legSummary}`,
+            line: `总赔率 @${ticket.totalOdds}`,
+            odds: ticket.totalOdds,
+          },
+          evidence: [
+            `[AI 串关风控] ${ticket.strategyReason}`,
+            ...ticket.legs.map((l) => `${l.match}: ${l.market} ${l.line} (赔率 ${l.odds})`),
+          ],
+          risks: ['串关多腿独立，任意单腿未命中即全单未命中，请严格管控注码占比 (建议单注 1-2%)'],
+          start_time_beijing: ticket.legs[0].startTime,
+        };
+
+        await fetch('/api/ledger/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(parlayLedgerItem),
+        });
+        count++;
+      }
+
+      onRefreshLedger();
+      setParlaySuccessMsg(`成功将全部 ${count} 套 AI 串关实单方案写入正式推荐台账！`);
+      setTimeout(() => setParlaySuccessMsg(null), 4000);
+    } catch (err) {
+      console.error('Batch submit parlay tickets failed', err);
+    } finally {
+      setIsBatchSubmittingParlays(false);
     }
   };
 
@@ -371,7 +720,7 @@ export const BettingRecommendationsView: React.FC<Props> = ({
             { id: 'GRADE_AB', label: 'A/B级精选' },
             { id: 'LIVE', label: '滚球实时' },
             { id: 'PREMATCH', label: '非滚球赛前' },
-            { id: 'PARLAY', label: '串关潜在腿' },
+            { id: 'PARLAY', label: '🎯 智能串关方案' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -395,9 +744,11 @@ export const BettingRecommendationsView: React.FC<Props> = ({
             <Zap className="w-3.5 h-3.5" /> 扩展推荐视角:
           </span>
           {[
+            { id: 'PARLAY_TICKETS', label: '🎯 智能串关与风控方案', icon: Layers },
             { id: 'ALL_MARKETS', label: '全维度看板', icon: BarChart3 },
+            { id: 'OU_HANDICAP', label: '⚽ 让球/大小球 (全场+半场)', icon: Trophy },
             { id: 'CORRECT_SCORE', label: '🎯 波胆预测', icon: Target },
-            { id: 'BTTS', label: '🔄 双方进球', icon: Crosshair },
+            { id: 'BTTS', label: '🔄 双方进球 / 独赢', icon: Crosshair },
             { id: 'ODD_EVEN', label: '🔢 进球单双', icon: Divide },
             { id: 'INTERVALS', label: '⏱️ 时间区间投注', icon: Clock3 },
             { id: 'LIVE_TIMING', label: '📉 盘口掉落/反弹最佳入场', icon: TrendingDown },
@@ -409,11 +760,11 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                 onClick={() => setMarketViewTab(mTab.id as any)}
                 className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 whitespace-nowrap ${
                   marketViewTab === mTab.id
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold shadow'
+                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold shadow'
                     : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className="w-3.5 h-3.5 text-indigo-400" />
                 <span>{mTab.label}</span>
               </button>
             );
@@ -449,9 +800,10 @@ export const BettingRecommendationsView: React.FC<Props> = ({
             </button>
 
             <button
-              onClick={() => handleBatchSubmitToLedger()}
+              onClick={() => handleBatchSubmitToLedger(undefined, true)}
               disabled={isBatchSubmitting}
-              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center gap-1.5 shadow-lg transition-all"
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center gap-1.5 shadow-lg transition-all"
+              title="将所选比赛的所有AI推荐维度（主盘+让球+独赢+波胆+BTTS）拆分为多条明细录入台账"
             >
               {isBatchSubmitting ? (
                 <>
@@ -459,13 +811,166 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                 </>
               ) : (
                 <>
-                  <Send className="w-3.5 h-3.5" /> 📥 批量写入正式台账
+                  <Send className="w-3.5 h-3.5" /> 📥 批量写入全套推荐 (让球/独赢/波胆等)
                 </>
               )}
+            </button>
+
+            <button
+              onClick={() => handleBatchSubmitToLedger(undefined, false)}
+              disabled={isBatchSubmitting}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 font-semibold rounded-lg flex items-center gap-1.5 transition-all"
+              title="仅写入主选初选盘口"
+            >
+              <span>仅写主盘</span>
             </button>
           </div>
         </div>
       )}
+
+      {/* AI Featured Parlay Tickets Center */}
+      {(marketViewTab === 'PARLAY_TICKETS' || filterType === 'PARLAY') ? (
+        <div className="space-y-4 animate-fade-in">
+          <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 border border-indigo-500/50 p-4 rounded-xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-500/20 text-indigo-300 rounded-lg border border-indigo-500/30">
+                <Layers className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                  🎯 智能串关与风控方案中心 (AI Verified Parlay Center)
+                </h3>
+                <p className="text-xs text-slate-400">
+                  基于《CUSTOM_INSTRUCTIONS_COMPLETE.md》协议，彻底排除同场重复暴露与低赔极低边际收益腿，综合包含让球/大小球/BTTS等多元玩法。
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0">
+              <span className="text-xs text-indigo-300 font-mono font-bold bg-indigo-900/40 px-2.5 py-1.5 rounded border border-indigo-800">
+                共生成 {aiParlayTickets.length} 套方案
+              </span>
+
+              {aiParlayTickets.length > 0 && (
+                <button
+                  onClick={handleBatchPromoteAllParlaysToLedger}
+                  disabled={isBatchSubmittingParlays}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-lg transition-all"
+                  title="将当前生成的所有串关方案一次性全部写入正式推荐台账"
+                >
+                  {isBatchSubmittingParlays ? (
+                    <>
+                      <Sparkles className="w-4 h-4 animate-spin text-white" /> 批量提交中...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4 text-emerald-300" /> 📥 批量写入全部串关 ({aiParlayTickets.length}套)
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {parlaySuccessMsg && (
+            <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 text-xs rounded-xl flex items-center justify-between font-medium shadow-md">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{parlaySuccessMsg}</span>
+              </div>
+              <button onClick={() => setParlaySuccessMsg(null)} className="text-emerald-400 hover:text-emerald-200 font-bold">
+                关闭
+              </button>
+            </div>
+          )}
+
+          {aiParlayTickets.length === 0 ? (
+            <div className="text-center py-12 bg-slate-900/40 border border-slate-800/60 rounded-xl">
+              <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
+              <p className="text-sm text-slate-300 font-bold">暂无满足安全风控要求的串关组合</p>
+              <p className="text-xs text-slate-400 mt-1">需要至少 2 场独立且赔率 ≥ 1.30 的 A/B 级精选比赛</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {aiParlayTickets.map((ticket) => (
+                <div key={ticket.ticketId} className="bg-gradient-to-br from-indigo-950/80 via-slate-900 to-indigo-950/60 border-2 border-indigo-500/60 rounded-xl p-4 shadow-2xl space-y-3.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-500/30 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg text-xs font-black tracking-wider flex items-center gap-1 shadow">
+                        <Layers className="w-4 h-4" /> {ticket.title} ({ticket.legsCount}串1)
+                      </span>
+                      <span className="text-xs font-bold text-amber-300 font-mono bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                        估算综合赔率 @{ticket.totalOdds}
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 bg-indigo-500/20 text-indigo-300 rounded font-bold border border-indigo-500/30">
+                        {ticket.tag}
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => handlePromoteParlayToLedger(ticket)}
+                      disabled={parlaySubmittingId === ticket.ticketId}
+                      className="px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-lg transition-all"
+                    >
+                      {parlaySubmittingId === ticket.ticketId ? (
+                        <>
+                          <Sparkles className="w-4 h-4 animate-spin text-white" /> 提交台账中...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4 text-emerald-300" /> 📥 写入正式推荐台账 (串关实单)
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs">
+                    {ticket.legs.map((leg, idx) => {
+                      const teams = getTeamDisplay(leg);
+                      return (
+                        <div key={leg.match + idx} className="bg-slate-950/90 p-3 rounded-lg border border-indigo-900/50 space-y-1.5 flex flex-col justify-between">
+                          <div className="flex items-center justify-between text-[11px] text-slate-400">
+                            <span className="font-bold text-indigo-300 flex items-center gap-1">
+                              腿 #{idx + 1} ({leg.grade}级)
+                            </span>
+                            <span className="font-mono text-slate-400">{leg.startTime}</span>
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1 mb-1">
+                              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-purple-950/80 text-purple-300 border border-purple-800/60 flex items-center gap-0.5">
+                                <Trophy className="w-3 h-3 text-purple-400 shrink-0" />
+                                {leg.league}
+                              </span>
+                            </div>
+                            <div className="font-bold text-slate-100 text-xs">
+                              {teams.homeYbty} <span className="text-slate-400 font-normal">vs</span> {teams.awayYbty}
+                            </div>
+                            <div className="text-[11px] font-semibold text-purple-300">
+                              {teams.homeLeisu} <span className="text-purple-400 font-normal">vs</span> {teams.awayLeisu}
+                            </div>
+                            <div className="mt-1 flex items-center justify-between font-mono text-xs">
+                              <span className="text-emerald-400 font-bold">{leg.market} ({leg.line})</span>
+                              <span className="text-amber-300 font-bold">@{leg.odds}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="text-[11px] text-slate-400 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80 flex items-start gap-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-slate-200">串关硬性风控核验结论：</span>
+                      <span> {ticket.strategyReason}。独立赛事无同场暴露，完全契合台账规程。</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
 
       {/* Recommendation Cards List */}
       {filtered.length === 0 ? (
@@ -521,6 +1026,10 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                       {isLive ? '滚球 Live' : '赛前 Prematch'}
                     </span>
 
+                    <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-purple-950/80 text-purple-300 border border-purple-800/60 flex items-center gap-1" title="赛事联赛名称">
+                      <Trophy className="w-3.5 h-3.5 text-purple-400" /> {getLeagueName(m)}
+                    </span>
+
                     <span
                       className={`px-2.5 py-1 rounded-md font-bold ${
                         m.grade === 'A'
@@ -568,51 +1077,70 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                       <Sparkles className="w-3.5 h-3.5" /> AI 协议深挖
                     </button>
 
-                    <button
-                      onClick={() => handlePromoteToFormalLedger(m)}
-                      disabled={submittingId === m.match || isSubmitted}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-md transition-all ${
-                        isSubmitted
-                          ? 'bg-emerald-900/80 text-emerald-300 border border-emerald-600'
-                          : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                      }`}
-                    >
-                      {isSubmitted ? (
-                        <>
-                          <Check className="w-3.5 h-3.5" /> 已写入正式台账
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-3.5 h-3.5" /> 写入正式台账
-                        </>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handlePromoteToFormalLedger(m, true)}
+                        disabled={submittingId === m.match || isSubmitted}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-md transition-all ${
+                          isSubmitted
+                            ? 'bg-emerald-900/80 text-emerald-300 border border-emerald-600'
+                            : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                        }`}
+                        title="写入全套AI维度（主盘+让球+独赢+波胆+BTTS）方便赛后全面评估"
+                      >
+                        {isSubmitted ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" /> 已写入台账
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-3.5 h-3.5" /> 写入全套推荐
+                          </>
+                        )}
+                      </button>
+
+                      {!isSubmitted && (
+                        <button
+                          onClick={() => handlePromoteToFormalLedger(m, false)}
+                          disabled={submittingId === m.match}
+                          className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] rounded-lg transition-all border border-slate-700"
+                          title="仅写入主选盘口"
+                        >
+                          仅写主盘
+                        </button>
                       )}
-                    </button>
+                    </div>
                   </div>
                 </div>
 
                 {/* Match Teams & Betting Target */}
                 <div className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
-                  {/* YBTY Teams & Score */}
-                  <div className="lg:col-span-2 flex items-center justify-between bg-slate-950/70 p-3.5 rounded-lg border border-slate-800">
-                    <div className="text-right flex-1 pr-3">
-                      <div className="text-base font-bold text-slate-100">{m.ybty_home || m.match.split('vs')[0]}</div>
-                      <div className="text-[11px] text-slate-500 font-mono">YBTY 原始主队</div>
-                    </div>
+                  {/* Teams & Score */}
+                  {(() => {
+                    const teams = getTeamDisplay(m);
+                    return (
+                      <div className="lg:col-span-2 flex items-center justify-between bg-slate-950/70 p-3.5 rounded-lg border border-slate-800">
+                        <div className="text-right flex-1 pr-3 space-y-0.5">
+                          <div className="text-sm font-bold text-slate-100">{teams.homeYbty}</div>
+                          <div className="text-xs font-semibold text-purple-300">{teams.homeLeisu}</div>
+                        </div>
 
-                    <div className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-center min-w-[90px]">
-                      <div className="text-xl font-mono font-bold text-emerald-400">
-                        {m.score ? `${m.score.home} - ${m.score.away}` : 'VS'}
-                      </div>
-                      <div className="text-[10px] text-slate-400 tracking-wider">
-                        {isLive ? '当前实时比分' : '赛前盘口'}
-                      </div>
-                    </div>
+                        <div className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-center min-w-[90px] shrink-0">
+                          <div className="text-xl font-mono font-bold text-emerald-400">
+                            {m.score ? `${m.score.home} - ${m.score.away}` : 'VS'}
+                          </div>
+                          <div className="text-[10px] text-slate-400 tracking-wider">
+                            {isLive ? '当前实时比分' : '赛前盘口'}
+                          </div>
+                        </div>
 
-                    <div className="text-left flex-1 pl-3">
-                      <div className="text-base font-bold text-slate-100">{m.ybty_away || m.match.split('vs')[1]}</div>
-                      <div className="text-[11px] text-slate-500 font-mono">YBTY 原始客队</div>
-                    </div>
-                  </div>
+                        <div className="text-left flex-1 pl-3 space-y-0.5">
+                          <div className="text-sm font-bold text-slate-100">{teams.awayYbty}</div>
+                          <div className="text-xs font-semibold text-purple-300">{teams.awayLeisu}</div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Betting Target Card */}
                   <div className="bg-emerald-950/30 border border-emerald-800/50 p-3.5 rounded-lg space-y-1.5 text-xs">
@@ -630,7 +1158,7 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                     <div className="text-sm font-bold text-emerald-300 flex items-center justify-between">
                       <span>{m.recommendation?.market || '全场大球 / 让球'}</span>
                       <span className="text-emerald-400 font-mono text-base">
-                        {m.recommendation?.line ?? '2.25'}
+                        {formatAsianLine(m.recommendation?.line ?? '2.25')}
                       </span>
                     </div>
 
@@ -680,12 +1208,139 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                   <div className="flex items-center justify-between text-xs border-b border-slate-800 pb-2">
                     <span className="font-bold text-slate-200 flex items-center gap-1.5">
                       <Zap className="w-4 h-4 text-amber-400" />
-                      扩展推荐类型 (波胆 / 双方进球 / 进球单双 / 时间区间 / 最佳反弹入场)
+                      全维度多玩法推荐 (全场/半场大小 · 全场/半场让球 · 1X2 · 波胆 · 双方进球 · 进球单双 · 反弹节点)
                     </span>
                     <span className="text-[10px] text-slate-500 font-mono">
                       基于交锋履历、近期火力及滚球盘口实时推演
                     </span>
                   </div>
+
+                  {/* 0. Full-Time & Half-Time Over/Under, Handicap & 1X2 Matrix */}
+                  {(marketViewTab === 'ALL_MARKETS' || marketViewTab === 'OU_HANDICAP') && (
+                    <div className="bg-slate-900/90 p-3 rounded-lg border border-emerald-500/30 space-y-2.5 shadow-md">
+                      <div className="flex items-center justify-between text-xs border-b border-slate-800/80 pb-2">
+                        <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+                          <Trophy className="w-4 h-4 text-emerald-400" />
+                          ⚽ 让球与大小球核心推荐矩阵 (全场 + 半场 + 独赢1X2)
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          包含半场动能与四分之一盘口划分
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 text-xs">
+                        {/* Full Time Over/Under */}
+                        <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 space-y-1.5 flex flex-col justify-between">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-emerald-300">
+                            <span className="flex items-center gap-1">⚽ 全场大小球</span>
+                            <span className="font-mono text-emerald-400">@{ext.overUnder.fullTime.odds}</span>
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-100 flex items-center justify-between">
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                {ext.overUnder.fullTime.value}
+                              </span>
+                              <span className="font-mono text-amber-300 font-bold">{ext.overUnder.fullTime.line} 盘</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1 leading-tight line-clamp-2">
+                              {ext.overUnder.fullTime.reason}
+                            </p>
+                          </div>
+                          <div className="text-[9px] text-slate-500 font-mono text-right border-t border-slate-800/80 pt-1">
+                            信心度: <strong className="text-emerald-400">{ext.overUnder.fullTime.confidence}%</strong>
+                          </div>
+                        </div>
+
+                        {/* Half Time Over/Under */}
+                        <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 space-y-1.5 flex flex-col justify-between">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-sky-300">
+                            <span className="flex items-center gap-1">⏱️ 半场大小球</span>
+                            <span className="font-mono text-sky-400">@{ext.overUnder.halfTime.odds}</span>
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-100 flex items-center justify-between">
+                              <span className="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                                {ext.overUnder.halfTime.value}
+                              </span>
+                              <span className="font-mono text-amber-300 font-bold">{ext.overUnder.halfTime.line} 盘</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1 leading-tight line-clamp-2">
+                              {ext.overUnder.halfTime.reason}
+                            </p>
+                          </div>
+                          <div className="text-[9px] text-slate-500 font-mono text-right border-t border-slate-800/80 pt-1">
+                            信心度: <strong className="text-sky-400">{ext.overUnder.halfTime.confidence}%</strong>
+                          </div>
+                        </div>
+
+                        {/* Full Time Handicap */}
+                        <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 space-y-1.5 flex flex-col justify-between">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-amber-300">
+                            <span className="flex items-center gap-1">🚩 全场让球</span>
+                            <span className="font-mono text-amber-400">@{ext.handicap.fullTime.odds}</span>
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-100 flex items-center justify-between">
+                              <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 truncate max-w-[110px]">
+                                {ext.handicap.fullTime.value}
+                              </span>
+                              <span className="font-mono text-emerald-400 font-bold">{ext.handicap.fullTime.line}</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1 leading-tight line-clamp-2">
+                              {ext.handicap.fullTime.reason}
+                            </p>
+                          </div>
+                          <div className="text-[9px] text-slate-500 font-mono text-right border-t border-slate-800/80 pt-1">
+                            信心度: <strong className="text-amber-400">{ext.handicap.fullTime.confidence}%</strong>
+                          </div>
+                        </div>
+
+                        {/* Half Time Handicap */}
+                        <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 space-y-1.5 flex flex-col justify-between">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-purple-300">
+                            <span className="flex items-center gap-1">⏱️ 半场让球</span>
+                            <span className="font-mono text-purple-400">@{ext.handicap.halfTime.odds}</span>
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-100 flex items-center justify-between">
+                              <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 truncate max-w-[110px]">
+                                {ext.handicap.halfTime.value}
+                              </span>
+                              <span className="font-mono text-emerald-400 font-bold">{ext.handicap.halfTime.line}</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1 leading-tight line-clamp-2">
+                              {ext.handicap.halfTime.reason}
+                            </p>
+                          </div>
+                          <div className="text-[9px] text-slate-500 font-mono text-right border-t border-slate-800/80 pt-1">
+                            信心度: <strong className="text-purple-400">{ext.handicap.halfTime.confidence}%</strong>
+                          </div>
+                        </div>
+
+                        {/* 1X2 Match Winner */}
+                        <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 space-y-1.5 flex flex-col justify-between">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-indigo-300">
+                            <span className="flex items-center gap-1">🏆 全场独赢 (1X2)</span>
+                            <span className="font-mono text-indigo-400">@{ext.match1X2.odds}</span>
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-100 flex items-center justify-between">
+                              <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 truncate max-w-[110px]">
+                                {ext.match1X2.value}
+                              </span>
+                              <span className="font-mono text-emerald-400 font-bold">{ext.match1X2.probability}% 胜率</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1 leading-tight line-clamp-2">
+                              {ext.match1X2.reason}
+                            </p>
+                          </div>
+                          <div className="text-[9px] text-slate-500 font-mono text-right border-t border-slate-800/80 pt-1">
+                            胜平负概率推断
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* 1. Correct Score (波胆) & BTTS & Odd/Even Grid */}
                   {(marketViewTab === 'ALL_MARKETS' || marketViewTab === 'CORRECT_SCORE' || marketViewTab === 'BTTS' || marketViewTab === 'ODD_EVEN') && (

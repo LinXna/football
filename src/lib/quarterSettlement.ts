@@ -72,6 +72,45 @@ export function parseQuarterLine(lineInput: string | number): number {
 }
 
 /**
+ * Format numeric lines into Asian quarter line notation:
+ * 0.25 -> "0/0.5"
+ * 0.75 -> "0.5/1"
+ * 1.25 -> "1/1.5"
+ * 1.75 -> "1.5/2"
+ * 2.25 -> "2/2.5"
+ * 2.75 -> "2.5/3"
+ * -0.75 -> "-0.5/1"
+ * -0.25 -> "-0/0.5"
+ */
+export function formatAsianLine(rawLine: string | number): string {
+  if (rawLine === undefined || rawLine === null || rawLine === '') return '0';
+  const str = String(rawLine).trim();
+  
+  if (str.includes('/') || isNaN(Number(str))) return str;
+  
+  const num = parseFloat(str);
+  if (isNaN(num)) return str;
+
+  const isNegative = num < 0;
+  const abs = Math.abs(num);
+  const frac = Math.round((abs - Math.floor(abs)) * 100);
+
+  const sign = isNegative ? '-' : (num > 0 && str.startsWith('+') ? '+' : '');
+
+  if (frac === 25) {
+    const low = Math.floor(abs);
+    const high = low + 0.5;
+    return `${sign}${low}/${high}`;
+  } else if (frac === 75) {
+    const low = Math.floor(abs) + 0.5;
+    const high = Math.floor(abs) + 1;
+    return `${sign}${low}/${high}`;
+  }
+
+  return str;
+}
+
+/**
  * Check whether a line is a quarter line (.25 or .75)
  */
 export function isQuarterLine(line: number): boolean {

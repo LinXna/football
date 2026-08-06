@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DecisionItem, PipelineStatus } from '../types';
+import { DecisionItem, PipelineStatus, getLeagueName, getTeamDisplay } from '../types';
 import { DataSupplementModal } from './DataSupplementModal';
 import { BatchSupplementModal } from './BatchSupplementModal';
 import { 
@@ -17,7 +17,8 @@ import {
   Square,
   CheckCircle2,
   ShieldCheck,
-  Send
+  Send,
+  Trophy
 } from 'lucide-react';
 
 interface Props {
@@ -359,6 +360,10 @@ export const PrematchMatchesView: React.FC<Props> = ({
                       非滚球 PREMATCH
                     </span>
 
+                    <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-purple-950/80 text-purple-300 border border-purple-800/60 flex items-center gap-1" title="赛事联赛名称">
+                      <Trophy className="w-3.5 h-3.5 text-purple-400" /> {getLeagueName(m)}
+                    </span>
+
                     <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-800 text-slate-300">
                       {m.grade || 'C'}级
                     </span>
@@ -396,21 +401,26 @@ export const PrematchMatchesView: React.FC<Props> = ({
                 </div>
 
                 <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                  <div className="col-span-2 flex items-center justify-between bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
-                    <div className="text-right flex-1 pr-4">
-                      <div className="text-sm font-bold text-slate-100">{m.ybty_home || m.match.split('vs')[0]}</div>
-                      <div className="text-[11px] text-slate-500">主队</div>
-                    </div>
+                  {(() => {
+                    const teams = getTeamDisplay(m);
+                    return (
+                      <div className="col-span-2 flex items-center justify-between bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
+                        <div className="text-right flex-1 pr-4 space-y-0.5">
+                          <div className="text-sm font-bold text-slate-100">{teams.homeYbty}</div>
+                          <div className="text-xs font-semibold text-purple-300">{teams.homeLeisu}</div>
+                        </div>
 
-                    <div className="px-3 py-1 bg-slate-900 border border-slate-700 rounded text-center">
-                      <div className="text-xs font-mono font-bold text-sky-400">VS</div>
-                    </div>
+                        <div className="px-3 py-1 bg-slate-900 border border-slate-700 rounded text-center shrink-0">
+                          <div className="text-xs font-mono font-bold text-sky-400">VS</div>
+                        </div>
 
-                    <div className="text-left flex-1 pl-4">
-                      <div className="text-sm font-bold text-slate-100">{m.ybty_away || m.match.split('vs')[1]}</div>
-                      <div className="text-[11px] text-slate-500">客队</div>
-                    </div>
-                  </div>
+                        <div className="text-left flex-1 pl-4 space-y-0.5">
+                          <div className="text-sm font-bold text-slate-100">{teams.awayYbty}</div>
+                          <div className="text-xs font-semibold text-purple-300">{teams.awayLeisu}</div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800/80 text-xs space-y-1">
                     <div className="text-slate-400 flex justify-between">
