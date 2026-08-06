@@ -1,0 +1,8 @@
+{
+  "name": "足球比赛分析系统",
+  "description": "基于 YBTY 与雷速双源交叉验证的足球滚球及非滚球智能分析、硬性风控与推荐台账系统",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
