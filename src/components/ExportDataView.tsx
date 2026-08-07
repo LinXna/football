@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Download, 
   FileJson, 
@@ -29,11 +29,14 @@ interface ParsedMatchItem {
   commence_time: string;
   ybty_home: string;
   ybty_away: string;
+  leisu_home?: string;
+  leisu_away?: string;
   score: string;
   market: string;
   line: string;
-  odds: number;
+  odds: number | null;
   start_time_beijing: string;
+  provider_start_time?: string;
   elapsed_time_text?: string;
   score_verified: boolean;
   score_source: string;
@@ -41,6 +44,7 @@ interface ParsedMatchItem {
   captured_at: string;
   minute?: number;
   is_live?: boolean;
+  export_mode?: 'live' | 'prematch';
   conflicts?: string[];
   canonical_home?: string;
   canonical_away?: string;
@@ -65,19 +69,48 @@ interface ParsedMatchItem {
     minute?: number;
   }>;
   all_leisu_teams?: string[];
+  ybty_raw_markets?: any[];
+  live_statistics?: any;
+  reference_odds?: any;
+  recent_trends?: any;
+  incidents?: any[];
+  weather?: any;
+  lineups?: any;
+  player_candidates?: any[];
+  live_text?: any;
+  detail_context?: any;
 }
 
 export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) => {
   const [pastedData, setPastedData] = useState<string>('');
+  const uploadedRawDataRef = useRef<string>('');
+  const [uploadedFileSummary, setUploadedFileSummary] = useState<string>('');
   const [exportBaseTime, setExportBaseTime] = useState<string>(
     new Date().toISOString().replace('T', ' ').substring(0, 19)
   );
   const [parsedItems, setParsedItems] = useState<ParsedMatchItem[]>([]);
+  const [selectedImportIndexes, setSelectedImportIndexes] = useState<Set<number>>(new Set());
   const [parseError, setParseError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<{ success: boolean; msg: string } | null>(null);
   const [importMode, setImportMode] = useState<'overwrite' | 'merge'>('overwrite');
   const [isClearing, setIsClearing] = useState(false);
+  const [snapshotFiles, setSnapshotFiles] = useState<{ live: { name: string; text: string } | null; prematch: { name: string; text: string } | null }>({ live: null, prematch: null });
+  const selectedImportItems = parsedItems.filter((_, index) => selectedImportIndexes.has(index));
+  const activeRawData = () => uploadedRawDataRef.current || pastedData;
+
+  useEffect(() => {
+    setSelectedImportIndexes(new Set(parsedItems.map((_, index) => index)));
+  }, [parsedItems]);
+
+  const toggleImportItem = (index: number) => {
+    setSelectedImportIndexes((current) => {
+      const next = new Set(current);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
 
   // Alias management state
   const [aliases, setAliases] = useState<{ manual: Record<string, string[]>; auto: Record<string, string[]> }>({
@@ -107,8 +140,22 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
     loadAliases();
   }, []);
 
-  const handleExport = (type: 'live' | 'prematch') => {
-    window.open(`/api/export-combined?type=${type}`, '_blank');
+  const handleExport = async (type: 'live' | 'prematch') => {
+    const response = await fetch(`/api/export-combined?type=${type}`);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      setSubmitResult({ success: false, msg: data.error || '整合数据导出失败' });
+      return;
+    }
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = `ybty_leisu_${type}_combined.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(objectUrl);
   };
 
   // Safe helper to extract string from potential object or primitive
@@ -202,6 +249,19 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
 
   // Helper to calculate actual Beijing start time (开赛时间 - 北京时间)
   const parseBeijingStartTime = (item: any, elapsedMinutes: number, exportBaseTime: string, isLive: boolean): string => {
+    const rawBaseTime = safeExtractString(item.captured_at || item.export_time || exportBaseTime);
+    const parsedBaseMs = Date.parse(rawBaseTime.includes('T') ? rawBaseTime : rawBaseTime.replace(' ', 'T'));
+    const baseMs = Number.isFinite(parsedBaseMs) ? parsedBaseMs : Date.now();
+    const formatBeijing = (value: number) => {
+      const date = new Date(value);
+      const parts = new Intl.DateTimeFormat('zh-CN', {
+        timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+      }).formatToParts(date);
+      const get = (type: string) => parts.find((part) => part.type === type)?.value || '';
+      return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
+    };
+
     // 1. Explicit candidates
     const explicitCandidates = [
       item.commence_time,
@@ -209,6 +269,8 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
       item.ybty_start_time,
       item.beijing_time,
       item.start_time,
+      item.provider_start_time,
+      item._start_time_text,
       item.开赛时间,
     ];
 
@@ -217,21 +279,20 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
       if (!str || str === '[object Object]') continue;
 
       // Full YYYY-MM-DD HH:mm
-      const fullMatch = str.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(?::\d{2})?)/);
+      const fullMatch = str.match(/^(\d{4}-\d{2}-\d{2})[T\s]+(\d{2}:\d{2}(?::\d{2})?)(Z|[+-]\d{2}:?\d{2})?/);
       if (fullMatch) {
-        return fullMatch[1];
+        const parsed = Date.parse(str);
+        return Number.isFinite(parsed) ? `${formatBeijing(parsed)} (明确时间)` : `${fullMatch[1]} ${fullMatch[2].slice(0, 5)} (明确时间)`;
       }
 
       // HH:mm format (e.g. 21:00 or 10:00)
       const hhmmMatch = str.match(/^(\d{1,2}):(\d{2})$/);
       if (hhmmMatch) {
-        if (!isLive) {
-          return `${str} (预备开赛时间)`;
-        }
-        const val1 = parseInt(hhmmMatch[1], 10);
-        if (Math.abs(val1 - elapsedMinutes) > 5) {
-          return `${str} (计划开赛时间)`;
-        }
+        const base = new Date(baseMs);
+        const beijingDate = new Date(base.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+        beijingDate.setHours(parseInt(hhmmMatch[1], 10), parseInt(hhmmMatch[2], 10), 0, 0);
+        if (!isLive && beijingDate.getTime() < baseMs - 6 * 60 * 60 * 1000) beijingDate.setDate(beijingDate.getDate() + 1);
+        return `${formatBeijing(beijingDate.getTime())} (${isLive ? '雷速计划时间' : '雷速补充'})`;
       }
     }
 
@@ -241,7 +302,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
       if (item.mins_until_start !== undefined && !isNaN(Number(item.mins_until_start))) {
         forwardMins = Number(item.mins_until_start);
       } else {
-        const rawTimeVal = safeExtractString(item.start_time || item.relative_time || item.countdown);
+        const rawTimeVal = safeExtractString(item.clock || item.clock_status || item.start_time || item.relative_time || item.countdown);
         if (rawTimeVal.includes('后开赛') || rawTimeVal.includes('分钟后')) {
           const matchMins = rawTimeVal.match(/(\d+)/);
           if (matchMins) forwardMins = parseInt(matchMins[1], 10);
@@ -249,32 +310,18 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
       }
 
       if (forwardMins !== null) {
-        const baseMs = new Date(exportBaseTime.replace(' ', 'T')).getTime() || Date.now();
         const startMs = baseMs + forwardMins * 60 * 1000;
-        const startDate = new Date(startMs);
-        const y = startDate.getFullYear();
-        const m = String(startDate.getMonth() + 1).padStart(2, '0');
-        const d = String(startDate.getDate()).padStart(2, '0');
-        const hh = String(startDate.getHours()).padStart(2, '0');
-        const mm = String(startDate.getMinutes()).padStart(2, '0');
-        return `${y}-${m}-${d} ${hh}:${mm} (推算开赛)`;
+        return `${formatBeijing(startMs)} (按导出时间+倒计时推算)`;
       }
     }
 
     // 3. For live match, calculate start time from export Base Time - elapsed Minutes
     if (isLive && elapsedMinutes > 0) {
-      const baseMs = new Date(exportBaseTime.replace(' ', 'T')).getTime() || Date.now();
       const startMs = baseMs - elapsedMinutes * 60 * 1000;
-      const startDate = new Date(startMs);
-      const y = startDate.getFullYear();
-      const m = String(startDate.getMonth() + 1).padStart(2, '0');
-      const d = String(startDate.getDate()).padStart(2, '0');
-      const hh = String(startDate.getHours()).padStart(2, '0');
-      const mm = String(startDate.getMinutes()).padStart(2, '0');
-      return `${y}-${m}-${d} ${hh}:${mm} (推算开赛)`;
+      return `${formatBeijing(startMs)} (按导出时间-已进行分钟推算)`;
     }
 
-    return exportBaseTime ? `${exportBaseTime.slice(0, 16)} (录入基准时间)` : '开赛时间未知';
+    return '开赛时间未知（源文件未提供，不能用录入基准冒充）';
   };
 
   // Helper to parse CSV string into array of objects
@@ -322,16 +369,25 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
         const parsed = JSON.parse(trimmed);
         if (Array.isArray(parsed)) {
           return parsed;
+        } else if (parsed.data && typeof parsed.data === 'object') {
+          const ybtyMatches = Array.isArray(parsed.data.ybty?.matches) ? parsed.data.ybty.matches : [];
+          const leisuEvents = Array.isArray(parsed.data.leisu?.events) ? parsed.data.leisu.events : [];
+          return [
+            ...ybtyMatches.map((item: any) => ({ ...item, source_type: 'ybty', export_mode: item.export_mode || parsed.bundle_type || parsed.export_mode, export_time: item.captured_at || parsed.generated_at })),
+            ...leisuEvents.map((item: any) => ({ ...item, source_type: 'leisu', export_mode: item.export_mode || parsed.bundle_type || parsed.export_mode, export_time: item.captured_at || parsed.generated_at })),
+          ];
         } else if (parsed.matches && Array.isArray(parsed.matches)) {
           return parsed.matches.map((m: any) => ({
             ...m,
             export_time: m.captured_at || parsed.captured_at,
+            export_mode: m.export_mode || parsed.export_mode,
             source_type: m.source_type || parsed.source_type || 'ybty',
           }));
         } else if (parsed.events && Array.isArray(parsed.events)) {
           return parsed.events.map((e: any) => ({
             ...e,
             export_time: e.captured_at || parsed.captured_at,
+            export_mode: e.export_mode || parsed.export_mode,
             source_type: e.source_type || parsed.source_type || 'leisu',
           }));
         } else if (parsed.decisions && Array.isArray(parsed.decisions)) {
@@ -428,40 +484,24 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
           const h = item.score.home ?? item.score.home_score ?? item.score.h ?? 0;
           const a = item.score.away ?? item.score.away_score ?? item.score.a ?? 0;
           scoreStr = `${h}-${a}`;
-        } else if (item.home_score !== undefined && item.away_score !== undefined) {
+        } else if (item.home_score !== undefined && item.home_score !== null && item.away_score !== undefined && item.away_score !== null) {
           scoreStr = `${item.home_score}-${item.away_score}`;
-        } else if (item.homeScore?.current !== undefined && item.awayScore?.current !== undefined) {
+        } else if (item.homeScore?.current !== undefined && item.homeScore?.current !== null && item.awayScore?.current !== undefined && item.awayScore?.current !== null) {
           scoreStr = `${item.homeScore.current}-${item.awayScore.current}`;
         }
 
         // Extract market, line, odds
-        let market = safeExtractString(item.market || item.recommendation?.market || '全场大球');
-        if (!market) market = '全场大球';
+        const market = safeExtractString(item.market || item.recommendation?.market || '');
 
         let rawLine = item.line ?? item.recommendation?.line;
         let line = rawLine !== undefined && rawLine !== null ? safeExtractString(rawLine) : '';
 
-        let rawOdds = Number(item.odds ?? item.recommendation?.odds ?? item.price ?? 1.92);
-        let odds = isNaN(rawOdds) || rawOdds <= 0 ? 1.92 : rawOdds;
-
-        if (Array.isArray(item.markets) && item.markets.length > 0) {
-          const mObj = item.markets.find((m: any) => m.market === 'full_total' || m.market === 'full_spread') || item.markets[0];
-          if (mObj) {
-            market = safeExtractString(mObj.market_title) || (mObj.market === 'full_total' ? '全场大小球' : mObj.market === 'full_spread' ? '全场让球' : '全场独赢');
-            if (Array.isArray(mObj.options) && mObj.options.length > 0) {
-              const opt = mObj.options[0];
-              line = safeExtractString(opt.line || opt.selection || line);
-              const optOdds = Number(opt.odds);
-              if (!isNaN(optOdds) && optOdds > 0) {
-                odds = optOdds;
-              }
-            }
-          }
-        }
+        const rawOdds = Number(item.odds ?? item.recommendation?.odds ?? item.price);
+        const odds = Number.isFinite(rawOdds) && rawOdds > 1 ? rawOdds : null;
 
         // Determine Export Mode & Live Status strictly per protocol:
         const rawExportMode = safeExtractString(item.export_mode || item.mode || item.pipeline_type || item.type).toLowerCase();
-        const rawStatus = safeExtractString(item.status || item.match_status || item.clock_status).toLowerCase();
+        const rawStatus = safeExtractString(item.status?.type || item.status || item.match_status || item.clock_status).toLowerCase();
         const rawTitle = safeExtractString(item.page_title || item.title || item.header_title);
         const fileName = safeExtractString(item.file_name || item.filename).toLowerCase();
 
@@ -500,10 +540,11 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
             scoreStr = '0-0 (未开赛)';
           }
         }
+        if (!isMatchLive) scoreStr = '未开始';
 
         // Extract Elapsed Time & Beijing Start Time cleanly
         const { elapsedText, elapsedMinutes } = parseElapsedTimeText(item, isMatchLive);
-        const startTime = parseBeijingStartTime(item, elapsedMinutes, exportBaseTime, isMatchLive);
+        let startTime = parseBeijingStartTime(item, elapsedMinutes, exportBaseTime, isMatchLive);
 
         // Check conflicts & canonical names
         const conflicts: string[] = [];
@@ -527,6 +568,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
 
         // Cross-match against Leisu data pool: PRIORITIZE LEAGUE MATCH FIRST
         let matchedLeisuObj: ParsedMatchItem['matched_leisu'] = null;
+        let matchedLeisuRaw: any = null;
         let unmatchReason = '';
 
         if (sourceTag === 'ybty') {
@@ -563,6 +605,9 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
           }
 
           if (foundLeisu) {
+            matchedLeisuRaw = foundLeisu;
+            const leisuStartTime = parseBeijingStartTime(foundLeisu, elapsedMinutes, exportBaseTime, isMatchLive);
+            if (!leisuStartTime.startsWith('开赛时间未知')) startTime = leisuStartTime;
             const lHome = safeExtractString(foundLeisu.ybty_home || foundLeisu.home || foundLeisu.homeTeam || foundLeisu.home_team || foundLeisu.host);
             const lAway = safeExtractString(foundLeisu.ybty_away || foundLeisu.away || foundLeisu.awayTeam || foundLeisu.away_team || foundLeisu.guest);
             const lLeague = safeExtractString(foundLeisu.league || foundLeisu.league_name);
@@ -573,7 +618,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
               score: foundLeisu.score || (isMatchLive ? '0-0' : '0-0 (未开赛)'),
               minute: foundLeisu.minute || elapsedMinutes,
               confidence: checkLeagueMatch(leagueName, lLeague) ? 0.98 : 0.90,
-              score_verified: foundLeisu.score_verified ?? true,
+              score_verified: foundLeisu.score_verified === true,
             };
           } else {
             if (leisuRawList.length === 0) {
@@ -590,7 +635,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
             score: item.match.score || scoreStr,
             minute: item.match.minute || elapsedMinutes,
             confidence: item.match_confidence || 0.9,
-            score_verified: item.match.score_verified ?? true,
+            score_verified: item.match.score_verified === true,
           };
         }
 
@@ -609,18 +654,22 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
           commence_time: startTime,
           ybty_home: homeName || (matchStr.includes(' vs ') ? matchStr.split(' vs ')[0] : matchStr),
           ybty_away: awayName || (matchStr.includes(' vs ') ? matchStr.split(' vs ')[1] : ''),
+          leisu_home: matchedLeisuObj?.leisu_home || '',
+          leisu_away: matchedLeisuObj?.leisu_away || '',
           score: scoreStr,
           market,
           line,
           odds,
           start_time_beijing: startTime,
+          provider_start_time: matchedLeisuRaw?._start_time_text || item.provider_start_time || undefined,
           elapsed_time_text: elapsedText,
-          score_verified: item.score_verified ?? true,
+          score_verified: item.score_verified === true,
           score_source: item.score_source || `${sourceTag}_export`,
           source_type: sourceTag,
           captured_at: item.captured_at || item.export_time || exportBaseTime,
           minute: elapsedMinutes || item.minute,
           is_live: isMatchLive,
+          export_mode: detectedMode,
           conflicts,
           canonical_home: canonHome,
           canonical_away: canonAway,
@@ -628,6 +677,30 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
           unmatch_reason: unmatchReason,
           candidate_leisu_matches: sortedCandidateMatches,
           all_leisu_teams: allLeisuTeams,
+          ybty_raw_markets: Array.isArray(item.ybty_raw_markets)
+            ? item.ybty_raw_markets
+            : Array.isArray(item.markets)
+              ? item.markets
+              : Array.isArray(item.market_source?.markets)
+                ? item.market_source.markets
+                : [],
+          live_statistics: item.live_statistics || matchedLeisuRaw?._statistics || matchedLeisuRaw?.live_statistics || null,
+          reference_odds: item.reference_odds || matchedLeisuRaw?.odds || null,
+          recent_trends: item.recent_trends || matchedLeisuRaw?._recent_trends || matchedLeisuRaw?.recent_trends || (
+            matchedLeisuRaw && (matchedLeisuRaw._historical_analysis || matchedLeisuRaw.analysis_data)
+              ? {
+                  recent: matchedLeisuRaw._recent_trends || null,
+                  historical_analysis: matchedLeisuRaw._historical_analysis || null,
+                  analysis_data: matchedLeisuRaw.analysis_data || null,
+                }
+              : null
+          ),
+          incidents: item.incidents || matchedLeisuRaw?._incidents || matchedLeisuRaw?.incidents || [],
+          weather: item.weather || matchedLeisuRaw?._weather || matchedLeisuRaw?.weather || null,
+          lineups: item.lineups || matchedLeisuRaw?._lineups || matchedLeisuRaw?.lineups || null,
+          player_candidates: item.player_candidates || matchedLeisuRaw?._player_candidates || matchedLeisuRaw?.player_candidates || [],
+          live_text: item.live_text || matchedLeisuRaw?._live_text || matchedLeisuRaw?.live_text || null,
+          detail_context: item.detail_context || matchedLeisuRaw?._detail_context || null,
         };
       };
 
@@ -655,6 +728,29 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
     }
   };
 
+  const handleSnapshotUpload = async (type: 'live' | 'prematch', file: File | undefined) => {
+    if (!file) return;
+    const text = await file.text();
+    try {
+      const parsed = JSON.parse(text);
+      const declaredType = String(parsed.bundle_type || parsed.export_mode || '').toLowerCase();
+      if (declaredType && declaredType !== type) {
+        setParseError(`文件类型不匹配：这里需要${type === 'live' ? '滚球' : '非滚球'}整合快照，但文件声明为 ${declaredType}。`);
+        return;
+      }
+    } catch {
+      setParseError('整合快照必须是有效的 JSON 文件。');
+      return;
+    }
+    const nextFiles = { ...snapshotFiles, [type]: { name: file.name, text } };
+    setSnapshotFiles(nextFiles);
+    const combinedText = [nextFiles.live?.text, nextFiles.prematch?.text].filter(Boolean).join('\n\n/* --- FILE SPLIT --- */\n\n');
+    uploadedRawDataRef.current = combinedText;
+    setPastedData('');
+    setUploadedFileSummary(`已加载 ${Object.values(nextFiles).filter(Boolean).length} 个文件，共 ${(combinedText.length / 1024 / 1024).toFixed(2)} MB`);
+    handleParseInput(combinedText);
+  };
+
   // Handle Multi-File Upload (.json / .csv)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -675,7 +771,9 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
 
     const validContents = fileContents.filter((c) => c.trim().length > 0);
     const combinedText = validContents.join('\n\n/* --- FILE SPLIT --- */\n\n');
-    setPastedData(combinedText);
+    uploadedRawDataRef.current = combinedText;
+    setPastedData('');
+    setUploadedFileSummary(`已加载 ${validContents.length} 个文件，共 ${(combinedText.length / 1024 / 1024).toFixed(2)} MB`);
     handleParseInput(combinedText);
   };
 
@@ -698,7 +796,9 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
 
       const validContents = fileContents.filter((c) => c.trim().length > 0);
       const combinedText = validContents.join('\n\n/* --- FILE SPLIT --- */\n\n');
-      setPastedData(combinedText);
+      uploadedRawDataRef.current = combinedText;
+      setPastedData('');
+      setUploadedFileSummary(`已加载 ${validContents.length} 个文件，共 ${(combinedText.length / 1024 / 1024).toFixed(2)} MB`);
       handleParseInput(combinedText);
     }
   };
@@ -720,7 +820,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
         setAliasMsg(`成功保存别名 [${newAlias.trim()}] 对应标准名 [${newCanonical.trim()}]！`);
         setNewAlias('');
         await loadAliases();
-        if (pastedData) handleParseInput(pastedData);
+        if (activeRawData()) handleParseInput(activeRawData());
       }
     } catch (e: any) {
       setAliasMsg(`添加别名失败: ${e.message}`);
@@ -743,7 +843,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
       if (resp.ok && data.success) {
         setAliasMsg(`已成功将别名 [${alias.trim()}] 绑定至标准队名 [${canonical.trim()}]，全表已自动重新对齐！`);
         const fresh = await loadAliases();
-        if (pastedData) handleParseInput(pastedData, fresh || undefined);
+        if (activeRawData()) handleParseInput(activeRawData(), fresh || undefined);
       } else {
         setAliasMsg(`添加别名失败: ${data.error || '无法保存'}`);
       }
@@ -777,7 +877,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
       }
       setAliasMsg(`成功与雷速对齐！[${ybtyHome}] / [${ybtyAway}] 已自动关联至雷速队名 [${leisuHome}] / [${leisuAway}]。`);
       const fresh = await loadAliases();
-      if (pastedData) handleParseInput(pastedData, fresh || undefined);
+      if (activeRawData()) handleParseInput(activeRawData(), fresh || undefined);
     } catch (e: any) {
       setAliasMsg(`对齐关联失败: ${e.message}`);
     }
@@ -857,15 +957,27 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
 
   // Batch Submit to Backend Endpoint
   const handleBatchSubmit = async () => {
-    if (parsedItems.length === 0) return;
+    if (selectedImportItems.length === 0) return;
     setIsSubmitting(true);
     setSubmitResult(null);
 
     try {
+      const importPayload = selectedImportItems.map((item) => {
+        const {
+          candidate_leisu_matches: _candidateMatches,
+          all_leisu_teams: _allLeisuTeams,
+          conflicts: _conflicts,
+          canonical_home: _canonicalHome,
+          canonical_away: _canonicalAway,
+          unmatch_reason: _unmatchReason,
+          ...persistentItem
+        } = item;
+        return persistentItem;
+      });
       const res = await fetch('/api/batch-supplement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: parsedItems, mode: importMode }),
+        body: JSON.stringify({ items: importPayload, mode: importMode }),
       });
       const data = await res.json();
 
@@ -873,7 +985,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
         setSubmitResult({
           success: true,
           msg: importMode === 'overwrite'
-            ? `✅ 已成功使用最新导入的 ${parsedItems.length} 场赛事【完全覆盖并更新】分析库！已自动清空旧批次过时赛事。(当前分析库: 滚球 ${data.live_count} 场, 非滚球 ${data.prematch_count} 场)`
+            ? `✅ 已成功使用勾选的 ${selectedImportItems.length} 场赛事【完全覆盖并更新】分析库！已自动清空旧批次过时赛事。(当前分析库: 滚球 ${data.live_count} 场, 非滚球 ${data.prematch_count} 场)`
             : `✅ 已成功增量匹配更新 ${data.total_updated} 场赛事！`,
         });
         if (onRefreshAll) {
@@ -969,7 +1081,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
                 value={exportBaseTime}
                 onChange={(e) => {
                   setExportBaseTime(e.target.value);
-                  if (pastedData) handleParseInput(pastedData);
+                  if (activeRawData()) handleParseInput(activeRawData());
                 }}
                 className="bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-slate-200 text-xs font-mono w-60"
                 placeholder="2026-08-05 18:00:00"
@@ -979,7 +1091,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
                 onClick={() => {
                   const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
                   setExportBaseTime(nowStr);
-                  if (pastedData) handleParseInput(pastedData);
+                  if (activeRawData()) handleParseInput(activeRawData());
                 }}
                 className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded text-xs border border-slate-700 transition-colors"
               >
@@ -1018,12 +1130,17 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDropFiles}
             onChange={(e) => {
+              uploadedRawDataRef.current = '';
+              setUploadedFileSummary('');
               setPastedData(e.target.value);
               handleParseInput(e.target.value);
             }}
             placeholder={`支持以下格式：\n1. 多文件混合 JSON: 拖拽/全选 leisu_latest.json 与 ybty_latest.json\n2. 含相对时间文本或比分格式\n3. CSV 文本: 赛事,比分,盘口,让球,水位,开赛时间,数据来源`}
             className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
           />
+          {uploadedFileSummary && (
+            <div className="text-xs text-emerald-300">{uploadedFileSummary}；原始大文件保存在内存引用中，不再塞入文本框渲染。</div>
+          )}
 
           {parseError && (
             <div className="p-3 bg-rose-950/40 border border-rose-800/50 rounded-lg text-xs text-rose-300 flex items-center gap-2">
@@ -1088,15 +1205,29 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
                 包含联赛、主客队、开赛状态/分钟、比分、北京时间与一键对齐
               </span>
             </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-xs">
+              <span className="font-semibold text-slate-300">已勾选 {selectedImportItems.length}/{parsedItems.length} 场，提交时只导入勾选比赛</span>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => setSelectedImportIndexes(new Set(parsedItems.map((_, index) => index)))} className="font-bold text-emerald-400 hover:text-emerald-300">全选</button>
+                <button type="button" onClick={() => setSelectedImportIndexes(new Set())} className="font-bold text-slate-400 hover:text-slate-200">全不选</button>
+              </div>
+            </div>
 
-            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+            <div className="space-y-3 min-h-[560px] max-h-[72vh] overflow-y-auto pr-1">
               {parsedItems.map((item, idx) => {
-                const isMatchLive = item.is_live || (item.minute && item.minute > 0) || item.source_type === 'live';
+                const isMatchLive = item.is_live === true;
                 return (
-                  <div key={idx} className="bg-slate-900/90 border border-slate-800 hover:border-indigo-500/50 p-3.5 rounded-xl space-y-3 transition-all shadow-md">
+                  <div key={idx} className={`bg-slate-900/90 border p-3.5 rounded-xl space-y-3 transition-all shadow-md ${selectedImportIndexes.has(idx) ? 'border-emerald-600/60' : 'border-slate-800 opacity-60'}`}>
                     {/* Header: Source Badge + League + Live Status + Beijing Time */}
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5 text-xs">
                       <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedImportIndexes.has(idx)}
+                          onChange={() => toggleImportItem(idx)}
+                          aria-label={`选择导入 ${item.match}`}
+                          className="h-4 w-4 rounded border-slate-600 text-emerald-600 focus:ring-emerald-500"
+                        />
                         {item.source_type === 'ybty' && (
                           <span className="px-2.5 py-0.5 text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800 rounded font-mono">
                             🏷️ YBTY 投注主体
@@ -1132,7 +1263,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
 
                       <div className="flex flex-wrap items-center justify-end gap-3 text-xs font-mono">
                         <span className="text-amber-300 font-bold bg-amber-950/60 px-2.5 py-1 rounded border border-amber-800/60 self-center">
-                          ⚽ {isMatchLive ? `实时比分: ${item.score}` : `比分: ${item.score}`}
+                          {isMatchLive ? `⚽ 实时比分: ${item.score}` : '⏳ 比赛状态: 未开始'}
                         </span>
                         <div className="flex flex-col text-right text-[11px] font-mono leading-tight space-y-0.5">
                           <span className="text-amber-300 flex items-center justify-end gap-1">
@@ -1443,7 +1574,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
                   <div>
                     <strong className="block text-emerald-300 font-bold">全新批次覆盖更新 (推荐)</strong>
                     <span className="text-[10px] text-slate-400 leading-tight block mt-0.5">
-                      用本次导入的 {parsedItems.length} 场最新比赛完全替代数据库中的旧滚球/非滚球决策列表，清空已过期的旧完赛场次。
+                      用当前勾选的 {selectedImportItems.length} 场比赛完全替代数据库中的旧滚球/非滚球决策列表，未勾选比赛不会导入。
                     </span>
                   </div>
                 </label>
@@ -1472,7 +1603,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
 
             <button
               onClick={handleBatchSubmit}
-              disabled={isSubmitting}
+              disabled={isSubmitting || selectedImportItems.length === 0}
               className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-lg shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50"
             >
               <Zap className={`w-4 h-4 ${isSubmitting ? 'animate-spin' : ''}`} />
@@ -1480,8 +1611,8 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
                 {isSubmitting
                   ? '正在同步刷盘更新中...'
                   : importMode === 'overwrite'
-                  ? `⚡ 确认用本次 ${parsedItems.length} 场最新比赛【完全覆盖并同步】分析库 (自动覆盖旧完赛)'`
-                  : `⚡ 确认增量融合 (${parsedItems.length} 场) 并同步数据库`}
+                  ? `⚡ 确认用已勾选的 ${selectedImportItems.length} 场比赛【完全覆盖并同步】分析库`
+                  : `⚡ 确认增量融合已勾选的 ${selectedImportItems.length} 场比赛`}
               </span>
             </button>
           </div>
@@ -1515,6 +1646,14 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
             </div>
           </div>
 
+          <div className="rounded-lg border border-emerald-700/50 bg-emerald-950/20 p-3 text-xs">
+            <div className="mb-2 font-bold text-emerald-300">上传滚球整合快照</div>
+            <input id="live-combined-upload" type="file" accept=".json,application/json" className="hidden" onChange={(event) => handleSnapshotUpload('live', event.target.files?.[0])} />
+            <label htmlFor="live-combined-upload" className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-emerald-600 bg-emerald-800 px-3 py-2 font-bold text-white hover:bg-emerald-700">
+              <Upload className="h-4 w-4" /> {snapshotFiles.live?.name || '选择滚球 Combined JSON'}
+            </label>
+          </div>
+
           <button
             onClick={() => handleExport('live')}
             className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-2 shadow-lg transition-all"
@@ -1546,6 +1685,14 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
             <div className="flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5 text-sky-400" /> 保留初盘至即时盘变动与水位差
             </div>
+          </div>
+
+          <div className="rounded-lg border border-sky-700/50 bg-sky-950/20 p-3 text-xs">
+            <div className="mb-2 font-bold text-sky-300">上传非滚球整合快照</div>
+            <input id="prematch-combined-upload" type="file" accept=".json,application/json" className="hidden" onChange={(event) => handleSnapshotUpload('prematch', event.target.files?.[0])} />
+            <label htmlFor="prematch-combined-upload" className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-sky-600 bg-sky-800 px-3 py-2 font-bold text-white hover:bg-sky-700">
+              <Upload className="h-4 w-4" /> {snapshotFiles.prematch?.name || '选择非滚球 Combined JSON'}
+            </label>
           </div>
 
           <button

@@ -582,7 +582,13 @@ def assess(candidate: dict[str, Any], now: datetime) -> dict[str, Any]:
                 }
             )
 
-    market_choices.sort(key=lambda item: item["edge"], reverse=True)
+    # A small moneyline penalty prevents the selector from collapsing into
+    # favourite-only recommendations when a researched handicap/total direction
+    # has a comparable edge. It never creates or rewrites a market.
+    market_choices.sort(
+        key=lambda item: item["edge"] - (0.25 if "独赢" in item["market"] else 0.0),
+        reverse=True,
+    )
     recommendation = market_choices[0] if market_choices else None
     edge = recommendation["edge"] if recommendation else 0.0
 

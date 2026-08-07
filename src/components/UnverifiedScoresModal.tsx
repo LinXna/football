@@ -40,6 +40,8 @@ export interface UnverifiedMatchItem {
   commence_time: string;
   homeScore: number;
   awayScore: number;
+  htHomeScore: number | string;
+  htAwayScore: number | string;
   scoreVerified: boolean;
   selected: boolean;
   hasScoreEntered: boolean;
@@ -100,6 +102,25 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
   const scanUnverifiedMatches = () => {
     const map = new Map<string, UnverifiedMatchItem>();
     const cleanName = (str: string) => normalizeTeamName(str);
+    const mergeMatchItem = (candidate: UnverifiedMatchItem) => {
+      const existing = map.get(candidate.key);
+      if (!existing) {
+        map.set(candidate.key, candidate);
+        return;
+      }
+      const candidateHasHt = candidate.htHomeScore !== '' && candidate.htAwayScore !== '';
+      const existingHasHt = existing.htHomeScore !== '' && existing.htAwayScore !== '';
+      map.set(candidate.key, {
+        ...existing,
+        homeScore: candidate.hasScoreEntered ? candidate.homeScore : existing.homeScore,
+        awayScore: candidate.hasScoreEntered ? candidate.awayScore : existing.awayScore,
+        htHomeScore: candidateHasHt ? candidate.htHomeScore : existing.htHomeScore,
+        htAwayScore: candidateHasHt ? candidate.htAwayScore : existing.htAwayScore,
+        hasScoreEntered: existing.hasScoreEntered || candidate.hasScoreEntered,
+        scoreVerified: existing.scoreVerified || candidate.scoreVerified,
+        sourceLabel: candidateHasHt && !existingHasHt ? candidate.sourceLabel : existing.sourceLabel,
+      });
+    };
 
     // 1. Scan Ledger items
     ledger.forEach((item) => {
@@ -109,14 +130,13 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
           const isVerified = leg.score_verified === true;
           const hasFinalScore = leg.final_score !== undefined && leg.final_score !== null;
 
-          if (!isVerified || !hasFinalScore) {
+          {
             const teams = getUnifiedTeamDisplay(leg);
             const h = teams.ybtyHome;
             const a = teams.ybtyAway;
             const key = `${cleanName(h)}_vs_${cleanName(a)}`;
 
-            if (!map.has(key)) {
-              map.set(key, {
+            mergeMatchItem({
                 key,
                 match: leg.match || `${h} vs ${a}`,
                 ybty_home: h,
@@ -129,12 +149,13 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
                 commence_time: item.start_time_beijing || '推算时间',
                 homeScore: leg.final_score?.home ?? 0,
                 awayScore: leg.final_score?.away ?? 0,
+                htHomeScore: leg.ht_score?.home ?? '',
+                htAwayScore: leg.ht_score?.away ?? '',
                 scoreVerified: true,
                 selected: true,
                 hasScoreEntered: hasFinalScore,
                 aliases: [],
               });
-            }
           }
         });
       } else {
@@ -142,14 +163,13 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
         const isVerified = item.score_verified === true;
         const hasFinalScore = item.review?.final_score !== undefined && item.review?.final_score !== null;
 
-        if (!isVerified || !hasFinalScore) {
+        {
           const teams = getUnifiedTeamDisplay(item);
           const h = teams.ybtyHome;
           const a = teams.ybtyAway;
           const key = `${cleanName(h)}_vs_${cleanName(a)}`;
 
-          if (!map.has(key)) {
-            map.set(key, {
+          mergeMatchItem({
               key,
               match: item.match || `${h} vs ${a}`,
               ybty_home: h,
@@ -162,12 +182,13 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
               commence_time: item.start_time_beijing || '推算时间',
               homeScore: item.review?.final_score?.home ?? 0,
               awayScore: item.review?.final_score?.away ?? 0,
+              htHomeScore: item.review?.ht_score?.home ?? item.ht_score?.home ?? '',
+              htAwayScore: item.review?.ht_score?.away ?? item.ht_score?.away ?? '',
               scoreVerified: true,
               selected: true,
               hasScoreEntered: hasFinalScore,
               aliases: [],
             });
-          }
         }
       }
     });
@@ -180,8 +201,7 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
         const a = teams.ybtyAway;
         const key = `${cleanName(h)}_vs_${cleanName(a)}`;
 
-        if (!map.has(key)) {
-          map.set(key, {
+        mergeMatchItem({
             key,
             match: m.match || `${h} vs ${a}`,
             ybty_home: h,
@@ -194,12 +214,13 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
             commence_time: m.ybty_start_time_beijing || m.provider_start_time || '推算时间',
             homeScore: m.score?.home ?? 0,
             awayScore: m.score?.away ?? 0,
+            htHomeScore: m.ht_score?.home ?? '',
+            htAwayScore: m.ht_score?.away ?? '',
             scoreVerified: true,
             selected: true,
             hasScoreEntered: false,
             aliases: [],
           });
-        }
       }
     });
 
@@ -211,8 +232,7 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
         const a = teams.ybtyAway;
         const key = `${cleanName(h)}_vs_${cleanName(a)}`;
 
-        if (!map.has(key)) {
-          map.set(key, {
+        mergeMatchItem({
             key,
             match: m.match || `${h} vs ${a}`,
             ybty_home: h,
@@ -225,12 +245,13 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
             commence_time: m.ybty_start_time_beijing || m.provider_start_time || '推算时间',
             homeScore: m.score?.home ?? 0,
             awayScore: m.score?.away ?? 0,
+            htHomeScore: m.ht_score?.home ?? '',
+            htAwayScore: m.ht_score?.away ?? '',
             scoreVerified: true,
             selected: true,
             hasScoreEntered: false,
             aliases: [],
           });
-        }
       }
     });
 
@@ -302,6 +323,12 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
     );
   };
 
+  const handleHtScoreChange = (key: string, field: 'home' | 'away', val: number | string) => {
+    setItems((prev) => prev.map((item) => item.key === key
+      ? { ...item, [field === 'home' ? 'htHomeScore' : 'htAwayScore']: val, hasScoreEntered: true }
+      : item));
+  };
+
   const handleToggleVerified = (key: string) => {
     setItems((prev) =>
       prev.map((i) => (i.key === key ? { ...i, scoreVerified: !i.scoreVerified } : i))
@@ -362,32 +389,56 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
 
     setIsSubmitting(true);
     try {
-      const payload = list.map((i) => ({
+      const payload = list.filter((i) => i.hasScoreEntered).map((i) => ({
         match: i.match,
         ybty_home: i.ybty_home,
         ybty_away: i.ybty_away,
         final_score: { home: i.homeScore, away: i.awayScore },
+        ht_score: i.htHomeScore !== '' && i.htAwayScore !== ''
+          ? { home: Number(i.htHomeScore), away: Number(i.htAwayScore) }
+          : undefined,
         score: { home: i.homeScore, away: i.awayScore },
         score_verified: i.scoreVerified,
         score_source: 'unified_unverified_center',
       }));
 
-      const res = await fetch('/api/batch-supplement-scores', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: payload }),
-      });
+      let savedMatches = 0;
+      let updatedRecords = 0;
+      const errors: string[] = [];
+      for (const item of payload) {
+        const res = await fetch('/api/ledger/update-review', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            match: item.match,
+            ybty_home: item.ybty_home,
+            ybty_away: item.ybty_away,
+            final_score: item.final_score,
+            ht_score: item.ht_score,
+            score_verified: item.score_verified,
+            syncSameMatch: true,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success) {
+          savedMatches++;
+          updatedRecords += Number(data.updatedCount || 0);
+        } else {
+          errors.push(`${item.match}: ${data.error || `HTTP ${res.status}`}`);
+        }
+      }
 
-      if (res.ok) {
-        const data = await res.json();
+      if (savedMatches > 0) {
         setSuccessMsg(
-          `一键补齐成功！已更新台账/串关项 ${data.updatedLedgerCount || 0} 条、数据库赛事 ${data.updatedDecisionsCount || 0} 条！`
+          `统一保存成功：${savedMatches} 场比赛已持久化，共同步 ${updatedRecords} 条台账/串关记录${errors.length ? `；失败 ${errors.length} 场` : ''}。`
         );
         onRefreshAll();
         setTimeout(() => {
           setSuccessMsg(null);
           scanUnverifiedMatches();
         }, 2000);
+      } else {
+        setSuccessMsg(errors.length ? `保存失败：${errors.slice(0, 2).join('；')}` : '没有填写需要保存的比分。');
       }
     } catch (err) {
       console.error('Batch score submit error', err);
@@ -407,13 +458,13 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
             </div>
             <div>
               <h3 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
-                未核实比分极速补齐中心
+                台账比赛统一比分录入中心
                 <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
                   共 {items.length} 场待补全
                 </span>
               </h3>
               <p className="text-xs text-slate-400">
-                支持单场推荐与串关多腿比分统一录入，一键完成台账重算与硬性风控核查
+                按比赛去重统一填写半场与完场比分，一次保存后同步全部单场玩法及串关腿
               </p>
             </div>
           </div>
@@ -439,7 +490,7 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                全部未核实 ({items.length})
+                台账全部比赛 ({items.length})
               </button>
               <button
                 onClick={() => setFilterSource('ledger')}
@@ -564,10 +615,10 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
             <div className="text-center py-12 space-y-3">
               <ShieldCheck className="w-12 h-12 text-emerald-400 mx-auto opacity-60" />
               <p className="text-slate-300 text-sm font-semibold">
-                当前筛选条件项下暂无未核实比分的比赛！
+                当前筛选条件下暂无比赛！
               </p>
               <p className="text-slate-500 text-xs">
-                所有台账推荐及数据库记录比分均已核查完毕
+                可调整筛选条件查看其他台账比赛
               </p>
             </div>
           ) : (
@@ -623,9 +674,9 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
 
                   {/* Right: Score Inputs & Verification Checkbox */}
                   <div className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+                    <div className="space-y-1 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
                       <div className="flex items-center space-x-1">
-                        <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">主</span>
+                        <span className="text-[10px] text-emerald-400 font-medium w-9">完场</span>
                         <input
                           type="number"
                           min="0"
@@ -636,11 +687,7 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
                           }
                           className="w-10 bg-slate-900 border border-slate-700 rounded text-center text-xs font-bold font-mono text-emerald-300 py-1 focus:outline-none focus:border-emerald-500"
                         />
-                      </div>
-
-                      <span className="text-slate-500 font-mono font-bold">:</span>
-
-                      <div className="flex items-center space-x-1">
+                        <span className="text-slate-500 font-mono font-bold">:</span>
                         <input
                           type="number"
                           min="0"
@@ -651,7 +698,28 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
                           }
                           className="w-10 bg-slate-900 border border-slate-700 rounded text-center text-xs font-bold font-mono text-emerald-300 py-1 focus:outline-none focus:border-emerald-500"
                         />
-                        <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">客</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <span className="text-[10px] text-sky-400 font-medium w-9">半场</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="20"
+                          value={item.htHomeScore}
+                          placeholder="主"
+                          onChange={(e) => handleHtScoreChange(item.key, 'home', e.target.value === '' ? '' : Number(e.target.value))}
+                          className="w-10 bg-slate-900 border border-sky-700 rounded text-center text-xs font-bold font-mono text-sky-300 py-1 focus:outline-none focus:border-sky-500"
+                        />
+                        <span className="text-slate-500 font-mono font-bold">:</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="20"
+                          value={item.htAwayScore}
+                          placeholder="客"
+                          onChange={(e) => handleHtScoreChange(item.key, 'away', e.target.value === '' ? '' : Number(e.target.value))}
+                          className="w-10 bg-slate-900 border border-sky-700 rounded text-center text-xs font-bold font-mono text-sky-300 py-1 focus:outline-none focus:border-sky-500"
+                        />
                       </div>
                     </div>
 

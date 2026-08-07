@@ -109,7 +109,7 @@ export const PrematchMatchesView: React.FC<Props> = ({
       if (selectedMatchNames.includes(m.match)) {
         newCustoms[m.match] = {
           ...m,
-          score_verified: true,
+          score_verified: m.score_verified === true,
           score_source: 'user_quick_prematch_batch',
           status: 'WATCH',
           grade: m.grade === 'C' || !m.grade ? 'B' : m.grade,
@@ -146,8 +146,10 @@ export const PrematchMatchesView: React.FC<Props> = ({
     const list = itemsToSubmit || filteredMatches.filter((m) => selectedMatchNames.includes(m.match));
     if (list.length === 0) return;
 
+    let savedCount = 0;
     for (const m of list) {
-      await fetch('/api/ledger/add', {
+      if (!m.recommendation?.market || m.recommendation.line === undefined || !Number.isFinite(Number(m.recommendation.odds))) continue;
+      const response = await fetch('/api/ledger/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -160,15 +162,16 @@ export const PrematchMatchesView: React.FC<Props> = ({
           score_verified: true,
           grade: m.grade || 'B',
           model_score: m.model_score || 72.0,
-          recommendation: m.recommendation || { market: '主胜 / 让球', line: '-0.5', odds: 1.85 },
+          recommendation: m.recommendation,
           evidence: m.evidence || ['赛前基本面达标'],
           risks: m.risks || [],
           start_time_beijing: m.ybty_start_time_beijing || m.provider_start_time || '推算时间',
         }),
       });
+      if (response.ok) savedCount++;
     }
 
-    setBatchMsg(`已成功将 ${list.length} 场赛前精选写入正式推荐台账！`);
+    setBatchMsg(`已成功将 ${savedCount} 场赛前精选写入正式推荐台账！`);
     setSelectedMatchNames([]);
     setTimeout(() => setBatchMsg(null), 3500);
   };

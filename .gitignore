@@ -1,0 +1,13 @@
+# Node dependencies and build output
+node_modules/
+dist/
+
+# Local environment secrets
+.env
+.env.local
+.env.*.local
+
+# Tool caches and logs
+.vite/
+*.log
+

@@ -68,6 +68,7 @@ export interface DecisionItem {
   provider_start_time?: string | null;
   minute?: number;
   score?: Score;
+  ht_score?: Score | null;
   score_source?: string;
   score_verified?: boolean;
   status: 'WATCH' | 'PASS' | 'RESEARCH' | string;
@@ -78,6 +79,16 @@ export interface DecisionItem {
     line?: number | string;
     odds?: number;
   } | null;
+  ybty_markets?: {
+    h2h?: { home_odds?: number; draw_odds?: number; away_odds?: number; home_suspended?: boolean; draw_suspended?: boolean; away_suspended?: boolean };
+    spread?: { home_line?: number | string; away_line?: number | string; home_odds?: number; away_odds?: number; home_suspended?: boolean; away_suspended?: boolean };
+    total?: { line?: number | string; over_odds?: number; under_odds?: number; over_suspended?: boolean; under_suspended?: boolean };
+  };
+  ybty_raw_markets?: Array<{
+    line_index?: number;
+    market?: string;
+    options?: Array<{ selection?: string; odds?: string | number; suspended?: boolean; text?: string }>;
+  }>;
   market_age_seconds?: number;
   reference_market?: ReferenceMarket;
   weather?: WeatherInfo;
@@ -152,6 +163,10 @@ export interface LedgerItem {
   };
   record_type?: 'machine_candidate' | 'formal_ai_recommendation' | string;
   formal_recommendation?: boolean;
+  prediction_only?: boolean;
+  prediction_type?: string | null;
+  prediction_probability?: number;
+  model_version?: string | null;
   score_source?: string;
   score_verified?: boolean;
   commence_time?: string | null;
@@ -174,6 +189,8 @@ export interface AIAnalysisRequest {
   league_info?: string;
   mode: 'live_eval' | 'prematch_eval' | 'parlay_check';
   selected_candidates?: DecisionItem[];
+  batch_matches?: DecisionItem[];
+  batch_match_refs?: Array<{ match: string; ybty_home?: string; ybty_away?: string }>;
 }
 
 export function getLeagueName(item: any): string {
@@ -239,6 +256,9 @@ export function getTeamDisplay(item: any) {
 }
 
 export interface AIAnalysisResponse {
+  match?: string;
+  ybty_home?: string;
+  ybty_away?: string;
   summary: string;
   grade: 'A' | 'B' | 'C';
   recommendation: {
@@ -251,8 +271,42 @@ export interface AIAnalysisResponse {
   verification_passed: boolean;
   evidence: string[];
   risks: string[];
+  market_assessments?: AIMarketAssessment[];
+  matches?: AIAnalysisResponse[];
   parlay_safety_check?: {
     is_valid_parlay: boolean;
     reasons: string[];
   };
+  parlay_recommendations?: Array<{
+    size: number;
+    ticket_index: number;
+    grade: 'A' | 'B' | 'C';
+    estimated_total_odds: number;
+    reason: string;
+    legs: Array<{
+      match: string;
+      ybty_home?: string;
+      ybty_away?: string;
+      market: string;
+      line: string | number;
+      odds: number;
+      probability: number;
+      grade: 'A' | 'B' | 'C';
+    }>;
+  }>;
+}
+
+export interface AIMarketAssessment {
+  category: string;
+  market: string;
+  direction: string;
+  line: string | number | null;
+  odds: number | null;
+  probability: number | null;
+  probability_scope?: string;
+  alternatives?: Array<{ direction: string; probability: number }>;
+  value_edge?: number | null;
+  grade: 'A' | 'B' | 'C' | 'NO_BET';
+  status: 'recommend' | 'watch' | 'prediction' | 'avoid' | 'unavailable';
+  reason: string;
 }

@@ -37,7 +37,7 @@ export const DataSupplementModal: React.FC<Props> = ({
   const [ybtyAway, setYbtyAway] = useState(match.ybty_away || match.match.split('vs')[1]?.trim() || '');
   const [scoreHome, setScoreHome] = useState<number>(match.score?.home ?? 0);
   const [scoreAway, setScoreAway] = useState<number>(match.score?.away ?? 0);
-  const [scoreVerified, setScoreVerified] = useState<boolean>(match.score_verified ?? true);
+  const [scoreVerified, setScoreVerified] = useState<boolean>(match.score_verified === true);
   const [scoreSource, setScoreSource] = useState<string>(match.score_source || 'user_manual_verified');
   const [minute, setMinute] = useState<number>(match.minute ?? 0);
   const [startTimeBeijing, setStartTimeBeijing] = useState<string>(
@@ -54,9 +54,9 @@ export const DataSupplementModal: React.FC<Props> = ({
   const [rawPastedJson, setRawPastedJson] = useState<string>('');
   const [jsonImportSuccess, setJsonImportSuccess] = useState<string | null>(null);
   
-  const [market, setMarket] = useState<string>(match.recommendation?.market || '全场大球');
-  const [line, setLine] = useState<string | number>(match.recommendation?.line ?? '2.25');
-  const [odds, setOdds] = useState<number>(match.recommendation?.odds ?? 1.88);
+  const [market, setMarket] = useState<string>(match.recommendation?.market || '');
+  const [line, setLine] = useState<string | number>(match.recommendation?.line ?? '');
+  const [odds, setOdds] = useState<number>(match.recommendation?.odds ?? Number.NaN);
   const [userNote, setUserNote] = useState<string>('手动/导入补充缺失数据，确认比分与盘口无误');
 
   // Helper function to calculate exact Beijing time from export time + X mins
@@ -175,11 +175,9 @@ export const DataSupplementModal: React.FC<Props> = ({
       ybty_start_time_beijing: startTimeBeijing,
       status: scoreVerified ? 'WATCH' : match.status,
       grade: scoreVerified ? (match.grade === 'C' || !match.grade ? 'B' : match.grade) : match.grade,
-      recommendation: {
-        market,
-        line,
-        odds: Number(odds),
-      },
+      recommendation: market && line !== '' && Number.isFinite(Number(odds)) && Number(odds) > 1
+        ? { market, line, odds: Number(odds) }
+        : match.recommendation,
       evidence: [
         ...(match.evidence || []),
         `[人工修补] ${userNote}`,

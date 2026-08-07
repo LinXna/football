@@ -57,7 +57,13 @@ export function parseQuarterLine(lineInput: string | number): number {
   const splitMatch = str.match(/^([+-]?\d*(?:\.\d+)?)\/([+-]?\d*(?:\.\d+)?)$/);
   if (splitMatch) {
     const v1 = parseFloat(splitMatch[1]);
-    const v2 = parseFloat(splitMatch[2]);
+    let v2 = parseFloat(splitMatch[2]);
+    // Backward compatibility for the legacy formatter, which emitted -0.5/1
+    // for -0.75. An unsigned second leg following a negative first leg belongs
+    // to the same negative handicap: -0.5/-1.
+    if (v1 < 0 && !splitMatch[2].startsWith('-') && !splitMatch[2].startsWith('+')) {
+      v2 = -Math.abs(v2);
+    }
     if (!isNaN(v1) && !isNaN(v2)) {
       return (v1 + v2) / 2;
     }
@@ -80,8 +86,8 @@ export function parseQuarterLine(lineInput: string | number): number {
  * 1.75 -> "1.5/2"
  * 2.25 -> "2/2.5"
  * 2.75 -> "2.5/3"
- * -0.75 -> "-0.5/1"
- * -0.25 -> "-0/0.5"
+ * -0.75 -> "-0.5/-1"
+ * -0.25 -> "-0/-0.5"
  */
 export function formatAsianLine(rawLine: string | number): string {
   if (rawLine === undefined || rawLine === null || rawLine === '') return '0';
@@ -96,16 +102,14 @@ export function formatAsianLine(rawLine: string | number): string {
   const abs = Math.abs(num);
   const frac = Math.round((abs - Math.floor(abs)) * 100);
 
-  const sign = isNegative ? '-' : (num > 0 && str.startsWith('+') ? '+' : '');
-
   if (frac === 25) {
     const low = Math.floor(abs);
     const high = low + 0.5;
-    return `${sign}${low}/${high}`;
+    return isNegative ? `-${low}/-${high}` : `${low}/${high}`;
   } else if (frac === 75) {
     const low = Math.floor(abs) + 0.5;
     const high = Math.floor(abs) + 1;
-    return `${sign}${low}/${high}`;
+    return isNegative ? `-${low}/-${high}` : `${low}/${high}`;
   }
 
   return str;
@@ -216,7 +220,7 @@ export function evaluateQuarterSettlement(params: SettlementParams): SettlementD
   const {
     market,
     line: rawLine,
-    odds: rawOdds = 1.90,
+    odds: rawOdds,
     scoreAtRec = { home: 0, away: 0 },
     finalScore,
     halfTimeScore,
@@ -224,7 +228,7 @@ export function evaluateQuarterSettlement(params: SettlementParams): SettlementD
     isLive: explicitIsLive = false,
   } = params;
 
-  const odds = Number(rawOdds) > 1 ? Number(rawOdds) : 1.90;
+  const odds = Number(rawOdds) > 1 ? Number(rawOdds) : 1;
   const line = parseQuarterLine(rawLine);
   const marketCategory = classifyMarket(market, rawLine);
 
@@ -243,6 +247,18 @@ export function evaluateQuarterSettlement(params: SettlementParams): SettlementD
 
   // 自动判定是否为滚球后续时段结算：显式指定 isLive 或 推荐时已有进球 (recH > 0 或 recA > 0)
   const isLive = explicitIsLive || Boolean(scoreAtRec && (recH > 0 || recA > 0));
+
+  if (!(Number(rawOdds) > 1)) {
+    return {
+      outcome: 'invalid_data', outcomeLabel: '无真实赔率',
+      badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/40', badgeBg: 'bg-rose-500/20', badgeText: 'text-rose-300',
+      numericLine: line, isQuarterLine: quarter, quarterSplitText: '赔率缺失，禁止使用默认值结算',
+      isLive, scoreAtRecStr: `${scoreAtRec?.home ?? 0}-${scoreAtRec?.away ?? 0}`,
+      finalScoreStr: finalScore ? `${finalScore.home}-${finalScore.away}` : '未完场', effectiveValue: 0,
+      calculationExplanation: '记录没有真实赔率，不能计算盈亏。', odds: 1,
+      netProfitUnit: 0, netProfitText: '0.00u', payoutReturnText: '无效数据',
+    };
+  }
 
   // If final score is missing or review is pending
   if (!finalScore || finalScore.home === undefined || finalScore.away === undefined) {
@@ -627,7 +643,7 @@ export function evaluateParlaySettlement(
       scoreAtRec: legScoreRec,
       finalScore: leg.final_score || null,
       halfTimeScore: (leg as any).half_time_score || (leg as any).ht_score || (leg as any).half_score || null,
-      scoreVerified: leg.score_verified ?? true,
+      scoreVerified: leg.score_verified === true,
       isLive: isLegLive,
     });
 
@@ -638,7 +654,7 @@ export function evaluateParlaySettlement(
       ybty_away: leg.ybty_away || leg.match.split(' vs ')[1] || '',
       market: leg.market,
       line: leg.line,
-      odds: Number(leg.odds || 1.85),
+      odds: Number(leg.odds) > 1 ? Number(leg.odds) : 0,
       score_at_recommendation: leg.score_at_recommendation,
       final_score: leg.final_score,
       score_verified: leg.score_verified,

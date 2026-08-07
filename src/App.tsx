@@ -198,10 +198,10 @@ export default function App() {
             <button
               onClick={() => setShowUnverifiedModal(true)}
               className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-lg transition-colors border border-amber-500/30 flex items-center gap-1.5 text-xs font-semibold shadow-sm"
-              title="一键查看并批量补齐所有未核实比分的比赛"
+              title="按比赛统一录入台账中的半场与完场比分，并同步所有玩法和串关腿"
             >
               <AlertCircle className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-              <span>未核实比分中心 ({unverifiedMatchesCount})</span>
+              <span>统一录入比赛比分</span>
             </button>
 
             <span className="hidden md:flex items-center gap-1.5 text-xs text-slate-400 bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-800">
@@ -336,6 +336,8 @@ export default function App() {
           <AiEvaluatorView
             selectedMatch={selectedMatchForAi}
             allMatches={allMatchesForParlay}
+            liveMatches={liveDecisions}
+            prematchMatches={prematchDecisions}
             onRefreshLedger={fetchLedgerData}
           />
         )}

@@ -151,8 +151,10 @@ export const LiveMatchesView: React.FC<Props> = ({
     const list = itemsToSubmit || filteredMatches.filter((m) => selectedMatchNames.includes(m.match));
     if (list.length === 0) return;
 
+    let savedCount = 0;
     for (const m of list) {
-      await fetch('/api/ledger/add', {
+      if (!m.recommendation?.market || m.recommendation.line === undefined || !Number.isFinite(Number(m.recommendation.odds))) continue;
+      const response = await fetch('/api/ledger/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -162,18 +164,19 @@ export const LiveMatchesView: React.FC<Props> = ({
           minute: m.minute || 0,
           score_at_recommendation: m.score || { home: 0, away: 0 },
           score_source: m.score_source || 'ybty_market',
-          score_verified: m.score_verified ?? true,
+          score_verified: m.score_verified === true,
           grade: m.grade || 'B',
           model_score: m.model_score || 75.0,
-          recommendation: m.recommendation || { market: '全场大球', line: '2.25', odds: 1.88 },
+          recommendation: m.recommendation,
           evidence: m.evidence || ['技术面达标'],
           risks: m.risks || [],
           start_time_beijing: m.ybty_start_time_beijing || m.provider_start_time || '推算时间',
         }),
       });
+      if (response.ok) savedCount++;
     }
 
-    setBatchMsg(`已成功将 ${list.length} 场滚球精选写入正式推荐台账！`);
+    setBatchMsg(`已成功将 ${savedCount} 场滚球精选写入正式推荐台账！`);
     setSelectedMatchNames([]);
     setTimeout(() => setBatchMsg(null), 3500);
   };
@@ -405,7 +408,7 @@ export const LiveMatchesView: React.FC<Props> = ({
 
                     <div className="flex items-center gap-1 text-xs text-indigo-300 bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-800/60" title="比赛开赛时间（北京时间）">
                       <Calendar className="w-3 h-3 text-indigo-400" />
-                      <span>开赛: <strong className="text-indigo-200">{m.commence_time || m.ybty_start_time_beijing || m.provider_start_time || '进行中'}</strong></span>
+                      <span>开赛: <strong className="text-indigo-200">{m.provider_start_time ? `${m.provider_start_time}（雷速）` : (m.ybty_start_time_beijing || m.commence_time || '时间未确认')}</strong></span>
                     </div>
 
                     {/* Score Verification */}

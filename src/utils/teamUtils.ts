@@ -151,12 +151,12 @@ export function getUnifiedTeamDisplay(item: any): UnifiedTeamDisplay {
       ybtyAway: '客队',
       leisuHome: '主队',
       leisuAway: '客队',
-      homeYbtyLabel: '主队-YBTY',
-      homeLeisuLabel: '主队-雷速',
-      awayYbtyLabel: '客队-YBTY',
-      awayLeisuLabel: '客队-雷速',
-      displayHome: '主队-YBTY / 主队-雷速',
-      displayAway: '客队-YBTY / 客队-雷速',
+      homeYbtyLabel: '主队',
+      homeLeisuLabel: '主队',
+      awayYbtyLabel: '客队',
+      awayLeisuLabel: '客队',
+      displayHome: '主队',
+      displayAway: '客队',
       matchName: '主队 vs 客队',
       leisuMatchName: '主队 vs 客队',
       hasLeisuMatched: false,
@@ -222,8 +222,12 @@ export function getUnifiedTeamDisplay(item: any): UnifiedTeamDisplay {
     aliasLeisuAway = canonicalAway;
   }
 
-  const finalLeisuHome = explicitLeisuHome || aliasLeisuHome || ybtyHome;
-  const finalLeisuAway = explicitLeisuAway || aliasLeisuAway || ybtyAway;
+  const finalLeisuHome = explicitLeisuHome && explicitLeisuHome !== ybtyHome
+    ? explicitLeisuHome
+    : aliasLeisuHome || explicitLeisuHome || ybtyHome;
+  const finalLeisuAway = explicitLeisuAway && explicitLeisuAway !== ybtyAway
+    ? explicitLeisuAway
+    : aliasLeisuAway || explicitLeisuAway || ybtyAway;
 
   const hasLeisuMatched = true; // 默认全面对齐，展示完整两端标识
 
@@ -232,12 +236,15 @@ export function getUnifiedTeamDisplay(item: any): UnifiedTeamDisplay {
     ybtyAway,
     leisuHome: finalLeisuHome,
     leisuAway: finalLeisuAway,
-    homeYbtyLabel: `${ybtyHome}-YBTY`,
-    homeLeisuLabel: `${finalLeisuHome}-雷速`,
-    awayYbtyLabel: `${ybtyAway}-YBTY`,
-    awayLeisuLabel: `${finalLeisuAway}-雷速`,
-    displayHome: `${ybtyHome}-YBTY / ${finalLeisuHome}-雷速`,
-    displayAway: `${ybtyAway}-YBTY / ${finalLeisuAway}-雷速`,
+    // Keep provider names outside the selectable team-name text. Components
+    // already render YBTY and Leisu on separate rows/colors, so suffixes only
+    // make copied names incorrect (for example "墨西哥U20-YBTY").
+    homeYbtyLabel: ybtyHome,
+    homeLeisuLabel: finalLeisuHome,
+    awayYbtyLabel: ybtyAway,
+    awayLeisuLabel: finalLeisuAway,
+    displayHome: ybtyHome,
+    displayAway: ybtyAway,
     matchName: `${ybtyHome} vs ${ybtyAway}`,
     leisuMatchName: `${finalLeisuHome} vs ${finalLeisuAway}`,
     hasLeisuMatched: true,

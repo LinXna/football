@@ -35,9 +35,9 @@ export const BatchSupplementModal: React.FC<Props> = ({
   // Batch Form Parameters
   const [markScoreVerified, setMarkScoreVerified] = useState(true);
   const [scoreSource, setScoreSource] = useState('user_manual_batch_verified');
-  const [defaultMarket, setDefaultMarket] = useState('全场大球');
-  const [defaultLine, setDefaultLine] = useState('2.25');
-  const [defaultOdds, setDefaultOdds] = useState(1.88);
+  const [defaultMarket, setDefaultMarket] = useState('');
+  const [defaultLine, setDefaultLine] = useState('');
+  const [defaultOdds, setDefaultOdds] = useState(Number.NaN);
   const [batchNote, setBatchNote] = useState('批量补充核验数据，激活比分与盘口');
 
   // Multi-item selection within the modal
@@ -182,14 +182,12 @@ export const BatchSupplementModal: React.FC<Props> = ({
             ybty_start_time_beijing: calculatedTime || m.ybty_start_time_beijing || '推算时间',
             status: 'WATCH' as const,
             grade: m.grade === 'C' || !m.grade ? 'B' as const : m.grade,
-            recommendation: {
-              market: found.market || found.recommendation?.market || m.recommendation?.market || defaultMarket,
-              line: found.line ?? found.recommendation?.line ?? m.recommendation?.line ?? defaultLine,
-              odds: (() => {
-                const val = Number(found.odds ?? found.recommendation?.odds ?? m.recommendation?.odds ?? defaultOdds);
-                return isNaN(val) || val <= 0 ? 1.85 : val;
-              })(),
-            },
+            recommendation: (() => {
+              const market = found.market || found.recommendation?.market || m.recommendation?.market || defaultMarket;
+              const line = found.line ?? found.recommendation?.line ?? m.recommendation?.line ?? defaultLine;
+              const odds = Number(found.odds ?? found.recommendation?.odds ?? m.recommendation?.odds ?? defaultOdds);
+              return market && line !== '' && Number.isFinite(odds) && odds > 1 ? { market, line, odds } : m.recommendation;
+            })(),
             evidence: [...(m.evidence || []), `[批量JSON导入刷盘成功] 已同步最新比分与水位 (${calculatedTime || '自动推算'})`],
             risks: (m.risks || []).filter((r) => !r.includes('比分未经校验') && !r.includes('开赛时间缺失')),
           };
@@ -231,11 +229,12 @@ export const BatchSupplementModal: React.FC<Props> = ({
         score_source: markScoreVerified ? scoreSource : m.score_source,
         status: markScoreVerified ? 'WATCH' : m.status,
         grade: markScoreVerified ? (m.grade === 'C' || !m.grade ? 'B' : m.grade) : m.grade,
-        recommendation: {
-          market: m.recommendation?.market || defaultMarket,
-          line: m.recommendation?.line ?? defaultLine,
-          odds: m.recommendation?.odds ?? defaultOdds,
-        },
+        recommendation: (() => {
+          if (m.recommendation) return m.recommendation;
+          return defaultMarket && defaultLine !== '' && Number.isFinite(defaultOdds) && defaultOdds > 1
+            ? { market: defaultMarket, line: defaultLine, odds: defaultOdds }
+            : undefined;
+        })(),
         evidence: [
           ...(m.evidence || []),
           `[批量修补] ${batchNote}`,

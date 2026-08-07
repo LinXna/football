@@ -41,25 +41,30 @@ export function normalizeTeamName(name: string): string {
 export function buildAliasLookup(manual: Record<string, string[]> = {}, auto: Record<string, string[]> = {}): Map<string, string> {
   const map = new Map<string, string>();
 
-  const processEntries = (dict: Record<string, string[]>) => {
-    for (const [canonical, aliases] of Object.entries(dict)) {
+  const dictionaries = [manual, auto];
+  // Register every canonical name before aliases. An ambiguous alias must never
+  // overwrite an earlier explicit mapping merely because its JSON entry appears
+  // later (the cause of 阿利亚 being displayed as 联盟FC).
+  for (const dict of dictionaries) {
+    for (const canonical of Object.keys(dict)) {
       const normCanonical = normalizeTeamName(canonical);
-      if (normCanonical) {
+      if (normCanonical && !map.has(normCanonical)) {
         map.set(normCanonical, canonical);
       }
+    }
+  }
+  for (const dict of dictionaries) {
+    for (const [canonical, aliases] of Object.entries(dict)) {
       if (Array.isArray(aliases)) {
         for (const alias of aliases) {
           const normAlias = normalizeTeamName(alias);
-          if (normAlias) {
+          if (normAlias && !map.has(normAlias)) {
             map.set(normAlias, canonical);
           }
         }
       }
     }
-  };
-
-  processEntries(manual);
-  processEntries(auto);
+  }
 
   return map;
 }

@@ -1,0 +1,2764 @@
+[
+  {
+    "id": "ai_eval_1786116686539_170413a1",
+    "saved_at": "2026-08-07T15:31:26.539Z",
+    "mode": "parlay_check",
+    "scope": "single",
+    "evaluated_matches": [
+      " vs "
+    ],
+    "result": {
+      "summary": "针对用户提供的7场比赛池，已完成全面盘口风控审查与模型概率校验。生成的5组不同规格串关（3串1、4串1、5串1、6串1、7串1）均严格遵循同场不重复、盘口实效性与组合风险分散原则。",
+      "grade": "B",
+      "recommendation": {
+        "market": "组合串关生成完成（5组规格均通过硬性风控规则）",
+        "line": "N/A",
+        "odds": 5.7,
+        "best_timing_tip": "建议以 3串1 和 4串1 为核心主打注码，5串1及以上仅宜采用轻仓娱乐策略以控制整体波动风险。"
+      },
+      "score_verified": true,
+      "score_source": "ybty_market",
+      "verification_passed": true,
+      "evidence": [
+        "所有串关选项均取自YBTY实时核验盘口及AI评估模型，无虚构赔率与盘口。",
+        "单张串关内部严格保证无同一场比赛重复进入的情况。",
+        "组合选取涵盖赛前盘与滚球实时盘，核心推荐方向正向价值边际均为正数。"
+      ],
+      "risks": [
+        "长串关（6串1、7串1）受多场滚球进程动态叠加影响，总体容错率较低。",
+        "部分滚球赛事（如墨西哥U20）虽场面压制但尚未破门，存在短时间无球导致的走水或输半风险。"
+      ],
+      "timing_strategy": "建议资金按 3串1 (40%) + 4串1 (30%) + 5串1 (15%) + 6串1 (10%) + 7串1 (5%) 的比例分配，避免在长串关上过度暴露本金。",
+      "parlay_safety_check": {
+        "is_valid_parlay": true,
+        "allow_max_parlay_tickets": 5,
+        "reasons": [
+          "比赛 #1 (墨西哥U20 vs 巴拿马U20): 滚球28分钟0-0，控球优势明显，选择全场大球 2 (1.78)。",
+          "比赛 #2 (萨普里萨 vs 巴拿马阿利安萨): 滚球22分钟1-0，主队优势明显，选择全场大球 3 (1.77)。",
+          "比赛 #3 (联盟FC vs 埃雷迪亚诺): 滚球22分钟0-0，主队受让具有价值，选择全场让球 联盟FC +0/0.5 (1.76)。",
+          "比赛 #4 (丹佛峰会(女) vs 北卡罗莱纳(女)): 滚球21分钟0-0，系统推荐全场大球 2/2.5 (1.82)。",
+          "比赛 #5 (塞利斯贝瑞联 vs 南阿德莱德黑豹): 赛前盘口攻防开放，选择全场大球 3.5 (1.81)。",
+          "比赛 #6 (托卢卡体育 vs 西雅图海湾人): 滚球16分钟1-0，主队高压，选择全场让球 托卢卡体育 -1.5 (1.83)。",
+          "比赛 #7 (辛迪夫佐特U19 vs 阿萨纳U19): 赛前挪威青年联赛进球倾向高，选择全场大球 4 (1.87)。"
+        ]
+      },
+      "parlay_recommendations": [
+        {
+          "size": 3,
+          "ticket_index": 1,
+          "grade": "B",
+          "estimated_total_odds": 5.7,
+          "reason": "精选信心度最高的三场大球/胜负方向，兼顾高打穿率与稳健赔率收益。",
+          "legs": [
+            {
+              "match": "墨西哥U20 vs 巴拿马U20",
+              "ybty_home": "墨西哥U20",
+              "ybty_away": "巴拿马U20",
+              "market": "全场大小球",
+              "line": "2",
+              "odds": 1.78,
+              "probability": 60,
+              "grade": "B"
+            },
+            {
+              "match": "萨普里萨 vs 巴拿马阿利安萨",
+              "ybty_home": "萨普里萨",
+              "ybty_away": "巴拿马阿利安萨",
+              "market": "全场大小球",
+              "line": "3",
+              "odds": 1.77,
+              "probability": 59,
+              "grade": "B"
+            },
+            {
+              "match": "塞利斯贝瑞联 vs 南阿德莱德黑豹",
+              "ybty_home": "塞利斯贝瑞联",
+              "ybty_away": "南阿德莱德黑豹",
+              "market": "全场大小球",
+              "line": "3.5",
+              "odds": 1.81,
+              "probability": 58,
+              "grade": "B"
+            }
+          ]
+        },
+        {
+          "size": 4,
+          "ticket_index": 1,
+          "grade": "B",
+          "estimated_total_odds": 10.43,
+          "reason": "在3串1基础上加入托卢卡体育主让1.5盘，强弱悬殊且主队极早破门，回报收益跨越10倍关口。",
+          "legs": [
+            {
+              "match": "墨西哥U20 vs 巴拿马U20",
+              "ybty_home": "墨西哥U20",
+              "ybty_away": "巴拿马U20",
+              "market": "全场大小球",
+              "line": "2",
+              "odds": 1.78,
+              "probability": 60,
+              "grade": "B"
+            },
+            {
+              "match": "萨普里萨 vs 巴拿马阿利安萨",
+              "ybty_home": "萨普里萨",
+              "ybty_away": "巴拿马阿利安萨",
+              "market": "全场大小球",
+              "line": "3",
+              "odds": 1.77,
+              "probability": 59,
+              "grade": "B"
+            },
+            {
+              "match": "塞利斯贝瑞联 vs 南阿德莱德黑豹",
+              "ybty_home": "塞利斯贝瑞联",
+              "ybty_away": "南阿德莱德黑豹",
+              "market": "全场大小球",
+              "line": "3.5",
+              "odds": 1.81,
+              "probability": 58,
+              "grade": "B"
+            },
+            {
+              "match": "托卢卡体育 vs 西雅图海湾人",
+              "ybty_home": "托卢卡体育",
+              "ybty_away": "西雅图海湾人",
+              "market": "全场让球",
+              "line": "-1.5",
+              "odds": 1.83,
+              "probability": 57,
+              "grade": "B"
+            }
+          ]
+        },
+        {
+          "size": 5,
+          "ticket_index": 1,
+          "grade": "B",
+          "estimated_total_odds": 18.36,
+          "reason": "纳入联盟FC受让平半以增加防守型稳健腿，提高整体中奖结构多元性。",
+          "legs": [
+            {
+              "match": "墨西哥U20 vs 巴拿马U20",
+              "ybty_home": "墨西哥U20",
+              "ybty_away": "巴拿马U20",
+              "market": "全场大小球",
+              "line": "2",
+              "odds": 1.78,
+              "probability": 60,
+              "grade": "B"
+            },
+            {
+              "match": "萨普里萨 vs 巴拿马阿利安萨",
+              "ybty_home": "萨普里萨",
+              "ybty_away": "巴拿马阿利安萨",
+              "market": "全场大小球",
+              "line": "3",
+              "odds": 1.77,
+              "probability": 59,
+              "grade": "B"
+            },
+            {
+              "match": "联盟FC vs 埃雷迪亚诺",
+              "ybty_home": "联盟FC",
+              "ybty_away": "埃雷迪亚诺",
+              "market": "全场让球",
+              "line": "+0/0.5",
+              "odds": 1.76,
+              "probability": 58,
+              "grade": "B"
+            },
+            {
+              "match": "塞利斯贝瑞联 vs 南阿德莱德黑豹",
+              "ybty_home": "塞利斯贝瑞联",
+              "ybty_away": "南阿德莱德黑豹",
+              "market": "全场大小球",
+              "line": "3.5",
+              "odds": 1.81,
+              "probability": 58,
+              "grade": "B"
+            },
+            {
+              "match": "托卢卡体育 vs 西雅图海湾人",
+              "ybty_home": "托卢卡体育",
+              "ybty_away": "西雅图海湾人",
+              "market": "全场让球",
+              "line": "-1.5",
+              "odds": 1.83,
+              "probability": 57,
+              "grade": "B"
+            }
+          ]
+        },
+        {
+          "size": 6,
+          "ticket_index": 1,
+          "grade": "C",
+          "estimated_total_odds": 34.34,
+          "reason": "6场组合加入挪威U19大球项，整体理论回报突破34倍，需注意高串关天然波动。",
+          "legs": [
+            {
+              "match": "墨西哥U20 vs 巴拿马U20",
+              "ybty_home": "墨西哥U20",
+              "ybty_away": "巴拿马U20",
+              "market": "全场大小球",
+              "line": "2",
+              "odds": 1.78,
+              "probability": 60,
+              "grade": "B"
+            },
+            {
+              "match": "萨普里萨 vs 巴拿马阿利安萨",
+              "ybty_home": "萨普里萨",
+              "ybty_away": "巴拿马阿利安萨",
+              "market": "全场大小球",
+              "line": "3",
+              "odds": 1.77,
+              "probability": 59,
+              "grade": "B"
+            },
+            {
+              "match": "联盟FC vs 埃雷迪亚诺",
+              "ybty_home": "联盟FC",
+              "ybty_away": "埃雷迪亚诺",
+              "market": "全场让球",
+              "line": "+0/0.5",
+              "odds": 1.76,
+              "probability": 58,
+              "grade": "B"
+            },
+            {
+              "match": "塞利斯贝瑞联 vs 南阿德莱德黑豹",
+              "ybty_home": "塞利斯贝瑞联",
+              "ybty_away": "南阿德莱德黑豹",
+              "market": "全场大小球",
+              "line": "3.5",
+              "odds": 1.81,
+              "probability": 58,
+              "grade": "B"
+            },
+            {
+              "match": "托卢卡体育 vs 西雅图海湾人",
+              "ybty_home": "托卢卡体育",
+              "ybty_away": "西雅图海湾人",
+              "market": "全场让球",
+              "line": "-1.5",
+              "odds": 1.83,
+              "probability": 57,
+              "grade": "B"
+            },
+            {
+              "match": "辛迪夫佐特U19 vs 阿萨纳U19",
+              "ybty_home": "辛迪夫佐特U19",
+              "ybty_away": "阿萨纳U19",
+              "market": "全场大小球",
+              "line": "4",
+              "odds": 1.87,
+              "probability": 56,
+              "grade": "C"
+            }
+          ]
+        },
+        {
+          "size": 7,
+          "ticket_index": 1,
+          "grade": "C",
+          "estimated_total_odds": 62.5,
+          "reason": "包含所有7场比赛精选推荐，预估总赔率达62.5倍，宜以极低筹码参与高倍博彩。",
+          "legs": [
+            {
+              "match": "墨西哥U20 vs 巴拿马U20",
+              "ybty_home": "墨西哥U20",
+              "ybty_away": "巴拿马U20",
+              "market": "全场大小球",
+              "line": "2",
+              "odds": 1.78,
+              "probability": 60,
+              "grade": "B"
+            },
+            {
+              "match": "萨普里萨 vs 巴拿马阿利安萨",
+              "ybty_home": "萨普里萨",
+              "ybty_away": "巴拿马阿利安萨",
+              "market": "全场大小球",
+              "line": "3",
+              "odds": 1.77,
+              "probability": 59,
+              "grade": "B"
+            },
+            {
+              "match": "联盟FC vs 埃雷迪亚诺",
+              "ybty_home": "联盟FC",
+              "ybty_away": "埃雷迪亚诺",
+              "market": "全场让球",
+              "line": "+0/0.5",
+              "odds": 1.76,
+              "probability": 58,
+              "grade": "B"
+            },
+            {
+              "match": "丹佛峰会(女) vs 北卡罗莱纳(女)",
+              "ybty_home": "丹佛峰会(女)",
+              "ybty_away": "北卡罗莱纳(女)",
+              "market": "全场大小球",
+              "line": "2/2.5",
+              "odds": 1.82,
+              "probability": 56,
+              "grade": "B"
+            },
+            {
+              "match": "塞利斯贝瑞联 vs 南阿德莱德黑豹",
+              "ybty_home": "塞利斯贝瑞联",
+              "ybty_away": "南阿德莱德黑豹",
+              "market": "全场大小球",
+              "line": "3.5",
+              "odds": 1.81,
+              "probability": 58,
+              "grade": "B"
+            },
+            {
+              "match": "托卢卡体育 vs 西雅图海湾人",
+              "ybty_home": "托卢卡体育",
+              "ybty_away": "西雅图海湾人",
+              "market": "全场让球",
+              "line": "-1.5",
+              "odds": 1.83,
+              "probability": 57,
+              "grade": "B"
+            },
+            {
+              "match": "辛迪夫佐特U19 vs 阿萨纳U19",
+              "ybty_home": "辛迪夫佐特U19",
+              "ybty_away": "阿萨纳U19",
+              "market": "全场大小球",
+              "line": "4",
+              "odds": 1.87,
+              "probability": 56,
+              "grade": "C"
+            }
+          ]
+        }
+      ]
+    },
+    "record_type": "ai_evaluation_snapshot",
+    "affects_formal_statistics": false
+  },
+  {
+    "id": "ai_eval_1786113364227_536978da",
+    "saved_at": "2026-08-07T14:36:04.227Z",
+    "mode": "prematch_eval",
+    "scope": "batch",
+    "evaluated_matches": [
+      "塞利斯贝瑞联 vs 南阿德莱德黑豹",
+      "辛迪夫佐特U19 vs 阿萨纳U19"
+    ],
+    "result": {
+      "summary": "本次审核包含2场比赛，由于2场比赛的比分验证状态（score_verified）均为false，且实时技术统计/角球/红黄牌等关键数据在快照中缺失，依据项目协议第7条规则，所有比赛最高评级冻结为C级，且不得输出正式主选推荐（recommendation为null）。已针对所有12类玩法完成独立分析与模型概率预测。",
+      "matches": [
+        {
+          "match": "塞利斯贝瑞联 vs 南阿德莱德黑豹",
+          "ybty_home": "塞利斯贝瑞联",
+          "ybty_away": "南阿德莱德黑豹",
+          "summary": "比赛比分未经验证，缺少实时技术统计与角球数据。从历史交锋及赛前赔率来看，主队占据一定优势，大球盘口较深（全场3.5），半场及全场大球具备一定关注价值，但整体受限于数据完整度，评级锁定为C级。",
+          "grade": "C",
+          "score_verified": false,
+          "score_source": "ybty_export",
+          "verification_passed": false,
+          "recommendation": null,
+          "market_assessments": [
+            {
+              "category": "全场大小球",
+              "market": "full_total",
+              "direction": "大球",
+              "line": "3.5",
+              "odds": 1.81,
+              "probability": 58,
+              "probability_scope": "全场进球数大于3.5",
+              "alternatives": [
+                {
+                  "direction": "小球",
+                  "probability": 42
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "YBTY核验盘口为3.5（1.81），隐含概率55.25%。历史交锋与赛前盘口显示两队具备较强进球能力，模型预测概率58%高于隐含概率，但因比分未验证，仅作C级观察。",
+              "value_edge": 2.75
+            },
+            {
+              "category": "半场大小球",
+              "market": "half_total",
+              "direction": "大球",
+              "line": "1.5",
+              "odds": 1.89,
+              "probability": 55,
+              "probability_scope": "半场进球数大于1.5",
+              "alternatives": [
+                {
+                  "direction": "小球",
+                  "probability": 45
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "YBTY核验半场大小盘1.5（1.89），隐含概率52.91%。结合两队早段进球习惯，模型概率55%略高于隐含概率，列入观察。",
+              "value_edge": 2.09
+            },
+            {
+              "category": "全场让球",
+              "market": "full_spread",
+              "direction": "塞利斯贝瑞联 -1",
+              "line": "-1",
+              "odds": 1.91,
+              "probability": 50,
+              "probability_scope": "主队净胜2球及以上全赢，净胜1球走盘",
+              "alternatives": [
+                {
+                  "direction": "南阿德莱德黑豹 +1",
+                  "probability": 50
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "主让1球赔率1.91，隐含概率52.36%。缺少阵容首发及实时技术数据，模型评估主队赢盘概率仅50%，低于隐含概率，必须规避。 模型概率50%不高于赔率隐含概率52.4%，属于非正期望值。",
+              "value_edge": -2.36
+            },
+            {
+              "category": "半场让球",
+              "market": "half_spread",
+              "direction": "塞利斯贝瑞联 -0.5",
+              "line": "-0.5",
+              "odds": 2.03,
+              "probability": 52,
+              "probability_scope": "半场主队领先",
+              "alternatives": [
+                {
+                  "direction": "南阿德莱德黑豹 +0.5",
+                  "probability": 48
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "半场主让0.5赔率2.03，隐含概率49.26%。模型预测主队半场领先概率为52%，高于隐含概率，可作C级观察。",
+              "value_edge": 2.74
+            },
+            {
+              "category": "全场独赢1X2",
+              "market": "full_h2h",
+              "direction": "主胜",
+              "line": null,
+              "odds": 1.52,
+              "probability": 62,
+              "probability_scope": "塞利斯贝瑞联独赢",
+              "alternatives": [
+                {
+                  "direction": "平局",
+                  "probability": 21
+                },
+                {
+                  "direction": "客胜",
+                  "probability": 17
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "主胜赔率1.52，隐含概率达65.79%。模型推算主胜实际概率约62%，低于赔率隐含概率，价值不足，予以规避。 模型概率62%不高于赔率隐含概率65.8%，属于非正期望值。",
+              "value_edge": -3.79
+            },
+            {
+              "category": "波胆",
+              "market": "正确比分（模型预测）",
+              "direction": "2-1",
+              "line": null,
+              "odds": null,
+              "probability": 18,
+              "probability_scope": "完场比分2-1",
+              "alternatives": [
+                {
+                  "direction": "3-1",
+                  "probability": 15
+                },
+                {
+                  "direction": "2-2",
+                  "probability": 12
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "基于历史进球期望及盘口偏向，预测最可能比分为2-1。",
+              "value_edge": null
+            },
+            {
+              "category": "双方是否进球",
+              "market": "双方是否进球（模型预测）",
+              "direction": "是",
+              "line": null,
+              "odds": null,
+              "probability": 60,
+              "probability_scope": "两队均有进球",
+              "alternatives": [
+                {
+                  "direction": "否",
+                  "probability": 40
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "客队历史客场有防守漏洞但具备一定反击能力，双方均进球概率较高。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球单双",
+              "market": "单双（模型预测）",
+              "direction": "单",
+              "line": null,
+              "odds": null,
+              "probability": 52,
+              "probability_scope": "总进球数为单数",
+              "alternatives": [
+                {
+                  "direction": "双",
+                  "probability": 48
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "结合主流比分分布（2-1, 3-1, 1-0），单数稍占优势。",
+              "value_edge": null
+            },
+            {
+              "category": "主队进球数",
+              "market": "主队进球数（模型预测）",
+              "direction": "2球",
+              "line": null,
+              "odds": null,
+              "probability": 38,
+              "probability_scope": "塞利斯贝瑞联恰好进2球",
+              "alternatives": [
+                {
+                  "direction": "3球及以上",
+                  "probability": 32
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "主队攻击力稳定，预测主队进球区间落在2球。",
+              "value_edge": null
+            },
+            {
+              "category": "客队进球数",
+              "market": "客队进球数（模型预测）",
+              "direction": "1球",
+              "line": null,
+              "odds": null,
+              "probability": 42,
+              "probability_scope": "南阿德莱德黑豹恰好进1球",
+              "alternatives": [
+                {
+                  "direction": "0球",
+                  "probability": 35
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "客队具备破门能力但受制于主队防线，倾向攻入1球。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球数",
+              "market": "总进球数（模型预测）",
+              "direction": "3球",
+              "line": null,
+              "odds": null,
+              "probability": 32,
+              "probability_scope": "全场总进球恰好为3球",
+              "alternatives": [
+                {
+                  "direction": "4球",
+                  "probability": 28
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "综合双方攻防分布，3球为最可能落点。",
+              "value_edge": null
+            },
+            {
+              "category": "进球时间段",
+              "market": "首个进球时间段（模型预测）",
+              "direction": "16-30分钟",
+              "line": null,
+              "odds": null,
+              "probability": 30,
+              "probability_scope": "首个进球出现在16-30分钟",
+              "alternatives": [
+                {
+                  "direction": "1-15分钟",
+                  "probability": 25
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "开局试探后，比赛在16-30分钟出现首个进球的概率最高。",
+              "value_edge": null
+            }
+          ],
+          "evidence": [
+            "雷速及YBTY快照显示比赛处于赛前/未开赛阶段",
+            "YBTY已核验全场让球（-1）、大小球（3.5）、独赢及半场对应盘口",
+            "数据可用性限制：仅有天气及部分客队球员名单，缺少正式首发阵容、角球及技术统计数据"
+          ],
+          "risks": [
+            "比分未经验证（score_verified=false），无法排除数据延迟或来源不一致风险",
+            "缺乏主队完整阵容及近期技术统计支撑，深盘及高大小球存在透支风险"
+          ]
+        },
+        {
+          "match": "辛迪夫佐特U19 vs 阿萨纳U19",
+          "ybty_home": "辛迪夫佐特U19",
+          "ybty_away": "阿萨纳U19",
+          "summary": "挪威青年联赛交锋大球属性明显，全场开出4球深盘。因比分未验证且缺少双方首发及技术统计，依据协议最高冻结为C级。半场及全场大球在概率估算上略有安全边际。",
+          "grade": "C",
+          "score_verified": false,
+          "score_source": "ybty_export",
+          "verification_passed": false,
+          "recommendation": null,
+          "market_assessments": [
+            {
+              "category": "全场大小球",
+              "market": "full_total",
+              "direction": "大球",
+              "line": "4",
+              "odds": 1.87,
+              "probability": 56,
+              "probability_scope": "全场进球数大于4",
+              "alternatives": [
+                {
+                  "direction": "小球",
+                  "probability": 44
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "YBTY全场大小盘开到4球（1.87），隐含概率53.48%。挪威U19赛事防守普遍开放，模型概率56%高于隐含概率，给予C级观察。",
+              "value_edge": 2.52
+            },
+            {
+              "category": "半场大小球",
+              "market": "half_total",
+              "direction": "大球",
+              "line": "1.5/2",
+              "odds": 1.97,
+              "probability": 53,
+              "probability_scope": "半场进球数大于1.75",
+              "alternatives": [
+                {
+                  "direction": "小球",
+                  "probability": 47
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "半场大小盘1.5/2赔率1.97，隐含概率50.76%。模型评估半场产生2球及以上概率为53%，高于隐含概率。",
+              "value_edge": 2.24
+            },
+            {
+              "category": "全场让球",
+              "market": "full_spread",
+              "direction": "辛迪夫佐特U19 -0/0.5",
+              "line": "-0/0.5",
+              "odds": 1.97,
+              "probability": 48,
+              "probability_scope": "主队赢球赢半，平局输半",
+              "alternatives": [
+                {
+                  "direction": "阿萨纳U19 +0/0.5",
+                  "probability": 52
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "主让0.25球赔率1.97，隐含概率50.76%。模型推算主队赢盘概率48%，低于隐含概率，价值不足规避。 模型概率48%不高于赔率隐含概率50.8%，属于非正期望值。",
+              "value_edge": -2.76
+            },
+            {
+              "category": "半场让球",
+              "market": "half_spread",
+              "direction": "辛迪夫佐特U19 0",
+              "line": "0",
+              "odds": 1.76,
+              "probability": 50,
+              "probability_scope": "半场打平走盘，主胜全赢",
+              "alternatives": [
+                {
+                  "direction": "阿萨纳U19 0",
+                  "probability": 50
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "半场平手盘主队1.76，隐含概率56.82%。模型预计半场平局概率极高，主胜概率仅50%，低于隐含概率。 模型概率50%不高于赔率隐含概率56.8%，属于非正期望值。",
+              "value_edge": -6.82
+            },
+            {
+              "category": "全场独赢1X2",
+              "market": "full_h2h",
+              "direction": "主胜",
+              "line": null,
+              "odds": 2.09,
+              "probability": 45,
+              "probability_scope": "辛迪夫佐特U19独赢",
+              "alternatives": [
+                {
+                  "direction": "客胜",
+                  "probability": 35
+                },
+                {
+                  "direction": "平局",
+                  "probability": 20
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "主胜赔率2.09，隐含概率47.85%。模型评估主胜概率仅45%，无安全边际，予以规避。 模型概率45%不高于赔率隐含概率47.8%，属于非正期望值。",
+              "value_edge": -2.85
+            },
+            {
+              "category": "波胆",
+              "market": "正确比分（模型预测）",
+              "direction": "2-2",
+              "line": null,
+              "odds": null,
+              "probability": 16,
+              "probability_scope": "完场比分2-2",
+              "alternatives": [
+                {
+                  "direction": "3-2",
+                  "probability": 14
+                },
+                {
+                  "direction": "2-3",
+                  "probability": 12
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "结合4球大球盘口与平手偏向，大比分平局2-2为首选预测。",
+              "value_edge": null
+            },
+            {
+              "category": "双方是否进球",
+              "market": "双方是否进球（模型预测）",
+              "direction": "是",
+              "line": null,
+              "odds": null,
+              "probability": 65,
+              "probability_scope": "两队均有进球",
+              "alternatives": [
+                {
+                  "direction": "否",
+                  "probability": 35
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "青年联赛防守松散，双方进球概率显著偏高。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球单双",
+              "market": "单双（模型预测）",
+              "direction": "双",
+              "line": null,
+              "odds": null,
+              "probability": 54,
+              "probability_scope": "总进球数为双数",
+              "alternatives": [
+                {
+                  "direction": "单",
+                  "probability": 46
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "高大球盘口下，2-2、3-1等双数比分概率略高。",
+              "value_edge": null
+            },
+            {
+              "category": "主队进球数",
+              "market": "主队进球数（模型预测）",
+              "direction": "2球",
+              "line": null,
+              "odds": null,
+              "probability": 35,
+              "probability_scope": "辛迪夫佐特U19恰好进2球",
+              "alternatives": [
+                {
+                  "direction": "3球及以上",
+                  "probability": 30
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "主队主场破门能力较好，预计进球2球。",
+              "value_edge": null
+            },
+            {
+              "category": "客队进球数",
+              "market": "客队进球数（模型预测）",
+              "direction": "2球",
+              "line": null,
+              "odds": null,
+              "probability": 33,
+              "probability_scope": "阿萨纳U19恰好进2球",
+              "alternatives": [
+                {
+                  "direction": "1球",
+                  "probability": 31
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "客队大球属性强，预测进球数落在2球。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球数",
+              "market": "总进球数（模型预测）",
+              "direction": "4球",
+              "line": null,
+              "odds": null,
+              "probability": 28,
+              "probability_scope": "全场总进球恰好为4球",
+              "alternatives": [
+                {
+                  "direction": "5球及以上",
+                  "probability": 26
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "盘口基准为4球，预测总进球落在4球概率最高。",
+              "value_edge": null
+            },
+            {
+              "category": "进球时间段",
+              "market": "首个进球时间段（模型预测）",
+              "direction": "1-15分钟",
+              "line": null,
+              "odds": null,
+              "probability": 32,
+              "probability_scope": "首个进球出现在1-15分钟",
+              "alternatives": [
+                {
+                  "direction": "16-30分钟",
+                  "probability": 28
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "青年联赛节奏快，开场15分钟内极易产生早期进球。",
+              "value_edge": null
+            }
+          ],
+          "evidence": [
+            "雷速及YBTY已核验全场让球（-0/0.5）、大小球（4）、独赢及半场盘口",
+            "数据可用性限制：双方均无公开首发阵容及技术统计数据，仅有天气信息"
+          ],
+          "risks": [
+            "score_verified=false，比分未经二次核验",
+            "青年联赛人员变动大且无首发名单，高大小球盘口存在较大方差风险"
+          ]
+        }
+      ]
+    },
+    "record_type": "ai_evaluation_snapshot",
+    "affects_formal_statistics": false
+  },
+  {
+    "id": "ai_eval_1786110890185_05f525c8",
+    "saved_at": "2026-08-07T13:54:50.185Z",
+    "mode": "prematch_eval",
+    "scope": "batch",
+    "evaluated_matches": [
+      "塞利斯贝瑞联 vs 南阿德莱德黑豹",
+      "辛迪夫佐特U19 vs 阿萨纳U19"
+    ],
+    "result": {
+      "summary": "本次对塞利斯贝瑞联 vs 南阿德莱德黑豹、辛迪夫佐特U19 vs 阿萨纳U19两场比赛进行了全玩法整合评估。两场比赛均存在比分未核验（score_verified=false）及技术统计缺失等限制，根据项目协议硬性规定，完场与即时评级最高降至 C 级，且不输出正式主选推荐（recommendation=null）。12类玩法均已完成独立评级与概率预测。",
+      "matches": [
+        {
+          "match": "塞利斯贝瑞联 vs 南阿德莱德黑豹",
+          "ybty_home": "塞利斯贝瑞联",
+          "ybty_away": "南阿德莱德黑豹",
+          "summary": "本场比赛缺乏实时的角球、射门及攻防技术统计，比分源未通过二次验证，整体评估降级为 C 级。全场与半场盘口性价比不足，模型预测倾向于主胜及中高进球数。",
+          "grade": "C",
+          "score_verified": false,
+          "score_source": "ybty_export",
+          "verification_passed": false,
+          "recommendation": null,
+          "market_assessments": [
+            {
+              "category": "全场大小球",
+              "market": "全场大小球 3.5",
+              "direction": "大 3.5",
+              "line": "3.5",
+              "odds": 1.81,
+              "probability": 52,
+              "probability_scope": "全场总进球大于3.5球",
+              "alternatives": [
+                {
+                  "direction": "小 3.5",
+                  "probability": 48
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "赔率1.81对应隐含概率约为55.25%，模型预估概率52.0%低于隐含概率，缺乏安全边际。 模型概率52%不高于赔率隐含概率55.2%，属于非正期望值。",
+              "value_edge": -3.25
+            },
+            {
+              "category": "半场大小球",
+              "market": "半场大小球 1.5",
+              "direction": "大 1.5",
+              "line": "1.5",
+              "odds": 1.89,
+              "probability": 50,
+              "probability_scope": "半场总进球大于1.5球",
+              "alternatives": [
+                {
+                  "direction": "小 1.5",
+                  "probability": 50
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "赔率1.89对应隐含概率约为52.91%，模型预估概率50.0%低于隐含概率，价值不足。 模型概率50%不高于赔率隐含概率52.9%，属于非正期望值。",
+              "value_edge": -2.91
+            },
+            {
+              "category": "全场让球",
+              "market": "全场让球 -1",
+              "direction": "塞利斯贝瑞联 -1",
+              "line": "-1",
+              "odds": 1.91,
+              "probability": 50,
+              "probability_scope": "塞利斯贝瑞联净胜2球及以上",
+              "alternatives": [
+                {
+                  "direction": "南阿德莱德黑豹 +1",
+                  "probability": 50
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "赔率1.91隐含概率52.36%，模型概率50.0%不具备正期望值。 模型概率50%不高于赔率隐含概率52.4%，属于非正期望值。",
+              "value_edge": -2.36
+            },
+            {
+              "category": "半场让球",
+              "market": "半场让球 -0.5",
+              "direction": "塞利斯贝瑞联 -0.5",
+              "line": "-0.5",
+              "odds": 2.03,
+              "probability": 47,
+              "probability_scope": "塞利斯贝瑞联半场领先",
+              "alternatives": [
+                {
+                  "direction": "南阿德莱德黑豹 +0.5",
+                  "probability": 53
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "赔率2.03隐含概率49.26%，模型预测胜率47.0%低于隐含概率。 模型概率47%不高于赔率隐含概率49.3%，属于非正期望值。",
+              "value_edge": -2.26
+            },
+            {
+              "category": "全场独赢1X2",
+              "market": "全场独赢",
+              "direction": "塞利斯贝瑞联 胜",
+              "line": null,
+              "odds": 1.52,
+              "probability": 62,
+              "probability_scope": "塞利斯贝瑞联全场获胜",
+              "alternatives": [
+                {
+                  "direction": "平局",
+                  "probability": 22
+                },
+                {
+                  "direction": "南阿德莱德黑豹 胜",
+                  "probability": 16
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "赔率1.52隐含概率为65.79%，模型预估胜率62.0%未达隐含概率门槛。 模型概率62%不高于赔率隐含概率65.8%，属于非正期望值。",
+              "value_edge": -3.79
+            },
+            {
+              "category": "波胆",
+              "market": "模型预测",
+              "direction": "3-1",
+              "line": null,
+              "odds": null,
+              "probability": 14.5,
+              "probability_scope": "全场比分3-1",
+              "alternatives": [
+                {
+                  "direction": "2-1",
+                  "probability": 12
+                },
+                {
+                  "direction": "2-2",
+                  "probability": 9.5
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "基于澳南甲近期交锋高比分历史特征和主队占优的基本面推算。",
+              "value_edge": null
+            },
+            {
+              "category": "双方是否进球",
+              "market": "模型预测",
+              "direction": "是",
+              "line": null,
+              "odds": null,
+              "probability": 68,
+              "probability_scope": "两队均有进球",
+              "alternatives": [
+                {
+                  "direction": "否",
+                  "probability": 32
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "两队历史防守稳定性均较低，双破门概率偏高。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球单双",
+              "market": "模型预测",
+              "direction": "双",
+              "line": null,
+              "odds": null,
+              "probability": 52,
+              "probability_scope": "全场总进球数为偶数",
+              "alternatives": [
+                {
+                  "direction": "单",
+                  "probability": 48
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "常见比分区间（2-2, 3-1）偏向偶数总进球。",
+              "value_edge": null
+            },
+            {
+              "category": "主队进球数",
+              "market": "模型预测",
+              "direction": "2分或以上",
+              "line": null,
+              "odds": null,
+              "probability": 72,
+              "probability_scope": "主队塞利斯贝瑞联进球数>=2",
+              "alternatives": [
+                {
+                  "direction": "0-1分",
+                  "probability": 28
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "主队实力盘口让出深盘，攻击端优势较强。",
+              "value_edge": null
+            },
+            {
+              "category": "客队进球数",
+              "market": "模型预测",
+              "direction": "1分",
+              "line": null,
+              "odds": null,
+              "probability": 55,
+              "probability_scope": "客队南阿德莱德黑豹恰好进1球",
+              "alternatives": [
+                {
+                  "direction": "0分",
+                  "probability": 25
+                },
+                {
+                  "direction": "2分及以上",
+                  "probability": 20
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "客队具备一定反击破门能力，但难有更多斩获。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球数",
+              "market": "模型预测",
+              "direction": "4球",
+              "line": null,
+              "odds": null,
+              "probability": 30,
+              "probability_scope": "全场恰好进4球",
+              "alternatives": [
+                {
+                  "direction": "3球",
+                  "probability": 26
+                },
+                {
+                  "direction": "5球及以上",
+                  "probability": 22
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "结合大小球3.5盘口特征推算最可能进球数落点。",
+              "value_edge": null
+            },
+            {
+              "category": "进球时间段",
+              "market": "模型预测",
+              "direction": "76-90分钟",
+              "line": null,
+              "odds": null,
+              "probability": 38,
+              "probability_scope": "76-90分钟（含补时）产生进球",
+              "alternatives": [
+                {
+                  "direction": "31-45分钟",
+                  "probability": 31
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "历史数据统计显示该联赛末段体能下降易产生失球。",
+              "value_edge": null
+            }
+          ],
+          "evidence": [
+            "比分源 score_verified 为 false，依据项目规则最高评级锁定为 C 级",
+            "市场参考盘口全场让球为主让1球，大小球3.5球，体现主队攻击力优势",
+            "数据源缺少实时角球、射门及红黄牌技术统计"
+          ],
+          "risks": [
+            "比分未经二次验证，存在延迟或重置风险",
+            "缺少首发阵容与实时攻防增量统计，无法支持滚球高等级推荐"
+          ]
+        },
+        {
+          "match": "辛迪夫佐特U19 vs 阿萨纳U19",
+          "ybty_home": "辛迪夫佐特U19",
+          "ybty_away": "阿萨纳U19",
+          "summary": "青年联赛受阵容变动影响较大，且本场缺乏详细统计与阵容暴露，比分未验证，评级强制归为 C 级。所有盘口隐含概率均高于模型预估概率，均判定为 NO_BET。",
+          "grade": "C",
+          "score_verified": false,
+          "score_source": "ybty_export",
+          "verification_passed": false,
+          "recommendation": null,
+          "market_assessments": [
+            {
+              "category": "全场大小球",
+              "market": "全场大小球 4",
+              "direction": "大 4",
+              "line": "4",
+              "odds": 1.87,
+              "probability": 50,
+              "probability_scope": "全场总进球大于4球",
+              "alternatives": [
+                {
+                  "direction": "小 4",
+                  "probability": 50
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "赔率1.87对应隐含概率53.48%，模型预估概率50.0%低于隐含概率。 模型概率50%不高于赔率隐含概率53.5%，属于非正期望值。",
+              "value_edge": -3.48
+            },
+            {
+              "category": "半场大小球",
+              "market": "半场大小球 1.5/2",
+              "direction": "大 1.5/2",
+              "line": "1.5/2",
+              "odds": 1.97,
+              "probability": 48,
+              "probability_scope": "半场总进球大于1.75球",
+              "alternatives": [
+                {
+                  "direction": "小 1.5/2",
+                  "probability": 52
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "赔率1.97隐含概率50.76%，预估概率低于市场价格标准。 模型概率48%不高于赔率隐含概率50.8%，属于非正期望值。",
+              "value_edge": -2.76
+            },
+            {
+              "category": "全场让球",
+              "market": "全场让球 -0/0.5",
+              "direction": "辛迪夫佐特U19 -0/0.5",
+              "line": "-0/0.5",
+              "odds": 1.97,
+              "probability": 49,
+              "probability_scope": "辛迪夫佐特U19全场赢盘",
+              "alternatives": [
+                {
+                  "direction": "阿萨纳U19 +0/0.5",
+                  "probability": 51
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "赔率1.97隐含概率50.76%，模型胜率预测略微偏低。 模型概率49%不高于赔率隐含概率50.8%，属于非正期望值。",
+              "value_edge": -1.76
+            },
+            {
+              "category": "半场让球",
+              "market": "半场让球 0",
+              "direction": "辛迪夫佐特U19 0",
+              "line": "0",
+              "odds": 1.76,
+              "probability": 52,
+              "probability_scope": "半场平手盘主胜",
+              "alternatives": [
+                {
+                  "direction": "阿萨纳U19 0",
+                  "probability": 48
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "赔率1.76对应隐含概率56.82%，模型概率52.0%不及隐含概率。 模型概率52%不高于赔率隐含概率56.8%，属于非正期望值。",
+              "value_edge": -4.82
+            },
+            {
+              "category": "全场独赢1X2",
+              "market": "全场独赢",
+              "direction": "辛迪夫佐特U19 胜",
+              "line": null,
+              "odds": 2.09,
+              "probability": 45,
+              "probability_scope": "辛迪夫佐特U19全场获胜",
+              "alternatives": [
+                {
+                  "direction": "阿萨纳U19 胜",
+                  "probability": 38
+                },
+                {
+                  "direction": "平局",
+                  "probability": 17
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "赔率2.09隐含概率47.85%，模型预估45.0%无价值。 模型概率45%不高于赔率隐含概率47.8%，属于非正期望值。",
+              "value_edge": -2.85
+            },
+            {
+              "category": "波胆",
+              "market": "模型预测",
+              "direction": "2-2",
+              "line": null,
+              "odds": null,
+              "probability": 13,
+              "probability_scope": "全场比分2-2",
+              "alternatives": [
+                {
+                  "direction": "3-2",
+                  "probability": 11
+                },
+                {
+                  "direction": "2-3",
+                  "probability": 10
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "挪威U19赛事防守开放，平局高比分概率相对较高。",
+              "value_edge": null
+            },
+            {
+              "category": "双方是否进球",
+              "market": "模型预测",
+              "direction": "是",
+              "line": null,
+              "odds": null,
+              "probability": 75,
+              "probability_scope": "两队均有进球",
+              "alternatives": [
+                {
+                  "direction": "否",
+                  "probability": 25
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "挪威青年联赛历史双破门率极高。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球单双",
+              "market": "模型预测",
+              "direction": "双",
+              "line": null,
+              "odds": null,
+              "probability": 51,
+              "probability_scope": "全场总进球数为偶数",
+              "alternatives": [
+                {
+                  "direction": "单",
+                  "probability": 49
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "高大小球界限（4.0球）下，偶数比分分布均衡。",
+              "value_edge": null
+            },
+            {
+              "category": "主队进球数",
+              "market": "模型预测",
+              "direction": "2分",
+              "line": null,
+              "odds": null,
+              "probability": 40,
+              "probability_scope": "主队辛迪夫佐特U19恰好进2球",
+              "alternatives": [
+                {
+                  "direction": "3分及以上",
+                  "probability": 35
+                },
+                {
+                  "direction": "0-1分",
+                  "probability": 25
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "主场作战具备进球能力，预估稳定在2球左右。",
+              "value_edge": null
+            },
+            {
+              "category": "客队进球数",
+              "market": "模型预测",
+              "direction": "2分",
+              "line": null,
+              "odds": null,
+              "probability": 38,
+              "probability_scope": "客队阿萨纳U19恰好进2球",
+              "alternatives": [
+                {
+                  "direction": "1分",
+                  "probability": 32
+                },
+                {
+                  "direction": "3分及以上",
+                  "probability": 30
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "客场对垒不落下风，同样具备打入2球的可能。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球数",
+              "market": "模型预测",
+              "direction": "4球",
+              "line": null,
+              "odds": null,
+              "probability": 28,
+              "probability_scope": "全场恰好进4球",
+              "alternatives": [
+                {
+                  "direction": "5球及以上",
+                  "probability": 27
+                },
+                {
+                  "direction": "3球",
+                  "probability": 23
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "全场大小球初盘定位4.0，模型维持中枢预测。",
+              "value_edge": null
+            },
+            {
+              "category": "进球时间段",
+              "market": "模型预测",
+              "direction": "76-90分钟",
+              "line": null,
+              "odds": null,
+              "probability": 40,
+              "probability_scope": "76-90分钟（含补时）产生进球",
+              "alternatives": [
+                {
+                  "direction": "61-75分钟",
+                  "probability": 33
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "青年赛下半场后半段防守漏洞增多，易频繁产生进球。",
+              "value_edge": null
+            }
+          ],
+          "evidence": [
+            "score_verified 为 false，自动限制最高评级为 C 级",
+            "大球盘口开至 4.0，反映市场对青年赛高比分的强烈预期",
+            "阵容完全未公布且技术数据缺失，降级处理"
+          ],
+          "risks": [
+            "青年队首发阵容波动极高，缺少实时出场名单风险大",
+            "缺少实时技术统计与事件信息，比分可靠度不足"
+          ]
+        }
+      ]
+    },
+    "record_type": "ai_evaluation_snapshot",
+    "affects_formal_statistics": false
+  },
+  {
+    "id": "ai_eval_1786110509469_7e6630cf",
+    "saved_at": "2026-08-07T13:48:29.469Z",
+    "mode": "live_eval",
+    "scope": "batch",
+    "evaluated_matches": [
+      "墨西哥U20 vs 巴拿马U20",
+      "联盟FC vs 埃雷迪亚诺",
+      "萨普里萨 vs 巴拿马阿利安萨",
+      "丹佛峰会(女) vs 北卡罗来纳(女)",
+      "托卢卡体育 vs 西雅图海湾人"
+    ],
+    "result": {
+      "summary": "根据项目协议与五场比赛快照评估，5场赛事滚球比分未经验证(score_verified=false)，最高评级均为C级，无符合标准正式主选（recommendation为null）。已针对所有12类玩法完成独立分析与模型预测。",
+      "matches": [
+        {
+          "match": "墨西哥U20 vs 巴拿马U20",
+          "ybty_home": "墨西哥U20",
+          "ybty_away": "巴拿马U20",
+          "summary": "墨西哥U20在前28分钟占据76%控球率，射门3-0、角球3-0、危险进攻28-7全面压制，但尚未取得进球。因比分未经验证，最高评C级观望。",
+          "grade": "C",
+          "score_verified": false,
+          "score_source": "ybty_export",
+          "verification_passed": false,
+          "recommendation": null,
+          "market_assessments": [
+            {
+              "category": "全场大小球",
+              "market": "full_total",
+              "direction": "大球",
+              "line": "2",
+              "odds": 1.78,
+              "probability": 60,
+              "probability_scope": "全场总进球大于2",
+              "alternatives": [
+                {
+                  "direction": "小球 2",
+                  "probability": 40
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "墨西哥U20控球率76%且压制明显，但当前28分钟仍0-0，2球盘大球概率略高于隐含概率56.18%。",
+              "value_edge": 3.82
+            },
+            {
+              "category": "半场大小球",
+              "market": "half_total",
+              "direction": "小球",
+              "line": "0.5",
+              "odds": 1.79,
+              "probability": 58,
+              "probability_scope": "上半场总进球小于0.5",
+              "alternatives": [
+                {
+                  "direction": "大球 0.5",
+                  "probability": 42
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "已进行28分钟未射正，半场剩余时间有限，0.5小球概率（58%）高于隐含概率55.87%。",
+              "value_edge": 2.13
+            },
+            {
+              "category": "全场让球",
+              "market": "full_spread",
+              "direction": "主胜",
+              "line": "-1/1.5",
+              "odds": 1.99,
+              "probability": 48,
+              "probability_scope": "墨西哥U20 -1/1.5",
+              "alternatives": [
+                {
+                  "direction": "巴拿马U20 +1/1.5",
+                  "probability": 52
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "模型评估主胜让深盘概率48%，低于隐含概率50.25%，缺乏安全边际。 模型概率48%不高于赔率隐含概率50.3%，属于非正期望值。",
+              "value_edge": -2.25
+            },
+            {
+              "category": "半场让球",
+              "market": "half_spread",
+              "direction": "主胜",
+              "line": "-0/0.5",
+              "odds": 2,
+              "probability": 45,
+              "probability_scope": "墨西哥U20半场 -0/0.5",
+              "alternatives": [
+                {
+                  "direction": "巴拿马U20半场 +0/0.5",
+                  "probability": 55
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "半场时间仅胜17分钟，让平半赔率2.0（隐含50%），模型概率45%不足以支撑。 模型概率45%不高于赔率隐含概率50.0%，属于非正期望值。",
+              "value_edge": -5
+            },
+            {
+              "category": "全场独赢1X2",
+              "market": "full_h2h",
+              "direction": "主胜",
+              "line": null,
+              "odds": 1.36,
+              "probability": 75,
+              "probability_scope": "墨西哥U20获胜",
+              "alternatives": [
+                {
+                  "direction": "平局",
+                  "probability": 18
+                },
+                {
+                  "direction": "客胜",
+                  "probability": 7
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "墨西哥U20全场全面压制，主胜概率约75%，优于隐含概率73.53%。",
+              "value_edge": 1.47
+            },
+            {
+              "category": "波胆",
+              "market": "模型预测",
+              "direction": "2-0",
+              "line": null,
+              "odds": null,
+              "probability": 28,
+              "probability_scope": "墨西哥U20 2-0 巴拿马U20",
+              "alternatives": [
+                {
+                  "direction": "1-0",
+                  "probability": 25
+                },
+                {
+                  "direction": "3-0",
+                  "probability": 15
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "主队占据统治地位，客队零射门，预测主胜封零为最可能赛果。",
+              "value_edge": null
+            },
+            {
+              "category": "双方是否进球",
+              "market": "模型预测",
+              "direction": "否",
+              "line": null,
+              "odds": null,
+              "probability": 65,
+              "probability_scope": "仅一队进球或无进球",
+              "alternatives": [
+                {
+                  "direction": "是",
+                  "probability": 35
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "巴拿马U20在前28分钟仅7次危险进攻0射门，破门能力较弱。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球单双",
+              "market": "模型预测",
+              "direction": "双数",
+              "line": null,
+              "odds": null,
+              "probability": 52,
+              "probability_scope": "完场总进球为双数",
+              "alternatives": [
+                {
+                  "direction": "单数",
+                  "probability": 48
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "基准比分2-0或0-0概率较高，双数略占优势。",
+              "value_edge": null
+            },
+            {
+              "category": "主队进球数",
+              "market": "模型预测",
+              "direction": "2球",
+              "line": null,
+              "odds": null,
+              "probability": 40,
+              "probability_scope": "墨西哥U20全场进2球",
+              "alternatives": [
+                {
+                  "direction": "1球",
+                  "probability": 32
+                },
+                {
+                  "direction": "3球及以上",
+                  "probability": 18
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "墨西哥进攻活跃，且有28次危险进攻，预计下半场破门后能扩大战果。",
+              "value_edge": null
+            },
+            {
+              "category": "客队进球数",
+              "market": "模型预测",
+              "direction": "0球",
+              "line": null,
+              "odds": null,
+              "probability": 68,
+              "probability_scope": "巴拿马U20全场进0球",
+              "alternatives": [
+                {
+                  "direction": "1球",
+                  "probability": 26
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "巴拿马场面完全被动，控球率仅24%，很难形成有效攻势。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球数",
+              "market": "模型预测",
+              "direction": "2球",
+              "line": null,
+              "odds": null,
+              "probability": 38,
+              "probability_scope": "全场恰好2球",
+              "alternatives": [
+                {
+                  "direction": "1球",
+                  "probability": 28
+                },
+                {
+                  "direction": "3球",
+                  "probability": 20
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "综合主强客弱及前30分钟无球走势，2球是最平稳分布焦点。",
+              "value_edge": null
+            },
+            {
+              "category": "进球时间段",
+              "market": "模型预测",
+              "direction": "31-45分钟",
+              "line": null,
+              "odds": null,
+              "probability": 45,
+              "probability_scope": "上半场首个进球产生在31-45分钟",
+              "alternatives": [
+                {
+                  "direction": "46-60分钟",
+                  "probability": 30
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "墨西哥连续获得角球并施压，上半场尾声阶段打破僵局概率最高。",
+              "value_edge": null
+            }
+          ],
+          "evidence": [
+            "墨西哥U20控球率76%，危险进攻28-7，角球3-0，射门3-0",
+            "巴拿马U20开场28分钟无射门，控球极低"
+          ],
+          "risks": [
+            "比分未经验证(score_verified=false)",
+            "主队转化率较低，前28分钟3次射门均未射正"
+          ]
+        },
+        {
+          "match": "联盟FC vs 埃雷迪亚诺",
+          "ybty_home": "联盟FC",
+          "ybty_away": "埃雷迪亚诺",
+          "summary": "比赛第22分钟0-0，双方射门3-0（射正1-0），危险进攻8-5，战况胶着。因滚球比分未经验证，评级C级。",
+          "grade": "C",
+          "score_verified": false,
+          "score_source": "ybty_export",
+          "verification_passed": false,
+          "recommendation": null,
+          "market_assessments": [
+            {
+              "category": "全场大小球",
+              "market": "full_total",
+              "direction": "小球",
+              "line": "1.5/2",
+              "odds": 2.07,
+              "probability": 52,
+              "probability_scope": "全场总进球小于1.5/2",
+              "alternatives": [
+                {
+                  "direction": "大球 1.5/2",
+                  "probability": 48
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "开场22分钟进攻节奏平缓，危险进攻合计仅13次，小球概率52%超过隐含概率48.31%。",
+              "value_edge": 3.69
+            },
+            {
+              "category": "半场大小球",
+              "market": "half_total",
+              "direction": "小球",
+              "line": "0.5",
+              "odds": 1.78,
+              "probability": 62,
+              "probability_scope": "上半场总进球小于0.5",
+              "alternatives": [
+                {
+                  "direction": "大球 0.5",
+                  "probability": 38
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "半场已过半，双方仅1次射正，0.5小球概率62%高于隐含概率56.18%。",
+              "value_edge": 5.82
+            },
+            {
+              "category": "全场让球",
+              "market": "full_spread",
+              "direction": "主胜",
+              "line": "+0/0.5",
+              "odds": 1.76,
+              "probability": 58,
+              "probability_scope": "联盟FC +0/0.5",
+              "alternatives": [
+                {
+                  "direction": "埃雷迪亚诺 -0/0.5",
+                  "probability": 42
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "联盟FC主场受让受保，当前控球55%且射门3-0占优，受让受平半概率（58%）大于隐含概率（56.82%）。",
+              "value_edge": 1.18
+            },
+            {
+              "category": "半场让球",
+              "market": "half_spread",
+              "direction": "主胜",
+              "line": "0",
+              "odds": 2.03,
+              "probability": 46,
+              "probability_scope": "联盟FC半场 0",
+              "alternatives": [
+                {
+                  "direction": "埃雷迪亚诺半场 0",
+                  "probability": 54
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "模型评估主胜平手概率46%，低于隐含概率49.26%。 模型概率46%不高于赔率隐含概率49.3%，属于非正期望值。",
+              "value_edge": -3.26
+            },
+            {
+              "category": "全场独赢1X2",
+              "market": "full_h2h",
+              "direction": "平局",
+              "line": null,
+              "odds": 2.76,
+              "probability": 38,
+              "probability_scope": "全场平局",
+              "alternatives": [
+                {
+                  "direction": "客胜",
+                  "probability": 34
+                },
+                {
+                  "direction": "主胜",
+                  "probability": 28
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "双方实力接近且进攻威慑力均不足，平局概率38%超过隐含概率36.23%。",
+              "value_edge": 1.77
+            },
+            {
+              "category": "波胆",
+              "market": "模型预测",
+              "direction": "0-0",
+              "line": null,
+              "odds": null,
+              "probability": 30,
+              "probability_scope": "联盟FC 0-0 埃雷迪亚诺",
+              "alternatives": [
+                {
+                  "direction": "1-0",
+                  "probability": 25
+                },
+                {
+                  "direction": "0-1",
+                  "probability": 22
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "双方创造威胁能力低，0-0完场概率高。",
+              "value_edge": null
+            },
+            {
+              "category": "双方是否进球",
+              "market": "模型预测",
+              "direction": "否",
+              "line": null,
+              "odds": null,
+              "probability": 58,
+              "probability_scope": "最多单方进球",
+              "alternatives": [
+                {
+                  "direction": "是",
+                  "probability": 42
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "双方前22分钟合计仅1次射正，进攻效率低。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球单双",
+              "market": "模型预测",
+              "direction": "双数",
+              "line": null,
+              "odds": null,
+              "probability": 55,
+              "probability_scope": "完场总进球双数",
+              "alternatives": [
+                {
+                  "direction": "单数",
+                  "probability": 45
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "以0-0或1-1平局预期为主，双数概率更高。",
+              "value_edge": null
+            },
+            {
+              "category": "主队进球数",
+              "market": "模型预测",
+              "direction": "0球",
+              "line": null,
+              "odds": null,
+              "probability": 52,
+              "probability_scope": "联盟FC全场进0球",
+              "alternatives": [
+                {
+                  "direction": "1球",
+                  "probability": 36
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "主队虽有3次射门但绝对机会不多。",
+              "value_edge": null
+            },
+            {
+              "category": "客队进球数",
+              "market": "模型预测",
+              "direction": "0球",
+              "line": null,
+              "odds": null,
+              "probability": 56,
+              "probability_scope": "埃雷迪亚诺全场进0球",
+              "alternatives": [
+                {
+                  "direction": "1球",
+                  "probability": 32
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "客队前22分钟0射门，威胁有限。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球数",
+              "market": "模型预测",
+              "direction": "0球",
+              "line": null,
+              "odds": null,
+              "probability": 30,
+              "probability_scope": "全场0球",
+              "alternatives": [
+                {
+                  "direction": "1球",
+                  "probability": 35
+                },
+                {
+                  "direction": "2球",
+                  "probability": 22
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "低进球数格局，0-1球占比最大。",
+              "value_edge": null
+            },
+            {
+              "category": "进球时间段",
+              "market": "模型预测",
+              "direction": "61-75分钟",
+              "line": null,
+              "odds": null,
+              "probability": 35,
+              "probability_scope": "若有首球预计产生在下半场61-75分钟",
+              "alternatives": [
+                {
+                  "direction": "无进球",
+                  "probability": 30
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "上半场双方均以稳健防守为主，破门突破口多在下半场体能下降后。",
+              "value_edge": null
+            }
+          ],
+          "evidence": [
+            "联盟FC控球55%，射门3-0，射正1-0",
+            "埃雷迪亚诺前22分钟0射门"
+          ],
+          "risks": [
+            "比分未经验证",
+            "双方近15分钟仅产生1次角球事件，进攻活跃度低"
+          ]
+        },
+        {
+          "match": "萨普里萨 vs 巴拿马阿利安萨",
+          "ybty_home": "萨普里萨",
+          "ybty_away": "巴拿马阿利安萨",
+          "summary": "萨普里萨在开场早期取得1-0领先，目前22分钟控球率67%，危险进攻13-7，占据主导。因比分未核实最高给C级。",
+          "grade": "C",
+          "score_verified": false,
+          "score_source": "ybty_export",
+          "verification_passed": false,
+          "recommendation": null,
+          "market_assessments": [
+            {
+              "category": "全场大小球",
+              "market": "full_total",
+              "direction": "大球",
+              "line": "3",
+              "odds": 1.77,
+              "probability": 59,
+              "probability_scope": "全场总进球大于3",
+              "alternatives": [
+                {
+                  "direction": "小球 3",
+                  "probability": 41
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "22分钟已产生1球，主队攻击力强且控球67%，大3球概率（59%）高于隐含概率（56.50%）。",
+              "value_edge": 2.5
+            },
+            {
+              "category": "半场大小球",
+              "market": "half_total",
+              "direction": "大球",
+              "line": "1.5",
+              "odds": 1.89,
+              "probability": 55,
+              "probability_scope": "上半场总进球大于1.5",
+              "alternatives": [
+                {
+                  "direction": "小球 1.5",
+                  "probability": 45
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "已有1球基机下，上半场剩余23分钟再进1球概率55%，超过隐含概率52.91%。",
+              "value_edge": 2.09
+            },
+            {
+              "category": "全场让球",
+              "market": "full_spread",
+              "direction": "主胜",
+              "line": "-1",
+              "odds": 1.86,
+              "probability": 56,
+              "probability_scope": "萨普里萨 -1",
+              "alternatives": [
+                {
+                  "direction": "巴拿马阿利安萨 +1",
+                  "probability": 44
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "萨普里萨已1-0领先，当前盘口-1下主胜（即净胜2球及以上）概率高于隐含概率53.76%。",
+              "value_edge": 2.24
+            },
+            {
+              "category": "半场让球",
+              "market": "half_spread",
+              "direction": "主胜",
+              "line": "-0/0.5",
+              "odds": 1.94,
+              "probability": 50,
+              "probability_scope": "萨普里萨半场 -0/0.5",
+              "alternatives": [
+                {
+                  "direction": "巴拿马阿利安萨半场 +0/0.5",
+                  "probability": 50
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "主队已领先，半场让平半赔率1.94隐含51.55%，模型概率50%不足。 模型概率50%不高于赔率隐含概率51.5%，属于非正期望值。",
+              "value_edge": -1.55
+            },
+            {
+              "category": "全场独赢1X2",
+              "market": "full_h2h",
+              "direction": "主胜",
+              "line": null,
+              "odds": 1.07,
+              "probability": 94,
+              "probability_scope": "萨普里萨获胜",
+              "alternatives": [
+                {
+                  "direction": "平局",
+                  "probability": 5
+                },
+                {
+                  "direction": "客胜",
+                  "probability": 1
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "实力悬殊且主队已1-0领先，主胜概率约94%，大于隐含概率93.46%。",
+              "value_edge": 0.54
+            },
+            {
+              "category": "波胆",
+              "market": "模型预测",
+              "direction": "3-0",
+              "line": null,
+              "odds": null,
+              "probability": 25,
+              "probability_scope": "萨普里萨 3-0 巴拿马阿利安萨",
+              "alternatives": [
+                {
+                  "direction": "2-0",
+                  "probability": 22
+                },
+                {
+                  "direction": "3-1",
+                  "probability": 18
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "主队优势明显，预期全场能打进3球左右。",
+              "value_edge": null
+            },
+            {
+              "category": "双方是否进球",
+              "market": "模型预测",
+              "direction": "否",
+              "line": null,
+              "odds": null,
+              "probability": 58,
+              "probability_scope": "客队无进球",
+              "alternatives": [
+                {
+                  "direction": "是",
+                  "probability": 42
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "阿利亚控球率仅33%，难以制造持续破门威胁。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球单双",
+              "market": "模型预测",
+              "direction": "单数",
+              "line": null,
+              "odds": null,
+              "probability": 53,
+              "probability_scope": "完场总进球单数",
+              "alternatives": [
+                {
+                  "direction": "双数",
+                  "probability": 47
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "以3-0或2-1等单数比分预期为主。",
+              "value_edge": null
+            },
+            {
+              "category": "主队进球数",
+              "market": "模型预测",
+              "direction": "3球",
+              "line": null,
+              "odds": null,
+              "probability": 38,
+              "probability_scope": "萨普里萨进3球",
+              "alternatives": [
+                {
+                  "direction": "2球",
+                  "probability": 30
+                },
+                {
+                  "direction": "4球及以上",
+                  "probability": 20
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "萨普里萨进攻压制力强，全场进3球概率最高。",
+              "value_edge": null
+            },
+            {
+              "category": "客队进球数",
+              "market": "模型预测",
+              "direction": "0球",
+              "line": null,
+              "odds": null,
+              "probability": 60,
+              "probability_scope": "巴拿马阿利安萨进0球",
+              "alternatives": [
+                {
+                  "direction": "1球",
+                  "probability": 32
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "客队客场作战且场面落后，破门难度大。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球数",
+              "market": "模型预测",
+              "direction": "3球",
+              "line": null,
+              "odds": null,
+              "probability": 35,
+              "probability_scope": "全场恰好3球",
+              "alternatives": [
+                {
+                  "direction": "2球",
+                  "probability": 28
+                },
+                {
+                  "direction": "4球",
+                  "probability": 22
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "当前1-0，后续预计还有2球进账。",
+              "value_edge": null
+            },
+            {
+              "category": "进球时间段",
+              "market": "模型预测",
+              "direction": "31-45分钟",
+              "line": null,
+              "odds": null,
+              "probability": 42,
+              "probability_scope": "下一次进球在31-45分钟",
+              "alternatives": [
+                {
+                  "direction": "46-60分钟",
+                  "probability": 32
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "主队占据场面优势，上半场末段易借攻势再入一球。",
+              "value_edge": null
+            }
+          ],
+          "evidence": [
+            "萨普里萨在开场阶段已取得1-0领先",
+            "控球率67%，进攻31-19，危险进攻13-7"
+          ],
+          "risks": [
+            "比分未经验证",
+            "领先后主队若放慢节奏可能减少进球产出"
+          ]
+        },
+        {
+          "match": "丹佛峰会(女) vs 北卡罗来纳(女)",
+          "ybty_home": "丹佛峰会(女)",
+          "ybty_away": "北卡罗来纳(女)",
+          "summary": "比赛第21分钟0-0，北卡罗来纳女足控球率达63%，但双方均射门3次（射正2-2）、危险进攻11-10，场面均势。比分未验证评C级。",
+          "grade": "C",
+          "score_verified": false,
+          "score_source": "ybty_export",
+          "verification_passed": false,
+          "recommendation": null,
+          "market_assessments": [
+            {
+              "category": "全场大小球",
+              "market": "full_total",
+              "direction": "大球",
+              "line": "2/2.5",
+              "odds": 1.82,
+              "probability": 57,
+              "probability_scope": "全场总进球大于2/2.5",
+              "alternatives": [
+                {
+                  "direction": "小球 2/2.5",
+                  "probability": 43
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "前21分钟双方已有4次射正，攻防转换较快，大2/2.5概率（57%）高于隐含概率（54.95%）。",
+              "value_edge": 2.05
+            },
+            {
+              "category": "半场大小球",
+              "market": "half_total",
+              "direction": "大球",
+              "line": "0.5/1",
+              "odds": 2.01,
+              "probability": 52,
+              "probability_scope": "上半场总进球大于0.5/1",
+              "alternatives": [
+                {
+                  "direction": "小球 0.5/1",
+                  "probability": 48
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "双方各有2次射正，上半场破门概率52%超过隐含概率49.75%。",
+              "value_edge": 2.25
+            },
+            {
+              "category": "全场让球",
+              "market": "full_spread",
+              "direction": "主胜",
+              "line": "-0/0.5",
+              "odds": 1.89,
+              "probability": 50,
+              "probability_scope": "丹佛峰会女足 -0/0.5",
+              "alternatives": [
+                {
+                  "direction": "北卡罗来纳女足 +0/0.5",
+                  "probability": 50
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "客队控球63%且射正相同，主让平半赔率1.89（隐含52.91%），模型概率50%不足。 模型概率50%不高于赔率隐含概率52.9%，属于非正期望值。",
+              "value_edge": -2.91
+            },
+            {
+              "category": "半场让球",
+              "market": "half_spread",
+              "direction": "客胜",
+              "line": "0",
+              "odds": 2.19,
+              "probability": 48,
+              "probability_scope": "北卡罗来纳女足半场 0",
+              "alternatives": [
+                {
+                  "direction": "丹佛峰会女足半场 0",
+                  "probability": 52
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "客队控球率优势明显，平手盘客胜赔率2.19（隐含45.66%），模型概率48%有安全边际。",
+              "value_edge": 2.34
+            },
+            {
+              "category": "全场独赢1X2",
+              "market": "full_h2h",
+              "direction": "主胜",
+              "line": null,
+              "odds": 2.19,
+              "probability": 42,
+              "probability_scope": "丹佛峰会女足获胜",
+              "alternatives": [
+                {
+                  "direction": "客胜",
+                  "probability": 32
+                },
+                {
+                  "direction": "平局",
+                  "probability": 26
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "模型主胜概率42%，低于隐含概率45.66%。 模型概率42%不高于赔率隐含概率45.7%，属于非正期望值。",
+              "value_edge": -3.66
+            },
+            {
+              "category": "波胆",
+              "market": "模型预测",
+              "direction": "1-1",
+              "line": null,
+              "odds": null,
+              "probability": 22,
+              "probability_scope": "丹佛峰会(女) 1-1 北卡罗莱纳(女)",
+              "alternatives": [
+                {
+                  "direction": "2-1",
+                  "probability": 18
+                },
+                {
+                  "direction": "1-2",
+                  "probability": 16
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "双方攻守互有往来，互有进球平局概率高。",
+              "value_edge": null
+            },
+            {
+              "category": "双方是否进球",
+              "market": "模型预测",
+              "direction": "是",
+              "line": null,
+              "odds": null,
+              "probability": 56,
+              "probability_scope": "双方均有进球",
+              "alternatives": [
+                {
+                  "direction": "否",
+                  "probability": 44
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "开场21分钟双方各2次射正，均具备创造机会能力。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球单双",
+              "market": "模型预测",
+              "direction": "双数",
+              "line": null,
+              "odds": null,
+              "probability": 52,
+              "probability_scope": "完场总进球双数",
+              "alternatives": [
+                {
+                  "direction": "单数",
+                  "probability": 48
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "1-1或2-2等双数比分概率居多。",
+              "value_edge": null
+            },
+            {
+              "category": "主队进球数",
+              "market": "模型预测",
+              "direction": "1球",
+              "line": null,
+              "odds": null,
+              "probability": 42,
+              "probability_scope": "丹佛峰会女足进1球",
+              "alternatives": [
+                {
+                  "direction": "2球",
+                  "probability": 28
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "主队有进攻威胁但控球较低，倾向进1球。",
+              "value_edge": null
+            },
+            {
+              "category": "客队进球数",
+              "market": "模型预测",
+              "direction": "1球",
+              "line": null,
+              "odds": null,
+              "probability": 44,
+              "probability_scope": "北卡罗来纳女足进1球",
+              "alternatives": [
+                {
+                  "direction": "2球",
+                  "probability": 25
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "客队控球占优且有射正，预计能有1球破门。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球数",
+              "market": "模型预测",
+              "direction": "2球",
+              "line": null,
+              "odds": null,
+              "probability": 36,
+              "probability_scope": "全场恰好2球",
+              "alternatives": [
+                {
+                  "direction": "3球",
+                  "probability": 30
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "2-3球区间最吻合女足赛事的平均破门效率。",
+              "value_edge": null
+            },
+            {
+              "category": "进球时间段",
+              "market": "模型预测",
+              "direction": "31-45分钟",
+              "line": null,
+              "odds": null,
+              "probability": 40,
+              "probability_scope": "上半场末段产生进球",
+              "alternatives": [
+                {
+                  "direction": "46-60分钟",
+                  "probability": 35
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "射正频率较高，31-45分钟攻势变现概率大。",
+              "value_edge": null
+            }
+          ],
+          "evidence": [
+            "双方各有3次射门且各2次射正，门前机会均等",
+            "北卡罗来纳女足控球率63%占优"
+          ],
+          "risks": [
+            "比分未经验证",
+            "女足比赛盘口波幅较大"
+          ]
+        },
+        {
+          "match": "托卢卡体育 vs 西雅图海湾人",
+          "ybty_home": "托卢卡体育",
+          "ybty_away": "西雅图海湾人",
+          "summary": "托卢卡体育在16分钟由加利亚多头球建功取得1-0领先，目前危险进攻7-3，射正1-0，主场优势明显。比分未验证最高给C级。",
+          "grade": "C",
+          "score_verified": false,
+          "score_source": "ybty_export",
+          "verification_passed": false,
+          "recommendation": null,
+          "market_assessments": [
+            {
+              "category": "全场大小球",
+              "market": "full_total",
+              "direction": "大球",
+              "line": "4",
+              "odds": 1.84,
+              "probability": 56,
+              "probability_scope": "全场总进球大于4",
+              "alternatives": [
+                {
+                  "direction": "小球 4",
+                  "probability": 44
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "16分钟已打进1球，托卢卡进攻势头猛烈，大4球概率（56%）高于隐含概率（54.35%）。",
+              "value_edge": 1.65
+            },
+            {
+              "category": "半场大小球",
+              "market": "half_total",
+              "direction": "大球",
+              "line": "2",
+              "odds": 1.87,
+              "probability": 55,
+              "probability_scope": "上半场总进球大于2",
+              "alternatives": [
+                {
+                  "direction": "小球 2",
+                  "probability": 45
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "已有1球，上半场尚有近30分钟，再产生进球概率55%高出隐含概率53.48%。",
+              "value_edge": 1.52
+            },
+            {
+              "category": "全场让球",
+              "market": "full_spread",
+              "direction": "主胜",
+              "line": "-1.5",
+              "odds": 1.83,
+              "probability": 57,
+              "probability_scope": "托卢卡体育 -1.5",
+              "alternatives": [
+                {
+                  "direction": "西雅图海湾人 +1.5",
+                  "probability": 43
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "主队已1-0领先且高压，赢两球及以上概率57%高于隐含概率54.64%。",
+              "value_edge": 2.36
+            },
+            {
+              "category": "半场让球",
+              "market": "half_spread",
+              "direction": "主胜",
+              "line": "-0.5",
+              "odds": 1.97,
+              "probability": 52,
+              "probability_scope": "托卢卡体育半场 -0.5",
+              "alternatives": [
+                {
+                  "direction": "西雅图海湾人半场 +0.5",
+                  "probability": 48
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "主队半场已1-0领先，保持半场领先概率52%高于隐含概率50.76%。",
+              "value_edge": 1.24
+            },
+            {
+              "category": "全场独赢1X2",
+              "market": "full_h2h",
+              "direction": "主胜",
+              "line": null,
+              "odds": 1.06,
+              "probability": 95,
+              "probability_scope": "托卢卡体育获胜",
+              "alternatives": [
+                {
+                  "direction": "平局",
+                  "probability": 4
+                },
+                {
+                  "direction": "客胜",
+                  "probability": 1
+                }
+              ],
+              "grade": "C",
+              "status": "watch",
+              "reason": "主队主场强势且早期领先，主胜概率95%略高于隐含概率94.34%。",
+              "value_edge": 0.66
+            },
+            {
+              "category": "波胆",
+              "market": "模型预测",
+              "direction": "3-1",
+              "line": null,
+              "odds": null,
+              "probability": 24,
+              "probability_scope": "托卢卡体育 3-1 西雅图海湾人",
+              "alternatives": [
+                {
+                  "direction": "3-0",
+                  "probability": 20
+                },
+                {
+                  "direction": "4-1",
+                  "probability": 15
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "托卢卡进攻旺盛，西雅图后防承压，预计全场大比分主胜。",
+              "value_edge": null
+            },
+            {
+              "category": "双方是否进球",
+              "market": "模型预测",
+              "direction": "是",
+              "line": null,
+              "odds": null,
+              "probability": 55,
+              "probability_scope": "双方均有进球",
+              "alternatives": [
+                {
+                  "direction": "否",
+                  "probability": 45
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "西雅图海湾人落后压上后有反击破门机会。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球单双",
+              "market": "模型预测",
+              "direction": "双数",
+              "line": null,
+              "odds": null,
+              "probability": 53,
+              "probability_scope": "完场总进球双数",
+              "alternatives": [
+                {
+                  "direction": "单数",
+                  "probability": 47
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "基准比分3-1概率最高，对应双数。",
+              "value_edge": null
+            },
+            {
+              "category": "主队进球数",
+              "market": "模型预测",
+              "direction": "3球",
+              "line": null,
+              "odds": null,
+              "probability": 40,
+              "probability_scope": "托卢卡体育全场进3球",
+              "alternatives": [
+                {
+                  "direction": "2球",
+                  "probability": 30
+                },
+                {
+                  "direction": "4球及以上",
+                  "probability": 18
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "托卢卡主场活力充沛，开局破门早，进3球可能性最大。",
+              "value_edge": null
+            },
+            {
+              "category": "客队进球数",
+              "market": "模型预测",
+              "direction": "1球",
+              "line": null,
+              "odds": null,
+              "probability": 48,
+              "probability_scope": "西雅图海湾人进1球",
+              "alternatives": [
+                {
+                  "direction": "0球",
+                  "probability": 42
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "西雅图具有一定防攻转换能力，预计能进1球。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球数",
+              "market": "模型预测",
+              "direction": "4球",
+              "line": null,
+              "odds": null,
+              "probability": 32,
+              "probability_scope": "全场恰好4球",
+              "alternatives": [
+                {
+                  "direction": "3球",
+                  "probability": 28
+                },
+                {
+                  "direction": "5球及以上",
+                  "probability": 22
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "比分开局较早，整体朝着4球的高进球趋势发展。",
+              "value_edge": null
+            },
+            {
+              "category": "进球时间段",
+              "market": "模型预测",
+              "direction": "31-45分钟",
+              "line": null,
+              "odds": null,
+              "probability": 45,
+              "probability_scope": "上半场尾声阶段再次产生进球",
+              "alternatives": [
+                {
+                  "direction": "46-60分钟",
+                  "probability": 30
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "主队攻势持续，上半场结束前有机会扩大领先。",
+              "value_edge": null
+            }
+          ],
+          "evidence": [
+            "托卢卡在16分钟前已由加利亚多头球破门1-0领先",
+            "西雅图海湾人0射门，场面被动"
+          ],
+          "risks": [
+            "比分未经验证",
+            "全场大小球4球盘口较深"
+          ]
+        }
+      ]
+    },
+    "record_type": "ai_evaluation_snapshot",
+    "affects_formal_statistics": false
+  }
+]
