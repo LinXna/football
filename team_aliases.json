@@ -1,38 +1,196 @@
 {
-  "Atletico Goianiense": ["Atlético Goianiense", "戈亚尼亚竞技", "戈亚尼亚竞技GO"],
-  "Operario PR": ["Operário-PR", "蓬塔格罗萨铁路", "铁路工人", "铁路工人PR"],
-  "CRB": ["Clube de Regatas Brasil", "雷加塔斯巴西", "巴西雷加塔斯AL"],
-  "Vila Nova": ["Vila Nova FC", "维拉诺瓦", "维拉诺瓦GO"],
-  "Sport Recife": ["Sport Club do Recife", "累西腓体育", "累西腓体育PE"],
-  "Cuiaba": ["Cuiabá", "库亚巴", "库亚巴体育MT", "库亚巴MT"],
-  "Union La Calera": ["Unión La Calera", "拉卡莱拉联"],
-  "Everton de Vina": ["Everton de Viña del Mar", "埃弗顿VM"],
-  "KuPS": ["Kuopion Palloseura", "古比斯"],
-  "Sabah FK": ["Sabah", "沙巴巴库"],
-  "Ivory Coast": ["Côte d'Ivoire", "科特迪瓦", "科特迪瓦(女)", "Ivory Coast Women"],
-  "Burkina Faso": ["布基纳法索", "布基纳法索(女)", "Burkina Faso Women"],
-  "Envigado": ["恩维加多"],
-  "Real Soacha Cundinamarca": ["皇家索阿昆迪纳马", "Real Cundinamarca"],
-  "Guayaquil City": ["瓜亚基尔城"],
-  "Universidad Catolica del Ecuador": ["基多天主教大学", "基多天主大学", "Universidad Católica"],
-  "Talleres Reserves": ["塔列雷斯后备队", "CA塔勒瑞斯后备队"],
-  "Bahia Women": ["巴伊亚BA(女)", "EC巴伊亚女足"],
-  "Botafogo Women": ["博塔弗戈RJ(女)", "博塔弗戈女足"],
-  "Sao Paulo Women": ["圣保罗SP(女)", "圣保罗女足"],
-  "Mirassol Women": ["迈拉索SP(女)", "米拉索女足"],
-  "Durazno": ["杜拉斯诺", "杜拉兹"],
-  "LSM": ["体育LSM", "LSM体育"],
-  "Gremio Prudente": ["甘美奧普丹迪SP", "普丹迪"],
-  "Bandeirante": ["班德兰特SP", "班德兰特"],
-  "Guarani SP": ["瓜拉尼SP", "巴西瓜拉尼"],
-  "Inter de Limeira": ["国际利美拉SP", "国际里梅拉"],
-  "Union Espanola": ["西班牙联盟", "西班牙联合"],
-  "Almagro": ["阿尔马格罗", "阿马格罗"],
-  "Taveiropolis": ["塔韦罗波利斯MS", "EC塔维罗波利斯"],
-  "Sao Gabriel RS": ["圣加比瑞尔EC MS", "圣加比瑞尔RS"],
-  "Luis Angel Firpo Women": ["菲尔波(女)", "菲尔波女足", "路斯天使女足"],
-  "Fuerte San Francisco Women": ["旧金山富尔特(女)", "旧金山富尔特女足", "旧金山堡女足"],
-  "Tigre": ["蒂格雷", "堤格雷"],
-  "Internacional Women U20": ["巴西国际体育会U20(女)", "SC国际女足U20"],
-  "Gremio Women U20": ["格雷米奥RS U20(女)", "格雷米奥女足U20"]
+  "Atletico Goianiense": [
+    "Atlético Goianiense",
+    "戈亚尼亚竞技",
+    "戈亚尼亚竞技GO"
+  ],
+  "Operario PR": [
+    "Operário-PR",
+    "蓬塔格罗萨铁路",
+    "铁路工人",
+    "铁路工人PR"
+  ],
+  "CRB": [
+    "Clube de Regatas Brasil",
+    "雷加塔斯巴西",
+    "巴西雷加塔斯AL"
+  ],
+  "Vila Nova": [
+    "Vila Nova FC",
+    "维拉诺瓦",
+    "维拉诺瓦GO"
+  ],
+  "Sport Recife": [
+    "Sport Club do Recife",
+    "累西腓体育",
+    "累西腓体育PE"
+  ],
+  "Cuiaba": [
+    "Cuiabá",
+    "库亚巴",
+    "库亚巴体育MT",
+    "库亚巴MT"
+  ],
+  "Union La Calera": [
+    "Unión La Calera",
+    "拉卡莱拉联"
+  ],
+  "Everton de Vina": [
+    "Everton de Viña del Mar",
+    "埃弗顿VM"
+  ],
+  "KuPS": [
+    "Kuopion Palloseura",
+    "古比斯"
+  ],
+  "Sabah FK": [
+    "Sabah",
+    "沙巴巴库"
+  ],
+  "Ivory Coast": [
+    "Côte d'Ivoire",
+    "科特迪瓦",
+    "科特迪瓦(女)",
+    "Ivory Coast Women"
+  ],
+  "Burkina Faso": [
+    "布基纳法索",
+    "布基纳法索(女)",
+    "Burkina Faso Women"
+  ],
+  "Envigado": [
+    "恩维加多"
+  ],
+  "Real Soacha Cundinamarca": [
+    "皇家索阿昆迪纳马",
+    "Real Cundinamarca"
+  ],
+  "Guayaquil City": [
+    "瓜亚基尔城"
+  ],
+  "Universidad Catolica del Ecuador": [
+    "基多天主教大学",
+    "基多天主大学",
+    "Universidad Católica"
+  ],
+  "Talleres Reserves": [
+    "塔列雷斯后备队",
+    "CA塔勒瑞斯后备队"
+  ],
+  "Bahia Women": [
+    "巴伊亚BA(女)",
+    "EC巴伊亚女足"
+  ],
+  "Botafogo Women": [
+    "博塔弗戈RJ(女)",
+    "博塔弗戈女足"
+  ],
+  "Sao Paulo Women": [
+    "圣保罗SP(女)",
+    "圣保罗女足"
+  ],
+  "Mirassol Women": [
+    "迈拉索SP(女)",
+    "米拉索女足"
+  ],
+  "Durazno": [
+    "杜拉斯诺",
+    "杜拉兹"
+  ],
+  "LSM": [
+    "体育LSM",
+    "LSM体育"
+  ],
+  "Gremio Prudente": [
+    "甘美奧普丹迪SP",
+    "普丹迪"
+  ],
+  "Bandeirante": [
+    "班德兰特SP",
+    "班德兰特"
+  ],
+  "Guarani SP": [
+    "瓜拉尼SP",
+    "巴西瓜拉尼"
+  ],
+  "Inter de Limeira": [
+    "国际利美拉SP",
+    "国际里梅拉"
+  ],
+  "Union Espanola": [
+    "西班牙联盟",
+    "西班牙联合"
+  ],
+  "Almagro": [
+    "阿尔马格罗",
+    "阿马格罗"
+  ],
+  "Taveiropolis": [
+    "塔韦罗波利斯MS",
+    "EC塔维罗波利斯"
+  ],
+  "Sao Gabriel RS": [
+    "圣加比瑞尔EC MS",
+    "圣加比瑞尔RS"
+  ],
+  "Luis Angel Firpo Women": [
+    "菲尔波(女)",
+    "菲尔波女足",
+    "路斯天使女足"
+  ],
+  "Fuerte San Francisco Women": [
+    "旧金山富尔特(女)",
+    "旧金山富尔特女足",
+    "旧金山堡女足"
+  ],
+  "Tigre": [
+    "蒂格雷",
+    "堤格雷"
+  ],
+  "Internacional Women U20": [
+    "巴西国际体育会U20(女)",
+    "SC国际女足U20"
+  ],
+  "Gremio Women U20": [
+    "格雷米奥RS U20(女)",
+    "格雷米奥女足U20"
+  ],
+  "阿利亚": [
+    "巴拿马阿利安萨"
+  ],
+  "墨西哥U20": [
+    "墨西哥 20岁以下",
+    "墨西哥20岁以下",
+    "墨西哥U20",
+    "Mexico U20"
+  ],
+  "巴拿马U20": [
+    "巴拿马 20岁以下",
+    "巴拿马20岁以下",
+    "巴拿马U20",
+    "Panama U20"
+  ],
+  "联盟FC": [
+    "阿利安萨",
+    "萨尔瓦多联盟",
+    "联盟FC",
+    "阿利安萨FC",
+    "Alianza FC",
+    "巴拿马阿利安萨"
+  ],
+  "埃雷迪亚诺": [
+    "希雷迪亚诺",
+    "希雷迪亚诺竞技",
+    "埃雷迪亚诺",
+    "CS Herediano"
+  ],
+  "丹佛峰会女足": [
+    "丹佛峰会(女)"
+  ],
+  "北卡罗来纳勇气女足": [
+    "北卡罗莱纳(女)"
+  ],
+  "托卢卡": [
+    "托卢卡体育"
+  ]
 }

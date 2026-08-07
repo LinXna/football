@@ -59,6 +59,9 @@ export interface DecisionItem {
   ybty_match?: string;
   ybty_home?: string;
   ybty_away?: string;
+  leisu_match?: string;
+  leisu_home?: string;
+  leisu_away?: string;
   ybty_start_time?: string | null;
   ybty_start_time_beijing?: string | null;
   commence_time?: string | null;
@@ -102,6 +105,22 @@ export interface DecisionsPayload {
   decisions?: DecisionItem[];
 }
 
+export interface ParlayLeg {
+  leg_index: number;
+  match: string;
+  ybty_home: string;
+  ybty_away: string;
+  market: string;
+  line: string | number;
+  odds: number;
+  score_at_recommendation?: Score;
+  final_score?: Score | null;
+  ht_score?: Score | null;
+  half_time_score?: Score | null;
+  score_verified?: boolean;
+  outcome?: 'win' | 'half_win' | 'push' | 'half_loss' | 'loss' | 'pending' | 'invalid_data' | string;
+}
+
 export interface LedgerItem {
   id: string;
   created_at: string;
@@ -113,6 +132,8 @@ export interface LedgerItem {
   ybty_away?: string;
   minute?: number;
   score_at_recommendation?: Score;
+  ht_score?: Score | null;
+  half_time_score?: Score | null;
   grade?: string;
   model_score?: number;
   recommendation?: {
@@ -125,6 +146,7 @@ export interface LedgerItem {
   review?: {
     status?: string;
     final_score?: Score;
+    ht_score?: Score;
     added_goals?: number;
     outcome?: 'win' | 'loss' | 'push' | 'half_win' | 'half_loss' | 'pending' | 'invalid_data' | string;
   };
@@ -134,6 +156,8 @@ export interface LedgerItem {
   score_verified?: boolean;
   commence_time?: string | null;
   start_time_beijing?: string | null;
+  is_parlay?: boolean;
+  parlay_legs?: ParlayLeg[];
 }
 
 export interface TeamAliasMap {
@@ -193,81 +217,24 @@ export function getLeagueName(item: any): string {
   return '国际赛事';
 }
 
-import manualAliases from '../team_aliases.json';
-import autoAliases from '../team_aliases_auto.json';
-import { buildAliasLookup, getCanonicalName } from './lib/teamAliasMatcher';
-
-const globalAliasLookupMap = buildAliasLookup(
-  (manualAliases as Record<string, string[]>) || {},
-  (autoAliases as Record<string, string[]>) || {}
-);
+import { getUnifiedTeamDisplay } from './utils/teamUtils';
 
 export function getTeamDisplay(item: any) {
-  if (!item) {
-    return {
-      homeYbty: '主队-YBTY',
-      homeLeisu: '主队-雷速',
-      awayYbty: '客队-YBTY',
-      awayLeisu: '客队-雷速',
-      ybtyHomeRaw: '主队',
-      ybtyAwayRaw: '客队',
-      leisuHomeRaw: '主队',
-      leisuAwayRaw: '客队',
-    };
-  }
-
-  let ybtyHome = item.ybty_home || item.home || '';
-  let ybtyAway = item.ybty_away || item.away || '';
-
-  const matchStr = item.match || item.match_name || item.ybty_match || '';
-  if (!ybtyHome && matchStr) {
-    const parts = matchStr.split(/\s+vs\s+/i);
-    if (parts.length >= 2) {
-      ybtyHome = parts[0].replace(/^\[.*?\]\s*/, '').trim();
-      ybtyAway = parts[1].trim();
-    }
-  }
-
-  ybtyHome = ybtyHome || '主队';
-  ybtyAway = ybtyAway || '客队';
-
-  let leisuHome = item.leisu_home || item.leisu_home_team || item.matched_leisu_home || item.candidate?.match?.home || item.match_info?.leisu_home || item.leisu_raw?.home;
-  let leisuAway = item.leisu_away || item.leisu_away_team || item.matched_leisu_away || item.candidate?.match?.away || item.match_info?.leisu_away || item.leisu_raw?.away;
-
-  if (!leisuHome && item.leisu_match) {
-    const lParts = item.leisu_match.split(/\s+vs\s+/i);
-    if (lParts.length >= 2) {
-      leisuHome = lParts[0].replace(/^\[.*?\]\s*/, '').trim();
-      leisuAway = lParts[1].trim();
-    }
-  }
-
-  if (!leisuHome || leisuHome === ybtyHome) {
-    const canonicalHome = getCanonicalName(ybtyHome, globalAliasLookupMap);
-    if (canonicalHome) {
-      leisuHome = canonicalHome;
-    }
-  }
-
-  if (!leisuAway || leisuAway === ybtyAway) {
-    const canonicalAway = getCanonicalName(ybtyAway, globalAliasLookupMap);
-    if (canonicalAway) {
-      leisuAway = canonicalAway;
-    }
-  }
-
-  leisuHome = leisuHome || ybtyHome;
-  leisuAway = leisuAway || ybtyAway;
-
+  const unified = getUnifiedTeamDisplay(item);
   return {
-    homeYbty: `${ybtyHome}-YBTY`,
-    homeLeisu: `${leisuHome}-雷速`,
-    awayYbty: `${ybtyAway}-YBTY`,
-    awayLeisu: `${leisuAway}-雷速`,
-    ybtyHomeRaw: ybtyHome,
-    ybtyAwayRaw: ybtyAway,
-    leisuHomeRaw: leisuHome,
-    leisuAwayRaw: leisuAway,
+    homeYbty: unified.homeYbtyLabel,
+    homeLeisu: unified.homeLeisuLabel,
+    awayYbty: unified.awayYbtyLabel,
+    awayLeisu: unified.awayLeisuLabel,
+    ybtyHomeRaw: unified.ybtyHome,
+    ybtyAwayRaw: unified.ybtyAway,
+    leisuHomeRaw: unified.leisuHome,
+    leisuAwayRaw: unified.leisuAway,
+    displayHome: unified.displayHome,
+    displayAway: unified.displayAway,
+    matchName: unified.matchName,
+    leisuMatchName: unified.leisuMatchName,
+    hasLeisu: unified.hasLeisuMatched,
   };
 }
 

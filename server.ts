@@ -116,6 +116,8 @@ app.post('/api/ledger/add', (req, res) => {
       record_type: 'formal_ai_recommendation',
       formal_recommendation: true,
       start_time_beijing: newItem.start_time_beijing || '推算时间',
+      is_parlay: Boolean(newItem.is_parlay || (newItem.parlay_legs && newItem.parlay_legs.length > 0)),
+      parlay_legs: newItem.parlay_legs || [],
     };
 
     ledger.unshift(formalItem);
@@ -132,28 +134,84 @@ app.post('/api/ledger/add', (req, res) => {
 });
 
 // Helper to normalize team names for cross-provider and alias matching
+function getTeamQualifiers(str: string) {
+  const s = (str || '').toLowerCase();
+  return {
+    u20: s.includes('u20'),
+    u21: s.includes('u21'),
+    u23: s.includes('u23'),
+    u19: s.includes('u19'),
+    u17: s.includes('u17'),
+    reserve: s.includes('后备') || s.includes('预备') || s.includes('reserve'),
+    women: s.includes('女') || s.includes('women'),
+    allStar: s.includes('明星') || s.includes('全明星') || s.includes('allstar') || s.includes('all-star'),
+  };
+}
+
+function areQualifiersCompatible(a: string, b: string): boolean {
+  const qa = getTeamQualifiers(a);
+  const qb = getTeamQualifiers(b);
+  if (qa.u20 !== qb.u20) return false;
+  if (qa.u21 !== qb.u21) return false;
+  if (qa.u23 !== qb.u23) return false;
+  if (qa.u19 !== qb.u19) return false;
+  if (qa.u17 !== qb.u17) return false;
+  if (qa.reserve !== qb.reserve) return false;
+  if (qa.women !== qb.women) return false;
+  if (qa.allStar !== qb.allStar) return false;
+  return true;
+}
+
 function cleanTeamName(str: string): string {
   if (!str) return '';
   return str
     .toLowerCase()
     .replace(/-(ybty|leisu|雷速|YBTY|LEISU)$/gi, '')
-    .replace(/football club|fc|俱乐部|体育|（女）|\(女\)/gi, '')
+    .replace(/football club|fc|俱乐部|体育/gi, '')
     .replace(/[\s\(\)\（\）\【\】\[\]]/g, '')
     .trim();
 }
 
 function getSingleMatchTeams(item: any) {
-  let home = cleanTeamName(item.ybty_home || '');
-  let away = cleanTeamName(item.ybty_away || '');
+  let homeRaw = item.ybty_home || '';
+  let awayRaw = item.ybty_away || '';
 
-  if ((!home || !away) && item.match && typeof item.match === 'string' && !item.match.startsWith('【AI')) {
+  if ((!homeRaw || !awayRaw) && item.match && typeof item.match === 'string' && !item.match.startsWith('【AI')) {
     const parts = item.match.split(/\s+vs\s+/i);
     if (parts.length === 2) {
-      if (!home) home = cleanTeamName(parts[0]);
-      if (!away) away = cleanTeamName(parts[1]);
+      if (!homeRaw) homeRaw = parts[0];
+      if (!awayRaw) awayRaw = parts[1];
     }
   }
-  return { home, away };
+  return {
+    homeRaw,
+    awayRaw,
+    home: cleanTeamName(homeRaw),
+    away: cleanTeamName(awayRaw),
+  };
+}
+
+function isTeamMatch(rawA: string, rawB: string): boolean {
+  if (!rawA || !rawB) return false;
+  if (!areQualifiersCompatible(rawA, rawB)) return false;
+
+  const aClean = cleanTeamName(rawA);
+  const bClean = cleanTeamName(rawB);
+
+  if (aClean === bClean) return true;
+
+  const genericList = ['墨西哥', '西班牙', '英格兰', '日本', '中国', '巴西', '阿根廷', '德国', '意大利', '法国', '巴拿马', '美国', '加拿大', '墨西'];
+  if (
+    aClean.length >= 4 &&
+    bClean.length >= 4 &&
+    !genericList.includes(aClean) &&
+    !genericList.includes(bClean) &&
+    (aClean.includes(bClean) || bClean.includes(aClean))
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function areSameMatch(itemA: any, itemB: any): boolean {
@@ -162,14 +220,9 @@ function areSameMatch(itemA: any, itemB: any): boolean {
   const teamsA = getSingleMatchTeams(itemA);
   const teamsB = getSingleMatchTeams(itemB);
 
-  if (teamsA.home && teamsA.away && teamsB.home && teamsB.away) {
-    const homeMatches =
-      teamsA.home === teamsB.home ||
-      (teamsA.home.length >= 2 && teamsB.home.length >= 2 && (teamsA.home.includes(teamsB.home) || teamsB.home.includes(teamsA.home)));
-
-    const awayMatches =
-      teamsA.away === teamsB.away ||
-      (teamsA.away.length >= 2 && teamsB.away.length >= 2 && (teamsA.away.includes(teamsB.away) || teamsB.away.includes(teamsA.away)));
+  if (teamsA.homeRaw && teamsA.awayRaw && teamsB.homeRaw && teamsB.awayRaw) {
+    const homeMatches = isTeamMatch(teamsA.homeRaw, teamsB.homeRaw);
+    const awayMatches = isTeamMatch(teamsA.awayRaw, teamsB.awayRaw);
 
     if (homeMatches && awayMatches) {
       return true;
@@ -183,43 +236,267 @@ function areSameMatch(itemA: any, itemB: any): boolean {
   return false;
 }
 
-// Update ledger item review (supports auto-syncing same match records)
+// Update ledger item review (supports auto-syncing same match records & parlay legs)
 app.post('/api/ledger/update-review', (req, res) => {
   try {
-    const { id, match, ybty_home, ybty_away, final_score, score_verified, outcome, syncSameMatch = true } = req.body;
-    if (!id && !match) {
-      return res.status(400).json({ error: 'ID or match identifier is required' });
+    const { id, match, ybty_home, ybty_away, leg_index, final_score, ht_score, score_verified, outcome, parlay_legs, syncSameMatch = true } = req.body;
+    if (!id && !match && !ybty_home && (!parlay_legs || !Array.isArray(parlay_legs))) {
+      return res.status(400).json({ error: 'ID, match, or parlay_legs identifier is required' });
     }
 
     let ledger = readJsonFile<any[]>('output/recommendation_ledger.json', []);
-    
-    // Find target item
-    const targetItem = ledger.find((i: any) => i.id === id || (match && i.match === match));
-    if (!targetItem) {
-      return res.status(404).json({ error: 'Ledger item not found' });
-    }
+    const liveFile = readJsonFile<any>('output/ybty_leisu_decisions.json', { decisions: [], summary: {} });
+    const prematchFile = readJsonFile<any>('output/ybty_leisu_prematch_decisions.json', { decisions: [], summary: {} });
 
     let updatedCount = 0;
-    ledger = ledger.map((item: any) => {
-      if (syncSameMatch ? areSameMatch(targetItem, item) : item.id === id) {
-        updatedCount++;
-        item.review = item.review || {};
-        if (final_score) {
-          item.review.final_score = final_score;
+
+    // Direct Parlay Legs Array Update for a specific Parlay Item
+    if (id && Array.isArray(parlay_legs) && parlay_legs.length > 0) {
+      ledger = ledger.map((item: any) => {
+        if (item.id === id) {
+          updatedCount++;
+          item.is_parlay = true;
+          item.parlay_legs = parlay_legs;
+          item.review = item.review || {};
           item.review.status = 'reviewed';
+          item.score_verified = parlay_legs.every((l: any) => l.score_verified);
         }
-        if (outcome && item.id === id) {
-          item.review.outcome = outcome;
-        }
-        if (score_verified !== undefined) {
-          item.score_verified = score_verified;
+        return item;
+      });
+
+      // Auto-sync each leg in parlay_legs to other ledger items and decision files
+      if (syncSameMatch) {
+        for (const leg of parlay_legs) {
+          if (!leg.final_score && !leg.ht_score) continue;
+          const h = leg.ybty_home || (leg.match ? leg.match.split(' vs ')[0] : '');
+          const a = leg.ybty_away || (leg.match ? leg.match.split(' vs ')[1] : '');
+          const legRef = { match: leg.match || `${h} vs ${a}`, ybty_home: h, ybty_away: a };
+
+          // Sync other ledger items
+          ledger = ledger.map((item: any) => {
+            if (item.id !== id && areSameMatch(legRef, item)) {
+              item.review = item.review || {};
+              if (leg.final_score) item.review.final_score = leg.final_score;
+              if (leg.ht_score) item.review.ht_score = leg.ht_score;
+              item.review.status = 'reviewed';
+              item.score_verified = leg.score_verified ?? true;
+            }
+            if (item.id !== id && item.parlay_legs && Array.isArray(item.parlay_legs)) {
+              item.parlay_legs = item.parlay_legs.map((otherLeg: any) => {
+                if (areSameMatch(legRef, { match: otherLeg.match, ybty_home: otherLeg.ybty_home, ybty_away: otherLeg.ybty_away })) {
+                  return {
+                    ...otherLeg,
+                    final_score: leg.final_score || otherLeg.final_score,
+                    ht_score: leg.ht_score || otherLeg.ht_score,
+                    score_verified: leg.score_verified ?? true,
+                  };
+                }
+                return otherLeg;
+              });
+            }
+            return item;
+          });
+
+          // Sync decisions files
+          const scoreObj = leg.final_score;
+          const htScoreObj = leg.ht_score;
+          if (liveFile.decisions && Array.isArray(liveFile.decisions)) {
+            liveFile.decisions = liveFile.decisions.map((d: any) => {
+              if (areSameMatch(legRef, d)) {
+                return {
+                  ...d,
+                  score: scoreObj || d.score,
+                  ht_score: htScoreObj || d.ht_score,
+                  score_verified: leg.score_verified ?? true,
+                  score_source: 'parlay_leg_user_verification',
+                  risks: (d.risks || []).filter((r: string) => !r.includes('比分未经校验')),
+                };
+              }
+              return d;
+            });
+          }
+          if (prematchFile.decisions && Array.isArray(prematchFile.decisions)) {
+            prematchFile.decisions = prematchFile.decisions.map((d: any) => {
+              if (areSameMatch(legRef, d)) {
+                return {
+                  ...d,
+                  score: scoreObj || d.score,
+                  ht_score: htScoreObj || d.ht_score,
+                  score_verified: leg.score_verified ?? true,
+                  score_source: 'parlay_leg_user_verification',
+                  risks: (d.risks || []).filter((r: string) => !r.includes('比分未经校验')),
+                };
+              }
+              return d;
+            });
+          }
         }
       }
-      return item;
-    });
+    } else {
+      // Find target item for single match / single leg update
+      const targetItem = ledger.find((i: any) => i.id === id || (match && i.match === match));
+      const refHome = ybty_home || (targetItem ? targetItem.ybty_home : '') || (match ? match.split(' vs ')[0] : '');
+      const refAway = ybty_away || (targetItem ? targetItem.ybty_away : '') || (match ? match.split(' vs ')[1] : '');
+      const dummyRef = { match: match || targetItem?.match || `${refHome} vs ${refAway}`, ybty_home: refHome, ybty_away: refAway };
+
+      ledger = ledger.map((item: any) => {
+        // 1. Single match item update
+        if (syncSameMatch ? areSameMatch(dummyRef, item) : item.id === id) {
+          updatedCount++;
+          item.review = item.review || {};
+          if (final_score) {
+            item.review.final_score = final_score;
+            item.review.status = 'reviewed';
+          }
+          if (ht_score) {
+            item.review.ht_score = ht_score;
+            item.review.status = 'reviewed';
+          }
+          if (outcome && item.id === id) {
+            item.review.outcome = outcome;
+          }
+          if (score_verified !== undefined) {
+            item.score_verified = score_verified;
+          }
+        }
+
+        // 2. Parlay legs update inside parlay items
+        if (item.parlay_legs && Array.isArray(item.parlay_legs) && item.parlay_legs.length > 0) {
+          let parlayLegUpdated = false;
+          item.parlay_legs = item.parlay_legs.map((leg: any) => {
+            const legMatches = areSameMatch(dummyRef, {
+              match: leg.match,
+              ybty_home: leg.ybty_home,
+              ybty_away: leg.ybty_away,
+            });
+
+            if (legMatches || (leg_index !== undefined && leg.leg_index === leg_index && item.id === id)) {
+              parlayLegUpdated = true;
+              return {
+                ...leg,
+                final_score: final_score || leg.final_score,
+                ht_score: ht_score || leg.ht_score,
+                score_verified: score_verified !== undefined ? score_verified : true,
+              };
+            }
+            return leg;
+          });
+
+          if (parlayLegUpdated) {
+            updatedCount++;
+          }
+        }
+
+        return item;
+      });
+    }
 
     writeJsonFile('output/recommendation_ledger.json', ledger);
+    writeJsonFile('output/ybty_leisu_decisions.json', liveFile);
+    writeJsonFile('output/ybty_leisu_prematch_decisions.json', prematchFile);
+
     res.json({ success: true, updatedCount, ledger });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Dedicated Batch Score Supplement & Verification Endpoint
+app.post('/api/batch-supplement-scores', (req, res) => {
+  try {
+    const { items } = req.body; // Array of { match, ybty_home, ybty_away, final_score: {home, away}, score_verified: boolean }
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'No items provided for score supplement' });
+    }
+
+    let ledger = readJsonFile<any[]>('output/recommendation_ledger.json', []);
+    const liveFile = readJsonFile<any>('output/ybty_leisu_decisions.json', { decisions: [], summary: {} });
+    const prematchFile = readJsonFile<any>('output/ybty_leisu_prematch_decisions.json', { decisions: [], summary: {} });
+
+    let updatedLedgerCount = 0;
+    let updatedDecisionsCount = 0;
+
+    for (const sup of items) {
+      const hTeam = sup.ybty_home || (sup.match ? sup.match.split(' vs ')[0] : '');
+      const aTeam = sup.ybty_away || (sup.match ? sup.match.split(' vs ')[1] : '');
+      const dummyMatch = { match: sup.match || `${hTeam} vs ${aTeam}`, ybty_home: hTeam, ybty_away: aTeam };
+      const scoreObj = sup.final_score || sup.score || { home: Number(sup.home_score || 0), away: Number(sup.away_score || 0) };
+
+      // Update Ledger items & Parlay legs
+      ledger = ledger.map((item: any) => {
+        if (areSameMatch(dummyMatch, item)) {
+          updatedLedgerCount++;
+          item.review = item.review || {};
+          item.review.final_score = scoreObj;
+          item.review.status = 'reviewed';
+          item.score_verified = sup.score_verified ?? true;
+          item.score_source = sup.score_source || 'user_batch_verification';
+        }
+
+        if (item.parlay_legs && Array.isArray(item.parlay_legs)) {
+          let legHit = false;
+          item.parlay_legs = item.parlay_legs.map((leg: any) => {
+            if (areSameMatch(dummyMatch, { match: leg.match, ybty_home: leg.ybty_home, ybty_away: leg.ybty_away })) {
+              legHit = true;
+              return {
+                ...leg,
+                final_score: scoreObj,
+                score_verified: sup.score_verified ?? true,
+              };
+            }
+            return leg;
+          });
+          if (legHit) updatedLedgerCount++;
+        }
+
+        return item;
+      });
+
+      // Update Live Decisions
+      if (liveFile.decisions && Array.isArray(liveFile.decisions)) {
+        liveFile.decisions = liveFile.decisions.map((d: any) => {
+          if (areSameMatch(dummyMatch, d)) {
+            updatedDecisionsCount++;
+            return {
+              ...d,
+              score: scoreObj,
+              score_verified: sup.score_verified ?? true,
+              score_source: sup.score_source || 'user_batch_verification',
+              risks: (d.risks || []).filter((r: string) => !r.includes('比分未经校验')),
+            };
+          }
+          return d;
+        });
+      }
+
+      // Update Prematch Decisions
+      if (prematchFile.decisions && Array.isArray(prematchFile.decisions)) {
+        prematchFile.decisions = prematchFile.decisions.map((d: any) => {
+          if (areSameMatch(dummyMatch, d)) {
+            updatedDecisionsCount++;
+            return {
+              ...d,
+              score: scoreObj,
+              score_verified: sup.score_verified ?? true,
+              score_source: sup.score_source || 'user_batch_verification',
+              risks: (d.risks || []).filter((r: string) => !r.includes('比分未经校验')),
+            };
+          }
+          return d;
+        });
+      }
+    }
+
+    writeJsonFile('output/recommendation_ledger.json', ledger);
+    writeJsonFile('output/ybty_leisu_decisions.json', liveFile);
+    writeJsonFile('output/ybty_leisu_prematch_decisions.json', prematchFile);
+
+    res.json({
+      success: true,
+      updatedLedgerCount,
+      updatedDecisionsCount,
+      ledger,
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -265,6 +542,90 @@ app.get('/api/backtest', (req, res) => {
   });
 });
 
+// Team Aliases Synchronizer: Refresh decisions JSON files whenever aliases change
+function syncDecisionsWithAliases() {
+  try {
+    const manual = readJsonFile<Record<string, string[]>>('team_aliases.json', {});
+    const auto = readJsonFile<Record<string, string[]>>('team_aliases_auto.json', {});
+
+    const lookupMap = new Map<string, string>();
+    const processDict = (dict: Record<string, string[]>) => {
+      for (const [canonical, list] of Object.entries(dict)) {
+        const normCanonical = normalizeTeamName(canonical);
+        if (normCanonical) lookupMap.set(normCanonical, canonical);
+        if (Array.isArray(list)) {
+          for (const alias of list) {
+            const normAlias = normalizeTeamName(alias);
+            if (normAlias) {
+              lookupMap.set(normAlias, canonical);
+            }
+          }
+        }
+      }
+    };
+
+    processDict(manual);
+    processDict(auto);
+
+    const resolveLeisuName = (ybtyName: string, existingLeisuName?: string) => {
+      if (existingLeisuName && existingLeisuName !== '未匹配' && existingLeisuName !== ybtyName && existingLeisuName !== '未匹配雷速') {
+        return existingLeisuName;
+      }
+      if (!ybtyName) return existingLeisuName || '';
+      const norm = normalizeTeamName(ybtyName);
+      if (lookupMap.has(norm)) {
+        return lookupMap.get(norm)!;
+      }
+      return existingLeisuName || ybtyName;
+    };
+
+    // 1. Live decisions
+    const liveFile = readJsonFile<any>('output/ybty_leisu_decisions.json', { decisions: [], summary: {} });
+    let liveChanged = false;
+    if (Array.isArray(liveFile.decisions)) {
+      liveFile.decisions.forEach((d: any) => {
+        const home = d.ybty_home || (d.match ? d.match.split(' vs ')[0] : '');
+        const away = d.ybty_away || (d.match ? d.match.split(' vs ')[1] : '');
+        const newLeisuHome = resolveLeisuName(home, d.leisu_home);
+        const newLeisuAway = resolveLeisuName(away, d.leisu_away);
+        if (newLeisuHome !== d.leisu_home || newLeisuAway !== d.leisu_away) {
+          d.leisu_home = newLeisuHome;
+          d.leisu_away = newLeisuAway;
+          liveChanged = true;
+        }
+      });
+      if (liveChanged) {
+        writeJsonFile('output/ybty_leisu_decisions.json', liveFile);
+      }
+    }
+
+    // 2. Prematch decisions
+    const prematchFile = readJsonFile<any>('output/ybty_leisu_prematch_decisions.json', { decisions: [], summary: {} });
+    let prematchChanged = false;
+    if (Array.isArray(prematchFile.decisions)) {
+      prematchFile.decisions.forEach((d: any) => {
+        const home = d.ybty_home || (d.match ? d.match.split(' vs ')[0] : '');
+        const away = d.ybty_away || (d.match ? d.match.split(' vs ')[1] : '');
+        const newLeisuHome = resolveLeisuName(home, d.leisu_home);
+        const newLeisuAway = resolveLeisuName(away, d.leisu_away);
+        if (newLeisuHome !== d.leisu_home || newLeisuAway !== d.leisu_away) {
+          d.leisu_home = newLeisuHome;
+          d.leisu_away = newLeisuAway;
+          prematchChanged = true;
+        }
+      });
+      if (prematchChanged) {
+        writeJsonFile('output/ybty_leisu_prematch_decisions.json', prematchFile);
+      }
+    }
+  } catch (e) {
+    console.error('Error in syncDecisionsWithAliases:', e);
+  }
+}
+
+// Perform immediate initial sync on boot
+syncDecisionsWithAliases();
+
 // Team Aliases
 app.get('/api/aliases', (req, res) => {
   const manual = readJsonFile('team_aliases.json', {});
@@ -279,14 +640,22 @@ app.post('/api/aliases', (req, res) => {
   }
 
   const manual = readJsonFile<Record<string, string[]>>('team_aliases.json', {});
-  if (!manual[canonical_name]) {
-    manual[canonical_name] = [];
-  }
-
+  
+  // 双向建索引：确保以 canonical_name 或 alias 都能互查
+  if (!manual[canonical_name]) manual[canonical_name] = [];
   if (!manual[canonical_name].includes(alias)) {
     manual[canonical_name].push(alias);
-    writeJsonFile('team_aliases.json', manual);
   }
+
+  if (!manual[alias]) manual[alias] = [];
+  if (!manual[alias].includes(canonical_name)) {
+    manual[alias].push(canonical_name);
+  }
+
+  writeJsonFile('team_aliases.json', manual);
+
+  // 立即驱动全局决策重发刷盘
+  syncDecisionsWithAliases();
 
   res.json({ success: true, aliases: manual });
 });
@@ -449,6 +818,8 @@ app.post('/api/batch-supplement', (req, res) => {
     registerDict(manualAliases);
     registerDict(autoAliases);
 
+    let aliasUpdated = false;
+
     const matchTeamNames = (teamA: string, teamB: string): boolean => {
       if (!teamA || !teamB) return false;
       const normA = normalizeTeamName(teamA);
@@ -476,8 +847,36 @@ app.post('/api/batch-supplement', (req, res) => {
     for (const item of items) {
       const homeTeam = item.ybty_home || item.home || item.homeTeam?.name || item.home_team || item.host || '';
       const awayTeam = item.ybty_away || item.away || item.awayTeam?.name || item.away_team || item.guest || '';
+      
+      let leisuHome = item.leisu_home || item.leisu_home_team || item.matched_leisu_home || item.candidate?.match?.home || item.match_info?.leisu_home || item.leisu_raw?.home || '';
+      let leisuAway = item.leisu_away || item.leisu_away_team || item.matched_leisu_away || item.candidate?.match?.away || item.match_info?.leisu_away || item.leisu_raw?.away || '';
+      
       const rawMatch = item.match || `${homeTeam} vs ${awayTeam}`.trim();
       const matchName = rawMatch === 'vs' || !rawMatch ? '未知赛事' : rawMatch;
+
+      if ((!leisuHome || !leisuAway) && item.leisu_match && typeof item.leisu_match === 'string') {
+        const lParts = item.leisu_match.split(/\s+vs\s+/i);
+        if (lParts.length >= 2) {
+          if (!leisuHome) leisuHome = lParts[0].replace(/^\[.*?\]\s*/, '').trim();
+          if (!leisuAway) leisuAway = lParts[1].trim();
+        }
+      }
+
+      // 自动把导入数据中同时存在的（YBTY队名 -> 雷速队名）对应关系写回 team_aliases.json
+      if (homeTeam && leisuHome && homeTeam !== leisuHome) {
+        if (!manualAliases[homeTeam]) manualAliases[homeTeam] = [];
+        if (!manualAliases[homeTeam].includes(leisuHome)) {
+          manualAliases[homeTeam].push(leisuHome);
+          aliasUpdated = true;
+        }
+      }
+      if (awayTeam && leisuAway && awayTeam !== leisuAway) {
+        if (!manualAliases[awayTeam]) manualAliases[awayTeam] = [];
+        if (!manualAliases[awayTeam].includes(leisuAway)) {
+          manualAliases[awayTeam].push(leisuAway);
+          aliasUpdated = true;
+        }
+      }
 
       const calculatedBeijingTime = calculateExactBeijingTime({
         ...item,
@@ -520,6 +919,8 @@ app.post('/api/batch-supplement', (req, res) => {
 
             liveDecisions[idx] = {
               ...d,
+              leisu_home: leisuHome || d.leisu_home || '',
+              leisu_away: leisuAway || d.leisu_away || '',
               score: { home: hScore, away: aScore },
               score_verified: true,
               score_source: item.score_source || 'batch_file_supplement',
@@ -563,6 +964,8 @@ app.post('/api/batch-supplement', (req, res) => {
 
             prematchDecisions[idx] = {
               ...d,
+              leisu_home: leisuHome || d.leisu_home || '',
+              leisu_away: leisuAway || d.leisu_away || '',
               score: { home: hScore, away: aScore },
               score_verified: true,
               score_source: item.score_source || 'batch_file_supplement',
@@ -602,6 +1005,8 @@ app.post('/api/batch-supplement', (req, res) => {
           match: matchName,
           ybty_home: homeTeam || (matchName.includes(' vs ') ? matchName.split(' vs ')[0] : matchName),
           ybty_away: awayTeam || (matchName.includes(' vs ') ? matchName.split(' vs ')[1] : ''),
+          leisu_home: leisuHome || '',
+          leisu_away: leisuAway || '',
           status: 'WATCH',
           grade: 'B',
           minute: item.minute || 0,
@@ -627,6 +1032,10 @@ app.post('/api/batch-supplement', (req, res) => {
           prematchUpdatedCount++;
         }
       }
+    }
+
+    if (aliasUpdated) {
+      writeJsonFile('team_aliases.json', manualAliases);
     }
 
     // Save live decisions
@@ -661,6 +1070,9 @@ app.post('/api/batch-supplement', (req, res) => {
     prematchStatus.last_updated = new Date().toISOString();
     prematchStatus.total_matches = prematchDecisions.length;
     writeJsonFile('output/prematch_pipeline_status.json', prematchStatus);
+
+    // Run alias synchronizer to solidify all team matches
+    syncDecisionsWithAliases();
 
     res.json({
       success: true,

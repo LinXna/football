@@ -24,7 +24,8 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { evaluateQuarterSettlement, isQuarterLine, parseQuarterLine, SettlementDetail } from '../lib/quarterSettlement';
+import { evaluateQuarterSettlement, evaluateParlaySettlement, isQuarterLine, parseQuarterLine, SettlementDetail, ParlaySettlementDetail } from '../lib/quarterSettlement';
+import { UnverifiedScoresModal } from './UnverifiedScoresModal';
 
 interface Props {
   ledger: LedgerItem[];
@@ -42,7 +43,23 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editHome, setEditHome] = useState<number>(0);
   const [editAway, setEditAway] = useState<number>(0);
+  const [editHtHome, setEditHtHome] = useState<number | string>('');
+  const [editHtAway, setEditHtAway] = useState<number | string>('');
   const [editVerified, setEditVerified] = useState<boolean>(true);
+  const [editParlayLegs, setEditParlayLegs] = useState<Array<{
+    leg_index: number;
+    match: string;
+    ybty_home: string;
+    ybty_away: string;
+    market: string;
+    line: string | number;
+    odds: number;
+    homeScore: number;
+    awayScore: number;
+    htHomeScore?: number | string;
+    htAwayScore?: number | string;
+    score_verified: boolean;
+  }>>([]);
 
   // Batch Selection & Deletion state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -61,7 +78,39 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
     const rec = item.recommendation;
 
     let settlement: SettlementDetail | null = null;
-    if (rec && rec.market) {
+    let parlaySettlement: ParlaySettlementDetail | null = null;
+
+    const isParlay = item.is_parlay || (item.parlay_legs && item.parlay_legs.length > 0) || (item.match && item.match.includes('串关'));
+
+    if (isParlay) {
+      let legs = item.parlay_legs || [];
+      if (legs.length === 0 && item.evidence && Array.isArray(item.evidence)) {
+        // Fallback: parse leg descriptions if parlay_legs were not populated on legacy record
+        const parsedLegs: any[] = [];
+        item.evidence.forEach((ev, idx) => {
+          if (ev.includes(':')) {
+            const parts = ev.split(':');
+            const matchName = parts[0].trim();
+            const mktPart = parts.slice(1).join(':').trim();
+            parsedLegs.push({
+              leg_index: idx + 1,
+              match: matchName,
+              ybty_home: matchName.split(' vs ')[0] || '',
+              ybty_away: matchName.split(' vs ')[1] || '',
+              market: mktPart.split(' ')[0] || '全场大球',
+              line: mktPart.split(' ')[1] || '2/2.5',
+              odds: 1.85,
+              score_at_recommendation: item.score_at_recommendation || { home: 0, away: 0 },
+              final_score: item.review?.final_score || null,
+              score_verified: item.score_verified ?? true,
+            });
+          }
+        });
+        if (parsedLegs.length > 0) legs = parsedLegs;
+      }
+
+      parlaySettlement = evaluateParlaySettlement(legs, rec?.odds || 1.0);
+    } else if (rec && rec.market) {
       settlement = evaluateQuarterSettlement({
         market: rec.market,
         line: rec.line ?? 0,
@@ -69,14 +118,21 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
         scoreAtRec: item.score_at_recommendation || { home: 0, away: 0 },
         finalScore: item.review?.final_score || null,
         scoreVerified: item.score_verified ?? true,
-        isLive: Boolean(item.minute && item.minute > 0),
+        isLive: Boolean(
+          (item as any).is_live ||
+          (item as any).source_type === 'live' ||
+          (item.minute && item.minute > 0) ||
+          (item.score_at_recommendation && (item.score_at_recommendation.home > 0 || item.score_at_recommendation.away > 0))
+        ),
       });
     }
 
     return {
       ...item,
       isFormal,
+      isParlay,
       settlement,
+      parlaySettlement,
     };
   });
 
@@ -84,7 +140,12 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
   const formalItems = ledgerWithSettlement.filter((i) => i.isFormal);
   const machineCandidates = ledgerWithSettlement.filter((i) => !i.isFormal);
 
-  const reviewedFormal = formalItems.filter((i) => i.settlement && i.settlement.outcome !== 'pending');
+  const reviewedFormal = formalItems.filter((i) => {
+    if (i.isParlay && i.parlaySettlement) {
+      return i.parlaySettlement.outcome !== 'pending';
+    }
+    return i.settlement && i.settlement.outcome !== 'pending';
+  });
   
   let totalNetProfit = 0;
   let totalStakedUnits = 0;
@@ -96,7 +157,24 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
   let countInvalid = 0;
 
   reviewedFormal.forEach((item) => {
-    if (item.settlement) {
+    if (item.isParlay && item.parlaySettlement) {
+      const ps = item.parlaySettlement;
+      if (ps.outcome === 'invalid_data') {
+        countInvalid++;
+        return;
+      }
+
+      totalStakedUnits += 1.0;
+      totalNetProfit += ps.netProfitUnit;
+
+      switch (ps.outcome) {
+        case 'win': countWin++; break;
+        case 'half_win': countHalfWin++; break;
+        case 'push': countPush++; break;
+        case 'half_loss': countHalfLoss++; break;
+        case 'loss': countLoss++; break;
+      }
+    } else if (item.settlement) {
       if (item.settlement.outcome === 'invalid_data') {
         countInvalid++;
         return;
@@ -190,63 +268,80 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
 
   const [syncToast, setSyncToast] = useState<string | null>(null);
 
+  const handleParlayLegScoreChange = (index: number, field: 'home' | 'away', val: number) => {
+    setEditParlayLegs((prev) =>
+      prev.map((leg, idx) => (idx === index ? { ...leg, [field === 'home' ? 'homeScore' : 'awayScore']: val } : leg))
+    );
+  };
+
+  const handleParlayLegVerifiedToggle = (index: number) => {
+    setEditParlayLegs((prev) =>
+      prev.map((leg, idx) => (idx === index ? { ...leg, score_verified: !leg.score_verified } : leg))
+    );
+  };
+
   // Handle saving score edit with auto-sync across same match items
   const handleSaveEdit = async (item: any) => {
     try {
-      const final_score = { home: Number(editHome), away: Number(editAway) };
+      if (item.isParlay && editParlayLegs.length > 0) {
+        const formattedLegs = editParlayLegs.map((leg) => ({
+          leg_index: leg.leg_index,
+          match: leg.match,
+          ybty_home: leg.ybty_home,
+          ybty_away: leg.ybty_away,
+          market: leg.market,
+          line: leg.line,
+          odds: leg.odds,
+          final_score: { home: leg.homeScore, away: leg.awayScore },
+          score_verified: leg.score_verified,
+        }));
 
-      // API call to backend update-review with syncSameMatch: true
-      const res = await fetch('/api/ledger/update-review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: item.id,
-          match: item.match,
-          ybty_home: item.ybty_home,
-          ybty_away: item.ybty_away,
-          final_score,
-          score_verified: editVerified,
-          syncSameMatch: true,
-        }),
-      });
+        const res = await fetch('/api/ledger/update-review', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: item.id,
+            is_parlay: true,
+            parlay_legs: formattedLegs,
+            syncSameMatch: true,
+          }),
+        });
 
-      const data = await res.json();
+        const data = await res.json();
+        if (res.ok && data.success && Array.isArray(data.ledger)) {
+          setLedger(data.ledger);
+          setEditingId(null);
+          setEditParlayLegs([]);
+          setSyncToast(`✅ 成功保存串关 ${formattedLegs.length} 腿完场比分，并自动重算所有同场台账！`);
+          setTimeout(() => setSyncToast(null), 4000);
+        }
+      } else {
+        const final_score = { home: Number(editHome), away: Number(editAway) };
 
-      if (res.ok && data.success) {
-        // Update all items of the same match in local React state
-        setLedger((prev) =>
-          prev.map((i) => {
-            if (isSameMatch(item, i)) {
-              // Recalculate settlement for each同场 item based on its own market
-              const newSettlement = evaluateQuarterSettlement({
-                market: i.recommendation?.market || '全场大球',
-                line: i.recommendation?.line ?? 0,
-                odds: i.recommendation?.odds ?? 1.90,
-                scoreAtRec: i.score_at_recommendation || { home: 0, away: 0 },
-                finalScore: final_score,
-                scoreVerified: editVerified,
-                isLive: Boolean(i.minute && i.minute > 0),
-              });
+        // API call to backend update-review with syncSameMatch: true
+        const res = await fetch('/api/ledger/update-review', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: item.id,
+            match: item.match,
+            ybty_home: item.ybty_home,
+            ybty_away: item.ybty_away,
+            final_score,
+            score_verified: editVerified,
+            syncSameMatch: true,
+          }),
+        });
 
-              return {
-                ...i,
-                score_verified: editVerified,
-                review: {
-                  ...i.review,
-                  final_score,
-                  status: 'reviewed',
-                  outcome: newSettlement.outcome,
-                },
-              };
-            }
-            return i;
-          })
-        );
+        const data = await res.json();
 
-        setEditingId(null);
-        const count = data.updatedCount || 1;
-        setSyncToast(`✅ 成功录入完场比分 ${final_score.home}-${final_score.away}，并同步自动核算同场 ${count} 条推荐玩法！`);
-        setTimeout(() => setSyncToast(null), 4000);
+        if (res.ok && data.success && Array.isArray(data.ledger)) {
+          setLedger(data.ledger);
+          setEditingId(null);
+          const count = data.updatedCount || 1;
+          setSyncToast(`✅ 成功录入完场比分 ${final_score.home}-${final_score.away}，并同步自动核算同场 ${count} 条推荐玩法！`);
+          setTimeout(() => setSyncToast(null), 4000);
+        }
       }
     } catch (err) {
       console.error('Failed to update review:', err);
@@ -528,7 +623,11 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
                       </td>
                       {/* Type Badge */}
                       <td className="p-3 whitespace-nowrap">
-                        {item.isFormal ? (
+                        {item.isParlay ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            正式串关
+                          </span>
+                        ) : item.isFormal ? (
                           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                             正式推荐
                           </span>
@@ -563,7 +662,38 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
 
                       {/* Market & Line */}
                       <td className="p-3">
-                        {item.recommendation ? (
+                        {item.isParlay && item.parlaySettlement ? (
+                          <div className="space-y-1.5 min-w-[220px]">
+                            <div className="font-bold text-amber-300 flex items-center justify-between text-xs">
+                              <span>【串关彩票组合】</span>
+                              <span className="text-slate-400 text-[10px]">总赔率 @ {item.parlaySettlement.combinedOdds}</span>
+                            </div>
+                            <div className="space-y-1 bg-slate-950/80 p-2 rounded-lg border border-amber-500/20 text-[11px]">
+                              {item.parlaySettlement.evaluatedLegs.map((leg) => {
+                                const legTeams = getTeamDisplay(leg);
+                                return (
+                                  <div key={leg.leg_index} className="border-b border-slate-800/60 pb-1 last:border-0 last:pb-0 space-y-0.5">
+                                    <div className="flex items-center justify-between font-bold text-slate-200 text-[11px]">
+                                      <span>腿{leg.leg_index}: [{legTeams.homeYbty} vs {legTeams.awayYbty}]</span>
+                                      <span className={`px-1.5 py-0.2 rounded text-[9px] ${leg.settlement.badgeColor}`}>
+                                        {leg.settlement.outcomeLabel}
+                                      </span>
+                                    </div>
+                                    <div className="text-[10px] font-semibold text-purple-300">
+                                      [{legTeams.homeLeisu} vs {legTeams.awayLeisu}]
+                                    </div>
+                                    <div className="flex items-center justify-between text-[10px] text-slate-400 mt-0.5">
+                                      <span>{leg.market} {leg.line} @{leg.odds}</span>
+                                      <span className="font-mono text-slate-300">
+                                        比分: {leg.final_score ? `${leg.final_score.home}-${leg.final_score.away}` : '待核实'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : item.recommendation ? (
                           <div>
                             <div className="font-bold text-emerald-400 flex items-center gap-1">
                               <span>{item.recommendation.market}</span>
@@ -618,35 +748,92 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
                       {/* Final Score & Math Explanation */}
                       <td className="p-3">
                         {isEditing ? (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="number"
-                                value={isNaN(editHome) ? '' : editHome}
-                                onChange={(e) => setEditHome(e.target.value === '' ? 0 : Number(e.target.value))}
-                                className="w-10 bg-slate-950 border border-emerald-500 rounded px-1 text-center font-mono text-xs text-white"
-                              />
-                              <span>-</span>
-                              <input
-                                type="number"
-                                value={isNaN(editAway) ? '' : editAway}
-                                onChange={(e) => setEditAway(e.target.value === '' ? 0 : Number(e.target.value))}
-                                className="w-10 bg-slate-950 border border-emerald-500 rounded px-1 text-center font-mono text-xs text-white"
-                              />
+                          item.isParlay ? (
+                            <div className="space-y-2 min-w-[280px] bg-slate-950 p-2.5 rounded-xl border border-amber-500/40 text-xs shadow-lg">
+                              <div className="font-bold text-amber-300 flex items-center justify-between border-b border-slate-800 pb-1">
+                                <span>【串关组合各腿完场比分录入】</span>
+                                <span className="text-[10px] text-slate-400 font-mono">共 {editParlayLegs.length} 腿</span>
+                              </div>
+                              {editParlayLegs.map((leg, idx) => (
+                                <div key={idx} className="bg-slate-900/90 p-2 rounded-lg border border-slate-800 text-[11px] space-y-1">
+                                  <div className="flex items-center justify-between font-bold text-slate-200">
+                                    <span>腿{leg.leg_index}: {leg.ybty_home} vs {leg.ybty_away}</span>
+                                    <span className="text-amber-400 font-normal text-[10px] font-mono">{leg.market} {leg.line}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-2 pt-0.5">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-slate-400 text-[10px]">完场比分:</span>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={isNaN(leg.homeScore) ? '' : leg.homeScore}
+                                        onChange={(e) => handleParlayLegScoreChange(idx, 'home', e.target.value === '' ? 0 : Number(e.target.value))}
+                                        className="w-9 bg-slate-950 border border-emerald-500/80 rounded text-center text-xs font-mono font-bold text-emerald-300 py-0.5 focus:outline-none"
+                                      />
+                                      <span className="text-slate-500 font-mono font-bold">:</span>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={isNaN(leg.awayScore) ? '' : leg.awayScore}
+                                        onChange={(e) => handleParlayLegScoreChange(idx, 'away', e.target.value === '' ? 0 : Number(e.target.value))}
+                                        className="w-9 bg-slate-950 border border-emerald-500/80 rounded text-center text-xs font-mono font-bold text-emerald-300 py-0.5 focus:outline-none"
+                                      />
+                                    </div>
+                                    <label className="flex items-center gap-1 text-[10px] text-emerald-400 cursor-pointer select-none">
+                                      <input
+                                        type="checkbox"
+                                        checked={leg.score_verified}
+                                        onChange={() => handleParlayLegVerifiedToggle(idx)}
+                                        className="rounded border-slate-700 text-emerald-500 focus:ring-0 w-3 h-3"
+                                      />
+                                      <span>已校验</span>
+                                    </label>
+                                  </div>
+                                </div>
+                              ))}
+                              <div className="text-[9px] text-amber-400 font-medium pt-1">
+                                💡 保存将更新串关全部腿完场比分与总盈亏，并同步至同场推荐！
+                              </div>
                             </div>
-                            <div className="text-[9px] text-emerald-400 font-medium">
-                              💡 保存自动同步同场所有玩法
+                          ) : (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  value={isNaN(editHome) ? '' : editHome}
+                                  onChange={(e) => setEditHome(e.target.value === '' ? 0 : Number(e.target.value))}
+                                  className="w-10 bg-slate-950 border border-emerald-500 rounded px-1 text-center font-mono text-xs text-white"
+                                />
+                                <span>-</span>
+                                <input
+                                  type="number"
+                                  value={isNaN(editAway) ? '' : editAway}
+                                  onChange={(e) => setEditAway(e.target.value === '' ? 0 : Number(e.target.value))}
+                                  className="w-10 bg-slate-950 border border-emerald-500 rounded px-1 text-center font-mono text-xs text-white"
+                                />
+                              </div>
+                              <div className="text-[9px] text-emerald-400 font-medium">
+                                💡 保存自动同步同场所有玩法
+                              </div>
                             </div>
-                          </div>
+                          )
                         ) : (
                           <div>
-                            <div className="font-mono font-bold text-slate-100 text-xs">
-                              完场: {item.review?.final_score ? `${item.review.final_score.home}-${item.review.final_score.away}` : '未确定'}
-                            </div>
-                            {set && set.calculationExplanation && (
-                              <div className="text-[10px] text-slate-400 mt-0.5 max-w-xs leading-tight">
-                                {set.calculationExplanation}
+                            {item.isParlay && item.parlaySettlement ? (
+                              <div className="text-[10px] text-amber-300 mt-0.5 max-w-xs leading-tight font-medium">
+                                {item.parlaySettlement.calculationExplanation}
                               </div>
+                            ) : (
+                              <>
+                                <div className="font-mono font-bold text-slate-100 text-xs">
+                                  完场: {item.review?.final_score ? `${item.review.final_score.home}-${item.review.final_score.away}` : '未确定'}
+                                </div>
+                                {set && set.calculationExplanation && (
+                                  <div className="text-[10px] text-slate-400 mt-0.5 max-w-xs leading-tight">
+                                    {set.calculationExplanation}
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         )}
@@ -654,7 +841,28 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
 
                       {/* Settlement Result Badge & Units */}
                       <td className="p-3 whitespace-nowrap">
-                        {set ? (
+                        {item.isParlay && item.parlaySettlement ? (
+                          <div>
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border ${item.parlaySettlement.badgeColor}`}>
+                              {item.parlaySettlement.outcome === 'win' || item.parlaySettlement.outcome === 'half_win' ? (
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              ) : item.parlaySettlement.outcome === 'loss' || item.parlaySettlement.outcome === 'half_loss' ? (
+                                <XCircle className="w-3.5 h-3.5" />
+                              ) : (
+                                <MinusCircle className="w-3.5 h-3.5" />
+                              )}
+                              {item.parlaySettlement.outcomeLabel}
+                            </span>
+                            {item.parlaySettlement.outcome !== 'pending' && item.parlaySettlement.outcome !== 'invalid_data' && (
+                              <div className="text-[11px] font-mono font-bold mt-1">
+                                <span className={item.parlaySettlement.netProfitUnit >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                                  串关净盈亏: {item.parlaySettlement.netProfitText}
+                                </span>
+                                <div className="text-[9px] font-normal text-slate-500">{item.parlaySettlement.payoutReturnText}</div>
+                              </div>
+                            )}
+                          </div>
+                        ) : set ? (
                           <div>
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border ${set.badgeColor}`}>
                               {set.outcome === 'win' || set.outcome === 'half_win' ? (
@@ -686,12 +894,15 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
                           <div className="flex items-center justify-end gap-1">
                             <button
                               onClick={() => handleSaveEdit(item)}
-                              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold flex items-center gap-0.5"
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold flex items-center gap-0.5 shadow"
                             >
-                              <Check className="w-3 h-3" /> 保存
+                              <Check className="w-3.5 h-3.5" /> 保存{item.isParlay ? '串关全腿' : ''}
                             </button>
                             <button
-                              onClick={() => setEditingId(null)}
+                              onClick={() => {
+                                setEditingId(null);
+                                setEditParlayLegs([]);
+                              }}
                               className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px]"
                             >
                               取消
@@ -700,13 +911,58 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
                         ) : (
                           <button
                             onClick={() => {
-                              setEditingId(item.id);
-                              setEditHome(item.review?.final_score?.home ?? 0);
-                              setEditAway(item.review?.final_score?.away ?? 0);
-                              setEditVerified(item.score_verified ?? true);
+                              if (item.isParlay) {
+                                setEditingId(item.id);
+                                let legs = item.parlay_legs || [];
+                                if (legs.length === 0 && item.parlaySettlement?.evaluatedLegs) {
+                                  legs = item.parlaySettlement.evaluatedLegs;
+                                }
+                                if (legs.length === 0 && item.evidence && Array.isArray(item.evidence)) {
+                                  const parsedLegs: any[] = [];
+                                  item.evidence.forEach((ev: string, idx: number) => {
+                                    if (ev.includes(':')) {
+                                      const parts = ev.split(':');
+                                      const matchName = parts[0].trim();
+                                      const mktPart = parts.slice(1).join(':').trim();
+                                      parsedLegs.push({
+                                        leg_index: idx + 1,
+                                        match: matchName,
+                                        ybty_home: matchName.split(' vs ')[0] || '',
+                                        ybty_away: matchName.split(' vs ')[1] || '',
+                                        market: mktPart.split(' ')[0] || '全场大球',
+                                        line: mktPart.split(' ')[1] || '2/2.5',
+                                        odds: 1.85,
+                                        final_score: item.review?.final_score || null,
+                                        score_verified: item.score_verified ?? true,
+                                      });
+                                    }
+                                  });
+                                  if (parsedLegs.length > 0) legs = parsedLegs;
+                                }
+
+                                setEditParlayLegs(
+                                  legs.map((leg: any, idx: number) => ({
+                                    leg_index: leg.leg_index || idx + 1,
+                                    match: leg.match || `${leg.ybty_home} vs ${leg.ybty_away}`,
+                                    ybty_home: leg.ybty_home || (leg.match ? leg.match.split(' vs ')[0] : '主队'),
+                                    ybty_away: leg.ybty_away || (leg.match ? leg.match.split(' vs ')[1] : '客队'),
+                                    market: leg.market || '全场大球',
+                                    line: leg.line ?? '2.5',
+                                    odds: leg.odds || 1.85,
+                                    homeScore: leg.final_score?.home ?? 0,
+                                    awayScore: leg.final_score?.away ?? 0,
+                                    score_verified: leg.score_verified ?? true,
+                                  }))
+                                );
+                              } else {
+                                setEditingId(item.id);
+                                setEditHome(item.review?.final_score?.home ?? 0);
+                                setEditAway(item.review?.final_score?.away ?? 0);
+                                setEditVerified(item.score_verified ?? true);
+                              }
                             }}
                             className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded transition-colors"
-                            title="手运核验与调整完场比分"
+                            title={item.isParlay ? "逐腿修改与录入串关完场比分" : "手运核验与调整完场比分"}
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>

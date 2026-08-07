@@ -507,6 +507,19 @@ export const BettingRecommendationsView: React.FC<Props> = ({
         ],
         risks: ['串关多腿独立，任意单腿未命中即全单未命中，请严格管控注码占比 (建议单注 1-2%)'],
         start_time_beijing: ticket.legs[0].startTime,
+        is_parlay: true,
+        parlay_legs: ticket.legs.map((l, i) => ({
+          leg_index: i + 1,
+          match: l.match,
+          ybty_home: l.ybty_home,
+          ybty_away: l.ybty_away,
+          market: l.market,
+          line: l.line,
+          odds: l.odds,
+          score_at_recommendation: l.score || { home: 0, away: 0 },
+          final_score: null,
+          score_verified: false,
+        })),
       };
 
       await fetch('/api/ledger/add', {
@@ -556,6 +569,19 @@ export const BettingRecommendationsView: React.FC<Props> = ({
           ],
           risks: ['串关多腿独立，任意单腿未命中即全单未命中，请严格管控注码占比 (建议单注 1-2%)'],
           start_time_beijing: ticket.legs[0].startTime,
+          is_parlay: true,
+          parlay_legs: ticket.legs.map((l, i) => ({
+            leg_index: i + 1,
+            match: l.match,
+            ybty_home: l.ybty_home,
+            ybty_away: l.ybty_away,
+            market: l.market,
+            line: l.line,
+            odds: l.odds,
+            score_at_recommendation: l.score || { home: 0, away: 0 },
+            final_score: null,
+            score_verified: false,
+          })),
         };
 
         await fetch('/api/ledger/add', {

@@ -1,9 +1,10 @@
 export interface SettlementParams {
-  market: string; // e.g. "全场大球", "全场小球", "大球", "小球", "主队让球", "客队让球", "让球", "full_total", "full_spread", "full_h2h"
+  market: string; // e.g. "全场大球", "全场小球", "半场让球", "半场大小", "半场波胆"
   line: string | number; // e.g. 2.25, 2.75, "2/2.5", "2.5/3", -0.25, "-0.5/-1"
   odds?: number; // e.g. 1.92
   scoreAtRec?: { home: number; away: number } | null;
   finalScore?: { home: number; away: number } | null;
+  halfTimeScore?: { home: number; away: number } | null;
   scoreVerified?: boolean; // Rule #4 constraint
   isLive?: boolean;
 }
@@ -132,29 +133,80 @@ export function getQuarterSplits(line: number): { lineA: number; lineB: number }
 /**
  * Determine market direction and category
  */
-export function classifyMarket(marketStr: string): {
-  type: 'total_over' | 'total_under' | 'spread_home' | 'spread_away' | 'h2h_home' | 'h2h_away' | 'h2h_draw';
+export function classifyMarket(marketStr: string, lineInput?: string | number): {
+  type:
+    | 'total_over'
+    | 'total_under'
+    | 'spread_home'
+    | 'spread_away'
+    | 'h2h_home'
+    | 'h2h_away'
+    | 'h2h_draw'
+    | 'btts_yes'
+    | 'btts_no'
+    | 'correct_score'
+    | 'odd_even_odd'
+    | 'odd_even_even';
   displayName: string;
+  isHalfTime: boolean;
 } {
   const m = (marketStr || '').toLowerCase();
+  const l = (lineInput !== undefined && lineInput !== null ? String(lineInput) : '').toLowerCase();
 
+  const isHalfTime = m.includes('半场') || m.includes('上半场') || m.includes('1st half') || m.includes('ht') || m.includes('half');
+
+  // 1. BTTS 双方均有进球 / 双方进球
+  if (m.includes('btts') || m.includes('双方') || m.includes('两队进球') || m.includes('两队均进球')) {
+    if (l.includes('否') || l.includes('no') || l === '0' || m.includes('否')) {
+      return { type: 'btts_no', displayName: isHalfTime ? '半场双方均有进球: 否' : '双方均有进球: 否', isHalfTime };
+    }
+    return { type: 'btts_yes', displayName: isHalfTime ? '半场双方均有进球: 是' : '双方均有进球: 是', isHalfTime };
+  }
+
+  // 2. 波胆 / 正确比分 / 比分
+  if (m.includes('波胆') || m.includes('正确比分') || m.includes('correct_score')) {
+    return { type: 'correct_score', displayName: isHalfTime ? '半场正确比分' : '正确比分(波胆)', isHalfTime };
+  }
+
+  // 3. 单双
+  if (m.includes('单双') || m.includes('odd/even') || m.includes('odd_even')) {
+    if (l.includes('双') || l.includes('even')) {
+      return { type: 'odd_even_even', displayName: isHalfTime ? '半场进球单双: 双' : '总进球单双: 双', isHalfTime };
+    }
+    return { type: 'odd_even_odd', displayName: isHalfTime ? '半场进球单双: 单' : '总进球单双: 单', isHalfTime };
+  }
+
+  // 4. 独赢 / 1X2 / 胜平负
+  if (m.includes('独赢') || m.includes('胜平负') || m.includes('1x2') || m.includes('h2h')) {
+    if (m.includes('平') || l.includes('平') || l.includes('x') || l.includes('draw')) {
+      return { type: 'h2h_draw', displayName: isHalfTime ? '半场平局' : '平局', isHalfTime };
+    }
+    if (m.includes('客') || l.includes('客') || l === '2' || l.includes('away')) {
+      return { type: 'h2h_away', displayName: isHalfTime ? '半场客胜' : '客胜', isHalfTime };
+    }
+    return { type: 'h2h_home', displayName: isHalfTime ? '半场主胜' : '主胜', isHalfTime };
+  }
+
+  // 5. 大小球 / 盘口
   if (m.includes('小') || m.includes('under')) {
-    return { type: 'total_under', displayName: '全场小球' };
+    return { type: 'total_under', displayName: isHalfTime ? '半场小球' : '全场小球', isHalfTime };
   }
   if (m.includes('大') || m.includes('over') || m.includes('total')) {
-    return { type: 'total_over', displayName: '全场大球' };
-  }
-  if (m.includes('客') || m.includes('away')) {
-    return { type: 'spread_away', displayName: '客队让球' };
-  }
-  if (m.includes('主') || m.includes('home') || m.includes('spread') || m.includes('让球')) {
-    return { type: 'spread_home', displayName: '主队让球' };
-  }
-  if (m.includes('平') || m.includes('draw')) {
-    return { type: 'h2h_draw', displayName: '平局' };
+    return { type: 'total_over', displayName: isHalfTime ? '半场大球' : '全场大球', isHalfTime };
   }
 
-  return { type: 'total_over', displayName: '全场大球' };
+  // 6. 让球
+  if (m.includes('客') || m.includes('away')) {
+    return { type: 'spread_away', displayName: isHalfTime ? '半场客队让球' : '客队让球', isHalfTime };
+  }
+  if (m.includes('主') || m.includes('home') || m.includes('spread') || m.includes('让球')) {
+    return { type: 'spread_home', displayName: isHalfTime ? '半场主队让球' : '主队让球', isHalfTime };
+  }
+  if (m.includes('平') || m.includes('draw')) {
+    return { type: 'h2h_draw', displayName: isHalfTime ? '半场平局' : '平局', isHalfTime };
+  }
+
+  return { type: 'total_over', displayName: isHalfTime ? '半场大球' : '全场大球', isHalfTime };
 }
 
 /**
@@ -167,14 +219,30 @@ export function evaluateQuarterSettlement(params: SettlementParams): SettlementD
     odds: rawOdds = 1.90,
     scoreAtRec = { home: 0, away: 0 },
     finalScore,
+    halfTimeScore,
     scoreVerified = true,
-    isLive = false,
+    isLive: explicitIsLive = false,
   } = params;
 
   const odds = Number(rawOdds) > 1 ? Number(rawOdds) : 1.90;
   const line = parseQuarterLine(rawLine);
-  const quarter = isQuarterLine(line);
-  const marketCategory = classifyMarket(market);
+  const marketCategory = classifyMarket(market, rawLine);
+
+  const isSpecialNonAsianLineMarket =
+    marketCategory.type === 'btts_yes' ||
+    marketCategory.type === 'btts_no' ||
+    marketCategory.type === 'correct_score' ||
+    marketCategory.type === 'odd_even_odd' ||
+    marketCategory.type === 'odd_even_even' ||
+    marketCategory.type.startsWith('h2h_');
+
+  const quarter = isSpecialNonAsianLineMarket ? false : isQuarterLine(line);
+
+  const recH = scoreAtRec?.home ?? 0;
+  const recA = scoreAtRec?.away ?? 0;
+
+  // 自动判定是否为滚球后续时段结算：显式指定 isLive 或 推荐时已有进球 (recH > 0 或 recA > 0)
+  const isLive = explicitIsLive || Boolean(scoreAtRec && (recH > 0 || recA > 0));
 
   // If final score is missing or review is pending
   if (!finalScore || finalScore.home === undefined || finalScore.away === undefined) {
@@ -196,6 +264,29 @@ export function evaluateQuarterSettlement(params: SettlementParams): SettlementD
       netProfitUnit: 0,
       netProfitText: '0.00u',
       payoutReturnText: '待结算',
+    };
+  }
+
+  // 针对半场盘口：若未录入半场比分，不可直接按全场比分误算！
+  if (marketCategory.isHalfTime && (!halfTimeScore || halfTimeScore.home === undefined || halfTimeScore.away === undefined)) {
+    return {
+      outcome: 'pending',
+      outcomeLabel: '待填半场比分 (Missing HT Score)',
+      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+      badgeBg: 'bg-amber-500/20',
+      badgeText: 'text-amber-300',
+      numericLine: line,
+      isQuarterLine: quarter,
+      quarterSplitText: quarter ? `拆分盘口 (${line - 0.25} / ${line + 0.25})` : `单线盘口 (${line})`,
+      isLive,
+      scoreAtRecStr: `${scoreAtRec?.home ?? 0}-${scoreAtRec?.away ?? 0}`,
+      finalScoreStr: `${finalScore.home}-${finalScore.away} (缺少半场比分)`,
+      effectiveValue: 0,
+      calculationExplanation: '警告: 该推荐为半场盘口，必须录入半场比分后方可自动结算！',
+      odds,
+      netProfitUnit: 0,
+      netProfitText: '0.00u',
+      payoutReturnText: '待录入半场比分',
     };
   }
 
@@ -226,13 +317,21 @@ export function evaluateQuarterSettlement(params: SettlementParams): SettlementD
   let effectiveValue = 0;
   let calculationExplanation = '';
 
-  const recH = scoreAtRec?.home ?? 0;
-  const recA = scoreAtRec?.away ?? 0;
-  const finH = finalScore.home;
-  const finA = finalScore.away;
+  const finH = marketCategory.isHalfTime && halfTimeScore ? halfTimeScore.home : finalScore.home;
+  const finA = marketCategory.isHalfTime && halfTimeScore ? halfTimeScore.away : finalScore.away;
+  const scorePrefix = marketCategory.isHalfTime ? `半场比分 (${finH}-${finA})` : `完场比分 ${finH}-${finA}`;
 
-  if (marketCategory.type === 'total_over' || marketCategory.type === 'total_under') {
-    if (isLive) {
+  if (marketCategory.type === 'btts_yes' || marketCategory.type === 'btts_no') {
+    effectiveValue = finH > 0 && finA > 0 ? 1 : 0;
+    calculationExplanation = `${scorePrefix}，双方均有进球: ${effectiveValue === 1 ? '是 (1)' : '否 (0)'}`;
+  } else if (marketCategory.type === 'correct_score') {
+    effectiveValue = 0;
+    calculationExplanation = `${scorePrefix}，预测波胆目标: ${rawLine}`;
+  } else if (marketCategory.type === 'odd_even_odd' || marketCategory.type === 'odd_even_even') {
+    effectiveValue = (finH + finA) % 2;
+    calculationExplanation = `${scorePrefix}，进球总数 ${finH + finA} (${effectiveValue !== 0 ? '单' : '双'})`;
+  } else if (marketCategory.type === 'total_over' || marketCategory.type === 'total_under') {
+    if (isLive && !marketCategory.isHalfTime) {
       // Rule #5: In-play total goals = Final Total Goals - Rec Total Goals
       const totalFin = finH + finA;
       const totalRec = recH + recA;
@@ -240,10 +339,10 @@ export function evaluateQuarterSettlement(params: SettlementParams): SettlementD
       calculationExplanation = `滚球剩余进球: 完场总进球 (${totalFin}) - 推荐时已有 (${totalRec}) = ${effectiveValue} 进球`;
     } else {
       effectiveValue = finH + finA;
-      calculationExplanation = `全场总进球: 主 (${finH}) + 客 (${finA}) = ${effectiveValue} 进球`;
+      calculationExplanation = `${scorePrefix}，进球数: 主 (${finH}) + 客 (${finA}) = ${effectiveValue} 进球`;
     }
   } else if (marketCategory.type.startsWith('spread')) {
-    if (isLive) {
+    if (isLive && !marketCategory.isHalfTime) {
       // Rule #6: In-play spread = Net goal diff in remaining time
       const diffH = finH - recH;
       const diffA = finA - recA;
@@ -257,20 +356,39 @@ export function evaluateQuarterSettlement(params: SettlementParams): SettlementD
     } else {
       if (marketCategory.type === 'spread_home') {
         effectiveValue = finH - finA;
-        calculationExplanation = `全场让球 (主): 主队 (${finH}) - 客队 (${finA}) = 净胜 ${effectiveValue} 球`;
+        calculationExplanation = `${scorePrefix} 让球 (主): 主队 (${finH}) - 客队 (${finA}) = 净胜 ${effectiveValue} 球`;
       } else {
         effectiveValue = finA - finH;
-        calculationExplanation = `全场让球 (客): 客队 (${finA}) - 主队 (${finH}) = 净胜 ${effectiveValue} 球`;
+        calculationExplanation = `${scorePrefix} 让球 (客): 客队 (${finA}) - 主队 (${finH}) = 净胜 ${effectiveValue} 球`;
       }
     }
   } else {
     // H2H / 独赢
     effectiveValue = finH - finA;
-    calculationExplanation = `全场比分: 主 (${finH}) - 客 (${finA})`;
+    calculationExplanation = `${scorePrefix}: 主 (${finH}) - 客 (${finA})`;
   }
 
   // Single line evaluator helper
   const evalSingleLine = (singleLine: number): 'win' | 'loss' | 'push' => {
+    if (marketCategory.type === 'btts_yes') {
+      return finH > 0 && finA > 0 ? 'win' : 'loss';
+    }
+    if (marketCategory.type === 'btts_no') {
+      return finH === 0 || finA === 0 ? 'win' : 'loss';
+    }
+    if (marketCategory.type === 'correct_score') {
+      const lineStr = String(rawLine).trim().replace(/\s+/g, '');
+      const matchScoreStr = `${finH}-${finA}`;
+      const matchScoreColon = `${finH}:${finA}`;
+      if (lineStr === matchScoreStr || lineStr === matchScoreColon) return 'win';
+      return 'loss';
+    }
+    if (marketCategory.type === 'odd_even_odd') {
+      return (finH + finA) % 2 !== 0 ? 'win' : 'loss';
+    }
+    if (marketCategory.type === 'odd_even_even') {
+      return (finH + finA) % 2 === 0 ? 'win' : 'loss';
+    }
     if (marketCategory.type === 'total_over') {
       if (effectiveValue > singleLine) return 'win';
       if (effectiveValue === singleLine) return 'push';
@@ -416,5 +534,269 @@ export function evaluateQuarterSettlement(params: SettlementParams): SettlementD
     payoutReturnText,
     splitA,
     splitB,
+  };
+}
+
+export interface EvaluatedParlayLeg {
+  leg_index: number;
+  match: string;
+  ybty_home: string;
+  ybty_away: string;
+  market: string;
+  line: string | number;
+  odds: number;
+  score_at_recommendation?: { home: number; away: number };
+  final_score?: { home: number; away: number } | null;
+  score_verified?: boolean;
+  settlement: SettlementDetail;
+}
+
+export interface ParlaySettlementDetail {
+  outcome: 'win' | 'half_win' | 'push' | 'half_loss' | 'loss' | 'invalid_data' | 'pending';
+  outcomeLabel: string;
+  badgeColor: string;
+  badgeBg: string;
+  badgeText: string;
+  combinedOdds: number;
+  effectiveMultiplier: number;
+  netProfitUnit: number;
+  netProfitText: string;
+  payoutReturnText: string;
+  calculationExplanation: string;
+  evaluatedLegs: EvaluatedParlayLeg[];
+  hasFailedLeg: boolean;
+  pendingLegsCount: number;
+  completedLegsCount: number;
+}
+
+/**
+ * Multi-leg Parlay (串关/串子) Settlement Evaluator
+ * According to protocol rules:
+ * - A parlay fails as soon as ANY leg fails (outcome === 'loss').
+ * - Unfinished legs remain pending unless a leg has already failed.
+ * - If all legs complete without a loss, return multiplier is product of each leg's multiplier.
+ */
+export function evaluateParlaySettlement(
+  parlayLegs: Array<{
+    leg_index?: number;
+    match: string;
+    ybty_home?: string;
+    ybty_away?: string;
+    market: string;
+    line: string | number;
+    odds: number;
+    score_at_recommendation?: { home: number; away: number };
+    final_score?: { home: number; away: number } | null;
+    score_verified?: boolean;
+  }>,
+  totalTicketOdds: number = 1.0
+): ParlaySettlementDetail {
+  if (!parlayLegs || parlayLegs.length === 0) {
+    return {
+      outcome: 'pending',
+      outcomeLabel: '待核实 (Pending)',
+      badgeColor: 'bg-slate-800 text-slate-400 border-slate-700',
+      badgeBg: 'bg-slate-800',
+      badgeText: 'text-slate-400',
+      combinedOdds: totalTicketOdds,
+      effectiveMultiplier: 0,
+      netProfitUnit: 0,
+      netProfitText: '0.00u',
+      payoutReturnText: '待结算',
+      calculationExplanation: '缺乏有效串关腿数据',
+      evaluatedLegs: [],
+      hasFailedLeg: false,
+      pendingLegsCount: 0,
+      completedLegsCount: 0,
+    };
+  }
+
+  const evaluatedLegs: EvaluatedParlayLeg[] = parlayLegs.map((leg, idx) => {
+    const legScoreRec = leg.score_at_recommendation || { home: 0, away: 0 };
+    const isLegLive = Boolean(
+      (leg as any).is_live ||
+      (leg as any).minute > 0 ||
+      legScoreRec.home > 0 ||
+      legScoreRec.away > 0
+    );
+
+    const legSettlement = evaluateQuarterSettlement({
+      market: leg.market,
+      line: leg.line,
+      odds: leg.odds,
+      scoreAtRec: legScoreRec,
+      finalScore: leg.final_score || null,
+      halfTimeScore: (leg as any).half_time_score || (leg as any).ht_score || (leg as any).half_score || null,
+      scoreVerified: leg.score_verified ?? true,
+      isLive: isLegLive,
+    });
+
+    return {
+      leg_index: leg.leg_index ?? idx + 1,
+      match: leg.match,
+      ybty_home: leg.ybty_home || leg.match.split(' vs ')[0] || '',
+      ybty_away: leg.ybty_away || leg.match.split(' vs ')[1] || '',
+      market: leg.market,
+      line: leg.line,
+      odds: Number(leg.odds || 1.85),
+      score_at_recommendation: leg.score_at_recommendation,
+      final_score: leg.final_score,
+      score_verified: leg.score_verified,
+      settlement: legSettlement,
+    };
+  });
+
+  let hasFailedLeg = false;
+  let pendingLegsCount = 0;
+  let invalidLegsCount = 0;
+  let completedLegsCount = 0;
+
+  let effectiveMultiplier = 1.0;
+  let calculatedCombinedOdds = 1.0;
+
+  for (const leg of evaluatedLegs) {
+    const o = leg.settlement.outcome;
+    calculatedCombinedOdds *= leg.odds;
+
+    if (o === 'loss') {
+      hasFailedLeg = true;
+      effectiveMultiplier = 0;
+    } else if (o === 'pending') {
+      pendingLegsCount++;
+    } else if (o === 'invalid_data') {
+      invalidLegsCount++;
+      effectiveMultiplier *= 1.0; // Invalid leg pushed in ticket
+    } else if (o === 'win') {
+      completedLegsCount++;
+      effectiveMultiplier *= leg.odds;
+    } else if (o === 'half_win') {
+      completedLegsCount++;
+      const halfWinOdds = 1 + (leg.odds - 1) / 2;
+      effectiveMultiplier *= halfWinOdds;
+    } else if (o === 'push') {
+      completedLegsCount++;
+      effectiveMultiplier *= 1.0;
+    } else if (o === 'half_loss') {
+      completedLegsCount++;
+      effectiveMultiplier *= 0.5;
+    }
+  }
+
+  const combinedOdds = totalTicketOdds > 1 ? totalTicketOdds : Math.round(calculatedCombinedOdds * 100) / 100;
+
+  let outcome: 'win' | 'half_win' | 'push' | 'half_loss' | 'loss' | 'invalid_data' | 'pending' = 'pending';
+  let calculationExplanation = '';
+
+  if (hasFailedLeg) {
+    outcome = 'loss';
+    effectiveMultiplier = 0;
+    calculationExplanation = `串关中有 ${evaluatedLegs.filter((l) => l.settlement.outcome === 'loss').length} 腿确定全输，整张串关票即判全输 (-1.00u)`;
+  } else if (pendingLegsCount > 0) {
+    outcome = 'pending';
+    calculationExplanation = `串关尚有 ${pendingLegsCount} 腿比分待核实 (已有 ${completedLegsCount} 腿通过)`;
+  } else if (invalidLegsCount === evaluatedLegs.length) {
+    outcome = 'invalid_data';
+    effectiveMultiplier = 0;
+    calculationExplanation = '全腿比分未经校验，标记为无效数据';
+  } else {
+    // All legs complete and no loss
+    if (effectiveMultiplier > 1.0) {
+      outcome = evaluatedLegs.some((l) => l.settlement.outcome === 'half_win') ? 'half_win' : 'win';
+    } else if (effectiveMultiplier === 1.0) {
+      outcome = 'push';
+    } else if (effectiveMultiplier > 0) {
+      outcome = 'half_loss';
+    } else {
+      outcome = 'loss';
+    }
+
+    calculationExplanation = `全部 ${evaluatedLegs.length} 腿结算完成，有效返奖乘数: ${effectiveMultiplier.toFixed(2)}x`;
+  }
+
+  let netProfitUnit = 0;
+  if (outcome === 'loss') {
+    netProfitUnit = -1.0;
+  } else if (outcome === 'pending' || outcome === 'invalid_data') {
+    netProfitUnit = 0;
+  } else {
+    netProfitUnit = Math.round((effectiveMultiplier - 1.0) * 100) / 100;
+  }
+
+  const netProfitText = netProfitUnit >= 0 ? `+${netProfitUnit.toFixed(2)}u` : `${netProfitUnit.toFixed(2)}u`;
+  const payoutReturnText =
+    outcome === 'loss'
+      ? '无返还 (0.00u)'
+      : outcome === 'pending'
+      ? '待结算'
+      : outcome === 'invalid_data'
+      ? '不计盈亏'
+      : `返还 ${(1 + netProfitUnit).toFixed(2)}u (倍率 ${effectiveMultiplier.toFixed(2)}x)`;
+
+  let outcomeLabel = '全胜';
+  let badgeColor = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+  let badgeBg = 'bg-emerald-500/20';
+  let badgeText = 'text-emerald-300';
+
+  switch (outcome) {
+    case 'win':
+      outcomeLabel = '串关全赢 (Win)';
+      badgeColor = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+      badgeBg = 'bg-emerald-500/20';
+      badgeText = 'text-emerald-300';
+      break;
+    case 'half_win':
+      outcomeLabel = '串关赢半 (Half Win)';
+      badgeColor = 'bg-teal-500/20 text-teal-300 border-teal-500/40';
+      badgeBg = 'bg-teal-500/20';
+      badgeText = 'text-teal-300';
+      break;
+    case 'push':
+      outcomeLabel = '串关走盘 (Push)';
+      badgeColor = 'bg-sky-500/20 text-sky-300 border-sky-500/40';
+      badgeBg = 'bg-sky-500/20';
+      badgeText = 'text-sky-300';
+      break;
+    case 'half_loss':
+      outcomeLabel = '串关输半 (Half Loss)';
+      badgeColor = 'bg-orange-500/20 text-orange-300 border-orange-500/40';
+      badgeBg = 'bg-orange-500/20';
+      badgeText = 'text-orange-300';
+      break;
+    case 'loss':
+      outcomeLabel = '串关全输 (Loss)';
+      badgeColor = 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+      badgeBg = 'bg-rose-500/20';
+      badgeText = 'text-rose-300';
+      break;
+    case 'invalid_data':
+      outcomeLabel = '无效数据 (Invalid)';
+      badgeColor = 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+      badgeBg = 'bg-amber-500/20';
+      badgeText = 'text-amber-300';
+      break;
+    case 'pending':
+      outcomeLabel = '串关待核实 (Pending)';
+      badgeColor = 'bg-slate-800 text-slate-400 border-slate-700';
+      badgeBg = 'bg-slate-800';
+      badgeText = 'text-slate-400';
+      break;
+  }
+
+  return {
+    outcome,
+    outcomeLabel,
+    badgeColor,
+    badgeBg,
+    badgeText,
+    combinedOdds,
+    effectiveMultiplier,
+    netProfitUnit,
+    netProfitText,
+    payoutReturnText,
+    calculationExplanation,
+    evaluatedLegs,
+    hasFailedLeg,
+    pendingLegsCount,
+    completedLegsCount,
   };
 }

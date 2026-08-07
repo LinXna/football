@@ -22,8 +22,13 @@ export function normalizeTeamName(name: string): string {
   str = str.replace(/\(女\)|女足|（女）|Women/gi, '女足');
   str = str.replace(/\(中\)|（中）|\[中\]/g, '');
   str = str.replace(/\(主\)|（主）|\[主\]/g, '');
-  str = str.replace(/U20/gi, 'u20').replace(/U21/gi, 'u21').replace(/U23/gi, 'u23').replace(/U19/gi, 'u19');
-  
+  str = str.replace(/20岁以下|u-20|u_20|u 20|\(u20\)|u20岁以下|u20/gi, 'u20');
+  str = str.replace(/21岁以下|u-21|u_21|u 21|\(u21\)|u21岁以下|u21/gi, 'u21');
+  str = str.replace(/23岁以下|u-23|u_23|u 23|\(u23\)|u23岁以下|u23/gi, 'u23');
+  str = str.replace(/19岁以下|u-19|u_19|u 19|\(u19\)|u19岁以下|u19/gi, 'u19');
+  str = str.replace(/17岁以下|u-17|u_17|u 17|\(u17\)|u17岁以下|u17/gi, 'u17');
+  str = str.replace(/football club|fc|俱乐部|体育|竞技/gi, '');
+
   // Remove special symbols and extra spaces
   str = str.replace(/[·\.\-\_\s\(\)（）]/g, '');
 

@@ -23,8 +23,10 @@ import {
   RefreshCw, 
   ShieldCheck,
   Trophy,
-  CheckSquare
+  CheckSquare,
+  AlertCircle
 } from 'lucide-react';
+import { UnverifiedScoresModal } from './components/UnverifiedScoresModal';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'recommendations' | 'live' | 'prematch' | 'ai' | 'ledger' | 'aliases' | 'export'>('recommendations');
@@ -50,6 +52,9 @@ export default function App() {
 
   // Selected Match for AI Evaluator
   const [selectedMatchForAi, setSelectedMatchForAi] = useState<DecisionItem | null>(null);
+
+  // Unverified Scores Modal State
+  const [showUnverifiedModal, setShowUnverifiedModal] = useState<boolean>(false);
 
   const [loading, setLoading] = useState(true);
 
@@ -132,6 +137,40 @@ export default function App() {
 
   const allMatchesForParlay = [...liveDecisions, ...prematchDecisions];
 
+  // Calculate total unverified matches count
+  const unverifiedMatchesCount = React.useMemo(() => {
+    const keys = new Set<string>();
+    const clean = (s: string) => (s || '').trim().toLowerCase().replace(/[\s\-_]/g, '');
+
+    ledger.forEach((item) => {
+      if (item.parlay_legs && item.parlay_legs.length > 0) {
+        item.parlay_legs.forEach((leg) => {
+          if (!leg.score_verified || leg.final_score === undefined || leg.final_score === null) {
+            keys.add(clean(leg.match || `${leg.ybty_home}_vs_${leg.ybty_away}`));
+          }
+        });
+      } else {
+        if (!item.score_verified || !item.review?.final_score) {
+          keys.add(clean(item.match || `${item.ybty_home}_vs_${item.ybty_away}`));
+        }
+      }
+    });
+
+    liveDecisions.forEach((m) => {
+      if (m.score_verified === false || !m.score) {
+        keys.add(clean(m.match || `${m.ybty_home}_vs_${m.ybty_away}`));
+      }
+    });
+
+    prematchDecisions.forEach((m) => {
+      if (m.score_verified === false || !m.score) {
+        keys.add(clean(m.match || `${m.ybty_home}_vs_${m.ybty_away}`));
+      }
+    });
+
+    return keys.size;
+  }, [ledger, liveDecisions, prematchDecisions]);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       {/* Top Header Navigation */}
@@ -155,6 +194,16 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Unified Unverified Scores Center Header Entry Point */}
+            <button
+              onClick={() => setShowUnverifiedModal(true)}
+              className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-lg transition-colors border border-amber-500/30 flex items-center gap-1.5 text-xs font-semibold shadow-sm"
+              title="一键查看并批量补齐所有未核实比分的比赛"
+            >
+              <AlertCircle className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              <span>未核实比分中心 ({unverifiedMatchesCount})</span>
+            </button>
+
             <span className="hidden md:flex items-center gap-1.5 text-xs text-slate-400 bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-800">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
               严禁重复核心腿暴露 · 必须保存比分验证
@@ -310,6 +359,16 @@ export default function App() {
           <ExportDataView onRefreshAll={reloadAll} />
         )}
       </main>
+
+      {/* Unverified Scores Center Modal */}
+      <UnverifiedScoresModal
+        isOpen={showUnverifiedModal}
+        onClose={() => setShowUnverifiedModal(false)}
+        ledger={ledger}
+        liveMatches={liveDecisions}
+        prematchMatches={prematchDecisions}
+        onRefreshAll={reloadAll}
+      />
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 bg-slate-950 py-4 text-center text-[11px] text-slate-500">
