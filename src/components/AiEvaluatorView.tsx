@@ -47,7 +47,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
   const [parlayRequests, setParlayRequests] = useState<Record<number, number>>({ 3: 1 });
   const [evaluationScope, setEvaluationScope] = useState<'single' | 'batch'>('batch');
   const [batchSelected, setBatchSelected] = useState<DecisionItem[]>([]);
-  const [batchChunkSize, setBatchChunkSize] = useState<number>(2);
+  const [batchChunkSize, setBatchChunkSize] = useState<number>(0);
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AIAnalysisResponse | null>(null);
@@ -392,12 +392,16 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
           return Array.isArray(chunkResult.matches) ? chunkResult.matches : [chunkResult];
         } catch (error: any) {
           const message = String(error?.message || '');
-          const canRetryWithSmallerBatch = message.includes('无效JSON')
-            || /HTTP\s*(429|500|502|503|504)/i.test(message)
+          // 配额耗尽/429 时拆分无济于事（所有 Key 都被限速），直接抛错，不再递归拆分
+          const isQuotaExhausted = /429|RESOURCE_EXHAUSTED|quota|额度/i.test(message)
             || message.includes('所有已配置的 AI 服务均不可用');
+          // 只有 JSON 解析失败或临时 5xx 才值得拆分重试
+          const canRetryWithSmallerBatch = !isQuotaExhausted && (
+            message.includes('无效JSON') || /HTTP\s*(500|502|503|504)/i.test(message)
+          );
           if (!canRetryWithSmallerBatch || refs.length <= 1) throw error;
           const midpoint = Math.ceil(refs.length / 2);
-          setBatchProgress(`当前批次请求过大或AI服务繁忙，正在自动拆分 ${refs.length} 场后重试`);
+          setBatchProgress(`当前批次解析失败，正在自动拆分 ${refs.length} 场后重试（非配额问题）`);
           const left = await evaluateChunkWithFallback(refs.slice(0, midpoint));
           const right = await evaluateChunkWithFallback(refs.slice(midpoint));
           return [...left, ...right];
@@ -406,27 +410,38 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
 
       if (mode !== 'parlay_check' && evaluationScope === 'batch') {
         const refs = batchSelected.map((item) => ({ match: item.match, ybty_home: item.ybty_home, ybty_away: item.ybty_away }));
-        const chunkSize = Math.max(1, Math.min(5, Number(batchChunkSize) || 1));
-        const chunks = Array.from({ length: Math.ceil(refs.length / chunkSize) }, (_, index) => refs.slice(index * chunkSize, (index + 1) * chunkSize));
-        const mergedMatches: AIAnalysisResponse[] = [];
-        const summaries: string[] = [];
-        for (let index = 0; index < chunks.length; index += 1) {
-          setBatchProgress(`正在处理第 ${index + 1}/${chunks.length} 批（每批最多 ${chunkSize} 场）`);
-          const chunkMatches = await evaluateChunkWithFallback(chunks[index]);
-          mergedMatches.push(...chunkMatches);
-          summaries.push(`第${index + 1}批完成 ${chunkMatches.length} 场`);
+        if (Number(batchChunkSize) === 0) {
+          setBatchProgress(`已全量提交 ${refs.length} 场比赛，由服务端智能并发分批深挖中...`);
+          const fullMatches = await evaluateChunkWithFallback(refs);
+          setResult({
+            summary: `已完成全量 ${fullMatches.length} 场比赛的智能并发评估。`,
+            grade: fullMatches.some((item) => item.grade === 'A') ? 'A' : fullMatches.some((item) => item.grade === 'B') ? 'B' : 'C',
+            recommendation: null,
+            score_verified: fullMatches.every((item) => item.score_verified === true),
+            score_source: 'batched_server_hydration',
+            verification_passed: fullMatches.every((item) => item.verification_passed === true),
+            evidence: [`全量一次性提交给服务端，由服务端切片驱动 Gemini 并行 Worker 评估。`],
+            risks: fullMatches.flatMap((item) => item.risks || []),
+            matches: fullMatches,
+          });
+        } else {
+          const chunkSize = Math.max(1, Math.min(5, Number(batchChunkSize) || 1));
+          const chunks = Array.from({ length: Math.ceil(refs.length / chunkSize) }, (_, index) => refs.slice(index * chunkSize, (index + 1) * chunkSize));
+          setBatchProgress(`正在并行处理 ${chunks.length} 组请求（每组 ${chunkSize} 场）...`);
+          const chunkMatchesResults = await Promise.all(chunks.map((chunk) => evaluateChunkWithFallback(chunk)));
+          const mergedMatches = chunkMatchesResults.flat();
+          setResult({
+            summary: `已分 ${chunks.length} 组并行完成 ${mergedMatches.length} 场评估。`,
+            grade: mergedMatches.some((item) => item.grade === 'A') ? 'A' : mergedMatches.some((item) => item.grade === 'B') ? 'B' : 'C',
+            recommendation: null,
+            score_verified: mergedMatches.every((item) => item.score_verified === true),
+            score_source: 'batched_server_hydration',
+            verification_passed: mergedMatches.every((item) => item.verification_passed === true),
+            evidence: [`已分 ${chunks.length} 组并行完成评估。`],
+            risks: mergedMatches.flatMap((item) => item.risks || []),
+            matches: mergedMatches,
+          });
         }
-        setResult({
-          summary: `已分 ${chunks.length} 批完成 ${mergedMatches.length} 场评估。${summaries.join('\n')}`,
-          grade: mergedMatches.some((item) => item.grade === 'A') ? 'A' : mergedMatches.some((item) => item.grade === 'B') ? 'B' : 'C',
-          recommendation: null,
-          score_verified: mergedMatches.every((item) => item.score_verified === true),
-          score_source: 'batched_server_hydration',
-          verification_passed: mergedMatches.every((item) => item.verification_passed === true),
-          evidence: [`客户端仅提交比赛引用，服务端分 ${chunks.length} 批读取完整本地数据并评估。`],
-          risks: mergedMatches.flatMap((item) => item.risks || []),
-          matches: mergedMatches,
-        });
       } else {
         setResult(await evaluateChunk());
       }
@@ -609,14 +624,17 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                 <button onClick={() => setBatchSelected(evaluationMatches)} className="text-emerald-400">全选</button>
                 <button onClick={() => setBatchSelected([])} className="text-slate-400">清空</button>
                 <label className="ml-2 flex items-center gap-1.5 text-slate-300">
-                  每次提交
+                  提交模式
                   <select
                     value={batchChunkSize}
                     onChange={(event) => setBatchChunkSize(Number(event.target.value))}
                     disabled={loading}
                     className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-100 outline-none focus:border-emerald-500 disabled:opacity-50"
                   >
-                    {[1, 2, 3, 4, 5].map((size) => <option key={size} value={size}>{size} 场</option>)}
+                    <option value={0}>全量一次性提交（推荐：服务端智能并发）</option>
+                    <option value={2}>前端分批：2 场/批</option>
+                    <option value={3}>前端分批：3 场/批</option>
+                    <option value={5}>前端分批：5 场/批</option>
                   </select>
                 </label>
               </div>

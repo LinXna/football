@@ -58,18 +58,35 @@ function waitForRetry(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
-let geminiRateGate: Promise<void> = Promise.resolve();
-let lastGeminiRequestAt = 0;
+// Per-key rate gates: each Gemini key gets its own queue and last-request timestamp
+// so different keys can fire concurrently without blocking each other.
+const geminiKeyRateGates = new Map<string, Promise<void>>();
+const geminiKeyLastRequestAt = new Map<string, number>();
 let geminiKeyCursor = 0;
-let openAiKeyCursor = 0;
-async function waitForGeminiRateSlot(minimumGapMs = 8000): Promise<void> {
-  const previous = geminiRateGate;
+const geminiKeyCooldowns = new Map<string, number>();
+
+function parseGeminiRetryDelay(error: any): number {
+  const msg = String(error?.message || error?.details || error || '');
+  const match = msg.match(/retry in ([\d\.]+)s/i) || msg.match(/retryDelay[:=]\s*["']?([\d\.]+)s?["']?/i);
+  if (match) {
+    const sec = parseFloat(match[1]);
+    if (Number.isFinite(sec) && sec > 0) return Math.ceil(sec * 1000) + 1000;
+  }
+  return 15000;
+}
+
+// Per-key rate gate: guarantees minimumGapMs between consecutive calls to the SAME key.
+// Different keys proceed in parallel independently.
+async function waitForGeminiRateSlot(apiKey: string, minimumGapMs = 3500): Promise<void> {
+  const previous = geminiKeyRateGates.get(apiKey) || Promise.resolve();
   let release!: () => void;
-  geminiRateGate = new Promise<void>((resolve) => { release = resolve; });
+  const next = new Promise<void>((resolve) => { release = resolve; });
+  geminiKeyRateGates.set(apiKey, next);
   await previous;
-  const remaining = minimumGapMs - (Date.now() - lastGeminiRequestAt);
+  const lastAt = geminiKeyLastRequestAt.get(apiKey) || 0;
+  const remaining = minimumGapMs - (Date.now() - lastAt);
   if (remaining > 0) await waitForRetry(remaining);
-  lastGeminiRequestAt = Date.now();
+  geminiKeyLastRequestAt.set(apiKey, Date.now());
   release();
 }
 
@@ -680,8 +697,8 @@ function areQualifiersCompatible(a: string, b: string): boolean {
   return true;
 }
 
-function cleanTeamName(str: string): string {
-  if (!str) return '';
+function cleanTeamName(str: any): string {
+  if (typeof str !== 'string') return '';
   return str
     .toLowerCase()
     .replace(/-(ybty|leisu|雷速|YBTY|LEISU)$/gi, '')
@@ -1944,21 +1961,18 @@ app.post('/api/clear-outdated-matches', (req, res) => {
   }
 });
 
-// Server-side AI Evaluation using Gemini API
+// Server-side AI Evaluation using Google Gemini API
 app.post('/api/ai/evaluate', async (req, res) => {
   try {
     const geminiApiKeys = Array.from(new Set([
       ...(process.env.GEMINI_API_KEYS || '').split(/[;,\r\n]+/),
       process.env.GEMINI_API_KEY || '',
     ].map((key) => key.trim()).filter(Boolean)));
-    const openAiApiKeys = Array.from(new Set([
-      ...(process.env.OPENAI_API_KEYS || '').split(/[;,\r\n]+/),
-      process.env.OPENAI_API_KEY || '',
-    ].map((key) => key.trim()).filter(Boolean)));
-    if (geminiApiKeys.length === 0 && openAiApiKeys.length === 0) {
+
+    if (geminiApiKeys.length === 0) {
       return res.status(400).json({
-        error: 'No AI provider API key is configured.',
-        instructions: '请在 .env 中配置 GEMINI_API_KEY（或 GEMINI_API_KEYS），也可以配置 OPENAI_API_KEY（或 OPENAI_API_KEYS）作为备用供应商。',
+        error: '未配置 Google Gemini API Key。',
+        instructions: '请在 .env 文件中配置 GEMINI_API_KEY（或 GEMINI_API_KEYS，多个 Key 用逗号分隔）。',
       });
     }
 
@@ -2026,7 +2040,7 @@ app.post('/api/ai/evaluate', async (req, res) => {
     const historicalFeedback = Array.from(feedbackById.values())
       .filter((item: any) => item?.review?.final_score || (Array.isArray(item?.parlay_legs) && item.parlay_legs.some((leg: any) => leg?.final_score)))
       .sort((a: any, b: any) => String(b?.created_at || '').localeCompare(String(a?.created_at || '')))
-      .slice(0, 100)
+      .slice(0, 20)
       .map((item: any) => ({
         match: item.match,
         grade: item.grade,
@@ -2038,25 +2052,42 @@ app.post('/api/ai/evaluate', async (req, res) => {
         record_type: item.record_type,
       }));
 
+    // Condensed rules summary embedded in every chunk to reduce token cost.
+    // Full rulesContent (~7k tokens) is only referenced once; chunks use this ~400-token digest instead.
+    const rulesSummary = `【核心硬性规则摘要】
+1. 只有 verified_ybty_markets 中的盘口才能 recommend/watch 并引用赔率；不得猜测未核验盘口。
+2. 有赔率时必须计算隐含概率(100/odds)；模型概率≤隐含概率时 status=avoid, grade=NO_BET。
+3. 赛前无 score_verified 限制；赛前 score_verified=true 仅表示规则不适用，不得因此降级。
+4. 每个玩法独立研究；必须覆盖全12类玩法，每类各返回一项。
+5. 波胆/双方进球/单双/进球数/进球时间段使用 status=prediction, odds=null，给出方向概率。
+6. grade A/B/C 全部展示；没有合格正式主选时 recommendation=null。
+7. 必须引用本场实际数据（statistics/incidents/lineups/recent_trends/reference_odds）说明理由，不得只凭赔率判断。
+8. 串关：同一方向 B 级最多进一组串关；A 级≥85分且阵容明确时最多两组。
+9. 杯赛/友谊赛/强弱悬殊在阵容未确认前最高 C 级，不进正式串关。`;
+
+
     const runGemini = async (contents: string): Promise<string> => {
-      if (geminiApiKeys.length === 0) throw Object.assign(new Error('Gemini is not configured.'), { provider: 'gemini', status: 503 });
-      const maxCycles = openAiApiKeys.length > 0 ? 1 : 4;
+      if (geminiApiKeys.length === 0) throw Object.assign(new Error('未配置 Gemini API Key。'), { provider: 'gemini', status: 400 });
+      const maxCycles = 5;
       let lastError: any;
       for (let cycle = 0; cycle < maxCycles; cycle += 1) {
-        if (cycle > 0) {
-          const previousStatus = geminiHttpStatus(lastError);
-          const retryDelay = previousStatus === 429
-            ? [15000, 45000, 90000][cycle - 1]
-            : [2500, 7500, 15000][cycle - 1];
-          await waitForRetry(retryDelay);
+        const now = Date.now();
+        const availableIndexes = geminiApiKeys
+          .map((_, idx) => (geminiKeyCursor + idx) % geminiApiKeys.length)
+          .filter((idx) => (geminiKeyCooldowns.get(geminiApiKeys[idx]) || 0) <= now);
+
+        if (availableIndexes.length === 0) {
+          const earliestExpiry = Math.min(...geminiApiKeys.map((k) => geminiKeyCooldowns.get(k) || 0));
+          const waitMs = Math.max(1000, earliestExpiry - now);
+          console.warn(`[AI Evaluation] 所有 Gemini Key 均处于 429 冷却中，自动等待 ${Math.round(waitMs / 1000)}s (轮次 ${cycle + 1}/${maxCycles})...`);
+          await waitForRetry(waitMs);
+          continue;
         }
-        const startIndex = geminiKeyCursor % geminiApiKeys.length;
-        let allKeysRateLimited = true;
-        for (let offset = 0; offset < geminiApiKeys.length; offset += 1) {
-          const keyIndex = (startIndex + offset) % geminiApiKeys.length;
+
+        for (const keyIndex of availableIndexes) {
           const activeKey = geminiApiKeys[keyIndex];
           const ai = new GoogleGenAI({ apiKey: activeKey });
-          await waitForGeminiRateSlot();
+          await waitForGeminiRateSlot(activeKey, 3500);
           try {
             const response = await ai.models.generateContent({
               model: GEMINI_MODEL,
@@ -2069,8 +2100,8 @@ app.post('/api/ai/evaluate', async (req, res) => {
             lastError = sdkError;
             if (isGeminiNetworkFailure(sdkError)) {
               try {
-                console.warn(`[AI Evaluation] Key #${keyIndex + 1}: SDK network unavailable; using Windows network fallback.`);
-                await waitForGeminiRateSlot();
+                console.warn(`[AI Evaluation] Key #${keyIndex + 1}: SDK 网络异常，尝试 Windows 网络后备方案。`);
+                await waitForGeminiRateSlot(activeKey, 3500);
                 const text = await generateGeminiViaWindowsNetwork(activeKey, contents);
                 geminiKeyCursor = (keyIndex + 1) % geminiApiKeys.length;
                 return text;
@@ -2079,97 +2110,24 @@ app.post('/api/ai/evaluate', async (req, res) => {
               }
             }
             const status = geminiHttpStatus(lastError);
-            if (status === 429) {
-              console.warn(`[AI Evaluation] Gemini key #${keyIndex + 1}/${geminiApiKeys.length} rate limited; switching key.`);
+            const isQuotaError = status === 429 || String(lastError?.message || '').includes('RESOURCE_EXHAUSTED');
+            if (isQuotaError) {
+              const cooldownMs = parseGeminiRetryDelay(lastError);
+              geminiKeyCooldowns.set(activeKey, Date.now() + cooldownMs);
+              console.warn(`[AI Evaluation] Gemini Key #${keyIndex + 1}/${geminiApiKeys.length} 触发 429 限额，进入 ${Math.round(cooldownMs / 1000)}s 冷却，自动切换 Key...`);
               continue;
             }
-            allKeysRateLimited = false;
             if (!isRetryableGeminiFailure(lastError)) throw lastError;
             break;
           }
         }
-        if (allKeysRateLimited) geminiKeyCursor = (startIndex + 1) % geminiApiKeys.length;
-        if (cycle === maxCycles - 1) throw lastError;
-        console.warn(`[AI Evaluation] Gemini key pool temporarily unavailable (${geminiHttpStatus(lastError) || 'network'}); retrying cycle ${cycle + 2}/${maxCycles}.`);
+        await waitForRetry(3000);
       }
       throw lastError;
     };
 
-    const runOpenAI = async (contents: string): Promise<string> => {
-      if (openAiApiKeys.length === 0) throw Object.assign(new Error('OpenAI is not configured.'), { provider: 'openai', status: 503 });
-      const model = String(process.env.OPENAI_MODEL || 'gpt-5.6-luna').trim();
-      let lastError: any;
-      const startIndex = openAiKeyCursor % openAiApiKeys.length;
-      for (let offset = 0; offset < openAiApiKeys.length; offset += 1) {
-        const keyIndex = (startIndex + offset) % openAiApiKeys.length;
-        try {
-          const response = await fetch('https://api.openai.com/v1/responses', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${openAiApiKeys[keyIndex]}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ model, input: contents, text: { verbosity: 'medium' } }),
-          });
-          const raw = await response.text();
-          if (!response.ok) {
-            let detail = raw;
-            try { detail = JSON.parse(raw)?.error?.message || raw; } catch { /* keep raw response */ }
-            throw Object.assign(new Error(`OpenAI request failed (HTTP ${response.status}): ${String(detail).slice(0, 800)}`), {
-              provider: 'openai',
-              status: response.status,
-            });
-          }
-          const payload = JSON.parse(raw);
-          const outputText = typeof payload.output_text === 'string'
-            ? payload.output_text
-            : (Array.isArray(payload.output) ? payload.output : [])
-              .flatMap((item: any) => Array.isArray(item?.content) ? item.content : [])
-              .map((item: any) => item?.text)
-              .filter((item: any) => typeof item === 'string')
-              .join('\n');
-          if (!outputText) throw Object.assign(new Error('OpenAI returned no text output.'), { provider: 'openai', status: 502 });
-          openAiKeyCursor = (keyIndex + 1) % openAiApiKeys.length;
-          return outputText;
-        } catch (error: any) {
-          lastError = error;
-          const status = geminiHttpStatus(error);
-          if (status === 401 || status === 403 || status === 429 || (status !== null && status >= 500)) {
-            console.warn(`[AI Evaluation] OpenAI key #${keyIndex + 1}/${openAiApiKeys.length} unavailable (${status}); switching key.`);
-            continue;
-          }
-          throw error;
-        }
-      }
-      throw lastError;
-    };
-
-    let activeAiProvider = '';
-    const configuredOrder = String(process.env.AI_PROVIDER_ORDER || 'gemini,openai')
-      .split(/[;,\s]+/)
-      .map((provider) => provider.trim().toLowerCase());
-    const providerOrder = configuredOrder.filter((provider, index) =>
-      ['gemini', 'openai'].includes(provider) && configuredOrder.indexOf(provider) === index);
     const runAI = async (contents: string): Promise<string> => {
-      const availableProviders = providerOrder.filter((provider) =>
-        provider === 'gemini' ? geminiApiKeys.length > 0 : openAiApiKeys.length > 0);
-      const failures: string[] = [];
-      let lastError: any;
-      for (const provider of availableProviders) {
-        try {
-          const text = provider === 'gemini' ? await runGemini(contents) : await runOpenAI(contents);
-          activeAiProvider = provider;
-          return text;
-        } catch (error: any) {
-          lastError = error;
-          failures.push(`${provider}: ${error?.message || error}`);
-          console.warn(`[AI Evaluation] ${provider} failed; trying next configured provider.`);
-        }
-      }
-      throw Object.assign(new Error(`所有已配置的 AI 服务均不可用：${failures.join('；')}`), {
-        provider: 'all',
-        status: geminiHttpStatus(lastError) || 503,
-      });
+      return await runGemini(contents);
     };
 
     if (mode !== 'parlay_check') {
@@ -2262,15 +2220,12 @@ app.post('/api/ai/evaluate', async (req, res) => {
         league: item.league || item.ybty_league || item.leisu_league || '',
         ybty_home: item.ybty_home || '',
         ybty_away: item.ybty_away || '',
-        leisu_home: item.leisu_home || '',
-        leisu_away: item.leisu_away || '',
         start_time_beijing: item.ybty_start_time_beijing || item.provider_start_time || '',
         minute: Number(item.minute || 0),
         score: item.score || null,
         score_verified: mode === 'prematch_eval' ? true : item.score_verified === true,
         score_source: mode === 'prematch_eval' ? 'prematch_not_applicable' : item.score_source || 'unverified',
         current_recommendation: item.recommendation || null,
-        ybty_markets: item.ybty_markets || null,
         verified_ybty_markets: normalizeYbtyMarketTypes(item.ybty_raw_markets)
           .filter((market: any) => /^(full|half)_(h2h|spread|total)$/.test(String(market?.market || '')) && market?.market_type_verified !== false)
           .map((market: any) => ({
@@ -2279,7 +2234,6 @@ app.post('/api/ai/evaluate', async (req, res) => {
             line_index: market.line_index,
             options: (Array.isArray(market.options) ? market.options : []).map((option: any) => ({
               side: option.side || null,
-              selection: option.selection ?? null,
               line: option.line ?? option.selection ?? null,
               odds: Number.isFinite(Number(option.odds)) ? Number(option.odds) : null,
               suspended: option.suspended === true,
@@ -2304,30 +2258,24 @@ app.post('/api/ai/evaluate', async (req, res) => {
         } : null,
         live_statistics: item.live_statistics || null,
         recent_trends: item.recent_trends || null,
-        incidents: Array.isArray(item.incidents) ? item.incidents.slice(0, 30) : [],
+        incidents: Array.isArray(item.incidents) ? item.incidents.slice(0, 20) : [],
         weather: item.weather || null,
         lineups: item.lineups || null,
-        player_candidates: Array.isArray(item.player_candidates) ? item.player_candidates.slice(0, 30) : [],
-        live_text: Array.isArray(item.live_text?.entries) ? item.live_text.entries.slice(0, 30) : item.live_text || null,
+        player_candidates: Array.isArray(item.player_candidates) ? item.player_candidates.slice(0, 20) : [],
+        live_text: Array.isArray(item.live_text?.entries) ? item.live_text.entries.slice(0, 20) : item.live_text || null,
         detail_summary: item.detail_context ? {
           coverage: item.detail_context.coverage || null,
-          weather_text: Array.isArray(item.detail_context.weather_text) ? item.detail_context.weather_text.slice(0, 10) : [],
-          live_text: Array.isArray(item.detail_context.live_text) ? item.detail_context.live_text.slice(0, 30) : [],
-          lineup_text: Array.isArray(item.detail_context.lineup_text) ? item.detail_context.lineup_text.slice(0, 30) : [],
-          // Keep the browser request small, but retain the provider detail payload
-          // in the server-to-model context. Tuple form removes repeated JSON keys
-          // without discarding lineup, recent-results or head-to-head evidence.
+          weather_text: Array.isArray(item.detail_context.weather_text) ? item.detail_context.weather_text.slice(0, 5) : [],
+          live_text: Array.isArray(item.detail_context.live_text) ? item.detail_context.live_text.slice(0, 20) : [],
+          lineup_text: Array.isArray(item.detail_context.lineup_text) ? item.detail_context.lineup_text.slice(0, 20) : [],
           text_records: Array.isArray(item.detail_context.text_records)
-            ? item.detail_context.text_records.slice(0, 500).map((record: any) => [record.endpoint, record.path, record.text])
+            ? item.detail_context.text_records.slice(0, 50).map((record: any) => [record.endpoint, record.path, record.text])
             : [],
           number_records: Array.isArray(item.detail_context.number_records)
-            ? item.detail_context.number_records.slice(0, 1000).map((record: any) => [record.endpoint, record.path, record.value])
-            : [],
-          text_tokens: Array.isArray(item.detail_context.text_tokens)
-            ? item.detail_context.text_tokens.slice(0, 500)
+            ? item.detail_context.number_records.slice(0, 100).map((record: any) => [record.endpoint, record.path, record.value])
             : [],
           player_candidates: Array.isArray(item.detail_context.player_candidates)
-            ? item.detail_context.player_candidates.slice(0, 300)
+            ? item.detail_context.player_candidates.slice(0, 20)
             : [],
         } : null,
         data_availability: {
@@ -2345,10 +2293,8 @@ app.post('/api/ai/evaluate', async (req, res) => {
           lineups: Boolean(item.lineups || item.detail_context?.lineup_text?.length || item.detail_context?.player_candidates?.length),
           recent_or_h2h_records: Boolean(item.recent_trends || item.detail_context?.text_records?.length || item.detail_context?.number_records?.length),
         },
-        evidence: item.evidence || [],
-        risks: item.risks || [],
-        manual_odds_info: item.odds_info || odds_info || '',
       }));
+
       const missingMarketMatches = evaluationData.filter((item: any) => item.verified_ybty_markets.length === 0 && item.unverified_market_summary.length === 0).map((item: any) => item.match);
       const missingDetailMatches = evaluationData.filter((item: any) => !(
         item.live_statistics || item.recent_trends || item.lineups || item.weather || item.detail_summary ||
@@ -2362,34 +2308,27 @@ app.post('/api/ai/evaluate', async (req, res) => {
           instructions: '请重新导入同一批次的完整 YBTY + 雷速整合数据；系统会保留 markets、统计、事件、阵容、走势与详情字段。',
         });
       }
-      const batchPrompt = `你是足球投注研究审核员。严格遵守下方项目协议，对输入的 ${evaluationData.length} 场比赛进行批量、逐场、全玩法评估。
 
-核心要求：
-1. 每场必须覆盖以下12类面板：全场大小球、半场大小球、全场让球、半场让球、全场独赢1X2、波胆、双方是否进球、总进球单双、主队进球数、客队进球数、总进球数、进球时间段。
-2. “覆盖”不等于强行推荐。每类都必须返回一条结论；只有 verified_ybty_markets 中对应阶段、对应类型的真实盘口才可标 recommend/watch。unverified_market_summary 中的盘口阶段和类型未核验，严禁根据 line_index 猜测全场或半场，也不得引用其盘口和赔率；对应类别应标 unavailable、odds=null。
-3. 波胆、双方是否进球、单双、主客队进球数、总进球数及时间段属于模型预测时允许 odds=null，但必须给 probability，并标 status=prediction；它们不是正式可下注盘口，但不得错误标成 unavailable。只有连预测依据也不足时才标 unavailable。
-4. 每一玩法独立研究、独立评级和概率。可以同时存在多个推荐，不得只返回一个主选，也不得为了玩法多样化改写输入盘口。
-5. 滚球比分只有输入 score_verified=true 才能视为已核验；否则最高C级，不得升级为正式滚球推荐。
-6. A/B/C全部展示。无价值或证据不足使用 NO_BET，并清楚说明原因。
-7. recommendation 仅表示该场所有合格玩法中风险收益最合理的主选；完整结论必须放在 market_assessments。
-8. 对有赔率的方向计算隐含概率100/odds。模型概率不高于隐含概率时属于非正期望值，必须标 avoid + NO_BET，不得标 recommend 或 watch。
-9. probability 必须只对应 direction 中的一个明确方向。若有多个比分或多个区间候选，分别放入 alternatives，每个候选单独给概率，并在 probability_scope 写清概率对象；禁止用一个概率同时表示“2-0 / 1-0”。
+      // Chunk evaluationData into groups. Use 3 for prematch (heavier data) and 4 for live.
+      // Each chunk is dispatched to a separate Gemini key concurrently using per-key rate gates.
+      const CHUNK_SIZE = mode === 'prematch_eval' ? 3 : 4;
+      const chunks: any[][] = [];
+      for (let i = 0; i < evaluationData.length; i += CHUNK_SIZE) {
+        chunks.push(evaluationData.slice(i, i + CHUNK_SIZE));
+      }
 
-必须严格返回JSON：
-{"summary":"批量总览","matches":[{"match":"原比赛名","ybty_home":"YBTY主队","ybty_away":"YBTY客队","summary":"本场结论","grade":"A|B|C","score_verified":false,"score_source":"来源","verification_passed":false,"recommendation":{"market":"主选玩法","line":"盘口","odds":1.88},"market_assessments":[{"category":"上述12类之一","market":"真实市场名称或模型预测","direction":"一个明确方向","line":"真实盘口或null","odds":1.88,"probability":65,"probability_scope":"概率对应的明确对象","alternatives":[{"direction":"另一个候选","probability":20}],"grade":"A|B|C|NO_BET","status":"recommend|watch|prediction|avoid|unavailable","reason":"依据与风险"}],"evidence":["依据"],"risks":["风险"]}]}
+      // Concurrency = number of configured keys (no artificial cap — per-key gates prevent overload)
+      const maxConcurrency = Math.max(1, geminiApiKeys.length);
+      console.log(`[AI Evaluation] 批量评估共有 ${evaluationData.length} 场比赛，每组 ${CHUNK_SIZE} 场切分为 ${chunks.length} 组，使用并发度 ${maxConcurrency}（按 Key 独立速率门，不同 Key 完全并行）...`);
 
-每场 market_assessments 必须恰好覆盖12类，不得遗漏。若整场无正式主选，recommendation=null。
-
-项目协议：
-${rulesContent}
-
-待评估数据：
-${JSON.stringify(evaluationData)}`;
-      // V2 is intentionally concise and UTF-8 clean. The full project protocol is
-      // still attached, while the structured data below contains the hydrated
-      // YBTY markets plus Leisu score, statistics, events and detail evidence.
-      const batchPromptV2 = `你是足球投注研究审核员。请按照项目协议，对 ${evaluationData.length} 场比赛逐场进行全玩法评估。
-评估模式：${mode === 'prematch_eval' ? '赛前评估。赛前没有滚球比分核验要求，不得因为 score_verified 字段降级；score_verified=true 在此仅表示该规则不适用。' : '滚球评估。只有滚球才执行 score_verified 核验和未核验最高C级限制。'}
+      const chunkResults = new Array<{ summary?: string; matches?: any[]; error?: string }>(chunks.length);
+      let nextChunkIdx = 0;
+      const workers = Array.from({ length: Math.min(maxConcurrency, chunks.length) }, async () => {
+        while (nextChunkIdx < chunks.length) {
+          const chunkIdx = nextChunkIdx++;
+          const chunkData = chunks[chunkIdx];
+          const batchPromptV2 = `你是足球投注研究审核员。请按照项目协议，对 ${chunkData.length} 场比赛逐场进行全玩法评估。
+评估模式：${mode === 'prematch_eval' ? '赛前评估。赛前没有滚球比分核验要求，不得因为 score_verified 字段降级；score_verified=true 在此仅表示该规则不适用。' : '滚球评估。只有滚球才执行 score_verified 核验和未核验缺省限制。'}
 
 必须覆盖且各返回一项：全场大小球、半场大小球、全场让球、半场让球、全场独赢1X2、波胆、双方是否进球、总进球单双、主队进球数、客队进球数、总进球数、进球时间段。
 
@@ -2406,110 +2345,122 @@ ${JSON.stringify(evaluationData)}`;
 严格返回 JSON：
 {"summary":"批量总览","matches":[{"match":"原比赛名","ybty_home":"YBTY主队","ybty_away":"YBTY客队","summary":"本场结论","grade":"A|B|C","score_verified":false,"score_source":"来源","verification_passed":false,"recommendation":null,"market_assessments":[{"category":"上述12类之一","market":"真实市场名或模型预测","direction":"一个明确方向","line":null,"odds":null,"probability":65,"probability_scope":"该概率对应的明确方向","alternatives":[{"direction":"次选","probability":20}],"grade":"A|B|C|NO_BET","status":"recommend|watch|prediction|avoid|unavailable","reason":"必须引用本场实际数据说明"}],"evidence":["依据"],"risks":["风险"]}]}
 
-项目协议：
-${rulesContent}
+${rulesSummary}
 
-服务端补全后的评估数据：
-${JSON.stringify(evaluationData)}
+比赛数据：
+${JSON.stringify(chunkData)}`;
 
-历史台账反馈（当前批次与已归档批次去重后的最近已录入赛果，仅用于校准，不得替代本场数据）：
-${JSON.stringify(historicalFeedback)}`;
-      const batchText = await runAI(batchPromptV2);
-      try {
-        const parsed = parseModelJson(batchText);
-        parsed.ai_provider = activeAiProvider;
-        const requiredCategoriesV2 = ['全场大小球', '半场大小球', '全场让球', '半场让球', '全场独赢1X2', '波胆', '双方是否进球', '总进球单双', '主队进球数', '客队进球数', '总进球数', '进球时间段'];
-        const requiredCategories = ['全场大小球', '半场大小球', '全场让球', '半场让球', '全场独赢1X2', '波胆', '双方是否进球', '总进球单双', '主队进球数', '客队进球数', '总进球数', '进球时间段'];
-        if (!Array.isArray(parsed.matches)) throw new Error('missing matches');
-        parsed.matches = parsed.matches.map((matchResult: any) => {
-          const assessments = Array.isArray(matchResult.market_assessments) ? matchResult.market_assessments : [];
-          const byCategory = new Map(assessments.map((item: any) => [String(item.category || ''), item]));
-          const inputMatch = evaluationData.find((item: any) => item.match === matchResult.match) || evaluationData[parsed.matches.indexOf(matchResult)];
-          const verifiedMarketTypes = new Set((inputMatch?.verified_ybty_markets || []).map((market: any) => market.market));
-          const requiredMarketByCategory: Record<string, string> = {
-            '全场大小球': 'full_total',
-            '半场大小球': 'half_total',
-            '全场让球': 'full_spread',
-            '半场让球': 'half_spread',
-            '全场独赢1X2': 'full_h2h',
-          };
-          Object.assign(requiredMarketByCategory, {
-            '全场大小球': 'full_total',
-            '半场大小球': 'half_total',
-            '全场让球': 'full_spread',
-            '半场让球': 'half_spread',
-            '全场独赢1X2': 'full_h2h',
-          });
-          return {
-            ...matchResult,
-            score_verified: mode === 'prematch_eval' ? true : matchResult.score_verified === true,
-            score_source: mode === 'prematch_eval' ? 'prematch_not_applicable' : matchResult.score_source,
-            market_assessments: requiredCategoriesV2.map((category) => {
-              const assessment: any = byCategory.get(category) || {
-                category,
-                market: category,
-                direction: '暂无可靠方向',
+
+          try {
+            const batchText = await runAI(batchPromptV2);
+            const parsed = parseModelJson(batchText);
+            chunkResults[chunkIdx] = {
+              summary: parsed.summary,
+              matches: Array.isArray(parsed.matches) ? parsed.matches : [],
+            };
+          } catch (chunkErr: any) {
+            chunkResults[chunkIdx] = { error: `第 ${chunkIdx + 1} 组评估失败：${chunkErr.message || chunkErr}` };
+          }
+        }
+      });
+      await Promise.all(workers);
+
+      const failedChunk = chunkResults.find((res) => res.error);
+      if (failedChunk) {
+        return res.status(502).json({ error: failedChunk.error });
+      }
+
+      let allMatchesResults: any[] = [];
+      let overallSummary = '';
+      for (const result of chunkResults) {
+        if (result.summary && !overallSummary) overallSummary = result.summary;
+        if (result.matches) allMatchesResults.push(...result.matches);
+      }
+
+      const requiredCategoriesV2 = ['全场大小球', '半场大小球', '全场让球', '半场让球', '全场独赢1X2', '波胆', '双方是否进球', '总进球单双', '主队进球数', '客队进球数', '总进球数', '进球时间段'];
+      const processedMatches = allMatchesResults.map((matchResult: any, idx: number) => {
+        const assessments = Array.isArray(matchResult.market_assessments) ? matchResult.market_assessments : [];
+        const byCategory = new Map(assessments.map((item: any) => [String(item.category || ''), item]));
+        const inputMatch = evaluationData.find((item: any) => item.match === matchResult.match) || evaluationData[idx];
+        const verifiedMarketTypes = new Set((inputMatch?.verified_ybty_markets || []).map((market: any) => market.market));
+        const requiredMarketByCategory: Record<string, string> = {
+          '全场大小球': 'full_total',
+          '半场大小球': 'half_total',
+          '全场让球': 'full_spread',
+          '半场让球': 'half_spread',
+          '全场独赢1X2': 'full_h2h',
+        };
+        return {
+          ...matchResult,
+          score_verified: mode === 'prematch_eval' ? true : matchResult.score_verified === true,
+          score_source: mode === 'prematch_eval' ? 'prematch_not_applicable' : matchResult.score_source,
+          market_assessments: requiredCategoriesV2.map((category) => {
+            const assessment: any = byCategory.get(category) || {
+              category,
+              market: category,
+              direction: '暂无可靠方向',
+              line: null,
+              odds: null,
+              probability: null,
+              grade: 'NO_BET',
+              status: 'unavailable',
+              reason: 'AI未返回该玩法的可靠评估，已由系统按数据不足处理。',
+            };
+            const requiredMarket = requiredMarketByCategory[category];
+            if (requiredMarket && !verifiedMarketTypes.has(requiredMarket)) {
+              return {
+                ...assessment,
+                direction: '盘口阶段未核验',
                 line: null,
                 odds: null,
-                probability: null,
                 grade: 'NO_BET',
                 status: 'unavailable',
-                reason: 'AI未返回该玩法的可靠评估，已由系统按数据不足处理。',
+                value_edge: null,
+                reason: '输入盘口未确认属于该全场/半场市场，系统已禁止按索引猜测盘口阶段。',
               };
-              const requiredMarket = requiredMarketByCategory[category];
-              if (requiredMarket && !verifiedMarketTypes.has(requiredMarket)) {
+            }
+            const odds = Number(assessment.odds);
+            const probability = Number(assessment.probability);
+            if (!requiredMarket && !(odds > 1) && Number.isFinite(probability)) {
+              return {
+                ...assessment,
+                grade: assessment.grade === 'NO_BET' ? 'C' : assessment.grade,
+                status: 'prediction',
+                value_edge: null,
+              };
+            }
+            if (odds > 1 && Number.isFinite(probability)) {
+              const impliedProbability = 100 / odds;
+              const valueEdge = Math.round((probability - impliedProbability) * 100) / 100;
+              if (valueEdge <= 0) {
                 return {
                   ...assessment,
-                  direction: '盘口阶段未核验',
-                  line: null,
-                  odds: null,
                   grade: 'NO_BET',
-                  status: 'unavailable',
-                  value_edge: null,
-                  reason: '输入盘口未确认属于该全场/半场市场，系统已禁止按索引猜测盘口阶段。',
+                  status: 'avoid',
+                  value_edge: valueEdge,
+                  reason: `${assessment.reason || ''} 模型概率${probability}%不高于赔率隐含概率${impliedProbability.toFixed(1)}%，属于非正期望值。`.trim(),
                 };
               }
-              const odds = Number(assessment.odds);
-              const probability = Number(assessment.probability);
-              if (!requiredMarket && !(odds > 1) && Number.isFinite(probability)) {
-                return {
-                  ...assessment,
-                  grade: assessment.grade === 'NO_BET' ? 'C' : assessment.grade,
-                  status: 'prediction',
-                  value_edge: null,
-                };
-              }
-              if (odds > 1 && Number.isFinite(probability)) {
-                const impliedProbability = 100 / odds;
-                const valueEdge = Math.round((probability - impliedProbability) * 100) / 100;
-                if (valueEdge <= 0) {
-                  return {
-                    ...assessment,
-                    grade: 'NO_BET',
-                    status: 'avoid',
-                    value_edge: valueEdge,
-                    reason: `${assessment.reason || ''} 模型概率${probability}%不高于赔率隐含概率${impliedProbability.toFixed(1)}%，属于非正期望值。`.trim(),
-                  };
-                }
-                return { ...assessment, value_edge: valueEdge };
-              }
-              return { ...assessment, value_edge: null };
-            }),
-          };
-        });
-        parsed.matches = parsed.matches.map((matchResult: any) => {
-          const formalMarkets = (matchResult.market_assessments || []).filter((assessment: any) =>
-            assessment.status === 'recommend' && ['A', 'B'].includes(String(assessment.grade || ''))
-          );
-          if (formalMarkets.length === 0) {
-            return { ...matchResult, recommendation: null, verification_passed: false };
-          }
-          return matchResult;
-        });
-        return res.json(parsed);
-      } catch {
-        return res.status(502).json({ error: 'AI批量评估返回了无效JSON，请重试。' });
-      }
+              return { ...assessment, value_edge: valueEdge };
+            }
+            return { ...assessment, value_edge: null };
+          }),
+        };
+      }).map((matchResult: any) => {
+        const formalMarkets = (matchResult.market_assessments || []).filter((assessment: any) =>
+          assessment.status === 'recommend' && ['A', 'B'].includes(String(assessment.grade || ''))
+        );
+        if (formalMarkets.length === 0) {
+          return { ...matchResult, recommendation: null, verification_passed: false };
+        }
+        return matchResult;
+      });
+
+      return res.json({
+        summary: overallSummary || `已完成 ${processedMatches.length} 场比赛的批量深挖评估。`,
+        matches: processedMatches,
+        ai_provider: 'gemini',
+      });
     }
 
     let candidatesInfoText = '';
@@ -2592,9 +2543,9 @@ YBTY队名: 主队 [${ybty_home}] vs 客队 [${ybty_away}]
     let parsedJson = {};
     try {
       parsedJson = parseModelJson(resultText);
-      (parsedJson as any).ai_provider = activeAiProvider;
+      (parsedJson as any).ai_provider = 'gemini';
     } catch {
-      parsedJson = { summary: resultText, grade: 'C', verification_passed: false };
+      parsedJson = { summary: resultText, grade: 'C', verification_passed: false, ai_provider: 'gemini' };
     }
 
     res.json(parsedJson);
@@ -2606,12 +2557,12 @@ YBTY队名: 主队 [${ybty_home}] vs 客队 [${ybty_away}]
     res.status(serviceUnavailable ? 503 : networkFailure ? 502 : 500).json({
       error: err.message || 'AI Evaluation Failed',
       ...(serviceUnavailable ? {
-        instructions: '所有已配置的 AI 服务当前均不可用。请检查对应 API Key、账户额度，以及 generativelanguage.googleapis.com:443 和 api.openai.com:443 的网络访问；本地比赛数据不会丢失。',
+        instructions: 'Google Gemini AI 服务当前触发配额上限或暂时不可用。已启动防死锁保护，请检查 API Key 额度，或在 .env 中配置多个 GEMINI_API_KEYS 用逗号分隔轮询；本地比赛数据完好，可稍后重试。',
         retryable: true,
         upstream_status: serviceStatus,
       } : {}),
       ...(networkFailure ? {
-        instructions: 'AI 网络连接失败。请允许 node.exe 访问 generativelanguage.googleapis.com:443 和 api.openai.com:443，或检查防火墙、代理和安全软件。',
+        instructions: 'Gemini 网络连接失败。请允许 node.exe 访问 generativelanguage.googleapis.com:443，或检查网络代理与安全设置。',
       } : {}),
     });
   }

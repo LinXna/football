@@ -1,5 +1,2863 @@
 [
   {
+    "id": "ai_eval_1786196672527_4f2c00ec",
+    "saved_at": "2026-08-08T13:44:32.527Z",
+    "mode": "parlay_check",
+    "scope": "single",
+    "evaluated_matches": [
+      " vs "
+    ],
+    "result": {
+      "summary": "本次针对用户提供的8场比赛池进行了多规格串关组合生成。已严格遵循风控协议：单张串关内部绝对无同场重复；对多张串关间的比赛暴露度进行了合理分散；所有让球盘口均已明确注明标注球队，大小球盘口均包含显式大/小方向标识及精准盘口数字。",
+      "grade": "B",
+      "recommendation": {
+        "market": "串关组合核对通过（生成10组不同规格组合）",
+        "line": "N/A",
+        "odds": 6.16,
+        "best_timing_tip": "建议采用均注或按串关长度递减资金配比（如3串1与4串1分配70%资金，长串分配30%资金），避免高串关波动影响收益。"
+      },
+      "score_verified": false,
+      "score_source": "ybty_market",
+      "verification_passed": true,
+      "evidence": [
+        "每张串关卡片内均无同场比赛重复选项，满足风控隔离要求。",
+        "让球盘腿均指定了具体的队名，大小球盘腿均提供了明确的大/小标识与对应盘口线。",
+        "所有选择的玩法和赔率均完全取自初始DOM评估及评估池数据，未做任何违规调整。"
+      ],
+      "risks": [
+        "7串1与8串1等高腿数串关受单场意外事件（如红牌、点球）累积效应影响较大，实际命中率较低。",
+        "部分北欧与冰岛联赛大球盘口较深，受比赛进程中段进球节奏影响较大。"
+      ],
+      "timing_strategy": "建议在赛前30-60分钟确认双方最终首发阵容后统一下单；长串关建议搭配对冲或小额娱乐投注。",
+      "parlay_safety_check": {
+        "is_valid_parlay": true,
+        "allow_max_parlay_tickets": 10,
+        "reasons": [
+          "所选8场比赛均具备B级分析评估，不存在未经过分析研究的风险场次。",
+          "10组串关均符合规格要求（3串1x2、4串1x2、5串1x2、6串1x2、7串1x1、8串1x1）。",
+          "单张串关不存在同场比赛多玩法交叉投注现象。"
+        ]
+      },
+      "parlay_recommendations": [
+        {
+          "size": 3,
+          "ticket_index": 1,
+          "grade": "B",
+          "estimated_total_odds": 6.16,
+          "reason": "精选三场受让与让球高稳健度组合，圣约翰斯通与AB格莱萨克瑟客场受让盘口保护较足，斯洛图尔客胜具备较高价值。",
+          "legs": [
+            {
+              "match": "圣米伦 vs 圣约翰斯通",
+              "ybty_home": "圣米伦",
+              "ybty_away": "圣约翰斯通",
+              "market": "全场让球（圣约翰斯通）",
+              "line": "+0/0.5",
+              "odds": 1.8,
+              "probability": 64,
+              "grade": "B"
+            },
+            {
+              "match": "霍布罗 vs AB格莱萨克瑟",
+              "ybty_home": "霍布罗",
+              "ybty_away": "AB格莱萨克瑟",
+              "market": "全场让球（AB格莱萨克瑟）",
+              "line": "+0/0.5",
+              "odds": 1.84,
+              "probability": 62,
+              "grade": "B"
+            },
+            {
+              "match": "葛洛塔 vs 斯洛图尔",
+              "ybty_home": "葛洛塔",
+              "ybty_away": "斯洛图尔",
+              "market": "全场让球（斯洛图尔）",
+              "line": "-0.5",
+              "odds": 1.86,
+              "probability": 62,
+              "grade": "B"
+            }
+          ]
+        },
+        {
+          "size": 3,
+          "ticket_index": 2,
+          "grade": "B",
+          "estimated_total_odds": 6.37,
+          "reason": "聚焦高进球预期与半场强势主队组合，维京与邓迪FC破门频繁，斯塔贝克半场抢局能力突出。",
+          "legs": [
+            {
+              "match": "维京 vs 萨普斯堡",
+              "ybty_home": "维京",
+              "ybty_away": "萨普斯堡",
+              "market": "全场大小球（大）",
+              "line": "大 3.5",
+              "odds": 1.86,
+              "probability": 56,
+              "grade": "B"
+            },
+            {
+              "match": "邓迪FC vs 阿伯丁",
+              "ybty_home": "邓迪FC",
+              "ybty_away": "阿伯丁",
+              "market": "半场大小球（大）",
+              "line": "大 1",
+              "odds": 1.84,
+              "probability": 56,
+              "grade": "B"
+            },
+            {
+              "match": "斯塔贝克 vs 利恩足球会",
+              "ybty_home": "斯塔贝克",
+              "ybty_away": "利恩足球会",
+              "market": "半场让球（斯塔贝克）",
+              "line": "-0.5",
+              "odds": 1.86,
+              "probability": 60,
+              "grade": "B"
+            }
+          ]
+        },
+        {
+          "size": 4,
+          "ticket_index": 1,
+          "grade": "B",
+          "estimated_total_odds": 11.45,
+          "reason": "4串1组合1：融合客场受让避险盘与主队半场优势盘，风险结构均衡。",
+          "legs": [
+            {
+              "match": "圣米伦 vs 圣约翰斯通",
+              "ybty_home": "圣米伦",
+              "ybty_away": "圣约翰斯通",
+              "market": "全场让球（圣约翰斯通）",
+              "line": "+0/0.5",
+              "odds": 1.8,
+              "probability": 64,
+              "grade": "B"
+            },
+            {
+              "match": "霍布罗 vs AB格莱萨克瑟",
+              "ybty_home": "霍布罗",
+              "ybty_away": "AB格莱萨克瑟",
+              "market": "全场让球（AB格莱萨克瑟）",
+              "line": "+0/0.5",
+              "odds": 1.84,
+              "probability": 62,
+              "grade": "B"
+            },
+            {
+              "match": "斯塔贝克 vs 利恩足球会",
+              "ybty_home": "斯塔贝克",
+              "ybty_away": "利恩足球会",
+              "market": "半场让球（斯塔贝克）",
+              "line": "-0.5",
+              "odds": 1.86,
+              "probability": 60,
+              "grade": "B"
+            },
+            {
+              "match": "葛洛塔 vs 斯洛图尔",
+              "ybty_home": "葛洛塔",
+              "ybty_away": "斯洛图尔",
+              "market": "全场让球（斯洛图尔）",
+              "line": "-0.5",
+              "odds": 1.86,
+              "probability": 62,
+              "grade": "B"
+            }
+          ]
+        },
+        {
+          "size": 4,
+          "ticket_index": 2,
+          "grade": "B",
+          "estimated_total_odds": 12.69,
+          "reason": "4串1组合2：主攻高进球数与冰岛/乌兹别克强主场组合，回报率适中。",
+          "legs": [
+            {
+              "match": "维京 vs 萨普斯堡",
+              "ybty_home": "维京",
+              "ybty_away": "萨普斯堡",
+              "market": "全场大小球（大）",
+              "line": "大 3.5",
+              "odds": 1.86,
+              "probability": 56,
+              "grade": "B"
+            },
+            {
+              "match": "邓迪FC vs 阿伯丁",
+              "ybty_home": "邓迪FC",
+              "ybty_away": "阿伯丁",
+              "market": "全场大小球（大）",
+              "line": "大 2.5",
+              "odds": 1.92,
+              "probability": 54,
+              "grade": "B"
+            },
+            {
+              "match": "尼哈德维克 vs 维斯特瑞",
+              "ybty_home": "尼哈德维克",
+              "ybty_away": "维斯特瑞",
+              "market": "半场让球（尼哈德维克）",
+              "line": "-0.5",
+              "odds": 1.92,
+              "probability": 55,
+              "grade": "B"
+            },
+            {
+              "match": "费尔干纳石油工人 vs 萨拉夫雄红滩",
+              "ybty_home": "费尔干纳石油工人",
+              "ybty_away": "萨拉夫雄红滩",
+              "market": "全场大小球（大）",
+              "line": "大 2.5/3",
+              "odds": 1.85,
+              "probability": 56,
+              "grade": "B"
+            }
+          ]
+        },
+        {
+          "size": 5,
+          "ticket_index": 1,
+          "grade": "B",
+          "estimated_total_odds": 22.45,
+          "reason": "5串1组合1：精选5场让球与大小球组合，提升穿盘概率。",
+          "legs": [
+            {
+              "match": "圣米伦 vs 圣约翰斯通",
+              "ybty_home": "圣米伦",
+              "ybty_away": "圣约翰斯通",
+              "market": "全场让球（圣约翰斯通）",
+              "line": "+0/0.5",
+              "odds": 1.8,
+              "probability": 64,
+              "grade": "B"
+            },
+            {
+              "match": "霍布罗 vs AB格莱萨克瑟",
+              "ybty_home": "霍布罗",
+              "ybty_away": "AB格莱萨克瑟",
+              "market": "全场让球（AB格莱萨克瑟）",
+              "line": "+0/0.5",
+              "odds": 1.84,
+              "probability": 62,
+              "grade": "B"
+            },
+            {
+              "match": "斯塔贝克 vs 利恩足球会",
+              "ybty_home": "斯塔贝克",
+              "ybty_away": "利恩足球会",
+              "market": "全场让球（斯塔贝克）",
+              "line": "-1/1.5",
+              "odds": 1.97,
+              "probability": 56,
+              "grade": "B"
+            },
+            {
+              "match": "葛洛塔 vs 斯洛图尔",
+              "ybty_home": "葛洛塔",
+              "ybty_away": "斯洛图尔",
+              "market": "全场让球（斯洛图尔）",
+              "line": "-0.5",
+              "odds": 1.86,
+              "probability": 62,
+              "grade": "B"
+            },
+            {
+              "match": "费尔干纳石油工人 vs 萨拉夫雄红滩",
+              "ybty_home": "费尔干纳石油工人",
+              "ybty_away": "萨拉夫雄红滩",
+              "market": "全场大小球（大）",
+              "line": "大 2.5/3",
+              "odds": 1.85,
+              "probability": 56,
+              "grade": "B"
+            }
+          ]
+        },
+        {
+          "size": 5,
+          "ticket_index": 2,
+          "grade": "B",
+          "estimated_total_odds": 22.7,
+          "reason": "5串1组合2：主攻北欧高分场次，结合受让盘与半场让盘，综合盈亏比优异。",
+          "legs": [
+            {
+              "match": "维京 vs 萨普斯堡",
+              "ybty_home": "维京",
+              "ybty_away": "萨普斯堡",
+              "market": "全场大小球（大）",
+              "line": "大 3.5",
+              "odds": 1.86,
+              "probability": 56,
+              "grade": "B"
+            },
+            {
+              "match": "邓迪FC vs 阿伯丁",
+              "ybty_home": "邓迪FC",
+              "ybty_away": "阿伯丁",
+              "market": "半场大小球（大）",
+              "line": "大 1",
+              "odds": 1.84,
+              "probability": 56,
+              "grade": "B"
+            },
+            {
+              "match": "霍布罗 vs AB格莱萨克瑟",
+              "ybty_home": "霍布罗",
+              "ybty_away": "AB格莱萨克瑟",
+              "market": "全场让球（AB格莱萨克瑟）",
+              "line": "+0/0.5",
+              "odds": 1.84,
+              "probability": 62,
+              "grade": "B"
+            },
+            {
+              "match": "葛洛塔 vs 斯洛图尔",
+              "ybty_home": "葛洛塔",
+              "ybty_away": "斯洛图尔",
+              "market": "全场大小球（大）",
+              "line": "大 3.5",
+              "odds": 1.88,
+              "probability": 56,
+              "grade": "B"
+            },
+            {
+              "match": "尼哈德维克 vs 维斯特瑞",
+              "ybty_home": "尼哈德维克",
+              "ybty_away": "维斯特瑞",
+              "market": "半场让球（尼哈德维克）",
+              "line": "-0.5",
+              "odds": 1.92,
+              "probability": 55,
+              "grade": "B"
+            }
+          ]
+        },
+        {
+          "size": 6,
+          "ticket_index": 1,
+          "grade": "B",
+          "estimated_total_odds": 40.57,
+          "reason": "6串1组合1：涵盖六场高确定度盘口，整体赔率突破40，适合轻仓冲刺。",
+          "legs": [
+            {
+              "match": "维京 vs 萨普斯堡",
+              "ybty_home": "维京",
+              "ybty_away": "萨普斯堡",
+              "market": "全场大小球（大）",
+              "line": "大 3.5",
+              "odds": 1.86,
+              "probability": 56,
+              "grade": "B"
+            },
+            {
+              "match": "圣米伦 vs 圣约翰斯通",
+              "ybty_home": "圣米伦",
+              "ybty_away": "圣约翰斯通",
+              "market": "全场让球（圣约翰斯通）",
+              "line": "+0/0.5",
+              "odds": 1.8,
+              "probability": 64,
+              "grade": "B"
+            },
+            {
+              "match": "霍布罗 vs AB格莱萨克瑟",
+              "ybty_home": "霍布罗",
+              "ybty_away": "AB格莱萨克瑟",
+              "market": "全场让球（AB格莱萨克瑟）",
+              "line": "+0/0.5",
+              "odds": 1.84,
+              "probability": 62,
+              "grade": "B"
+            },
+            {
+              "match": "斯塔贝克 vs 利恩足球会",
+              "ybty_home": "斯塔贝克",
+              "ybty_away": "利恩足球会",
+              "market": "半场让球（斯塔贝克）",
+              "line": "-0.5",
+              "odds": 1.86,
+              "probability": 60,
+              "grade": "B"
+            },
+            {
+              "match": "葛洛塔 vs 斯洛图尔",
+              "ybty_home": "葛洛塔",
+              "ybty_away": "斯洛图尔",
+              "market": "全场让球（斯洛图尔）",
+              "line": "-0.5",
+              "odds": 1.86,
+              "probability": 62,
+              "grade": "B"
+            },
+            {
+              "match": "费尔干纳石油工人 vs 萨拉夫雄红滩",
+              "ybty_home": "费尔干纳石油工人",
+              "ybty_away": "萨拉夫雄红滩",
+              "market": "全场大小球（大）",
+              "line": "大 2.5/3",
+              "odds": 1.85,
+              "probability": 56,
+              "grade": "B"
+            }
+          ]
+        },
+        {
+          "size": 6,
+          "ticket_index": 2,
+          "grade": "B",
+          "estimated_total_odds": 40.4,
+          "reason": "6串1组合2：侧重苏超、丹麦与冰岛赛事的组合，风控模型胜率均衡。",
+          "legs": [
+            {
+              "match": "圣米伦 vs 圣约翰斯通",
+              "ybty_home": "圣米伦",
+              "ybty_away": "圣约翰斯通",
+              "market": "全场让球（圣约翰斯通）",
+              "line": "+0/0.5",
+              "odds": 1.8,
+              "probability": 64,
+              "grade": "B"
+            },
+            {
+              "match": "邓迪FC vs 阿伯丁",
+              "ybty_home": "邓迪FC",
+              "ybty_away": "阿伯丁",
+              "market": "半场大小球（大）",
+              "line": "大 1",
+              "odds": 1.84,
+              "probability": 56,
+              "grade": "B"
+            },
+            {
+              "match": "霍布罗 vs AB格莱萨克瑟",
+              "ybty_home": "霍布罗",
+              "ybty_away": "AB格莱萨克瑟",
+              "market": "全场让球（AB格莱萨克瑟）",
+              "line": "+0/0.5",
+              "odds": 1.84,
+              "probability": 62,
+              "grade": "B"
+            },
+            {
+              "match": "斯塔贝克 vs 利恩足球会",
+              "ybty_home": "斯塔贝克",
+              "ybty_away": "利恩足球会",
+              "market": "半场让球（斯塔贝克）",
+              "line": "-0.5",
+              "odds": 1.86,
+              "probability": 60,
+              "grade": "B"
+            },
+            {
+              "match": "葛洛塔 vs 斯洛图尔",
+              "ybty_home": "葛洛塔",
+              "ybty_away": "斯洛图尔",
+              "market": "全场让球（斯洛图尔）",
+              "line": "-0.5",
+              "odds": 1.86,
+              "probability": 62,
+              "grade": "B"
+            },
+            {
+              "match": "尼哈德维克 vs 维斯特瑞",
+              "ybty_home": "尼哈德维克",
+              "ybty_away": "维斯特瑞",
+              "market": "半场让球（尼哈德维克）",
+              "line": "-0.5",
+              "odds": 1.92,
+              "probability": 55,
+              "grade": "B"
+            }
+          ]
+        },
+        {
+          "size": 7,
+          "ticket_index": 1,
+          "grade": "B",
+          "estimated_total_odds": 74.65,
+          "reason": "7串1组合：选取7场优势最清晰方向组合，尝试冲击约75倍回报。",
+          "legs": [
+            {
+              "match": "维京 vs 萨普斯堡",
+              "ybty_home": "维京",
+              "ybty_away": "萨普斯堡",
+              "market": "全场大小球（大）",
+              "line": "大 3.5",
+              "odds": 1.86,
+              "probability": 56,
+              "grade": "B"
+            },
+            {
+              "match": "圣米伦 vs 圣约翰斯通",
+              "ybty_home": "圣米伦",
+              "ybty_away": "圣约翰斯通",
+              "market": "全场让球（圣约翰斯通）",
+              "line": "+0/0.5",
+              "odds": 1.8,
+              "probability": 64,
+              "grade": "B"
+            },
+            {
+              "match": "邓迪FC vs 阿伯丁",
+              "ybty_home": "邓迪FC",
+              "ybty_away": "阿伯丁",
+              "market": "半场大小球（大）",
+              "line": "大 1",
+              "odds": 1.84,
+              "probability": 56,
+              "grade": "B"
+            },
+            {
+              "match": "霍布罗 vs AB格莱萨克瑟",
+              "ybty_home": "霍布罗",
+              "ybty_away": "AB格莱萨克瑟",
+              "market": "全场让球（AB格莱萨克瑟）",
+              "line": "+0/0.5",
+              "odds": 1.84,
+              "probability": 62,
+              "grade": "B"
+            },
+            {
+              "match": "斯塔贝克 vs 利恩足球会",
+              "ybty_home": "斯塔贝克",
+              "ybty_away": "利恩足球会",
+              "market": "半场让球（斯塔贝克）",
+              "line": "-0.5",
+              "odds": 1.86,
+              "probability": 60,
+              "grade": "B"
+            },
+            {
+              "match": "葛洛塔 vs 斯洛图尔",
+              "ybty_home": "葛洛塔",
+              "ybty_away": "斯洛图尔",
+              "market": "全场让球（斯洛图尔）",
+              "line": "-0.5",
+              "odds": 1.86,
+              "probability": 62,
+              "grade": "B"
+            },
+            {
+              "match": "费尔干纳石油工人 vs 萨拉夫雄红滩",
+              "ybty_home": "费尔干纳石油工人",
+              "ybty_away": "萨拉夫雄红滩",
+              "market": "全场大小球（大）",
+              "line": "大 2.5/3",
+              "odds": 1.85,
+              "probability": 56,
+              "grade": "B"
+            }
+          ]
+        },
+        {
+          "size": 8,
+          "ticket_index": 1,
+          "grade": "B",
+          "estimated_total_odds": 143.32,
+          "reason": "8串1大满贯组合：全池8场比赛各精选单项最优玩法组合，收益极其丰厚，建议小博大。",
+          "legs": [
+            {
+              "match": "维京 vs 萨普斯堡",
+              "ybty_home": "维京",
+              "ybty_away": "萨普斯堡",
+              "market": "全场大小球（大）",
+              "line": "大 3.5",
+              "odds": 1.86,
+              "probability": 56,
+              "grade": "B"
+            },
+            {
+              "match": "圣米伦 vs 圣约翰斯通",
+              "ybty_home": "圣米伦",
+              "ybty_away": "圣约翰斯通",
+              "market": "全场让球（圣约翰斯通）",
+              "line": "+0/0.5",
+              "odds": 1.8,
+              "probability": 64,
+              "grade": "B"
+            },
+            {
+              "match": "邓迪FC vs 阿伯丁",
+              "ybty_home": "邓迪FC",
+              "ybty_away": "阿伯丁",
+              "market": "半场大小球（大）",
+              "line": "大 1",
+              "odds": 1.84,
+              "probability": 56,
+              "grade": "B"
+            },
+            {
+              "match": "霍布罗 vs AB格莱萨克瑟",
+              "ybty_home": "霍布罗",
+              "ybty_away": "AB格莱萨克瑟",
+              "market": "全场让球（AB格莱萨克瑟）",
+              "line": "+0/0.5",
+              "odds": 1.84,
+              "probability": 62,
+              "grade": "B"
+            },
+            {
+              "match": "斯塔贝克 vs 利恩足球会",
+              "ybty_home": "斯塔贝克",
+              "ybty_away": "利恩足球会",
+              "market": "半场让球（斯塔贝克）",
+              "line": "-0.5",
+              "odds": 1.86,
+              "probability": 60,
+              "grade": "B"
+            },
+            {
+              "match": "葛洛塔 vs 斯洛图尔",
+              "ybty_home": "葛洛塔",
+              "ybty_away": "斯洛图尔",
+              "market": "全场让球（斯洛图尔）",
+              "line": "-0.5",
+              "odds": 1.86,
+              "probability": 62,
+              "grade": "B"
+            },
+            {
+              "match": "尼哈德维克 vs 维斯特瑞",
+              "ybty_home": "尼哈德维克",
+              "ybty_away": "维斯特瑞",
+              "market": "半场让球（尼哈德维克）",
+              "line": "-0.5",
+              "odds": 1.92,
+              "probability": 55,
+              "grade": "B"
+            },
+            {
+              "match": "费尔干纳石油工人 vs 萨拉夫雄红滩",
+              "ybty_home": "费尔干纳石油工人",
+              "ybty_away": "萨拉夫雄红滩",
+              "market": "全场大小球（大）",
+              "line": "大 2.5/3",
+              "odds": 1.85,
+              "probability": 56,
+              "grade": "B"
+            }
+          ]
+        }
+      ],
+      "ai_provider": "gemini"
+    },
+    "record_type": "ai_evaluation_snapshot",
+    "affects_formal_statistics": false
+  },
+  {
+    "id": "ai_eval_1786196567460_d12bcbef",
+    "saved_at": "2026-08-08T13:42:47.460Z",
+    "mode": "prematch_eval",
+    "scope": "batch",
+    "evaluated_matches": [
+      "维京 vs 萨普斯堡",
+      "圣米伦 vs 圣约翰斯通",
+      "邓迪FC vs 阿伯丁",
+      "霍布罗 vs AB格莱萨克瑟",
+      "斯塔贝克 vs 利恩足球会",
+      "葛洛塔 vs 斯洛图尔",
+      "尼哈德维克 vs 维斯特瑞",
+      "费尔干纳石油工人 vs 萨拉夫雄红滩"
+    ],
+    "result": {
+      "summary": "已完成全量 8 场比赛的智能并发评估。",
+      "grade": "A",
+      "recommendation": null,
+      "score_verified": true,
+      "score_source": "batched_server_hydration",
+      "verification_passed": false,
+      "evidence": [
+        "全量一次性提交给服务端，由服务端切片驱动 Gemini 并行 Worker 评估。"
+      ],
+      "risks": [
+        "萨普斯堡上轮3-3逼平莫尔德，进攻端爆发具备冷门潜力。",
+        "历史交锋中萨普斯堡曾在7月13日1-0小胜维京。",
+        "圣米伦在苏超联赛级别和底蕴上略有优势。",
+        "苏超开季初期冷门较多。",
+        "阿伯丁本赛季联赛开局表现尚可，客场战术较为保守。",
+        "霍布罗在联赛级别历史交锋中占据心理优势。",
+        "同联赛打比战或战意松懈可能导致赢球输盘。",
+        "葛洛塔主场偶尔爆发爆冷（曾6-1大胜艾格尔）。",
+        "维斯特里虽客场弱但平局较多（8客场4平）。",
+        "乌兹超部分场次主队1-0小胜后控盘导致无法穿盘。"
+      ],
+      "matches": [
+        {
+          "match": "维京 vs 萨普斯堡",
+          "ybty_home": "维京",
+          "ybty_away": "萨普斯堡",
+          "summary": "维京主场战绩极其强劲（主场6战全胜，得失球23:7），攻击力凶猛；萨普斯堡客场胜率仅25%，但近期攻击力有回升。维京主胜赔率1.39隐含概率71.9%，模型给出75%概率，具有博彩价值；让球盘-1.5水位合理，但考虑此前交锋萨普斯堡曾小胜维京，深盘存在卡盘风险。",
+          "grade": "B",
+          "score_verified": true,
+          "score_source": "prematch_not_applicable",
+          "verification_passed": true,
+          "recommendation": {
+            "market": "全场独赢1X2",
+            "selection": "主胜",
+            "line": null,
+            "odds": 1.39
+          },
+          "market_assessments": [
+            {
+              "category": "全场大小球",
+              "market": "full_total",
+              "direction": "大",
+              "line": "3.5",
+              "odds": 1.86,
+              "probability": 56,
+              "probability_scope": "完场总进球达到4球及以上",
+              "alternatives": [
+                {
+                  "direction": "小",
+                  "probability": 44
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "两队近期大球率较高，维京主场进球数多，3.5盘口大球隐含概率53.8%，模型预计破门频繁。",
+              "value_edge": 2.24
+            },
+            {
+              "category": "半场大小球",
+              "market": "half_total",
+              "direction": "大",
+              "line": "1.5",
+              "odds": 2,
+              "probability": 52,
+              "probability_scope": "半场总进球达到2球及以上",
+              "alternatives": [
+                {
+                  "direction": "小",
+                  "probability": 48
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "维京半场前15分钟进球较多，半场大1.5赔率2.00隐含概率50%，模型估计52%稍有微弱优势。",
+              "value_edge": 2
+            },
+            {
+              "category": "全场让球",
+              "market": "full_spread",
+              "direction": "主",
+              "line": "-1.5",
+              "odds": 2.02,
+              "probability": 54,
+              "probability_scope": "维京净胜2球及以上",
+              "alternatives": [
+                {
+                  "direction": "客",
+                  "probability": 46
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "维京主场场均净胜2.67球，穿盘能力强；但萨普斯堡上轮3-3逼平莫尔德显示出强劲韧性，-1.5深盘宜观望。",
+              "value_edge": 4.5
+            },
+            {
+              "category": "半场让球",
+              "market": "half_spread",
+              "direction": "主",
+              "line": "-0.5/1",
+              "odds": 2.09,
+              "probability": 50,
+              "probability_scope": "半场维京净胜2球赢全，净胜1球赢半",
+              "alternatives": [
+                {
+                  "direction": "客",
+                  "probability": 50
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "模型估算半场维京领先1球概率为50%，对应隐含概率47.8%，虽微高于隐含概率但半场盘口变数大，不宜下注。",
+              "value_edge": 2.15
+            },
+            {
+              "category": "全场独赢1X2",
+              "market": "full_h2h",
+              "direction": "主",
+              "line": null,
+              "odds": 1.39,
+              "probability": 75,
+              "probability_scope": "维京完场获胜",
+              "alternatives": [
+                {
+                  "direction": "平",
+                  "probability": 15
+                },
+                {
+                  "direction": "客",
+                  "probability": 10
+                }
+              ],
+              "grade": "B",
+              "status": "recommend",
+              "reason": "维京本赛季主场6战全胜，主场火力充沛，萨普斯堡客场能力较弱。1.39赔率隐含概率71.9%，模型概率75%具备安全边际。",
+              "value_edge": 3.06
+            },
+            {
+              "category": "波胆",
+              "market": "模型预测",
+              "direction": "3 - 1",
+              "line": null,
+              "odds": null,
+              "probability": 16,
+              "probability_scope": "完场比分为维京3:1萨普斯堡",
+              "alternatives": [
+                {
+                  "direction": "2 - 1",
+                  "probability": 14
+                },
+                {
+                  "direction": "3 - 0",
+                  "probability": 12
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "模型根据维京主场均得3.83球与萨普斯堡客场失球率推算，3-1为最高概率波胆。",
+              "value_edge": null
+            },
+            {
+              "category": "双方是否进球",
+              "market": "模型预测",
+              "direction": "是",
+              "line": null,
+              "odds": null,
+              "probability": 62,
+              "probability_scope": "两队均有进球",
+              "alternatives": [
+                {
+                  "direction": "否",
+                  "probability": 38
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "萨普斯堡近期客场进攻端改善，维京主场虽强但防守偶尔失误。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球单双",
+              "market": "模型预测",
+              "direction": "双",
+              "line": null,
+              "odds": null,
+              "probability": 52,
+              "probability_scope": "完场总进球数为双数",
+              "alternatives": [
+                {
+                  "direction": "单",
+                  "probability": 48
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "基于预期比分3-1、2-2等组合推算双数概率略高。",
+              "value_edge": null
+            },
+            {
+              "category": "主队进球数",
+              "market": "模型预测",
+              "direction": "3球",
+              "line": null,
+              "odds": null,
+              "probability": 35,
+              "probability_scope": "维京恰好打入3球",
+              "alternatives": [
+                {
+                  "direction": "2球",
+                  "probability": 30
+                },
+                {
+                  "direction": "4球及以上",
+                  "probability": 20
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "维京主场攻击火力保持在3球左右。",
+              "value_edge": null
+            },
+            {
+              "category": "客队进球数",
+              "market": "模型预测",
+              "direction": "1球",
+              "line": null,
+              "odds": null,
+              "probability": 48,
+              "probability_scope": "萨普斯堡恰好打入1球",
+              "alternatives": [
+                {
+                  "direction": "0球",
+                  "probability": 32
+                },
+                {
+                  "direction": "2球",
+                  "probability": 15
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "萨普斯堡客场难以打入多球，1球概率最高。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球数",
+              "market": "模型预测",
+              "direction": "4球",
+              "line": null,
+              "odds": null,
+              "probability": 30,
+              "probability_scope": "完场恰好产生4个进球",
+              "alternatives": [
+                {
+                  "direction": "3球",
+                  "probability": 28
+                },
+                {
+                  "direction": "5球",
+                  "probability": 18
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "符合两队近期大球走势及预期比分3-1。",
+              "value_edge": null
+            },
+            {
+              "category": "进球时间段",
+              "market": "模型预测",
+              "direction": "31-45分钟",
+              "line": null,
+              "odds": null,
+              "probability": 42,
+              "probability_scope": "上半场后半段产生进球",
+              "alternatives": [
+                {
+                  "direction": "76-90分钟",
+                  "probability": 38
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "维京上半场30-45分钟进球分布占比最高。",
+              "value_edge": null
+            }
+          ],
+          "evidence": [
+            "维京主场挪超6战6胜，得失球23:7，主场统治力极强。",
+            "萨普斯堡客场胜率仅25%，失球较多。",
+            "两队首发阵容已公布，维京主力前锋特里皮奇首发出战。"
+          ],
+          "risks": [
+            "萨普斯堡上轮3-3逼平莫尔德，进攻端爆发具备冷门潜力。",
+            "历史交锋中萨普斯堡曾在7月13日1-0小胜维京。"
+          ]
+        },
+        {
+          "match": "圣米伦 vs 圣约翰斯通",
+          "ybty_home": "圣米伦",
+          "ybty_away": "圣约翰斯通",
+          "summary": "圣约翰斯通近期状态极佳（近10场8胜1平1负，客场胜率80%），上轮4-3击败基尔马诺克；圣米伦主场战绩平平（近10主场4胜1平5负）。虽然盘口开出圣米伦让0/0.5，但圣约翰斯通受让客胜更具拉力，机构盘口与基本面背离，本场不宜强行主胜。",
+          "grade": "B",
+          "score_verified": true,
+          "score_source": "prematch_not_applicable",
+          "verification_passed": false,
+          "recommendation": null,
+          "market_assessments": [
+            {
+              "category": "全场大小球",
+              "market": "full_total",
+              "direction": "小",
+              "line": "2.5",
+              "odds": 2,
+              "probability": 52,
+              "probability_scope": "完场总进球2球及以下",
+              "alternatives": [
+                {
+                  "direction": "大",
+                  "probability": 48
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "圣米伦近期小球率偏高（近10场63.3%小球），2.5小球2.00水位有一定边际。",
+              "value_edge": 2
+            },
+            {
+              "category": "半场大小球",
+              "market": "half_total",
+              "direction": "小",
+              "line": "1",
+              "odds": 2.04,
+              "probability": 51,
+              "probability_scope": "半场总进球0球（1球走盘）",
+              "alternatives": [
+                {
+                  "direction": "大",
+                  "probability": 49
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "两队近期半场多以0-0或1-0结控，1球小球防守较稳。",
+              "value_edge": 1.98
+            },
+            {
+              "category": "全场让球",
+              "market": "full_spread",
+              "direction": "客",
+              "line": "+0/0.5",
+              "odds": 1.8,
+              "probability": 64,
+              "probability_scope": "圣约翰斯通不败（平局赢半，获胜赢全）",
+              "alternatives": [
+                {
+                  "direction": "主",
+                  "probability": 36
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "圣约翰斯通客场受让+0.25盘口保护充分，结合其近期高胜率，受让方更稳健。",
+              "value_edge": 8.44
+            },
+            {
+              "category": "半场让球",
+              "market": "half_spread",
+              "direction": "客",
+              "line": "0",
+              "odds": 2.11,
+              "probability": 50,
+              "probability_scope": "半场圣约翰斯通不败（平局走盘）",
+              "alternatives": [
+                {
+                  "direction": "主",
+                  "probability": 50
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "半场0平手盘下，模型概率50%与隐含概率47.4%接近，无明确优势。",
+              "value_edge": 2.61
+            },
+            {
+              "category": "全场独赢1X2",
+              "market": "full_h2h",
+              "direction": "客",
+              "line": null,
+              "odds": 2.78,
+              "probability": 38,
+              "probability_scope": "圣约翰斯通完场获胜",
+              "alternatives": [
+                {
+                  "direction": "主",
+                  "probability": 36
+                },
+                {
+                  "direction": "平",
+                  "probability": 26
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "圣约翰斯通近期状态极为突出，客场成绩亮眼，2.78水位对应隐含概率36%，模型概率38%略有价值。",
+              "value_edge": 2.03
+            },
+            {
+              "category": "波胆",
+              "market": "模型预测",
+              "direction": "1 - 1",
+              "line": null,
+              "odds": null,
+              "probability": 18,
+              "probability_scope": "完场比分为1:1",
+              "alternatives": [
+                {
+                  "direction": "0 - 1",
+                  "probability": 15
+                },
+                {
+                  "direction": "1 - 0",
+                  "probability": 12
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "双方实力接近，预测平局或客队小胜。",
+              "value_edge": null
+            },
+            {
+              "category": "双方是否进球",
+              "market": "模型预测",
+              "direction": "是",
+              "line": null,
+              "odds": null,
+              "probability": 55,
+              "probability_scope": "两队均有进球",
+              "alternatives": [
+                {
+                  "direction": "否",
+                  "probability": 45
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "圣约翰斯通客场均有进球能力，圣米伦主场也有破门记录。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球单双",
+              "market": "模型预测",
+              "direction": "双",
+              "line": null,
+              "odds": null,
+              "probability": 54,
+              "probability_scope": "完场总进球数为双数",
+              "alternatives": [
+                {
+                  "direction": "单",
+                  "probability": 46
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "1-1或0-0比分概率高，偏向双数。",
+              "value_edge": null
+            },
+            {
+              "category": "主队进球数",
+              "market": "模型预测",
+              "direction": "1球",
+              "line": null,
+              "odds": null,
+              "probability": 50,
+              "probability_scope": "圣米伦恰好打入1球",
+              "alternatives": [
+                {
+                  "direction": "0球",
+                  "probability": 32
+                },
+                {
+                  "direction": "2球",
+                  "probability": 18
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "圣米伦主场攻击力有限，1球可能性最大。",
+              "value_edge": null
+            },
+            {
+              "category": "客队进球数",
+              "market": "模型预测",
+              "direction": "1球",
+              "line": null,
+              "odds": null,
+              "probability": 46,
+              "probability_scope": "圣约翰斯通恰好打入1球",
+              "alternatives": [
+                {
+                  "direction": "2球",
+                  "probability": 28
+                },
+                {
+                  "direction": "0球",
+                  "probability": 26
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "圣约翰斯通客场输出稳定在1-2球。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球数",
+              "market": "模型预测",
+              "direction": "2球",
+              "line": null,
+              "odds": null,
+              "probability": 38,
+              "probability_scope": "完场恰好产生2个进球",
+              "alternatives": [
+                {
+                  "direction": "1球",
+                  "probability": 26
+                },
+                {
+                  "direction": "3球",
+                  "probability": 20
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "预期比分1-1或2-0对应总进球2球。",
+              "value_edge": null
+            },
+            {
+              "category": "进球时间段",
+              "market": "模型预测",
+              "direction": "60-75分钟",
+              "line": null,
+              "odds": null,
+              "probability": 38,
+              "probability_scope": "下半场中段产生进球",
+              "alternatives": [
+                {
+                  "direction": "76-90分钟",
+                  "probability": 35
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "两队下半场体能下降时更容易产生破门。",
+              "value_edge": null
+            }
+          ],
+          "evidence": [
+            "圣约翰斯通近10场8胜1平1负，客场胜率高达80%。",
+            "圣米伦主场近10场4胜1平5负，主场胜率仅40%。",
+            "两队已公布正式首发阵容。"
+          ],
+          "risks": [
+            "圣米伦在苏超联赛级别和底蕴上略有优势。",
+            "苏超开季初期冷门较多。"
+          ]
+        },
+        {
+          "match": "邓迪FC vs 阿伯丁",
+          "ybty_home": "邓迪FC",
+          "ybty_away": "阿伯丁",
+          "summary": "邓迪FC主场表现强势（主场9胜2平2负，胜率64.3%），而阿伯丁客场表现平庸（客场胜率仅26.7%）。盘口开出平手盘（0），阿伯丁客胜水低（1.81），但邓迪FC主场交锋不败率高（上交锋邓迪3-2获胜），平手盘下邓迪FC更具性价比。",
+          "grade": "B",
+          "score_verified": true,
+          "score_source": "prematch_not_applicable",
+          "verification_passed": false,
+          "recommendation": null,
+          "market_assessments": [
+            {
+              "category": "全场大小球",
+              "market": "full_total",
+              "direction": "大",
+              "line": "2.5",
+              "odds": 1.92,
+              "probability": 54,
+              "probability_scope": "完场总进球3球及以上",
+              "alternatives": [
+                {
+                  "direction": "小",
+                  "probability": 46
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "邓迪FC主场大球率高达71.4%，上轮交锋打出3-2高比分，大2.5概率较高。",
+              "value_edge": 1.92
+            },
+            {
+              "category": "半场大小球",
+              "market": "half_total",
+              "direction": "大",
+              "line": "1",
+              "odds": 1.84,
+              "probability": 56,
+              "probability_scope": "半场总进球2球及以上赢全，1球走盘",
+              "alternatives": [
+                {
+                  "direction": "小",
+                  "probability": 44
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "邓迪FC主场半场经常产生破门，1球大球盘口安全边际高。",
+              "value_edge": 1.65
+            },
+            {
+              "category": "全场让球",
+              "market": "full_spread",
+              "direction": "主",
+              "line": "0",
+              "odds": 2.09,
+              "probability": 51,
+              "probability_scope": "邓迪FC不败（平局走盘）",
+              "alternatives": [
+                {
+                  "direction": "客",
+                  "probability": 49
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "平手盘下邓迪FC主场水高达2.09，隐含概率47.8%，模型估计51%不败率，性价比合理。",
+              "value_edge": 3.15
+            },
+            {
+              "category": "半场让球",
+              "market": "half_spread",
+              "direction": "主",
+              "line": "0",
+              "odds": 2.08,
+              "probability": 49,
+              "probability_scope": "半场邓迪FC不败（平局走盘）",
+              "alternatives": [
+                {
+                  "direction": "客",
+                  "probability": 51
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "半场平手盘估算概率49%与隐含概率48.1%过于接近，边际优势不足。",
+              "value_edge": 0.92
+            },
+            {
+              "category": "全场独赢1X2",
+              "market": "full_h2h",
+              "direction": "主",
+              "line": null,
+              "odds": 2.76,
+              "probability": 38,
+              "probability_scope": "邓迪FC完场获胜",
+              "alternatives": [
+                {
+                  "direction": "客",
+                  "probability": 36
+                },
+                {
+                  "direction": "平",
+                  "probability": 26
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "邓迪FC主场战斗力不俗，2.76高水对应隐含概率36.2%，模型估计38%具备博彩价值。",
+              "value_edge": 1.77
+            },
+            {
+              "category": "波胆",
+              "market": "模型预测",
+              "direction": "2 - 1",
+              "line": null,
+              "odds": null,
+              "probability": 15,
+              "probability_scope": "完场比分为邓迪FC 2:1阿伯丁",
+              "alternatives": [
+                {
+                  "direction": "1 - 1",
+                  "probability": 14
+                },
+                {
+                  "direction": "2 - 2",
+                  "probability": 12
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "参考上次交锋3-2及邓迪FC主场进攻优势推算。",
+              "value_edge": null
+            },
+            {
+              "category": "双方是否进球",
+              "market": "模型预测",
+              "direction": "是",
+              "line": null,
+              "odds": null,
+              "probability": 60,
+              "probability_scope": "两队均有进球",
+              "alternatives": [
+                {
+                  "direction": "否",
+                  "probability": 40
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "邓迪FC主场攻强守弱，阿伯丁进攻端具备得分能力。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球单双",
+              "market": "模型预测",
+              "direction": "单",
+              "line": null,
+              "odds": null,
+              "probability": 51,
+              "probability_scope": "完场总进球数为单数",
+              "alternatives": [
+                {
+                  "direction": "双",
+                  "probability": 49
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "2-1、1-0等比分组合倾向单数。",
+              "value_edge": null
+            },
+            {
+              "category": "主队进球数",
+              "market": "模型预测",
+              "direction": "2球",
+              "line": null,
+              "odds": null,
+              "probability": 40,
+              "probability_scope": "邓迪FC恰好打入2球",
+              "alternatives": [
+                {
+                  "direction": "1球",
+                  "probability": 35
+                },
+                {
+                  "direction": "3球及以上",
+                  "probability": 15
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "邓迪FC主场场均进球超过1.5球。",
+              "value_edge": null
+            },
+            {
+              "category": "客队进球数",
+              "market": "模型预测",
+              "direction": "1球",
+              "line": null,
+              "odds": null,
+              "probability": 48,
+              "probability_scope": "阿伯丁恰好打入1球",
+              "alternatives": [
+                {
+                  "direction": "2球",
+                  "probability": 26
+                },
+                {
+                  "direction": "0球",
+                  "probability": 26
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "阿伯丁客场场均失球多但能稳稳定破门。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球数",
+              "market": "模型预测",
+              "direction": "3球",
+              "line": null,
+              "odds": null,
+              "probability": 34,
+              "probability_scope": "完场恰好产生3个进球",
+              "alternatives": [
+                {
+                  "direction": "2球",
+                  "probability": 28
+                },
+                {
+                  "direction": "4球",
+                  "probability": 18
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "预期比分2-1，对应3球。",
+              "value_edge": null
+            },
+            {
+              "category": "进球时间段",
+              "market": "模型预测",
+              "direction": "76-90分钟",
+              "line": null,
+              "odds": null,
+              "probability": 40,
+              "probability_scope": "比赛末段产生进球",
+              "alternatives": [
+                {
+                  "direction": "31-45分钟",
+                  "probability": 36
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "阿伯丁近期在75-90分钟时间段进球集中（数据分布有2球）。",
+              "value_edge": null
+            }
+          ],
+          "evidence": [
+            "邓迪FC主场大球率71.4%，主场得分能力强。",
+            "两队公布了4-2-3-1阵型正式首发。",
+            "上赛季交锋邓迪FC主场3-2战胜阿伯丁。"
+          ],
+          "risks": [
+            "阿伯丁本赛季联赛开局表现尚可，客场战术较为保守。"
+          ]
+        },
+        {
+          "match": "霍布罗 vs AB格莱萨克瑟",
+          "ybty_home": "霍布罗",
+          "ybty_away": "AB格莱萨克瑟",
+          "summary": "霍布罗主场状态极其低迷（近10主场4胜1平11负，输率较重），且刚在丹麦杯0-4惨败；AB格莱萨克瑟客场战绩优异（近10客场9胜1平3负，胜率50%）。霍布罗让0/0.5高水（2.04），机构强开让球缺乏基本面支撑，AB格莱萨克瑟受让更具优势。",
+          "grade": "B",
+          "score_verified": true,
+          "score_source": "prematch_not_applicable",
+          "verification_passed": false,
+          "recommendation": null,
+          "market_assessments": [
+            {
+              "category": "全场大小球",
+              "market": "full_total",
+              "direction": "大",
+              "line": "2.5/3",
+              "odds": 1.92,
+              "probability": 55,
+              "probability_scope": "完场总进球4球赢全，3球赢半",
+              "alternatives": [
+                {
+                  "direction": "小",
+                  "probability": 45
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "霍布罗防守漏洞大（近10场失18球），AB格莱萨克瑟客场火力足，大球概率较高。",
+              "value_edge": 2.92
+            },
+            {
+              "category": "半场大小球",
+              "market": "half_total",
+              "direction": "小",
+              "line": "1/1.5",
+              "odds": 1.76,
+              "probability": 58,
+              "probability_scope": "半场总进球0球赢全，1球输半",
+              "alternatives": [
+                {
+                  "direction": "大",
+                  "probability": 42
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "隐含概率56.8%，模型概率58%，优势过小且赔率较低。",
+              "value_edge": 1.18
+            },
+            {
+              "category": "全场让球",
+              "market": "full_spread",
+              "direction": "客",
+              "line": "+0/0.5",
+              "odds": 1.84,
+              "probability": 62,
+              "probability_scope": "AB格莱萨克瑟不败（平局赢半，获胜赢全）",
+              "alternatives": [
+                {
+                  "direction": "主",
+                  "probability": 38
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "AB格莱萨克瑟受让+0.25结合其客场稳定表现，具有较好的安全边际。",
+              "value_edge": 7.65
+            },
+            {
+              "category": "半场让球",
+              "market": "half_spread",
+              "direction": "客",
+              "line": "0",
+              "odds": 2.14,
+              "probability": 50,
+              "probability_scope": "半场AB格莱萨克瑟不败（平局走盘）",
+              "alternatives": [
+                {
+                  "direction": "主",
+                  "probability": 50
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "半场平手盘概率50%与隐含概率46.7%差距不大，且半场走势波动高。",
+              "value_edge": 3.27
+            },
+            {
+              "category": "全场独赢1X2",
+              "market": "full_h2h",
+              "direction": "客",
+              "line": null,
+              "odds": 2.75,
+              "probability": 39,
+              "probability_scope": "AB格莱萨克瑟完场获胜",
+              "alternatives": [
+                {
+                  "direction": "主",
+                  "probability": 35
+                },
+                {
+                  "direction": "平",
+                  "probability": 26
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "AB格莱萨克瑟客场抢分能力强，霍布罗主场输球率高，客胜2.75隐含概率36.3%，模型预测39%。",
+              "value_edge": 2.64
+            },
+            {
+              "category": "波胆",
+              "market": "模型预测",
+              "direction": "1 - 2",
+              "line": null,
+              "odds": null,
+              "probability": 16,
+              "probability_scope": "完场比分为霍布罗1:2 AB格莱萨克瑟",
+              "alternatives": [
+                {
+                  "direction": "1 - 1",
+                  "probability": 14
+                },
+                {
+                  "direction": "2 - 2",
+                  "probability": 10
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "AB格莱萨克瑟客场进攻活跃，霍布罗防线不稳。",
+              "value_edge": null
+            },
+            {
+              "category": "双方是否进球",
+              "market": "模型预测",
+              "direction": "是",
+              "line": null,
+              "odds": null,
+              "probability": 62,
+              "probability_scope": "两队均有进球",
+              "alternatives": [
+                {
+                  "direction": "否",
+                  "probability": 38
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "霍布罗主场有一定进球能力但防守欠佳。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球单双",
+              "market": "模型预测",
+              "direction": "单",
+              "line": null,
+              "odds": null,
+              "probability": 52,
+              "probability_scope": "完场总进球数为单数",
+              "alternatives": [
+                {
+                  "direction": "双",
+                  "probability": 48
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "1-2或0-1等单数比分概率微高于双数。",
+              "value_edge": null
+            },
+            {
+              "category": "主队进球数",
+              "market": "模型预测",
+              "direction": "1球",
+              "line": null,
+              "odds": null,
+              "probability": 46,
+              "probability_scope": "霍布罗恰好打入1球",
+              "alternatives": [
+                {
+                  "direction": "0球",
+                  "probability": 30
+                },
+                {
+                  "direction": "2球",
+                  "probability": 24
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "霍布罗主场多为1球输出。",
+              "value_edge": null
+            },
+            {
+              "category": "客队进球数",
+              "market": "模型预测",
+              "direction": "2球",
+              "line": null,
+              "odds": null,
+              "probability": 38,
+              "probability_scope": "AB格莱萨克瑟恰好打入2球",
+              "alternatives": [
+                {
+                  "direction": "1球",
+                  "probability": 36
+                },
+                {
+                  "direction": "3球及以上",
+                  "probability": 16
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "AB格莱萨克瑟客场具备进2球的火力。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球数",
+              "market": "模型预测",
+              "direction": "3球",
+              "line": null,
+              "odds": null,
+              "probability": 32,
+              "probability_scope": "完场恰好产生3个进球",
+              "alternatives": [
+                {
+                  "direction": "2球",
+                  "probability": 28
+                },
+                {
+                  "direction": "4球",
+                  "probability": 20
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "预测比分1-2，对应总进球3球。",
+              "value_edge": null
+            },
+            {
+              "category": "进球时间段",
+              "market": "模型预测",
+              "direction": "0-15分钟",
+              "line": null,
+              "odds": null,
+              "probability": 38,
+              "probability_scope": "开场前15分钟产生进球",
+              "alternatives": [
+                {
+                  "direction": "15-30分钟",
+                  "probability": 35
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "AB格莱萨克瑟近期开局阶段进球效率较高。",
+              "value_edge": null
+            }
+          ],
+          "evidence": [
+            "AB格莱萨克瑟近10场比赛5胜4平1负，客场近10场9胜1平3负。",
+            "霍布罗近6场吞下4败，刚在杯赛0-4溃败。",
+            "两队已公布5-4-1对阵5-3-2阵型。"
+          ],
+          "risks": [
+            "霍布罗在联赛级别历史交锋中占据心理优势。"
+          ]
+        },
+        {
+          "match": "斯塔贝克 vs 利恩足球会",
+          "ybty_home": "斯塔贝克",
+          "ybty_away": "利恩足球会",
+          "summary": "斯塔贝克目前高居挪甲第2，主场统治力极强（7主场6胜0平1负，得失球21:5，主胜率86%），上个主场6-0狂胜贺特；利恩排名第13，客场能力薄弱（7客场2胜3平2负，失球较多）。斯塔贝克主胜赔率1.45隐含概率69.0%，模型估算胜率达到76%，主胜稳健，盘口-1/1.5具有较好让球空间。",
+          "grade": "A",
+          "score_verified": true,
+          "score_source": "prematch_not_applicable",
+          "verification_passed": true,
+          "recommendation": {
+            "market": "全场独赢1X2",
+            "selection": "主胜",
+            "line": null,
+            "odds": 1.45
+          },
+          "market_assessments": [
+            {
+              "category": "全场大小球",
+              "market": "full_total",
+              "direction": "小",
+              "line": "3.5/4",
+              "odds": 1.84,
+              "probability": 58,
+              "probability_scope": "完场总进球3球及以下赢全，4球输半",
+              "alternatives": [
+                {
+                  "direction": "大",
+                  "probability": 42
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "利恩客场进球能力较弱，盘口开到3.5/4偏深，小球隐含概率54.3%，模型预测偏小球。",
+              "value_edge": 3.65
+            },
+            {
+              "category": "半场大小球",
+              "market": "half_total",
+              "direction": "大",
+              "line": "1.5",
+              "odds": 1.9,
+              "probability": 54,
+              "probability_scope": "半场总进球2球及以上",
+              "alternatives": [
+                {
+                  "direction": "小",
+                  "probability": 46
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "斯塔贝克主场前45分钟经常打入2球以上（上主场半场3-0）。",
+              "value_edge": 1.37
+            },
+            {
+              "category": "全场让球",
+              "market": "full_spread",
+              "direction": "主",
+              "line": "-1/1.5",
+              "odds": 1.97,
+              "probability": 56,
+              "probability_scope": "斯塔贝克净胜2球及以上赢全，净胜1球输半",
+              "alternatives": [
+                {
+                  "direction": "客",
+                  "probability": 44
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "斯塔贝克主场赢盘率71.4%，净胜2球以上场次多，1.97水位高于隐含概率50.8%。",
+              "value_edge": 5.24
+            },
+            {
+              "category": "半场让球",
+              "market": "half_spread",
+              "direction": "主",
+              "line": "-0.5",
+              "odds": 1.86,
+              "probability": 60,
+              "probability_scope": "半场斯塔贝克领先",
+              "alternatives": [
+                {
+                  "direction": "客",
+                  "probability": 40
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "斯塔贝克主场半场抢开局非常凶猛，半场领先率高，1.86水位具备价值。",
+              "value_edge": 6.24
+            },
+            {
+              "category": "全场独赢1X2",
+              "market": "full_h2h",
+              "direction": "主",
+              "line": null,
+              "odds": 1.45,
+              "probability": 76,
+              "probability_scope": "斯塔贝克完场获胜",
+              "alternatives": [
+                {
+                  "direction": "平",
+                  "probability": 15
+                },
+                {
+                  "direction": "客",
+                  "probability": 9
+                }
+              ],
+              "grade": "A",
+              "status": "recommend",
+              "reason": "斯塔贝克主场胜率高达86%，场均净胜2.29球；利恩排第13客场较弱。1.45赔率隐含概率69.0%，模型估计76%，具备显著价值。",
+              "value_edge": 7.03
+            },
+            {
+              "category": "波胆",
+              "market": "模型预测",
+              "direction": "3 - 0",
+              "line": null,
+              "odds": null,
+              "probability": 18,
+              "probability_scope": "完场比分为斯塔贝克3:0利恩",
+              "alternatives": [
+                {
+                  "direction": "2 - 0",
+                  "probability": 16
+                },
+                {
+                  "direction": "3 - 1",
+                  "probability": 14
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "斯塔贝克主场攻防俱佳，零封大胜概率不低。",
+              "value_edge": null
+            },
+            {
+              "category": "双方是否进球",
+              "market": "模型预测",
+              "direction": "否",
+              "line": null,
+              "odds": null,
+              "probability": 52,
+              "probability_scope": "至少有一队未能进球",
+              "alternatives": [
+                {
+                  "direction": "是",
+                  "probability": 48
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "斯塔贝克主场7场仅失5球，防守端相对稳固。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球单双",
+              "market": "模型预测",
+              "direction": "单",
+              "line": null,
+              "odds": null,
+              "probability": 51,
+              "probability_scope": "完场总进球数为单数",
+              "alternatives": [
+                {
+                  "direction": "双",
+                  "probability": 49
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "3-0比分导向单数。",
+              "value_edge": null
+            },
+            {
+              "category": "主队进球数",
+              "market": "模型预测",
+              "direction": "3球",
+              "line": null,
+              "odds": null,
+              "probability": 38,
+              "probability_scope": "斯塔贝克恰好打入3球",
+              "alternatives": [
+                {
+                  "direction": "2球",
+                  "probability": 32
+                },
+                {
+                  "direction": "4球及以上",
+                  "probability": 18
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "斯塔贝克主场场均进球高达3球。",
+              "value_edge": null
+            },
+            {
+              "category": "客队进球数",
+              "market": "模型预测",
+              "direction": "0球",
+              "line": null,
+              "odds": null,
+              "probability": 52,
+              "probability_scope": "利恩未能进球",
+              "alternatives": [
+                {
+                  "direction": "1球",
+                  "probability": 36
+                },
+                {
+                  "direction": "2球",
+                  "probability": 12
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "利恩客场破门乏力。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球数",
+              "market": "模型预测",
+              "direction": "3球",
+              "line": null,
+              "odds": null,
+              "probability": 35,
+              "probability_scope": "完场恰好产生3个进球",
+              "alternatives": [
+                {
+                  "direction": "2球",
+                  "probability": 28
+                },
+                {
+                  "direction": "4球",
+                  "probability": 18
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "预测比分3-0，对应3球。",
+              "value_edge": null
+            },
+            {
+              "category": "进球时间段",
+              "market": "模型预测",
+              "direction": "45-60分钟",
+              "line": null,
+              "odds": null,
+              "probability": 40,
+              "probability_scope": "下半场开局产生进球",
+              "alternatives": [
+                {
+                  "direction": "15-30分钟",
+                  "probability": 38
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "斯塔贝克进球分布在45-60分钟区间达到10球，占比最高。",
+              "value_edge": null
+            }
+          ],
+          "evidence": [
+            "斯塔贝克挪甲主场6胜0平1负，进21球失5球，主场统治力极强。",
+            "利恩联赛客场仅2胜，客场防守漏洞大。",
+            "斯塔贝克近2个主场分别6-0和2-0完胜对手。"
+          ],
+          "risks": [
+            "同联赛打比战或战意松懈可能导致赢球输盘。"
+          ]
+        },
+        {
+          "match": "葛洛塔 vs 斯洛图尔",
+          "ybty_home": "葛洛塔",
+          "ybty_away": "斯洛图尔",
+          "summary": "斯洛图尔（特罗图尔）排名冰岛甲第2，近期状态火热（近10场7胜2平1负，上轮4-1大胜，客场5-1大胜雷克尼尔）；葛洛塔排名第6，主场防守较差（近7主场失17球）。盘口开出特罗图尔客让0.5低水（1.86），客胜隐含概率53.8%，模型估计胜率达62%，客队胜算更高。",
+          "grade": "B",
+          "score_verified": true,
+          "score_source": "prematch_not_applicable",
+          "verification_passed": false,
+          "recommendation": null,
+          "market_assessments": [
+            {
+              "category": "全场大小球",
+              "market": "full_total",
+              "direction": "大",
+              "line": "3.5",
+              "odds": 1.88,
+              "probability": 56,
+              "probability_scope": "完场总进球4球及以上",
+              "alternatives": [
+                {
+                  "direction": "小",
+                  "probability": 44
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "两队均属攻强守弱类型，特罗图尔近2场轰破对手6球和5球，3.5大球概率高。",
+              "value_edge": 2.81
+            },
+            {
+              "category": "半场大小球",
+              "market": "half_total",
+              "direction": "大",
+              "line": "1.5",
+              "odds": 1.94,
+              "probability": 53,
+              "probability_scope": "半场总进球2球及以上",
+              "alternatives": [
+                {
+                  "direction": "小",
+                  "probability": 47
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "特罗图尔半场进攻积极，1.5大球1.94水位较具吸金力。",
+              "value_edge": 1.45
+            },
+            {
+              "category": "全场让球",
+              "market": "full_spread",
+              "direction": "客",
+              "line": "-0.5",
+              "odds": 1.86,
+              "probability": 62,
+              "probability_scope": "斯洛图尔净胜1球及以上",
+              "alternatives": [
+                {
+                  "direction": "主",
+                  "probability": 38
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "客让0.5盘口合理，特罗图尔客场大胜频出，受让方缺乏防守支撑。",
+              "value_edge": 8.24
+            },
+            {
+              "category": "半场让球",
+              "market": "half_spread",
+              "direction": "客",
+              "line": "-0/0.5",
+              "odds": 1.89,
+              "probability": 52,
+              "probability_scope": "半场斯洛图尔领先（平局输半）",
+              "alternatives": [
+                {
+                  "direction": "主",
+                  "probability": 48
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "半场让0.25盘口，模型估计52%领先率与隐含概率52.9%持平，无投注边际。 模型概率52%不高于赔率隐含概率52.9%，属于非正期望值。",
+              "value_edge": -0.91
+            },
+            {
+              "category": "全场独赢1X2",
+              "market": "full_h2h",
+              "direction": "客",
+              "line": null,
+              "odds": 1.86,
+              "probability": 62,
+              "probability_scope": "斯洛图尔完场获胜",
+              "alternatives": [
+                {
+                  "direction": "主",
+                  "probability": 20
+                },
+                {
+                  "direction": "平",
+                  "probability": 18
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "特罗图尔位居第2且攻击力凶猛，葛洛塔主场防守漏洞大。1.86客胜对应隐含概率53.8%，模型估算62%，边际优势明显。",
+              "value_edge": 8.24
+            },
+            {
+              "category": "波胆",
+              "market": "模型预测",
+              "direction": "1 - 3",
+              "line": null,
+              "odds": null,
+              "probability": 15,
+              "probability_scope": "完场比分为葛洛塔1:3斯洛图尔",
+              "alternatives": [
+                {
+                  "direction": "1 - 2",
+                  "probability": 14
+                },
+                {
+                  "direction": "2 - 3",
+                  "probability": 11
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "特罗图尔客场火力旺盛，葛洛塔主场场均失球2.4球。",
+              "value_edge": null
+            },
+            {
+              "category": "双方是否进球",
+              "market": "模型预测",
+              "direction": "是",
+              "line": null,
+              "odds": null,
+              "probability": 65,
+              "probability_scope": "两队均有进球",
+              "alternatives": [
+                {
+                  "direction": "否",
+                  "probability": 35
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "葛洛塔主场均有进球但失球极多，双破概率高。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球单双",
+              "market": "模型预测",
+              "direction": "双",
+              "line": null,
+              "odds": null,
+              "probability": 52,
+              "probability_scope": "完场总进球数为双数",
+              "alternatives": [
+                {
+                  "direction": "单",
+                  "probability": 48
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "1-3或2-2等比分导向双数。",
+              "value_edge": null
+            },
+            {
+              "category": "主队进球数",
+              "market": "模型预测",
+              "direction": "1球",
+              "line": null,
+              "odds": null,
+              "probability": 48,
+              "probability_scope": "葛洛塔恰好打入1球",
+              "alternatives": [
+                {
+                  "direction": "2球",
+                  "probability": 26
+                },
+                {
+                  "direction": "0球",
+                  "probability": 26
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "葛洛塔主场面对强队能拿到慰问进球。",
+              "value_edge": null
+            },
+            {
+              "category": "客队进球数",
+              "market": "模型预测",
+              "direction": "3球",
+              "line": null,
+              "odds": null,
+              "probability": 36,
+              "probability_scope": "斯洛图尔恰好打入3球",
+              "alternatives": [
+                {
+                  "direction": "2球",
+                  "probability": 32
+                },
+                {
+                  "direction": "4球及以上",
+                  "probability": 18
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "斯洛图尔近期进攻破门效率极高。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球数",
+              "market": "模型预测",
+              "direction": "4球",
+              "line": null,
+              "odds": null,
+              "probability": 32,
+              "probability_scope": "完场恰好产生4个进球",
+              "alternatives": [
+                {
+                  "direction": "3球",
+                  "probability": 26
+                },
+                {
+                  "direction": "5球",
+                  "probability": 18
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "预期比分1-3，对应4球。",
+              "value_edge": null
+            },
+            {
+              "category": "进球时间段",
+              "market": "模型预测",
+              "direction": "30-45分钟",
+              "line": null,
+              "odds": null,
+              "probability": 42,
+              "probability_scope": "上半场末段产生进球",
+              "alternatives": [
+                {
+                  "direction": "45-60分钟",
+                  "probability": 40
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "特罗图尔在30-45分钟及45-60分钟进球数各为9球，分布密集。",
+              "value_edge": null
+            }
+          ],
+          "evidence": [
+            "特罗图尔近10场7胜2平1负，联赛排名第2，客场大胜频发。",
+            "葛洛塔主场防守差，7个主场失17球。",
+            "两队均已确认正式首发名单。"
+          ],
+          "risks": [
+            "葛洛塔主场偶尔爆发爆冷（曾6-1大胜艾格尔）。"
+          ]
+        },
+        {
+          "match": "尼哈德维克 vs 维斯特瑞",
+          "ybty_home": "尼哈德维克",
+          "ybty_away": "维斯特瑞",
+          "summary": "尼哈德维克（嘉德维克）主场非常稳健（8主场6胜1平1负，胜率75%，得失球18:9）；维斯特里（维斯特瑞）客场状态低迷（8客场2胜4平2负，近期杯赛与欧战惨败）。嘉德维克主胜1.43，隐含概率69.9%，模型概率72%，主队取胜希望高。",
+          "grade": "B",
+          "score_verified": true,
+          "score_source": "prematch_not_applicable",
+          "verification_passed": false,
+          "recommendation": null,
+          "market_assessments": [
+            {
+              "category": "全场大小球",
+              "market": "full_total",
+              "direction": "大",
+              "line": "3/3.5",
+              "odds": 2.01,
+              "probability": 53,
+              "probability_scope": "完场总进球4球及以上赢全，3球输半",
+              "alternatives": [
+                {
+                  "direction": "小",
+                  "probability": 47
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "嘉德维克近两主场分别开出3-2和5-4高比分，大球2.01高水具备吸引力。",
+              "value_edge": 3.25
+            },
+            {
+              "category": "半场大小球",
+              "market": "half_total",
+              "direction": "大",
+              "line": "1.5",
+              "odds": 2.08,
+              "probability": 51,
+              "probability_scope": "半场总进球2球及以上",
+              "alternatives": [
+                {
+                  "direction": "小",
+                  "probability": 49
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "2.08高水下估算51%概率，微高于隐含概率48.1%。",
+              "value_edge": 2.92
+            },
+            {
+              "category": "全场让球",
+              "market": "full_spread",
+              "direction": "主",
+              "line": "-1/1.5",
+              "odds": 1.96,
+              "probability": 52,
+              "probability_scope": "嘉德维克净胜2球及以上赢全，净胜1球输半",
+              "alternatives": [
+                {
+                  "direction": "客",
+                  "probability": 48
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "嘉德维克赢盘率仅50%，经常1球小胜，-1/1.5让盘赢全难度大，模型估算52%与1.96水(51%)相当。",
+              "value_edge": 0.98
+            },
+            {
+              "category": "半场让球",
+              "market": "half_spread",
+              "direction": "主",
+              "line": "-0.5",
+              "odds": 1.92,
+              "probability": 55,
+              "probability_scope": "半场嘉德维克领先",
+              "alternatives": [
+                {
+                  "direction": "客",
+                  "probability": 45
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "嘉德维克主场半场抢分能力突出（半场多次领先进入中场）。",
+              "value_edge": 2.92
+            },
+            {
+              "category": "全场独赢1X2",
+              "market": "full_h2h",
+              "direction": "主",
+              "line": null,
+              "odds": 1.43,
+              "probability": 72,
+              "probability_scope": "嘉德维克完场获胜",
+              "alternatives": [
+                {
+                  "direction": "平",
+                  "probability": 18
+                },
+                {
+                  "direction": "客",
+                  "probability": 10
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "嘉德维克主场胜率75%，状态稳定；维斯特里近期双线作战体能消耗大，主胜1.43隐含概率69.9%，具备微弱价值。",
+              "value_edge": 2.07
+            },
+            {
+              "category": "波胆",
+              "market": "模型预测",
+              "direction": "2 - 1",
+              "line": null,
+              "odds": null,
+              "probability": 18,
+              "probability_scope": "完场比分为嘉德维克2:1维斯特里",
+              "alternatives": [
+                {
+                  "direction": "3 - 1",
+                  "probability": 16
+                },
+                {
+                  "direction": "2 - 0",
+                  "probability": 12
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "嘉德维克主场赢球多为1-2球差。",
+              "value_edge": null
+            },
+            {
+              "category": "双方是否进球",
+              "market": "模型预测",
+              "direction": "是",
+              "line": null,
+              "odds": null,
+              "probability": 60,
+              "probability_scope": "两队均有进球",
+              "alternatives": [
+                {
+                  "direction": "否",
+                  "probability": 40
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "维斯特里虽然客场低迷但客场多次破门，嘉德维克防守并非无懈可击。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球单双",
+              "market": "模型预测",
+              "direction": "单",
+              "line": null,
+              "odds": null,
+              "probability": 52,
+              "probability_scope": "完场总进球数为单数",
+              "alternatives": [
+                {
+                  "direction": "双",
+                  "probability": 48
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "2-1或3-0等比分导向单数。",
+              "value_edge": null
+            },
+            {
+              "category": "主队进球数",
+              "market": "模型预测",
+              "direction": "2球",
+              "line": null,
+              "odds": null,
+              "probability": 40,
+              "probability_scope": "嘉德维克恰好打入2球",
+              "alternatives": [
+                {
+                  "direction": "3球",
+                  "probability": 32
+                },
+                {
+                  "direction": "1球",
+                  "probability": 18
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "嘉德维克主场火力稳定在2-3球。",
+              "value_edge": null
+            },
+            {
+              "category": "客队进球数",
+              "market": "模型预测",
+              "direction": "1球",
+              "line": null,
+              "odds": null,
+              "probability": 48,
+              "probability_scope": "维斯特里恰好打入1球",
+              "alternatives": [
+                {
+                  "direction": "0球",
+                  "probability": 32
+                },
+                {
+                  "direction": "2球",
+                  "probability": 20
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "维斯特里客场大概率打入1进球。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球数",
+              "market": "模型预测",
+              "direction": "3球",
+              "line": null,
+              "odds": null,
+              "probability": 36,
+              "probability_scope": "完场恰好产生3个进球",
+              "alternatives": [
+                {
+                  "direction": "4球",
+                  "probability": 26
+                },
+                {
+                  "direction": "2球",
+                  "probability": 20
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "预测比分2-1，对应3球。",
+              "value_edge": null
+            },
+            {
+              "category": "进球时间段",
+              "market": "模型预测",
+              "direction": "76-90分钟",
+              "line": null,
+              "odds": null,
+              "probability": 42,
+              "probability_scope": "比赛末段产生进球",
+              "alternatives": [
+                {
+                  "direction": "30-45分钟",
+                  "probability": 38
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "两队在75-90分钟绝杀进球分布最多（嘉德维克6球，维斯特里8球）。",
+              "value_edge": null
+            }
+          ],
+          "evidence": [
+            "嘉德维克主场8战6胜1平1负，主场胜率高达75%。",
+            "维斯特里多线作战体能吃紧，客场近6场仅1胜。",
+            "两队首发阵容均已完整公布。"
+          ],
+          "risks": [
+            "维斯特里虽客场弱但平局较多（8客场4平）。"
+          ]
+        },
+        {
+          "match": "费尔干纳石油工人 vs 萨拉夫雄红滩",
+          "ybty_home": "费尔干纳石油工人",
+          "ybty_away": "萨拉夫雄红滩",
+          "summary": "费尔干纳石油工人（费尔干纳夫兹）高居乌兹超榜首（11胜3平1负），主场8战6胜1平1负（得失球18:5，胜率75%），防御力冠绝全联赛；萨拉夫雄红滩（克孜勒库姆）排名第14（5胜2平8负），客场仅2胜。费尔干纳夫兹主胜赔率1.24（隐含概率80.6%），模型估算胜率达85%，主胜信心极足。",
+          "grade": "A",
+          "score_verified": true,
+          "score_source": "prematch_not_applicable",
+          "verification_passed": true,
+          "recommendation": {
+            "market": "全场独赢1X2",
+            "selection": "主胜",
+            "line": null,
+            "odds": 1.24
+          },
+          "market_assessments": [
+            {
+              "category": "全场大小球",
+              "market": "full_total",
+              "direction": "大",
+              "line": "2.5/3",
+              "odds": 1.85,
+              "probability": 56,
+              "probability_scope": "完场总进球4球赢全，3球赢半",
+              "alternatives": [
+                {
+                  "direction": "小",
+                  "probability": 44
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "费尔干纳夫兹主场攻击火力猛，2.5/3盘口大球隐含概率54.1%，模型预测56%可关注。",
+              "value_edge": 1.95
+            },
+            {
+              "category": "半场大小球",
+              "market": "half_total",
+              "direction": "大",
+              "line": "1/1.5",
+              "odds": 2.11,
+              "probability": 50,
+              "probability_scope": "半场总进球2球赢全，1球输半",
+              "alternatives": [
+                {
+                  "direction": "小",
+                  "probability": 50
+                }
+              ],
+              "grade": "NO_BET",
+              "status": "avoid",
+              "reason": "半场大1/1.5概率50%，隐含概率47.4%，价值提升有限。",
+              "value_edge": 2.61
+            },
+            {
+              "category": "全场让球",
+              "market": "full_spread",
+              "direction": "主",
+              "line": "-1.5/2",
+              "odds": 2.01,
+              "probability": 55,
+              "probability_scope": "费尔干纳夫兹净胜3球赢全，净胜2球赢半",
+              "alternatives": [
+                {
+                  "direction": "客",
+                  "probability": 45
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "费尔干纳夫兹主场大胜场次多（曾4-0、3-0），但克孜勒库姆客场偶尔顽强缩防，-1.75盘口需警惕净胜2球走半。",
+              "value_edge": 5.25
+            },
+            {
+              "category": "半场让球",
+              "market": "half_spread",
+              "direction": "主",
+              "line": "-0.5/1",
+              "odds": 1.98,
+              "probability": 56,
+              "probability_scope": "半场费尔干纳夫兹净胜2球赢全，净胜1球赢半",
+              "alternatives": [
+                {
+                  "direction": "客",
+                  "probability": 44
+                }
+              ],
+              "grade": "B",
+              "status": "watch",
+              "reason": "费尔干纳夫兹主场半场经常取得领先（半场前15-30分钟进球密集）。",
+              "value_edge": 5.49
+            },
+            {
+              "category": "全场独赢1X2",
+              "market": "full_h2h",
+              "direction": "主",
+              "line": null,
+              "odds": 1.24,
+              "probability": 85,
+              "probability_scope": "费尔干纳夫兹完场获胜",
+              "alternatives": [
+                {
+                  "direction": "平",
+                  "probability": 10
+                },
+                {
+                  "direction": "客",
+                  "probability": 5
+                }
+              ],
+              "grade": "A",
+              "status": "recommend",
+              "reason": "榜首费尔干纳夫兹主场实力呈碾压态势，克孜勒库姆排名第14且客场失利频繁。1.24赔率隐含概率80.6%，模型评估85%，具备高确定性。",
+              "value_edge": 4.35
+            },
+            {
+              "category": "波胆",
+              "market": "模型预测",
+              "direction": "3 - 0",
+              "line": null,
+              "odds": null,
+              "probability": 22,
+              "probability_scope": "完场比分为费尔干纳夫兹3:0克孜勒库姆",
+              "alternatives": [
+                {
+                  "direction": "2 - 0",
+                  "probability": 20
+                },
+                {
+                  "direction": "4 - 0",
+                  "probability": 12
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "费尔干纳夫兹主场防守极佳，零封对手3-0是常见比分。",
+              "value_edge": null
+            },
+            {
+              "category": "双方是否进球",
+              "market": "模型预测",
+              "direction": "否",
+              "line": null,
+              "odds": null,
+              "probability": 60,
+              "probability_scope": "至少有一队未能进球",
+              "alternatives": [
+                {
+                  "direction": "是",
+                  "probability": 40
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "费尔干纳夫兹主场8场仅失5球，防守稳健。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球单双",
+              "market": "模型预测",
+              "direction": "单",
+              "line": null,
+              "odds": null,
+              "probability": 51,
+              "probability_scope": "完场总进球数为单数",
+              "alternatives": [
+                {
+                  "direction": "双",
+                  "probability": 49
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "3-0比分倾向单数。",
+              "value_edge": null
+            },
+            {
+              "category": "主队进球数",
+              "market": "模型预测",
+              "direction": "3球",
+              "line": null,
+              "odds": null,
+              "probability": 38,
+              "probability_scope": "费尔干纳夫兹恰好打入3球",
+              "alternatives": [
+                {
+                  "direction": "2球",
+                  "probability": 32
+                },
+                {
+                  "direction": "4球及以上",
+                  "probability": 18
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "主队主场火力旺盛，场均破门2球以上。",
+              "value_edge": null
+            },
+            {
+              "category": "客队进球数",
+              "market": "模型预测",
+              "direction": "0球",
+              "line": null,
+              "odds": null,
+              "probability": 60,
+              "probability_scope": "克孜勒库姆未能进球",
+              "alternatives": [
+                {
+                  "direction": "1球",
+                  "probability": 32
+                },
+                {
+                  "direction": "2球",
+                  "probability": 8
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "克孜勒库姆客场7场仅打入4球，破门能力极低。",
+              "value_edge": null
+            },
+            {
+              "category": "总进球数",
+              "market": "模型预测",
+              "direction": "3球",
+              "line": null,
+              "odds": null,
+              "probability": 36,
+              "probability_scope": "完场恰好产生3个进球",
+              "alternatives": [
+                {
+                  "direction": "2球",
+                  "probability": 28
+                },
+                {
+                  "direction": "4球",
+                  "probability": 18
+                }
+              ],
+              "grade": "B",
+              "status": "prediction",
+              "reason": "预测比分3-0，对应3球。",
+              "value_edge": null
+            },
+            {
+              "category": "进球时间段",
+              "market": "模型预测",
+              "direction": "45-60分钟",
+              "line": null,
+              "odds": null,
+              "probability": 40,
+              "probability_scope": "下半场刚开场产生进球",
+              "alternatives": [
+                {
+                  "direction": "76-90分钟",
+                  "probability": 38
+                }
+              ],
+              "grade": "C",
+              "status": "prediction",
+              "reason": "主队进球分布在45-60分钟达到8球，属于下半场发力型。",
+              "value_edge": null
+            }
+          ],
+          "evidence": [
+            "费尔干纳夫兹位列乌兹超榜首（36分），主场75%胜率。",
+            "克孜勒库姆排名第14，客场攻击力薄弱。",
+            "两队公布了正式首发阵容。"
+          ],
+          "risks": [
+            "乌兹超部分场次主队1-0小胜后控盘导致无法穿盘。"
+          ]
+        }
+      ]
+    },
+    "record_type": "ai_evaluation_snapshot",
+    "affects_formal_statistics": false
+  },
+  {
     "id": "ai_eval_1786167021559_9bae1c10",
     "saved_at": "2026-08-08T05:30:21.559Z",
     "mode": "live_eval",
