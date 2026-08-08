@@ -556,6 +556,12 @@ def infer_auto_aliases(
     output_path: Path,
 ) -> int:
     """Learn only high-confidence aliases from reciprocal one-to-one pairs."""
+    suppressed_path = output_path.with_name("team_aliases_suppressed.json")
+    try:
+        suppressed_raw = json.loads(suppressed_path.read_text(encoding="utf-8"))
+        suppressed = {normalize(value) for value in suppressed_raw if isinstance(value, str)}
+    except (OSError, ValueError, TypeError):
+        suppressed = set()
     available = [
         event for event in events if str(event.get("id")) not in used_event_ids
     ]
@@ -609,6 +615,8 @@ def infer_auto_aliases(
             (market.away, event.get("awayTeam", {}).get("name", ""), away_score),
         ):
             if not source_name or not reference_name or score >= 0.98:
+                continue
+            if normalize(reference_name) in suppressed:
                 continue
             variants = stored.setdefault(reference_name, [])
             if source_name not in variants:

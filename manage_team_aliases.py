@@ -29,6 +29,7 @@ CANDIDATES = OUTPUT / "ybty_leisu_prematch_candidates.json"
 LEISU_FALLBACK = OUTPUT / "leisu_prematch_latest.json"
 AUTO_ALIASES = ROOT / "team_aliases_auto.json"
 CURATED_ALIASES = ROOT / "team_aliases.json"
+SUPPRESSED_ALIASES = ROOT / "team_aliases_suppressed.json"
 
 
 def load_json(path: Path) -> Any:
@@ -49,6 +50,14 @@ def save_alias(canonical: str, variant: str) -> bool:
     AUTO_ALIASES.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    try:
+        suppressed = load_json(SUPPRESSED_ALIASES)
+        if isinstance(suppressed, list):
+            next_suppressed = [item for item in suppressed if item != canonical]
+            if next_suppressed != suppressed:
+                SUPPRESSED_ALIASES.write_text(json.dumps(next_suppressed, ensure_ascii=False, indent=2), encoding="utf-8")
+    except (OSError, ValueError):
+        pass
     return True
 
 

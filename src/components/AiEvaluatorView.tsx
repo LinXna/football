@@ -47,6 +47,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
   const [parlayRequests, setParlayRequests] = useState<Record<number, number>>({ 3: 1 });
   const [evaluationScope, setEvaluationScope] = useState<'single' | 'batch'>('batch');
   const [batchSelected, setBatchSelected] = useState<DecisionItem[]>([]);
+  const [batchChunkSize, setBatchChunkSize] = useState<number>(2);
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AIAnalysisResponse | null>(null);
@@ -58,6 +59,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
   const [historyLoading, setHistoryLoading] = useState(false);
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
   const [savedParlayTickets, setSavedParlayTickets] = useState<Set<string>>(new Set());
+  const [batchProgress, setBatchProgress] = useState<string | null>(null);
   const evaluationMatches = mode === 'live_eval' ? liveMatches : prematchMatches;
   const parlayEligibleMatches = allMatches.filter((match, index, source) =>
     source.findIndex((item) => item.match === match.match) === index
@@ -290,6 +292,50 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
     }
   };
 
+  const handleSaveAllAiBettingAdvice = async () => {
+    if (!result) return;
+    const evaluated = Array.isArray(result.matches) ? result.matches : [result];
+    const entries = evaluated.flatMap((matchResult) => {
+      const source = allMatches.find((item) => item.match === matchResult.match)
+        || allMatches.find((item) => item.ybty_home === matchResult.ybty_home && item.ybty_away === matchResult.ybty_away);
+      return (matchResult.market_assessments || [])
+        .filter((assessment) => ['recommend', 'watch'].includes(assessment.status) && assessment.line !== null && assessment.line !== '' && Number(assessment.odds) > 1)
+        .map((assessment) => ({
+          match: matchResult.match || source?.match || `${matchResult.ybty_home || ''} vs ${matchResult.ybty_away || ''}`,
+          ybty_home: matchResult.ybty_home || source?.ybty_home,
+          ybty_away: matchResult.ybty_away || source?.ybty_away,
+          minute: source?.minute || 0,
+          score_at_recommendation: source?.score || { home: 0, away: 0 },
+          score_source: source?.score_source || matchResult.score_source || 'unverified',
+          score_verified: source?.score_verified === true || matchResult.score_verified === true,
+          grade: assessment.grade === 'NO_BET' ? 'C' : assessment.grade,
+          model_score: assessment.probability || 0,
+          prediction_probability: assessment.probability || 0,
+          recommendation: {
+            market: assessment.category.includes('独赢') ? '全场独赢' : `${assessment.category}（${assessment.direction}）`,
+            line: assessment.line,
+            odds: assessment.odds,
+          },
+          evidence: [assessment.reason, ...(matchResult.evidence || [])],
+          risks: matchResult.risks || [],
+          start_time_beijing: source?.ybty_start_time_beijing || source?.provider_start_time || null,
+        }));
+    });
+    if (entries.length === 0) {
+      setSaveMessage('当前AI评估没有具备真实盘口和赔率的推荐/观察方向可写入台账。');
+      return;
+    }
+    try {
+      const resp = await fetch('/api/ledger/add-ai-assessments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entries }) });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+      setSaveMessage(`AI投注建议已写入台账：新增 ${data.saved} 条，重复跳过 ${data.duplicates} 条，拒绝 ${data.rejected?.length || 0} 条。`);
+      onRefreshLedger?.();
+    } catch (err: any) {
+      setSaveMessage(`AI投注建议写入失败：${err.message || '未知错误'}`);
+    }
+  };
+
   const handleEvaluate = async () => {
     const requestedParlays = Object.entries(parlayRequests)
       .filter(([, count]) => count > 0)
@@ -304,13 +350,15 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
     setSavedToLedger(false);
     setSnapshotSaved(false);
     setSaveMessage(null);
+    setBatchProgress(null);
 
     try {
       const storedSingleMatch = allMatches.find((item) => item.match === matchName);
-      const resp = await fetch('/api/ai/evaluate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const evaluateChunk = async (batchRefs?: Array<{ match: string; ybty_home?: string; ybty_away?: string }>) => {
+        const resp = await fetch('/api/ai/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
           match_name: matchName,
           ybty_home: ybtyHome,
           ybty_away: ybtyAway,
@@ -322,30 +370,71 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
           parlay_requests: mode === 'parlay_check' ? requestedParlays : undefined,
           batch_match_refs: mode !== 'parlay_check'
             ? (evaluationScope === 'batch'
-              ? batchSelected.map((item) => ({ match: item.match, ybty_home: item.ybty_home, ybty_away: item.ybty_away }))
+              ? batchRefs
               : storedSingleMatch
                 ? [{ match: storedSingleMatch.match, ybty_home: storedSingleMatch.ybty_home, ybty_away: storedSingleMatch.ybty_away }]
                 : undefined)
             : undefined,
-        }),
-      });
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          const missingMarkets = Array.isArray(data.missing_markets) && data.missing_markets.length > 0 ? `\n缺少完整盘口：${data.missing_markets.join('、')}` : '';
+          const missingDetails = Array.isArray(data.missing_details) && data.missing_details.length > 0 ? `\n缺少比赛详情：${data.missing_details.join('、')}` : '';
+          throw new Error(`${data.error || 'AI评估请求失败'}${missingMarkets}${missingDetails}${data.instructions ? `\n${data.instructions}` : ''}`);
+        }
+        return data as AIAnalysisResponse;
+      };
 
-      const data = await resp.json();
-      if (!resp.ok) {
-        const missingMarkets = Array.isArray(data.missing_markets) && data.missing_markets.length > 0
-          ? `\n缺少完整盘口：${data.missing_markets.join('、')}`
-          : '';
-        const missingDetails = Array.isArray(data.missing_details) && data.missing_details.length > 0
-          ? `\n缺少比赛详情：${data.missing_details.join('、')}`
-          : '';
-        throw new Error(`${data.error || 'AI评估请求失败'}${missingMarkets}${missingDetails}${data.instructions ? `\n${data.instructions}` : ''}`);
+      const evaluateChunkWithFallback = async (refs: Array<{ match: string; ybty_home?: string; ybty_away?: string }>): Promise<AIAnalysisResponse[]> => {
+        try {
+          const chunkResult = await evaluateChunk(refs);
+          return Array.isArray(chunkResult.matches) ? chunkResult.matches : [chunkResult];
+        } catch (error: any) {
+          const message = String(error?.message || '');
+          const canRetryWithSmallerBatch = message.includes('无效JSON')
+            || /HTTP\s*(429|500|502|503|504)/i.test(message)
+            || message.includes('所有已配置的 AI 服务均不可用');
+          if (!canRetryWithSmallerBatch || refs.length <= 1) throw error;
+          const midpoint = Math.ceil(refs.length / 2);
+          setBatchProgress(`当前批次请求过大或AI服务繁忙，正在自动拆分 ${refs.length} 场后重试`);
+          const left = await evaluateChunkWithFallback(refs.slice(0, midpoint));
+          const right = await evaluateChunkWithFallback(refs.slice(midpoint));
+          return [...left, ...right];
+        }
+      };
+
+      if (mode !== 'parlay_check' && evaluationScope === 'batch') {
+        const refs = batchSelected.map((item) => ({ match: item.match, ybty_home: item.ybty_home, ybty_away: item.ybty_away }));
+        const chunkSize = Math.max(1, Math.min(5, Number(batchChunkSize) || 1));
+        const chunks = Array.from({ length: Math.ceil(refs.length / chunkSize) }, (_, index) => refs.slice(index * chunkSize, (index + 1) * chunkSize));
+        const mergedMatches: AIAnalysisResponse[] = [];
+        const summaries: string[] = [];
+        for (let index = 0; index < chunks.length; index += 1) {
+          setBatchProgress(`正在处理第 ${index + 1}/${chunks.length} 批（每批最多 ${chunkSize} 场）`);
+          const chunkMatches = await evaluateChunkWithFallback(chunks[index]);
+          mergedMatches.push(...chunkMatches);
+          summaries.push(`第${index + 1}批完成 ${chunkMatches.length} 场`);
+        }
+        setResult({
+          summary: `已分 ${chunks.length} 批完成 ${mergedMatches.length} 场评估。${summaries.join('\n')}`,
+          grade: mergedMatches.some((item) => item.grade === 'A') ? 'A' : mergedMatches.some((item) => item.grade === 'B') ? 'B' : 'C',
+          recommendation: null,
+          score_verified: mergedMatches.every((item) => item.score_verified === true),
+          score_source: 'batched_server_hydration',
+          verification_passed: mergedMatches.every((item) => item.verification_passed === true),
+          evidence: [`客户端仅提交比赛引用，服务端分 ${chunks.length} 批读取完整本地数据并评估。`],
+          risks: mergedMatches.flatMap((item) => item.risks || []),
+          matches: mergedMatches,
+        });
+      } else {
+        setResult(await evaluateChunk());
       }
-
-      setResult(data);
     } catch (err: any) {
       setErrorMsg(err.message || '评估失败');
     } finally {
       setLoading(false);
+      setBatchProgress(null);
     }
   };
 
@@ -515,10 +604,21 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
               <button onClick={() => setEvaluationScope('single')} className={`rounded px-3 py-1.5 font-bold ${evaluationScope === 'single' ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400'}`}>单场评估</button>
             </div>
             {evaluationScope === 'batch' && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-slate-300">已选 {batchSelected.length}/{evaluationMatches.length} 场</span>
                 <button onClick={() => setBatchSelected(evaluationMatches)} className="text-emerald-400">全选</button>
                 <button onClick={() => setBatchSelected([])} className="text-slate-400">清空</button>
+                <label className="ml-2 flex items-center gap-1.5 text-slate-300">
+                  每次提交
+                  <select
+                    value={batchChunkSize}
+                    onChange={(event) => setBatchChunkSize(Number(event.target.value))}
+                    disabled={loading}
+                    className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-100 outline-none focus:border-emerald-500 disabled:opacity-50"
+                  >
+                    {[1, 2, 3, 4, 5].map((size) => <option key={size} value={size}>{size} 场</option>)}
+                  </select>
+                </label>
               </div>
             )}
           </div>
@@ -645,6 +745,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
             开始 AI 协议深挖与等级判定
             </span>
           </button>
+          {batchProgress && <div className="text-center text-xs font-semibold text-sky-300">{batchProgress}</div>}
         </div>
       )}
 
@@ -669,6 +770,9 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
               className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${snapshotSaved ? 'border border-sky-700 bg-sky-950 text-sky-300' : 'bg-sky-600 text-white hover:bg-sky-500'}`}
             >
               {snapshotSaved ? '完整评估已保存' : '保存完整评估快照'}
+            </button>
+            <button onClick={() => void handleSaveAllAiBettingAdvice()} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">
+              保存全部AI投注建议到台账
             </button>
           </div>
           {saveMessage && (

@@ -936,7 +936,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
       const res = await fetch('/api/clear-outdated-matches', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target: 'all' }),
+        body: JSON.stringify({ target: 'all', clear_mode: 'all' }),
       });
       const data = await res.json();
       if (res.ok && data.success) {

@@ -58,6 +58,41 @@ function waitForRetry(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
+let geminiRateGate: Promise<void> = Promise.resolve();
+let lastGeminiRequestAt = 0;
+let geminiKeyCursor = 0;
+let openAiKeyCursor = 0;
+async function waitForGeminiRateSlot(minimumGapMs = 8000): Promise<void> {
+  const previous = geminiRateGate;
+  let release!: () => void;
+  geminiRateGate = new Promise<void>((resolve) => { release = resolve; });
+  await previous;
+  const remaining = minimumGapMs - (Date.now() - lastGeminiRequestAt);
+  if (remaining > 0) await waitForRetry(remaining);
+  lastGeminiRequestAt = Date.now();
+  release();
+}
+
+function parseModelJson(text: string): any {
+  const cleaned = String(text || '')
+    .replace(/^\s*```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .replace(/^\uFEFF/, '')
+    .trim();
+  const attempts = [cleaned];
+  const objectStart = cleaned.indexOf('{');
+  const objectEnd = cleaned.lastIndexOf('}');
+  if (objectStart >= 0 && objectEnd > objectStart) attempts.push(cleaned.slice(objectStart, objectEnd + 1));
+  for (const candidate of attempts) {
+    try {
+      return JSON.parse(candidate.replace(/,\s*([}\]])/g, '$1'));
+    } catch {
+      // Try the next normalized representation.
+    }
+  }
+  throw new Error('invalid_model_json');
+}
+
 async function generateGeminiViaWindowsNetwork(apiKey: string, prompt: string): Promise<string> {
   if (process.platform !== 'win32') {
     throw new Error('Gemini SDK network request failed. Check the server network connection.');
@@ -226,6 +261,25 @@ function hasUsableRecommendation(recommendation: any): boolean {
   return market.length > 0 && line.length > 0 && Number.isFinite(odds) && odds > 1;
 }
 
+function hasExplicitBetDirection(item: any): boolean {
+  const recommendation = item?.recommendation || item || {};
+  const market = String(recommendation.market || '').trim();
+  const line = String(recommendation.line ?? '').trim();
+  const combined = `${market} ${line}`.toLowerCase();
+  if (/大小球|total/i.test(market)) {
+    const directionText = `${market.replace(/大小球|total goals?/gi, ' ')} ${line}`;
+    return /大|小|over|under/i.test(directionText);
+  }
+  if (/让球|spread|handicap/i.test(market)) {
+    const normalize = (value: unknown) => String(value || '').toLowerCase().replace(/[\s\-_·\.（）()]/g, '');
+    const normalizedCombined = normalize(combined);
+    return /主|客|home|away/i.test(combined)
+      || Boolean(normalize(item?.ybty_home) && normalizedCombined.includes(normalize(item.ybty_home)))
+      || Boolean(normalize(item?.ybty_away) && normalizedCombined.includes(normalize(item.ybty_away)));
+  }
+  return true;
+}
+
 function hideInvalidRecommendation(item: any): any {
   if (hasUsableRecommendation(item?.recommendation)) return item;
   return {
@@ -342,12 +396,13 @@ app.post('/api/ledger/add', (req, res) => {
       const invalidLeg = incomingLegs.find((leg: any) =>
         !leg?.match || !leg?.ybty_home || !leg?.ybty_away ||
         !hasUsableRecommendation(leg) ||
+        !hasExplicitBetDirection(leg) ||
         !['A', 'B'].includes(String(leg?.grade || '')) ||
         !/^\d{4}-\d{2}-\d{2}/.test(String(leg?.start_time_beijing || '')) ||
         (Number(leg?.minute || 0) > 0 && leg?.score_verified !== true)
       );
       if (invalidLeg) {
-        return res.status(400).json({ error: 'Every formal parlay leg must be B grade or above with teams, market, time, odds, and verified live score', leg: invalidLeg.match });
+        return res.status(400).json({ error: 'Every formal parlay leg must include an explicit betting side/direction, B+ grade, teams, market, time, odds, and verified live score', leg: invalidLeg.match });
       }
       const matchKeys = incomingLegs.map(matchIdentity);
       if (new Set(matchKeys).size !== matchKeys.length) {
@@ -422,6 +477,12 @@ app.post('/api/ledger/add-candidate', (req, res) => {
     if (!newItem?.match || !recommendation?.market || recommendation.line === undefined || (!predictionOnly && !Number.isFinite(Number(recommendation.odds)))) {
       return res.status(400).json({ error: 'A backtest record requires match, market, line, and real odds unless it is a prediction-only record' });
     }
+    if (!predictionOnly && !hasExplicitBetDirection(newItem)) {
+      return res.status(400).json({ error: '投注方向不明确：大小球必须写明大/小，让球必须写明主队、客队或具体球队。' });
+    }
+    if (newItem?.is_parlay === true && Array.isArray(newItem.parlay_legs) && newItem.parlay_legs.some((leg: any) => !hasExplicitBetDirection(leg))) {
+      return res.status(400).json({ error: '串关腿投注方向不明确，禁止保存未注明投注球队的让球或未注明大/小的大小球。' });
+    }
     const ledger = readJsonFile<any[]>('output/recommendation_ledger.json', []);
     const candidateKey = recommendationKey(newItem);
     const duplicate = ledger.find((item: any) => item.record_type === 'machine_candidate' && recommendationKey(item) === candidateKey);
@@ -467,6 +528,89 @@ app.post('/api/ledger/add-candidate', (req, res) => {
     res.json({ success: true, item: candidateItem });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/ledger/add-ai-assessments', (req, res) => {
+  try {
+    const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
+    if (entries.length === 0) return res.status(400).json({ error: '没有可保存的AI投注建议。' });
+    const ledger = readJsonFile<any[]>('output/recommendation_ledger.json', []);
+    let saved = 0;
+    let duplicates = 0;
+    const rejected: string[] = [];
+    for (const entry of entries) {
+      const recommendation = entry?.recommendation;
+      if (!entry?.match || !recommendation?.market || recommendation.line === undefined || !Number.isFinite(Number(recommendation.odds)) || Number(recommendation.odds) <= 1) {
+        rejected.push(entry?.match || '未知比赛');
+        continue;
+      }
+      if (!hasExplicitBetDirection(entry)) {
+        rejected.push(`${entry.match}（方向不明确）`);
+        continue;
+      }
+      if (ledger.some((item: any) => recommendationKey(item) === recommendationKey(entry))) {
+        duplicates++;
+        continue;
+      }
+      ledger.unshift({
+        id: `ai_candidate_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+        created_at: new Date().toISOString(),
+        match: entry.match,
+        ybty_home: entry.ybty_home || '',
+        ybty_away: entry.ybty_away || '',
+        minute: Number(entry.minute || 0),
+        score_at_recommendation: entry.score_at_recommendation || null,
+        score_source: entry.score_source || 'unverified',
+        score_verified: entry.score_verified === true,
+        grade: entry.grade || 'C',
+        model_score: Number(entry.model_score || 0),
+        recommendation: { market: recommendation.market, line: recommendation.line, odds: Number(recommendation.odds) },
+        candidate_source: 'ai_market_assessment',
+        prediction_probability: Number(entry.prediction_probability || entry.model_score || 0),
+        selection_method: 'ai_full_market_assessment',
+        evidence: entry.evidence || [],
+        risks: entry.risks || [],
+        review: { status: 'pending', final_score: null, outcome: 'pending' },
+        record_type: 'machine_candidate',
+        formal_recommendation: false,
+        start_time_beijing: entry.start_time_beijing || null,
+        is_parlay: false,
+        parlay_legs: [],
+      });
+      saved++;
+    }
+    requireJsonWrites([['output/recommendation_ledger.json', ledger]]);
+    res.json({ success: true, saved, duplicates, rejected, ledger });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'AI建议批量写入台账失败' });
+  }
+});
+
+app.get('/api/ledger/archives', (req, res) => {
+  res.json({ archives: readJsonFile<any[]>('output/recommendation_ledger_archives.json', []) });
+});
+
+app.post('/api/ledger/archive', (req, res) => {
+  try {
+    const ledger = readJsonFile<any[]>('output/recommendation_ledger.json', []);
+    if (ledger.length === 0) return res.status(400).json({ error: '当前台账为空，无法归档。' });
+    const archives = readJsonFile<any[]>('output/recommendation_ledger_archives.json', []);
+    const snapshot = {
+      id: `ledger_batch_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+      name: String(req.body?.name || '').trim() || `台账批次 ${new Date().toLocaleString('zh-CN')}`,
+      archived_at: new Date().toISOString(),
+      item_count: ledger.length,
+      items: ledger,
+    };
+    archives.unshift(snapshot);
+    const clearCurrent = req.body?.clear_current === true;
+    const writes: Array<[string, any]> = [['output/recommendation_ledger_archives.json', archives]];
+    if (clearCurrent) writes.push(['output/recommendation_ledger.json', []]);
+    requireJsonWrites(writes);
+    res.json({ success: true, archive: snapshot, cleared_current: clearCurrent, ledger: clearCurrent ? [] : ledger });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || '台账批次归档失败' });
   }
 });
 
@@ -987,8 +1131,9 @@ function syncDecisionsWithAliases() {
     // 2. Prematch decisions
     const prematchFile = readJsonFile<any>('output/ybty_leisu_prematch_decisions.json', { decisions: [], summary: {} });
     let prematchChanged = false;
-    if (Array.isArray(prematchFile.decisions)) {
-      prematchFile.decisions.forEach((d: any) => {
+    const prematchCollections = [prematchFile.decisions, prematchFile.research_queue].filter(Array.isArray);
+    if (prematchCollections.length > 0) {
+      prematchCollections.flat().forEach((d: any) => {
         const home = d.ybty_home || (d.match ? d.match.split(' vs ')[0] : '');
         const away = d.ybty_away || (d.match ? d.match.split(' vs ')[1] : '');
         const newLeisuHome = resolveLeisuName(home, d.leisu_home);
@@ -1049,11 +1194,107 @@ app.post('/api/aliases', (req, res) => {
   }
 
   requireJsonWrites([['team_aliases.json', manual]]);
+  const suppressed = readJsonFile<string[]>('team_aliases_suppressed.json', []);
+  const canonicalNorm = normalizeTeamName(canonical_name);
+  const nextSuppressed = suppressed.filter((value) => normalizeTeamName(value) !== canonicalNorm);
+  if (nextSuppressed.length !== suppressed.length) requireJsonWrites([['team_aliases_suppressed.json', nextSuppressed]]);
 
   // 立即驱动全局决策重发刷盘
   syncDecisionsWithAliases();
 
   res.json({ success: true, aliases: manual, removed_from });
+});
+
+app.put('/api/aliases', (req, res) => {
+  try {
+    const oldCanonical = String(req.body?.old_canonical_name || '').trim();
+    const newCanonical = String(req.body?.canonical_name || '').trim();
+    const aliases: string[] = Array.from(new Set<string>((Array.isArray(req.body?.aliases) ? req.body.aliases : [])
+      .map((value: unknown) => String(value || '').trim())
+      .filter((value: string) => value && value !== newCanonical)));
+    if (!oldCanonical || !newCanonical) return res.status(400).json({ error: '原标准队名和新标准队名不能为空。' });
+
+    const manual = readJsonFile<Record<string, string[]>>('team_aliases.json', {});
+    const auto = readJsonFile<Record<string, string[]>>('team_aliases_auto.json', {});
+    if (!(oldCanonical in manual) && !(oldCanonical in auto)) return res.status(404).json({ error: '要修改的球队映射不存在。' });
+    const occupiedCanonical = Array.from(new Set([...Object.keys(manual), ...Object.keys(auto)]))
+      .find((canonical) => canonical !== oldCanonical && normalizeTeamName(canonical) === normalizeTeamName(newCanonical));
+    if (occupiedCanonical) return res.status(409).json({ error: `标准队名“${newCanonical}”与已有“${occupiedCanonical}”重复，请先处理已有映射。` });
+
+    const conflicts: string[] = [];
+    for (const alias of aliases) {
+      const aliasNorm = normalizeTeamName(alias);
+      const canonicalConflict = Array.from(new Set([...Object.keys(manual), ...Object.keys(auto)]))
+        .find((canonical) => canonical !== oldCanonical && canonical !== newCanonical && normalizeTeamName(canonical) === aliasNorm);
+      if (canonicalConflict) conflicts.push(`${alias} → 标准名 ${canonicalConflict}`);
+      for (const [canonical, values] of [...Object.entries(manual), ...Object.entries(auto)]) {
+        if (canonical !== oldCanonical && canonical !== newCanonical && Array.isArray(values) && values.some((value) => normalizeTeamName(value) === aliasNorm)) conflicts.push(`${alias} → ${canonical}`);
+      }
+    }
+    if (conflicts.length > 0) return res.status(409).json({ error: '以下别名已被其他球队占用，未保存。', conflicts: Array.from(new Set(conflicts)) });
+
+    const existingAuto = Array.isArray(auto[oldCanonical]) ? auto[oldCanonical] : [];
+    if (newCanonical !== oldCanonical) {
+      delete manual[oldCanonical];
+      delete auto[oldCanonical];
+    }
+    manual[newCanonical] = aliases;
+    if (existingAuto.length > 0) auto[newCanonical] = existingAuto;
+
+    requireJsonWrites([
+      ['team_aliases.json', manual],
+      ['team_aliases_auto.json', auto],
+    ]);
+    const suppressed = readJsonFile<string[]>('team_aliases_suppressed.json', []);
+    const newCanonicalNorm = normalizeTeamName(newCanonical);
+    const nextSuppressed = suppressed.filter((value) => normalizeTeamName(value) !== newCanonicalNorm);
+    if (nextSuppressed.length !== suppressed.length) requireJsonWrites([['team_aliases_suppressed.json', nextSuppressed]]);
+
+    if (newCanonical !== oldCanonical) {
+      const renameInFile = (filePath: string) => {
+        const file = readJsonFile<any>(filePath, { decisions: [], research_queue: [] });
+        let changed = false;
+        for (const collection of [file.decisions, file.research_queue].filter(Array.isArray)) {
+          for (const item of collection) {
+            if (item.leisu_home === oldCanonical) { item.leisu_home = newCanonical; changed = true; }
+            if (item.leisu_away === oldCanonical) { item.leisu_away = newCanonical; changed = true; }
+          }
+        }
+        if (changed) requireJsonWrites([[filePath, file]]);
+      };
+      renameInFile('output/ybty_leisu_decisions.json');
+      renameInFile('output/ybty_leisu_prematch_decisions.json');
+    }
+    syncDecisionsWithAliases();
+    res.json({ success: true, canonical_name: newCanonical, aliases, automatic_aliases: existingAuto });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || '球队名称修改失败' });
+  }
+});
+
+app.delete('/api/aliases', (req, res) => {
+  try {
+    const canonical = String(req.body?.canonical_name || '').trim();
+    if (!canonical) return res.status(400).json({ error: 'canonical_name 不能为空。' });
+    const manual = readJsonFile<Record<string, string[]>>('team_aliases.json', {});
+    const auto = readJsonFile<Record<string, string[]>>('team_aliases_auto.json', {});
+    if (!(canonical in manual) && !(canonical in auto)) return res.status(404).json({ error: '球队映射不存在或已被删除。' });
+    const removedManual = manual[canonical] || [];
+    const removedAuto = auto[canonical] || [];
+    delete manual[canonical];
+    delete auto[canonical];
+    const suppressed = readJsonFile<string[]>('team_aliases_suppressed.json', []);
+    if (!suppressed.some((value) => normalizeTeamName(value) === normalizeTeamName(canonical))) suppressed.push(canonical);
+    requireJsonWrites([
+      ['team_aliases.json', manual],
+      ['team_aliases_auto.json', auto],
+      ['team_aliases_suppressed.json', suppressed],
+    ]);
+    syncDecisionsWithAliases();
+    res.json({ success: true, canonical_name: canonical, removed_aliases: [...removedManual, ...removedAuto] });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || '删除球队映射失败' });
+  }
 });
 
 function exportFileInfo(filePath: string) {
@@ -1594,27 +1835,43 @@ app.post('/api/batch-supplement', (req, res) => {
 // Clear Analysis Library Matches Endpoint (Resets live & prematch analysis databases without affecting recommendation ledger)
 app.post('/api/clear-outdated-matches', (req, res) => {
   try {
-    const { target = 'all' } = req.body; // 'live' | 'prematch' | 'all'
+    const { target, clear_mode, match_names } = req.body || {}; // target: live|prematch|all; clear_mode: selected|all
+    if (!['live', 'prematch', 'all'].includes(String(target))) {
+      return res.status(400).json({ error: '必须明确指定清空目标：live、prematch 或 all。' });
+    }
+    if (!['selected', 'all'].includes(String(clear_mode))) {
+      return res.status(400).json({ error: '必须明确指定 clear_mode：selected 或 all；系统禁止根据空名单自动执行全量清空。' });
+    }
+    const selectedNames = new Set((Array.isArray(match_names) ? match_names : []).map((name: unknown) => String(name || '').trim()).filter(Boolean));
+    const selective = clear_mode === 'selected';
+    if (selective && selectedNames.size === 0) {
+      return res.status(400).json({ error: '清空所选被拒绝：没有收到任何有效比赛名称，不会执行全量清空。' });
+    }
+    if (clear_mode === 'all' && Array.isArray(match_names) && match_names.length > 0) {
+      return res.status(400).json({ error: '全量清空请求不得同时携带选择名单，请重新确认操作。' });
+    }
 
     let clearedLiveCount = 0;
     let clearedPrematchCount = 0;
 
     if (target === 'live' || target === 'all') {
       const liveFile = readJsonFile<any>('output/ybty_leisu_decisions.json', { decisions: [], summary: {} });
-      clearedLiveCount = (liveFile.decisions || []).length;
-      liveFile.decisions = [];
+      const liveDecisions = Array.isArray(liveFile.decisions) ? liveFile.decisions : [];
+      clearedLiveCount = selective ? liveDecisions.filter((item: any) => selectedNames.has(String(item?.match || '').trim())).length : liveDecisions.length;
+      liveFile.decisions = selective ? liveDecisions.filter((item: any) => !selectedNames.has(String(item?.match || '').trim())) : [];
       liveFile.summary = {
-        total: 0,
-        a_grade: 0,
-        b_grade: 0,
-        watch: 0,
+        ...(liveFile.summary || {}),
+        total: liveFile.decisions.length,
+        a_grade: liveFile.decisions.filter((item: any) => item.grade === 'A').length,
+        b_grade: liveFile.decisions.filter((item: any) => item.grade === 'B').length,
+        watch: liveFile.decisions.filter((item: any) => item.status === 'WATCH').length,
         updated_at: new Date().toISOString(),
       };
       requireJsonWrites([['output/ybty_leisu_decisions.json', liveFile]]);
 
       const liveStatus = readJsonFile<any>('output/pipeline_status.json', {});
       liveStatus.last_updated = new Date().toISOString();
-      liveStatus.total_matches = 0;
+      liveStatus.total_matches = liveFile.decisions.length;
       requireJsonWrites([['output/pipeline_status.json', liveStatus]]);
     }
 
@@ -1622,43 +1879,50 @@ app.post('/api/clear-outdated-matches', (req, res) => {
       const prematchFile = readJsonFile<any>('output/ybty_leisu_prematch_decisions.json', { decisions: [], summary: {} });
       const prematchDecisionsCount = Array.isArray(prematchFile.decisions) ? prematchFile.decisions.length : 0;
       const prematchResearchCount = Array.isArray(prematchFile.research_queue) ? prematchFile.research_queue.length : 0;
-      clearedPrematchCount = prematchDecisionsCount + prematchResearchCount;
-      prematchFile.decisions = [];
-      prematchFile.research_queue = [];
+      const prematchDecisions = Array.isArray(prematchFile.decisions) ? prematchFile.decisions : [];
+      const prematchResearch = Array.isArray(prematchFile.research_queue) ? prematchFile.research_queue : [];
+      clearedPrematchCount = selective
+        ? prematchDecisions.filter((item: any) => selectedNames.has(String(item?.match || '').trim())).length + prematchResearch.filter((item: any) => selectedNames.has(String(item?.match || '').trim())).length
+        : prematchDecisionsCount + prematchResearchCount;
+      prematchFile.decisions = selective ? prematchDecisions.filter((item: any) => !selectedNames.has(String(item?.match || '').trim())) : [];
+      prematchFile.research_queue = selective ? prematchResearch.filter((item: any) => !selectedNames.has(String(item?.match || '').trim())) : [];
       prematchFile.single_best = null;
       prematchFile.parlay_5x = null;
+      const remainingPrematch = [...prematchFile.decisions, ...prematchFile.research_queue];
       prematchFile.summary = {
-        total: 0,
-        assessed: 0,
-        a_grade: 0,
-        b_grade: 0,
-        c_grade: 0,
-        watch: 0,
-        research: 0,
-        pass: 0,
+        total: remainingPrematch.length,
+        assessed: remainingPrematch.length,
+        a_grade: remainingPrematch.filter((item: any) => item.grade === 'A').length,
+        b_grade: remainingPrematch.filter((item: any) => item.grade === 'B').length,
+        c_grade: remainingPrematch.filter((item: any) => item.grade === 'C').length,
+        watch: remainingPrematch.filter((item: any) => item.status === 'WATCH').length,
+        research: prematchFile.research_queue.length,
+        pass: remainingPrematch.filter((item: any) => item.status === 'PASS').length,
         updated_at: new Date().toISOString(),
       };
 
       const prematchCandidates = readJsonFile<any>('output/ybty_leisu_prematch_candidates.json', {});
-      prematchCandidates.candidates = [];
-      prematchCandidates.live_events = [];
-      prematchCandidates.unmatched_markets = [];
-      prematchCandidates.summary = { total: 0, matched: 0, unmatched: 0 };
+      prematchCandidates.candidates = selective ? (prematchCandidates.candidates || []).filter((item: any) => !selectedNames.has(String(item?.match || '').trim())) : [];
+      prematchCandidates.live_events = selective ? (prematchCandidates.live_events || []).filter((item: any) => !selectedNames.has(String(item?.match || '').trim())) : [];
+      if (!selective) prematchCandidates.unmatched_markets = [];
+      prematchCandidates.summary = { ...(prematchCandidates.summary || {}), total: prematchCandidates.candidates.length };
 
       const prematchBrief = readJsonFile<any>('output/prematch_ai_brief.json', {});
-      prematchBrief.candidates = [];
-      prematchBrief.highlights = [];
-      prematchBrief.summary = '非滚球分析库已清空，等待下一次分析。';
+      prematchBrief.candidates = selective ? (prematchBrief.candidates || []).filter((item: any) => !selectedNames.has(String(item?.match || '').trim())) : [];
+      prematchBrief.highlights = selective ? (prematchBrief.highlights || []).filter((item: any) => !selectedNames.has(String(item?.match || '').trim())) : [];
+      prematchBrief.summary = selective ? `已从非滚球分析库移除 ${clearedPrematchCount} 场所选比赛。` : '非滚球分析库已清空，等待下一次分析。';
 
       const prematchStatus = readJsonFile<any>('output/prematch_pipeline_status.json', {});
       prematchStatus.last_updated = new Date().toISOString();
-      prematchStatus.total_matches = 0;
-      prematchStatus.market_events = 0;
-      prematchStatus.prematch_events = 0;
-      prematchStatus.matched = 0;
-      prematchStatus.unmatched = 0;
-      prematchStatus.research = 0;
-      prematchStatus.pass = 0;
+      prematchStatus.total_matches = remainingPrematch.length;
+      if (!selective) {
+        prematchStatus.market_events = 0;
+        prematchStatus.prematch_events = 0;
+        prematchStatus.matched = 0;
+        prematchStatus.unmatched = 0;
+      }
+      prematchStatus.research = prematchFile.research_queue.length;
+      prematchStatus.pass = remainingPrematch.filter((item: any) => item.status === 'PASS').length;
 
       requireJsonWrites([
         ['output/ybty_leisu_prematch_decisions.json', prematchFile],
@@ -1673,6 +1937,7 @@ app.post('/api/clear-outdated-matches', (req, res) => {
       cleared_live: clearedLiveCount,
       cleared_prematch: clearedPrematchCount,
       total_cleared: clearedLiveCount + clearedPrematchCount,
+      selective,
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1682,11 +1947,18 @@ app.post('/api/clear-outdated-matches', (req, res) => {
 // Server-side AI Evaluation using Gemini API
 app.post('/api/ai/evaluate', async (req, res) => {
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    const geminiApiKeys = Array.from(new Set([
+      ...(process.env.GEMINI_API_KEYS || '').split(/[;,\r\n]+/),
+      process.env.GEMINI_API_KEY || '',
+    ].map((key) => key.trim()).filter(Boolean)));
+    const openAiApiKeys = Array.from(new Set([
+      ...(process.env.OPENAI_API_KEYS || '').split(/[;,\r\n]+/),
+      process.env.OPENAI_API_KEY || '',
+    ].map((key) => key.trim()).filter(Boolean)));
+    if (geminiApiKeys.length === 0 && openAiApiKeys.length === 0) {
       return res.status(400).json({
-        error: 'GEMINI_API_KEY environment variable is missing.',
-        instructions: 'Please set GEMINI_API_KEY in project secrets to activate AI Evaluation.',
+        error: 'No AI provider API key is configured.',
+        instructions: '请在 .env 中配置 GEMINI_API_KEY（或 GEMINI_API_KEYS），也可以配置 OPENAI_API_KEY（或 OPENAI_API_KEYS）作为备用供应商。',
       });
     }
 
@@ -1735,8 +2007,6 @@ app.post('/api/ai/evaluate', async (req, res) => {
       }
     }
 
-    const ai = new GoogleGenAI({ apiKey });
-
     // Read CUSTOM_INSTRUCTIONS_COMPLETE.md rules
     let rulesContent = '';
     try {
@@ -1748,33 +2018,158 @@ app.post('/api/ai/evaluate', async (req, res) => {
       console.warn('Rules file missing or unreadable', e);
     }
 
+    const currentLedgerFeedback = readJsonFile<any[]>('output/recommendation_ledger.json', []);
+    const archivedLedgerFeedback = readJsonFile<any[]>('output/recommendation_ledger_archives.json', []);
+    const feedbackById = new Map<string, any>();
+    [...currentLedgerFeedback, ...archivedLedgerFeedback.flatMap((archive: any) => Array.isArray(archive?.items) ? archive.items : [])]
+      .forEach((item: any) => feedbackById.set(String(item?.id || `${item?.match}|${item?.created_at}`), item));
+    const historicalFeedback = Array.from(feedbackById.values())
+      .filter((item: any) => item?.review?.final_score || (Array.isArray(item?.parlay_legs) && item.parlay_legs.some((leg: any) => leg?.final_score)))
+      .sort((a: any, b: any) => String(b?.created_at || '').localeCompare(String(a?.created_at || '')))
+      .slice(0, 100)
+      .map((item: any) => ({
+        match: item.match,
+        grade: item.grade,
+        recommendation: item.recommendation,
+        final_score: item.review?.final_score || null,
+        ht_score: item.review?.ht_score || null,
+        is_parlay: item.is_parlay === true,
+        parlay_legs: Array.isArray(item.parlay_legs) ? item.parlay_legs.map((leg: any) => ({ match: leg.match, market: leg.market, line: leg.line, odds: leg.odds, final_score: leg.final_score || null })) : [],
+        record_type: item.record_type,
+      }));
+
     const runGemini = async (contents: string): Promise<string> => {
-      const retryDelays = [0, 1500, 3500, 7000];
+      if (geminiApiKeys.length === 0) throw Object.assign(new Error('Gemini is not configured.'), { provider: 'gemini', status: 503 });
+      const maxCycles = openAiApiKeys.length > 0 ? 1 : 4;
       let lastError: any;
-      for (let attempt = 0; attempt < retryDelays.length; attempt += 1) {
-        if (retryDelays[attempt] > 0) await waitForRetry(retryDelays[attempt]);
-        try {
-          const response = await ai.models.generateContent({
-            model: GEMINI_MODEL,
-            contents,
-            config: { responseMimeType: 'application/json' },
-          });
-          return response.text || '{}';
-        } catch (sdkError: any) {
-          lastError = sdkError;
-          if (isGeminiNetworkFailure(sdkError)) {
-            try {
-              console.warn(`[AI Evaluation] Gemini SDK network unavailable; using Windows network fallback (attempt ${attempt + 1}/${retryDelays.length}).`);
-              return await generateGeminiViaWindowsNetwork(apiKey, contents);
-            } catch (fallbackError: any) {
-              lastError = fallbackError;
+      for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+        if (cycle > 0) {
+          const previousStatus = geminiHttpStatus(lastError);
+          const retryDelay = previousStatus === 429
+            ? [15000, 45000, 90000][cycle - 1]
+            : [2500, 7500, 15000][cycle - 1];
+          await waitForRetry(retryDelay);
+        }
+        const startIndex = geminiKeyCursor % geminiApiKeys.length;
+        let allKeysRateLimited = true;
+        for (let offset = 0; offset < geminiApiKeys.length; offset += 1) {
+          const keyIndex = (startIndex + offset) % geminiApiKeys.length;
+          const activeKey = geminiApiKeys[keyIndex];
+          const ai = new GoogleGenAI({ apiKey: activeKey });
+          await waitForGeminiRateSlot();
+          try {
+            const response = await ai.models.generateContent({
+              model: GEMINI_MODEL,
+              contents,
+              config: { responseMimeType: 'application/json' },
+            });
+            geminiKeyCursor = (keyIndex + 1) % geminiApiKeys.length;
+            return response.text || '{}';
+          } catch (sdkError: any) {
+            lastError = sdkError;
+            if (isGeminiNetworkFailure(sdkError)) {
+              try {
+                console.warn(`[AI Evaluation] Key #${keyIndex + 1}: SDK network unavailable; using Windows network fallback.`);
+                await waitForGeminiRateSlot();
+                const text = await generateGeminiViaWindowsNetwork(activeKey, contents);
+                geminiKeyCursor = (keyIndex + 1) % geminiApiKeys.length;
+                return text;
+              } catch (fallbackError: any) {
+                lastError = fallbackError;
+              }
             }
+            const status = geminiHttpStatus(lastError);
+            if (status === 429) {
+              console.warn(`[AI Evaluation] Gemini key #${keyIndex + 1}/${geminiApiKeys.length} rate limited; switching key.`);
+              continue;
+            }
+            allKeysRateLimited = false;
+            if (!isRetryableGeminiFailure(lastError)) throw lastError;
+            break;
           }
-          if (!isRetryableGeminiFailure(lastError) || attempt === retryDelays.length - 1) throw lastError;
-          console.warn(`[AI Evaluation] Gemini temporarily unavailable (${geminiHttpStatus(lastError) || 'network'}); retrying.`);
+        }
+        if (allKeysRateLimited) geminiKeyCursor = (startIndex + 1) % geminiApiKeys.length;
+        if (cycle === maxCycles - 1) throw lastError;
+        console.warn(`[AI Evaluation] Gemini key pool temporarily unavailable (${geminiHttpStatus(lastError) || 'network'}); retrying cycle ${cycle + 2}/${maxCycles}.`);
+      }
+      throw lastError;
+    };
+
+    const runOpenAI = async (contents: string): Promise<string> => {
+      if (openAiApiKeys.length === 0) throw Object.assign(new Error('OpenAI is not configured.'), { provider: 'openai', status: 503 });
+      const model = String(process.env.OPENAI_MODEL || 'gpt-5.6-luna').trim();
+      let lastError: any;
+      const startIndex = openAiKeyCursor % openAiApiKeys.length;
+      for (let offset = 0; offset < openAiApiKeys.length; offset += 1) {
+        const keyIndex = (startIndex + offset) % openAiApiKeys.length;
+        try {
+          const response = await fetch('https://api.openai.com/v1/responses', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${openAiApiKeys[keyIndex]}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ model, input: contents, text: { verbosity: 'medium' } }),
+          });
+          const raw = await response.text();
+          if (!response.ok) {
+            let detail = raw;
+            try { detail = JSON.parse(raw)?.error?.message || raw; } catch { /* keep raw response */ }
+            throw Object.assign(new Error(`OpenAI request failed (HTTP ${response.status}): ${String(detail).slice(0, 800)}`), {
+              provider: 'openai',
+              status: response.status,
+            });
+          }
+          const payload = JSON.parse(raw);
+          const outputText = typeof payload.output_text === 'string'
+            ? payload.output_text
+            : (Array.isArray(payload.output) ? payload.output : [])
+              .flatMap((item: any) => Array.isArray(item?.content) ? item.content : [])
+              .map((item: any) => item?.text)
+              .filter((item: any) => typeof item === 'string')
+              .join('\n');
+          if (!outputText) throw Object.assign(new Error('OpenAI returned no text output.'), { provider: 'openai', status: 502 });
+          openAiKeyCursor = (keyIndex + 1) % openAiApiKeys.length;
+          return outputText;
+        } catch (error: any) {
+          lastError = error;
+          const status = geminiHttpStatus(error);
+          if (status === 401 || status === 403 || status === 429 || (status !== null && status >= 500)) {
+            console.warn(`[AI Evaluation] OpenAI key #${keyIndex + 1}/${openAiApiKeys.length} unavailable (${status}); switching key.`);
+            continue;
+          }
+          throw error;
         }
       }
       throw lastError;
+    };
+
+    let activeAiProvider = '';
+    const configuredOrder = String(process.env.AI_PROVIDER_ORDER || 'gemini,openai')
+      .split(/[;,\s]+/)
+      .map((provider) => provider.trim().toLowerCase());
+    const providerOrder = configuredOrder.filter((provider, index) =>
+      ['gemini', 'openai'].includes(provider) && configuredOrder.indexOf(provider) === index);
+    const runAI = async (contents: string): Promise<string> => {
+      const availableProviders = providerOrder.filter((provider) =>
+        provider === 'gemini' ? geminiApiKeys.length > 0 : openAiApiKeys.length > 0);
+      const failures: string[] = [];
+      let lastError: any;
+      for (const provider of availableProviders) {
+        try {
+          const text = provider === 'gemini' ? await runGemini(contents) : await runOpenAI(contents);
+          activeAiProvider = provider;
+          return text;
+        } catch (error: any) {
+          lastError = error;
+          failures.push(`${provider}: ${error?.message || error}`);
+          console.warn(`[AI Evaluation] ${provider} failed; trying next configured provider.`);
+        }
+      }
+      throw Object.assign(new Error(`所有已配置的 AI 服务均不可用：${failures.join('；')}`), {
+        provider: 'all',
+        status: geminiHttpStatus(lastError) || 503,
+      });
     };
 
     if (mode !== 'parlay_check') {
@@ -1787,6 +2182,62 @@ app.post('/api/ai/evaluate', async (req, res) => {
           ...(Array.isArray(decisionFile.decisions) ? decisionFile.decisions : []),
           ...(Array.isArray(decisionFile.research_queue) ? decisionFile.research_queue : []),
         ];
+        const candidateFile = mode === 'prematch_eval'
+          ? readJsonFile<any>('output/ybty_leisu_prematch_candidates.json', { candidates: [] })
+          : readJsonFile<any>('output/ybty_leisu_candidates.json', { candidates: [] });
+        const ybtySnapshot = mode === 'prematch_eval'
+          ? readJsonFile<any>('output/ybty_prematch_latest.json', { matches: [] })
+          : readJsonFile<any>('output/ybty_latest.json', { matches: [] });
+        const leisuSnapshot = mode === 'prematch_eval'
+          ? readJsonFile<any>('output/leisu_prematch_latest.json', { events: [] })
+          : readJsonFile<any>('output/leisu_latest.json', { events: [] });
+        const sameTeams = (homeA: unknown, awayA: unknown, homeB: unknown, awayB: unknown) =>
+          cleanTeamName(homeA) === cleanTeamName(homeB) && cleanTeamName(awayA) === cleanTeamName(awayB);
+        const hydrateStoredMatch = (found: any) => {
+          const candidateWrapper = (Array.isArray(candidateFile.candidates) ? candidateFile.candidates : []).find((entry: any) =>
+            entry?.match === found.match
+            || sameTeams(entry?.candidate?.home, entry?.candidate?.away, found.ybty_home, found.ybty_away)
+            || sameTeams(entry?.ybty_home, entry?.ybty_away, found.ybty_home, found.ybty_away));
+          const candidateDetails = candidateWrapper ? {
+            live_statistics: candidateWrapper.live_statistics,
+            reference_odds: candidateWrapper.reference_odds,
+            recent_trends: candidateWrapper.recent_trends,
+            incidents: candidateWrapper.incidents,
+            weather: candidateWrapper.weather,
+            lineups: candidateWrapper.lineups,
+            player_candidates: candidateWrapper.player_candidates,
+            live_text: candidateWrapper.live_text,
+            detail_context: candidateWrapper.detail_context,
+          } : {};
+          const rawYbty = (Array.isArray(ybtySnapshot.matches) ? ybtySnapshot.matches : []).find((entry: any) =>
+            sameTeams(entry.home, entry.away, found.ybty_home, found.ybty_away));
+          const rawLeisu = (Array.isArray(leisuSnapshot.events) ? leisuSnapshot.events : []).find((entry: any) =>
+            sameTeams(entry?.homeTeam?.name || entry?.home, entry?.awayTeam?.name || entry?.away, found.leisu_home, found.leisu_away));
+          const rawDetails = rawLeisu ? {
+            live_statistics: rawLeisu._statistics || rawLeisu.live_statistics,
+            incidents: rawLeisu._incidents || rawLeisu.incidents,
+            weather: rawLeisu._weather || rawLeisu.weather,
+            live_text: rawLeisu._live_text || rawLeisu.live_text,
+            detail_context: rawLeisu._detail_context || rawLeisu.detail_context,
+          } : {};
+          const mergeMissing = (base: any, supplement: any) => {
+            const merged = { ...base };
+            for (const [key, value] of Object.entries(supplement || {})) {
+              const current = merged[key];
+              const currentEmpty = current == null
+                || (Array.isArray(current) && current.length === 0)
+                || (typeof current === 'object' && !Array.isArray(current) && Object.keys(current).length === 0);
+              if (currentEmpty && value != null) merged[key] = value;
+            }
+            return merged;
+          };
+          let hydrated = mergeMissing(found, candidateDetails);
+          hydrated = mergeMissing(hydrated, rawDetails);
+          if ((!Array.isArray(hydrated.ybty_raw_markets) || hydrated.ybty_raw_markets.length === 0) && Array.isArray(rawYbty?.markets)) {
+            hydrated.ybty_raw_markets = rawYbty.markets;
+          }
+          return hydrated;
+        };
         const unresolved: string[] = [];
         requestedMatches = batch_match_refs.map((ref: any) => {
           const exact = storedMatches.find((item: any) => item.match === ref.match);
@@ -1796,7 +2247,7 @@ app.post('/api/ai/evaluate', async (req, res) => {
           );
           const found = exact || byTeams;
           if (!found) unresolved.push(ref.match || `${ref.ybty_home} vs ${ref.ybty_away}`);
-          return found;
+          return found ? hydrateStoredMatch(found) : found;
         }).filter(Boolean);
         if (unresolved.length > 0) {
           return res.status(409).json({ error: '部分比赛已不在当前分析批次中，请刷新页面后重新选择。', unresolved_matches: unresolved });
@@ -1959,10 +2410,14 @@ ${JSON.stringify(evaluationData)}`;
 ${rulesContent}
 
 服务端补全后的评估数据：
-${JSON.stringify(evaluationData)}`;
-      const batchText = await runGemini(batchPromptV2);
+${JSON.stringify(evaluationData)}
+
+历史台账反馈（当前批次与已归档批次去重后的最近已录入赛果，仅用于校准，不得替代本场数据）：
+${JSON.stringify(historicalFeedback)}`;
+      const batchText = await runAI(batchPromptV2);
       try {
-        const parsed = JSON.parse(batchText);
+        const parsed = parseModelJson(batchText);
+        parsed.ai_provider = activeAiProvider;
         const requiredCategoriesV2 = ['全场大小球', '半场大小球', '全场让球', '半场让球', '全场独赢1X2', '波胆', '双方是否进球', '总进球单双', '主队进球数', '客队进球数', '总进球数', '进球时间段'];
         const requiredCategories = ['全场大小球', '半场大小球', '全场让球', '半场让球', '全场独赢1X2', '波胆', '双方是否进球', '总进球单双', '主队进球数', '客队进球数', '总进球数', '进球时间段'];
         if (!Array.isArray(parsed.matches)) throw new Error('missing matches');
@@ -2097,6 +2552,8 @@ ${mode === 'parlay_check' ? `
 ${candidatesInfoText || '无比赛数据'}
 ---【用户要求生成的串关规格】---
 ${JSON.stringify(parlay_requests || [])}
+---【历史台账反馈】---
+${JSON.stringify(historicalFeedback)}
 ` : `
 赛事名称: ${match_name || `${ybty_home} vs ${ybty_away}`}
 YBTY队名: 主队 [${ybty_home}] vs 客队 [${ybty_away}]
@@ -2106,6 +2563,7 @@ YBTY队名: 主队 [${ybty_home}] vs 客队 [${ybty_away}]
 `}
 
 请从每场的 system_recommendation、ai_market_assessments 与 YBTY 真实盘口中选择胜率较高且赔率合理的方向，按用户要求的每种长度和数量生成串关。不得编造盘口或赔率；单张串关不得重复同一比赛。输出严格的 JSON 结构：
+让球腿的 market 必须写成“全场让球（明确球队名）”或“半场让球（明确球队名）”，禁止只写“全场让球”；大小球腿必须在 market 或 line 中明确写出“大/小”，禁止只给数字盘口。
 {
   "summary": "本次多规格串关生成总结",
   "grade": "A | B | C",
@@ -2130,10 +2588,11 @@ YBTY队名: 主队 [${ybty_home}] vs 客队 [${ybty_away}]
 }
 `;
 
-    const resultText = await runGemini(prompt);
+    const resultText = await runAI(prompt);
     let parsedJson = {};
     try {
-      parsedJson = JSON.parse(resultText);
+      parsedJson = parseModelJson(resultText);
+      (parsedJson as any).ai_provider = activeAiProvider;
     } catch {
       parsedJson = { summary: resultText, grade: 'C', verification_passed: false };
     }
@@ -2147,12 +2606,12 @@ YBTY队名: 主队 [${ybty_home}] vs 客队 [${ybty_away}]
     res.status(serviceUnavailable ? 503 : networkFailure ? 502 : 500).json({
       error: err.message || 'AI Evaluation Failed',
       ...(serviceUnavailable ? {
-        instructions: `Gemini 服务暂时不可用（HTTP ${serviceStatus}），系统已自动重试 4 次。请稍后再次评估；这不是盘口数据或 API Key 缺失。`,
+        instructions: '所有已配置的 AI 服务当前均不可用。请检查对应 API Key、账户额度，以及 generativelanguage.googleapis.com:443 和 api.openai.com:443 的网络访问；本地比赛数据不会丢失。',
         retryable: true,
         upstream_status: serviceStatus,
       } : {}),
       ...(networkFailure ? {
-        instructions: 'Gemini 网络连接失败。请允许 node.exe 访问 generativelanguage.googleapis.com:443，或检查防火墙、代理和安全软件。',
+        instructions: 'AI 网络连接失败。请允许 node.exe 访问 generativelanguage.googleapis.com:443 和 api.openai.com:443，或检查防火墙、代理和安全软件。',
       } : {}),
     });
   }

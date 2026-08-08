@@ -95,7 +95,7 @@ const evaluateProjectionSettlement = (item: LedgerItem): SettlementDetail => {
 export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestReport }) => {
   const [ledger, setLedger] = useState<LedgerItem[]>(initialLedger);
   const [activeTab, setActiveTab] = useState<'ledger' | 'backtest'>('ledger');
-  const [recordTypeFilter, setRecordTypeFilter] = useState<'ALL' | 'formal' | 'candidate'>('ALL');
+  const [recordTypeFilter, setRecordTypeFilter] = useState<'ALL' | 'formal' | 'candidate' | 'parlay'>('ALL');
   const [outcomeFilter, setOutcomeFilter] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -126,11 +126,53 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
   const [showDeleteSelectedModal, setShowDeleteSelectedModal] = useState<boolean>(false);
   const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [archives, setArchives] = useState<any[]>([]);
+  const [currentLedger, setCurrentLedger] = useState<LedgerItem[]>(initialLedger);
+  const [ledgerViewMode, setLedgerViewMode] = useState<'current' | 'merged' | string>('current');
 
   // Sync state if props change
   React.useEffect(() => {
-    setLedger(initialLedger);
-  }, [initialLedger]);
+    setCurrentLedger(initialLedger);
+    if (ledgerViewMode === 'current') setLedger(initialLedger);
+  }, [initialLedger, ledgerViewMode]);
+
+  const loadArchives = React.useCallback(async () => {
+    try {
+      const resp = await fetch('/api/ledger/archives');
+      const data = await resp.json();
+      setArchives(Array.isArray(data.archives) ? data.archives : []);
+    } catch (err) {
+      console.error('Failed to load ledger archives', err);
+    }
+  }, []);
+
+  React.useEffect(() => { void loadArchives(); }, [loadArchives]);
+
+  const showCurrentLedger = () => { setLedger(currentLedger); setLedgerViewMode('current'); };
+  const showMergedLedger = () => {
+    const unique = new Map<string, LedgerItem>();
+    [...currentLedger, ...archives.flatMap((archive) => archive.items || [])].forEach((item: LedgerItem) => unique.set(item.id || `${item.match}-${item.created_at}`, item));
+    setLedger(Array.from(unique.values()));
+    setLedgerViewMode('merged');
+  };
+  const showArchive = (archive: any) => { setLedger(Array.isArray(archive.items) ? archive.items : []); setLedgerViewMode(archive.id); };
+
+  const handleArchiveCurrentBatch = async () => {
+    if (currentLedger.length === 0) return;
+    const name = window.prompt('请输入本批次名称，例如：2026-08-08 晚场', `台账批次 ${new Date().toLocaleString('zh-CN')}`);
+    if (!name) return;
+    const clearCurrent = window.confirm('归档后是否清空当前台账，开始记录下一批？\n确定＝归档并清空；取消＝仅归档副本。');
+    try {
+      const resp = await fetch('/api/ledger/archive', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, clear_current: clearCurrent }) });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+      if (clearCurrent) { setCurrentLedger([]); setLedger([]); setLedgerViewMode('current'); }
+      setSyncToast(`✅ 已归档批次“${data.archive.name}”，共 ${data.archive.item_count} 条。${clearCurrent ? '当前台账已清空。' : ''}`);
+      await loadArchives();
+    } catch (err: any) {
+      setSyncToast(`归档失败：${err.message || '未知错误'}`);
+    }
+  };
 
   // Evaluate settlements for all items
   const ledgerWithSettlement = ledger.map((item) => {
@@ -181,6 +223,8 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
         finalScore: item.review?.final_score || null,
         halfTimeScore: item.review?.ht_score || item.ht_score || item.half_time_score || null,
         scoreVerified: item.score_verified === true,
+        homeTeam: item.ybty_home,
+        awayTeam: item.ybty_away,
         isLive: Boolean(
           (item as any).is_live ||
           (item as any).source_type === 'live' ||
@@ -205,7 +249,7 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
   const projectionItems = machineCandidates.filter((i) => i.prediction_only);
   const marketCandidateItems = machineCandidates.filter((i) => !i.prediction_only);
 
-  const reviewedFormal = formalItems.filter((i) => {
+  const reviewedFormal = ledgerWithSettlement.filter((i) => {
     if (i.isParlay && i.parlaySettlement) {
       return i.parlaySettlement.outcome !== 'pending';
     }
@@ -245,8 +289,10 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
         return;
       }
 
-      totalStakedUnits += 1.0;
-      totalNetProfit += item.settlement.netProfitUnit;
+      if (!item.prediction_only) {
+        totalStakedUnits += 1.0;
+        totalNetProfit += item.settlement.netProfitUnit;
+      }
 
       switch (item.settlement.outcome) {
         case 'win': countWin++; break;
@@ -262,18 +308,71 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
   // Weighted win rate: (Win + 0.5 * HalfWin) / (Win + HalfWin + HalfLoss + Loss)
   const weightedWinScore = countWin + 0.5 * countHalfWin;
   const formalWinRate = effectiveBets > 0 ? ((weightedWinScore / effectiveBets) * 100).toFixed(1) : '0.0';
+  const directWinRate = effectiveBets > 0 ? (((countWin + countHalfWin) / effectiveBets) * 100).toFixed(1) : '--';
   const roiPercent = totalStakedUnits > 0 ? ((totalNetProfit / totalStakedUnits) * 100).toFixed(1) : '0.0';
+
+  type WinRateRow = { label: string; wins: number; losses: number; pushes: number; pending: number; rate: string };
+  const summarizeOutcomes = (label: string, outcomes: string[]): WinRateRow => {
+    const wins = outcomes.filter((outcome) => outcome === 'win' || outcome === 'half_win').length;
+    const losses = outcomes.filter((outcome) => outcome === 'loss' || outcome === 'half_loss').length;
+    const pushes = outcomes.filter((outcome) => outcome === 'push').length;
+    const pending = outcomes.filter((outcome) => outcome === 'pending' || outcome === 'invalid_data').length;
+    return { label, wins, losses, pushes, pending, rate: wins + losses > 0 ? `${((wins / (wins + losses)) * 100).toFixed(1)}%` : '--' };
+  };
+  const marketCategory = (market: string): string => {
+    const value = String(market || '其他玩法');
+    if (value.includes('半场') && value.includes('大小')) return '半场大小球';
+    if (value.includes('半场') && value.includes('让球')) return '半场让球';
+    if (value.includes('独赢') || value.includes('1X2')) return '独赢/1X2';
+    if (value.includes('让球')) return '全场让球';
+    if (value.includes('大小') || value.includes('大球') || value.includes('小球')) return '全场大小球';
+    if (value.includes('双方') || value.includes('BTTS')) return '双方进球';
+    if (value.includes('波胆')) return '波胆';
+    if (value.includes('进球数')) return '进球数';
+    return value.replace(/（.*$/, '').trim() || '其他玩法';
+  };
+
+  const uniqueDirections = new Map<string, { grade: string; market: string; outcome: string }>();
+  ledgerWithSettlement.forEach((item) => {
+    if (item.isParlay && item.parlaySettlement) {
+      item.parlaySettlement.evaluatedLegs.forEach((leg: any) => {
+        const key = [leg.match, leg.market, leg.line, leg.odds].join('|');
+        const sourceLeg: any = item.parlay_legs?.find((candidate: any) => candidate.leg_index === leg.leg_index || (candidate.match === leg.match && candidate.market === leg.market));
+        if (!uniqueDirections.has(key)) uniqueDirections.set(key, { grade: String(sourceLeg?.grade || item.grade || '未评级'), market: String(leg.market || ''), outcome: leg.settlement?.outcome || 'pending' });
+      });
+    } else {
+      const key = [item.match, item.recommendation?.market, item.recommendation?.line, item.recommendation?.odds].join('|');
+      if (!uniqueDirections.has(key)) uniqueDirections.set(key, { grade: String(item.grade || '未评级'), market: String(item.recommendation?.market || ''), outcome: item.settlement?.outcome || 'pending' });
+    }
+  });
+  const directionRows = Array.from(uniqueDirections.values());
+  const gradeWinRates = Array.from(new Set(directionRows.map((item) => item.grade))).sort().map((grade) => summarizeOutcomes(`${grade}级推荐`, directionRows.filter((item) => item.grade === grade).map((item) => item.outcome)));
+  const marketWinRates = Array.from(new Set(directionRows.map((item) => marketCategory(item.market)))).sort().map((category) => summarizeOutcomes(category, directionRows.filter((item) => marketCategory(item.market) === category).map((item) => item.outcome)));
+  const formalParlays = ledgerWithSettlement.filter((item) => item.isParlay && item.parlaySettlement);
+  const parlayWinRates = Array.from(new Set(formalParlays.map((item) => item.parlay_legs?.length || 0))).filter((size) => size >= 2).sort((a, b) => a - b).map((size) => summarizeOutcomes(`${size}串1`, formalParlays.filter((item) => (item.parlay_legs?.length || 0) === size).map((item) => item.parlaySettlement?.outcome || 'pending')));
+  const outcomesFor = (items: typeof ledgerWithSettlement) => items.map((item) => item.isParlay ? item.parlaySettlement?.outcome || 'pending' : item.settlement?.outcome || 'pending');
+  const recordTypeWinRates = [
+    summarizeOutcomes('正式推荐', outcomesFor(formalItems)),
+    summarizeOutcomes('盘口候选', outcomesFor(marketCandidateItems)),
+    summarizeOutcomes('扩展预测', outcomesFor(projectionItems)),
+  ];
 
   const filteredLedger = ledgerWithSettlement.filter((item) => {
     const typeMatch =
       recordTypeFilter === 'ALL' ||
       (recordTypeFilter === 'formal' && item.isFormal) ||
-      (recordTypeFilter === 'candidate' && !item.isFormal);
+      (recordTypeFilter === 'candidate' && !item.isFormal) ||
+      (recordTypeFilter === 'parlay' && item.isParlay);
 
-    const outcome = item.settlement?.outcome || item.review?.outcome || 'pending';
+    const outcome = item.isParlay ? item.parlaySettlement?.outcome || 'pending' : item.settlement?.outcome || item.review?.outcome || 'pending';
     const outcomeMatch = outcomeFilter === 'ALL' || outcome === outcomeFilter;
 
-    const nameMatch = item.match.toLowerCase().includes(searchTerm.toLowerCase());
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const searchMeansParlay = normalizedSearch === '串子' || normalizedSearch === '串关' || normalizedSearch === '串';
+    const legMatch = Array.isArray(item.parlay_legs) && item.parlay_legs.some((leg: any) =>
+      [leg.match, leg.ybty_home, leg.ybty_away, leg.market].some((value) => String(value || '').toLowerCase().includes(normalizedSearch))
+    );
+    const nameMatch = !normalizedSearch || item.match.toLowerCase().includes(normalizedSearch) || legMatch || (searchMeansParlay && item.isParlay);
 
     return typeMatch && outcomeMatch && nameMatch;
   });
@@ -347,6 +446,7 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
 
   // Handle saving score edit with auto-sync across same match items
   const handleSaveEdit = async (item: any) => {
+    if (ledgerViewMode !== 'current') return;
     try {
       if (item.isParlay && editParlayLegs.length > 0) {
         const formattedLegs = editParlayLegs.map((leg) => ({
@@ -439,6 +539,7 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
   };
 
   const handleExecuteDelete = async (payload: { ids?: string[]; clearAll?: boolean }) => {
+    if (ledgerViewMode !== 'current') return;
     setIsDeleting(true);
     try {
       const res = await fetch('/api/ledger/delete', {
@@ -466,7 +567,7 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl shadow relative overflow-hidden">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-            <span>正式 AI 推荐总盈亏 (Units)</span>
+            <span>全台账真实赔率总盈亏 (Units)</span>
             <PieChart className="w-4 h-4 text-emerald-400" />
           </div>
           <div className={`text-2xl font-black font-mono ${totalNetProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
@@ -480,12 +581,15 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
 
         <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl shadow">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-            <span>加权胜率 (Weighted Win Rate)</span>
+            <span>全台账综合胜率</span>
             <TrendingUp className="w-4 h-4 text-teal-400" />
           </div>
-          <div className="text-2xl font-bold text-teal-400">{formalWinRate}%</div>
+          <div className="text-2xl font-bold text-teal-400">{directWinRate}{directWinRate !== '--' ? '%' : ''}</div>
           <p className="text-[11px] text-slate-500 mt-1">
-            {countWin}全赢 / {countHalfWin}赢半 / {countPush}走 / {countHalfLoss}输半 / {countLoss}全输
+            命中 {countWin + countHalfWin} / 负 {countLoss + countHalfLoss}；走盘 {countPush}（不计分母）
+          </p>
+          <p className="text-[10px] text-slate-600 mt-1">
+            收益加权率 {formalWinRate}%（赢半按0.5计算）
           </p>
         </div>
 
@@ -500,7 +604,7 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
             <span className="text-rose-400">{countLoss + countHalfLoss} 输(含半)</span>
           </div>
           <p className="text-[11px] text-slate-500 mt-1">
-            已核验场次: {reviewedFormal.length} 场 (无效比分: {countInvalid})
+            已结算条目: {reviewedFormal.length} 条 (无效数据: {countInvalid})
           </p>
         </div>
 
@@ -513,7 +617,64 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
           <p className="text-[11px] text-slate-500 mt-1">
             正式推荐: {formalItems.length} | 盘口候选: {marketCandidateItems.length} | 扩展预测: {projectionItems.length}
           </p>
+          <div className="mt-2 space-y-0.5 text-[10px]">
+            {recordTypeWinRates.map((row) => (
+              <div key={row.label} className="flex items-center justify-between gap-2">
+                <span className="text-slate-500">{row.label}</span>
+                <span className="font-semibold text-emerald-400">胜率 {row.rate}（胜 {row.wins} / 负 {row.losses}）</span>
+              </div>
+            ))}
+          </div>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        {[
+          { title: '按台账类型统计', rows: recordTypeWinRates },
+          { title: '按推荐等级统计', rows: gradeWinRates },
+          { title: '按投注玩法统计', rows: marketWinRates },
+          { title: '按串关长度统计', rows: parlayWinRates },
+        ].map((section) => (
+          <div key={section.title} className="rounded-xl border border-slate-800 bg-slate-900/80 p-4">
+            <h3 className="text-sm font-bold text-slate-100">{section.title}</h3>
+            <div className="mt-3 space-y-2">
+              {section.rows.length > 0 ? section.rows.map((row) => (
+                <div key={row.label} className="rounded-lg border border-slate-800 bg-slate-950/70 p-2.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-slate-200">{row.label}</span>
+                    <span className="text-base font-black text-teal-400">{row.rate}</span>
+                  </div>
+                  <div className="mt-1 text-[11px] text-slate-500">命中 {row.wins} / 负 {row.losses} / 走 {row.pushes} / 待核验或无效 {row.pending}</div>
+                </div>
+              )) : <div className="rounded-lg border border-dashed border-slate-800 p-4 text-center text-xs text-slate-500">暂无已结算样本</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-indigo-800/40 bg-slate-900/80 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-slate-100">台账批次与历史记录</h3>
+            <p className="mt-1 text-xs text-slate-500">当前统计范围：{ledgerViewMode === 'current' ? '当前批次' : ledgerViewMode === 'merged' ? '当前＋全部历史批次' : archives.find((item) => item.id === ledgerViewMode)?.name || '历史批次'}</p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <button onClick={showCurrentLedger} className="rounded bg-slate-700 px-3 py-1.5 text-white">当前批次</button>
+            <button onClick={showMergedLedger} className="rounded bg-indigo-600 px-3 py-1.5 text-white">合并历史统计</button>
+            <button onClick={() => void handleArchiveCurrentBatch()} disabled={currentLedger.length === 0} className="rounded bg-emerald-600 px-3 py-1.5 font-bold text-white disabled:opacity-40">归档当前批次</button>
+          </div>
+        </div>
+        {archives.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {archives.map((archive) => (
+              <button key={archive.id} onClick={() => showArchive(archive)} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-left text-xs text-slate-300 hover:border-indigo-500">
+                <span className="font-semibold text-indigo-300">{archive.name}</span>
+                <span className="ml-2 text-slate-500">{archive.item_count}条 · {archive.archived_at ? new Date(archive.archived_at).toLocaleString('zh-CN') : ''}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {ledgerViewMode !== 'current' && <div className="mt-3 rounded border border-amber-800/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-300">历史/合并视图为只读；录入比分、删除和清空请先切回“当前批次”。</div>}
       </div>
 
       {/* Sub-navigation Tabs */}
@@ -590,6 +751,14 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
                 }`}
               >
                 机器候选 (WATCH)
+              </button>
+              <button
+                onClick={() => setRecordTypeFilter('parlay')}
+                className={`px-3 py-1 rounded-lg border font-medium ${
+                  recordTypeFilter === 'parlay' ? 'bg-purple-600 text-white border-purple-500' : 'bg-slate-950 text-slate-400 border-slate-800'
+                }`}
+              >
+                串关 ({ledgerWithSettlement.filter((item) => item.isParlay).length})
               </button>
 
               <span className="text-slate-400 ml-2">结算状态:</span>
@@ -773,6 +942,9 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
                                         比分: {leg.final_score ? `${leg.final_score.home}-${leg.final_score.away}` : '待核实'}
                                       </span>
                                     </div>
+                                    {leg.settlement.outcome === 'invalid_data' && leg.settlement.calculationExplanation.includes('方向') && (
+                                      <div className="text-[10px] font-bold text-amber-400">⚠ {leg.settlement.calculationExplanation}</div>
+                                    )}
                                   </div>
                                 );
                               })}

@@ -128,19 +128,23 @@ export const LiveMatchesView: React.FC<Props> = ({
     setTimeout(() => setBatchMsg(null), 3000);
   };
 
-  const handleClearOutdated = async () => {
+  const handleClearOutdated = async (selectedOnly = false) => {
+    if (selectedOnly && selectedMatchNames.length === 0) return;
+    if (!window.confirm(selectedOnly ? `确定只清空已勾选的 ${selectedMatchNames.length} 场滚球比赛吗？` : '确定清空整个滚球分析库吗？')) return;
     try {
       const res = await fetch('/api/clear-outdated-matches', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target: 'live' }),
+        body: JSON.stringify({ target: 'live', clear_mode: selectedOnly ? 'selected' : 'all', match_names: selectedOnly ? selectedMatchNames : undefined }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setBatchMsg(`🧹 已成功清空滚球分析库！(共清空 ${data.cleared_live} 场旧比赛，推荐台账与复盘数据完好无损)。系统正在刷新...`);
+        setBatchMsg(`🧹 已成功${selectedOnly ? '清空所选滚球比赛' : '清空滚球分析库'}！(共清空 ${data.cleared_live} 场，推荐台账与复盘数据完好无损)。系统正在刷新...`);
         setTimeout(() => {
           window.location.reload();
         }, 1200);
+      } else {
+        setBatchMsg(`清空失败：${data.error || `HTTP ${res.status}`}`);
       }
     } catch (e: any) {
       setBatchMsg(`清空失败: ${e.message}`);
@@ -214,11 +218,18 @@ export const LiveMatchesView: React.FC<Props> = ({
               拦截/通过 (PASS): <span className="font-bold text-amber-400">{summary.pass ?? 0}</span>
             </div>
             <button
-              onClick={handleClearOutdated}
+              onClick={() => void handleClearOutdated(false)}
               className="px-3 py-1.5 bg-amber-950/80 hover:bg-amber-900/80 text-amber-300 border border-amber-800/80 rounded-lg font-bold flex items-center gap-1 transition-colors shadow-sm"
               title="一键清空滚球分析库比赛（不影响历史推荐台账与复盘数据）"
             >
               🧹 清空滚球分析库
+            </button>
+            <button
+              onClick={() => void handleClearOutdated(true)}
+              disabled={selectedMatchNames.length === 0}
+              className="px-3 py-1.5 bg-rose-950/80 hover:bg-rose-900/80 disabled:opacity-40 text-rose-300 border border-rose-800/80 rounded-lg font-bold"
+            >
+              🗑️ 清空所选 ({selectedMatchNames.length})
             </button>
           </div>
         </div>
