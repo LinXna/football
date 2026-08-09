@@ -297,6 +297,104 @@ function hasExplicitBetDirection(item: any): boolean {
   return true;
 }
 
+function sanitizeParlayLeg(leg: any, candidateMatches: any[] = []): any {
+  if (!leg || typeof leg !== 'object') return leg;
+  let market = String(leg.market || '').trim();
+  let line = leg.line != null && leg.line !== '' && leg.line !== 'null' ? String(leg.line).trim() : '';
+  const home = String(leg.ybty_home || leg.match?.split(' vs ')[0] || '').trim();
+  const away = String(leg.ybty_away || leg.match?.split(' vs ')[1] || '').trim();
+
+  // 1. Translate raw English market keys
+  if (/^full_total$/i.test(market)) market = '全场大小球';
+  else if (/^half_total$/i.test(market)) market = '半场大小球';
+  else if (/^full_spread$/i.test(market)) market = '全场让球';
+  else if (/^half_spread$/i.test(market)) market = '半场让球';
+  else if (/^full_h2h$/i.test(market)) market = '全场独赢1X2';
+  else if (/^half_h2h$/i.test(market)) market = '半场独赢1X2';
+  else if (/^total$/i.test(market)) market = '全场大小球';
+  else if (/^spread$/i.test(market)) market = '全场让球';
+  else if (/^h2h$/i.test(market)) market = '全场独赢1X2';
+
+  // 2. Try to match from candidateMatches if direction is vague
+  let matchedAssessment: any = null;
+  if (Array.isArray(candidateMatches) && candidateMatches.length > 0) {
+    const candidateMatch = candidateMatches.find((m: any) => 
+      m.match === leg.match || 
+      (cleanTeamName(m.ybty_home) === cleanTeamName(home) && cleanTeamName(m.ybty_away) === cleanTeamName(away))
+    );
+    if (candidateMatch) {
+      const assessments = Array.isArray(candidateMatch.ai_evaluation?.market_assessments)
+        ? candidateMatch.ai_evaluation.market_assessments
+        : Array.isArray(candidateMatch.ai_market_assessments)
+        ? candidateMatch.ai_market_assessments
+        : [];
+      matchedAssessment = assessments.find((a: any) => 
+        (a.category && a.category.includes(market)) || 
+        (a.odds && Number(a.odds) === Number(leg.odds))
+      ) || candidateMatch.recommendation;
+    }
+  }
+
+  const combined = `${market} ${line}`.toLowerCase();
+
+  // 3. Fix Over/Under direction
+  if (/大小球|total/i.test(market)) {
+    if (!/大|小|over|under/i.test(combined)) {
+      const dirText = String(matchedAssessment?.direction || matchedAssessment?.category || matchedAssessment?.recommendation?.market || matchedAssessment?.recommendation?.line || '').toLowerCase();
+      if (/小|under/i.test(dirText)) {
+        line = `小 ${line}`.trim();
+      } else {
+        line = `大 ${line}`.trim();
+      }
+    } else if (/^over\s*/i.test(line)) {
+      line = line.replace(/^over\s*/i, '大 ').trim();
+    } else if (/^under\s*/i.test(line)) {
+      line = line.replace(/^under\s*/i, '小 ').trim();
+    }
+  }
+
+  // 4. Fix Handicap direction
+  if (/让球|spread|handicap/i.test(market)) {
+    const normalize = (v: any) => String(v || '').toLowerCase().replace(/[\s\-_·\.（）()]/g, '');
+    const normHome = normalize(home);
+    const normAway = normalize(away);
+    const normLine = normalize(line);
+    const hasHomeOrAway = /主|客|home|away/i.test(combined) ||
+      (normHome && normLine.includes(normHome)) ||
+      (normAway && normLine.includes(normAway));
+
+    if (!hasHomeOrAway) {
+      const dirText = String(matchedAssessment?.direction || matchedAssessment?.category || matchedAssessment?.recommendation?.market || matchedAssessment?.recommendation?.line || '').toLowerCase();
+      const normDir = normalize(dirText);
+      if (normAway && normDir.includes(normAway)) {
+        line = `${away || '客队'} ${line}`.trim();
+      } else if (normHome && normDir.includes(normHome)) {
+        line = `${home || '主队'} ${line}`.trim();
+      } else if (/客|away/i.test(dirText)) {
+        line = `${away || '客队'} ${line}`.trim();
+      } else {
+        line = `${home || '主队'} ${line}`.trim();
+      }
+    }
+  }
+
+  // 5. Fix H2H direction
+  if (/独赢|h2h|1x2/i.test(market)) {
+    if (!/胜|平|draw|home|away|主|客/i.test(combined)) {
+      if (line === '1' || /home/i.test(line)) line = `${home || '主队'}胜`;
+      else if (line === '2' || /away/i.test(line)) line = `${away || '客队'}胜`;
+      else if (line === 'x' || /draw/i.test(line)) line = '平局';
+      else if (home) line = `${home}胜`;
+    }
+  }
+
+  return {
+    ...leg,
+    market,
+    line,
+  };
+}
+
 function hideInvalidRecommendation(item: any): any {
   if (hasUsableRecommendation(item?.recommendation)) return item;
   return {
@@ -404,6 +502,9 @@ app.post('/api/ledger/add', (req, res) => {
     if (duplicate) {
       return res.status(409).json({ error: 'Duplicate formal recommendation', duplicate_id: duplicate.id });
     }
+    if (Array.isArray(newItem.parlay_legs)) {
+      newItem.parlay_legs = newItem.parlay_legs.map((leg: any) => sanitizeParlayLeg(leg));
+    }
     const incomingLegs = Array.isArray(newItem.parlay_legs) ? newItem.parlay_legs : [];
     const parlayRequested = newItem.is_parlay === true || incomingLegs.length > 0 || /串\s*1|精选彩票/.test(String(newItem.recommendation?.market || ''));
     if (parlayRequested && incomingLegs.length < 2) {
@@ -489,6 +590,9 @@ app.post('/api/ledger/add', (req, res) => {
 app.post('/api/ledger/add-candidate', (req, res) => {
   try {
     const newItem = req.body;
+    if (newItem?.is_parlay === true && Array.isArray(newItem.parlay_legs)) {
+      newItem.parlay_legs = newItem.parlay_legs.map((leg: any) => sanitizeParlayLeg(leg));
+    }
     const recommendation = newItem?.recommendation;
     const predictionOnly = newItem?.prediction_only === true;
     if (!newItem?.match || !recommendation?.market || recommendation.line === undefined || (!predictionOnly && !Number.isFinite(Number(recommendation.odds)))) {
@@ -637,6 +741,19 @@ app.get('/api/ai/evaluations', (req, res) => {
   const history = readJsonFile<any[]>('output/ai_evaluation_history.json', []);
   res.json({ evaluations: history });
 });
+
+const handleClearEvaluations = (req: express.Request, res: express.Response) => {
+  try {
+    writeJsonFile('output/ai_evaluation_history.json', []);
+    res.json({ success: true, message: '已成功清空 AI 评估历史' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.post('/api/ai/evaluations/clear', handleClearEvaluations);
+app.delete('/api/ai/evaluations/clear', handleClearEvaluations);
+app.delete('/api/ai/evaluations', handleClearEvaluations);
 
 app.post('/api/ai/evaluations/save', (req, res) => {
   try {
@@ -1859,13 +1976,10 @@ app.post('/api/clear-outdated-matches', (req, res) => {
     if (!['selected', 'all'].includes(String(clear_mode))) {
       return res.status(400).json({ error: '必须明确指定 clear_mode：selected 或 all；系统禁止根据空名单自动执行全量清空。' });
     }
-    const selectedNames = new Set((Array.isArray(match_names) ? match_names : []).map((name: unknown) => String(name || '').trim()).filter(Boolean));
     const selective = clear_mode === 'selected';
+    const selectedNames = new Set((Array.isArray(match_names) ? match_names : []).map((name: unknown) => String(name || '').trim()).filter(Boolean));
     if (selective && selectedNames.size === 0) {
       return res.status(400).json({ error: '清空所选被拒绝：没有收到任何有效比赛名称，不会执行全量清空。' });
-    }
-    if (clear_mode === 'all' && Array.isArray(match_names) && match_names.length > 0) {
-      return res.status(400).json({ error: '全量清空请求不得同时携带选择名单，请重新确认操作。' });
     }
 
     let clearedLiveCount = 0;
@@ -1876,20 +1990,40 @@ app.post('/api/clear-outdated-matches', (req, res) => {
       const liveDecisions = Array.isArray(liveFile.decisions) ? liveFile.decisions : [];
       clearedLiveCount = selective ? liveDecisions.filter((item: any) => selectedNames.has(String(item?.match || '').trim())).length : liveDecisions.length;
       liveFile.decisions = selective ? liveDecisions.filter((item: any) => !selectedNames.has(String(item?.match || '').trim())) : [];
+      liveFile.single_best = null;
+      liveFile.parlay_5x = null;
       liveFile.summary = {
-        ...(liveFile.summary || {}),
         total: liveFile.decisions.length,
         a_grade: liveFile.decisions.filter((item: any) => item.grade === 'A').length,
         b_grade: liveFile.decisions.filter((item: any) => item.grade === 'B').length,
         watch: liveFile.decisions.filter((item: any) => item.status === 'WATCH').length,
         updated_at: new Date().toISOString(),
       };
-      requireJsonWrites([['output/ybty_leisu_decisions.json', liveFile]]);
+
+      const liveCandidates = readJsonFile<any>('output/ybty_leisu_candidates.json', { candidates: [] });
+      const liveCandidatesList = Array.isArray(liveCandidates.candidates) ? liveCandidates.candidates : [];
+      liveCandidates.candidates = selective ? liveCandidatesList.filter((item: any) => !selectedNames.has(String(item?.match || '').trim())) : [];
+      liveCandidates.summary = { total: liveCandidates.candidates.length, updated_at: new Date().toISOString() };
+
+      const writes: [string, any][] = [
+        ['output/ybty_leisu_decisions.json', liveFile],
+        ['output/ybty_leisu_candidates.json', liveCandidates],
+      ];
+
+      if (!selective) {
+        const ybtyLatest = readJsonFile<any>('output/ybty_latest.json', { matches: [] });
+        ybtyLatest.matches = [];
+        const leisuLatest = readJsonFile<any>('output/leisu_latest.json', { matches: [] });
+        leisuLatest.matches = [];
+        writes.push(['output/ybty_latest.json', ybtyLatest], ['output/leisu_latest.json', leisuLatest]);
+      }
 
       const liveStatus = readJsonFile<any>('output/pipeline_status.json', {});
       liveStatus.last_updated = new Date().toISOString();
       liveStatus.total_matches = liveFile.decisions.length;
-      requireJsonWrites([['output/pipeline_status.json', liveStatus]]);
+      writes.push(['output/pipeline_status.json', liveStatus]);
+
+      requireJsonWrites(writes);
     }
 
     if (target === 'prematch' || target === 'all') {
@@ -1941,12 +2075,22 @@ app.post('/api/clear-outdated-matches', (req, res) => {
       prematchStatus.research = prematchFile.research_queue.length;
       prematchStatus.pass = remainingPrematch.filter((item: any) => item.status === 'PASS').length;
 
-      requireJsonWrites([
+      const prematchWrites: [string, any][] = [
         ['output/ybty_leisu_prematch_decisions.json', prematchFile],
         ['output/ybty_leisu_prematch_candidates.json', prematchCandidates],
         ['output/prematch_ai_brief.json', prematchBrief],
         ['output/prematch_pipeline_status.json', prematchStatus],
-      ]);
+      ];
+
+      if (!selective) {
+        const ybtyPrematchLatest = readJsonFile<any>('output/ybty_prematch_latest.json', { matches: [] });
+        ybtyPrematchLatest.matches = [];
+        const leisuPrematchLatest = readJsonFile<any>('output/leisu_prematch_latest.json', { matches: [] });
+        leisuPrematchLatest.matches = [];
+        prematchWrites.push(['output/ybty_prematch_latest.json', ybtyPrematchLatest], ['output/leisu_prematch_latest.json', leisuPrematchLatest]);
+      }
+
+      requireJsonWrites(prematchWrites);
     }
 
     res.json({
@@ -1961,6 +2105,531 @@ app.post('/api/clear-outdated-matches', (req, res) => {
   }
 });
 
+// Helper function to compress and clean match evaluation data for Prompt generation
+function compressMatchDataForPrompt(item: any, mode: string) {
+  const normalizedRaw = normalizeYbtyMarketTypes(item.ybty_raw_markets || []);
+
+  // 1. 精简已核验的 YBTY 盘口：去除 suspended, side_verified, line_index 等冗余位，只保留可投注的有效赔率
+  const verifiedMarkets = normalizedRaw
+    .filter((market: any) => /^(full|half)_(h2h|spread|total)$/.test(String(market?.market || '')) && market?.market_type_verified !== false)
+    .map((market: any) => ({
+      market: market.market,
+      options: (Array.isArray(market.options) ? market.options : [])
+        .filter((opt: any) => opt?.suspended !== true && Number.isFinite(Number(opt?.odds)) && Number(opt.odds) > 1)
+        .map((opt: any) => ({
+          side: opt.side || null,
+          line: opt.line ?? opt.selection ?? null,
+          odds: Number(opt.odds),
+        })),
+    }))
+    .filter((m: any) => m.options.length > 0);
+
+  // 2. 战绩近况 (recent_trends) 深度去噪：彻底剔除爬虫残余 canvas_values 和 DOM raw text
+  let cleanedRecentTrends: any = null;
+  if (item.recent_trends?.historical_analysis?.recent_form) {
+    cleanedRecentTrends = {
+      recent_form: item.recent_trends.historical_analysis.recent_form.map((form: any) => ({
+        team: form.team || form.label,
+        scope: form.scope,
+        tables: (Array.isArray(form.tables) ? form.tables : []).map((t: any) => ({
+          rows: (Array.isArray(t.rows) ? t.rows : []).slice(0, 11).map((r: any) => r.cells || r),
+        })),
+      })),
+      standings: item.recent_trends.historical_analysis.league_standings?.tables || null,
+    };
+  } else if (item.recent_trends) {
+    const { canvas_values, text, ...rest } = item.recent_trends;
+    cleanedRecentTrends = rest;
+  }
+
+  // 3. 阵容 (lineups) 深度精简：提取为极简的名字字符串数组，剔除坐标和三合一重复嵌套
+  let cleanedLineups: any = null;
+  if (item.lineups) {
+    const extractNames = (arr: any[]) => Array.isArray(arr) ? arr.map((p: any) => p?.name || p).filter(Boolean) : [];
+    const homeStarters = extractNames(item.lineups.home_starters || item.lineups.home?.starters || item.lineups.home_starter_details);
+    const awayStarters = extractNames(item.lineups.away_starters || item.lineups.away?.starters || item.lineups.away_starter_details);
+    const homeSubs = extractNames(item.lineups.home_substitutes || item.lineups.home?.substitutes);
+    const awaySubs = extractNames(item.lineups.away_substitutes || item.lineups.away?.substitutes);
+
+    if (homeStarters.length > 0 || awayStarters.length > 0) {
+      cleanedLineups = {
+        home_starters: homeStarters,
+        away_starters: awayStarters,
+        home_substitutes: homeSubs,
+        away_substitutes: awaySubs,
+      };
+    } else {
+      cleanedLineups = { status: item.lineups.status || 'squad_only_no_confirmed_match_lineup' };
+    }
+  }
+
+  // 4. 参考赔率 (reference_odds) 提炼
+  let cleanedRefOdds: any = null;
+  if (item.reference_odds) {
+    const rows = item.reference_odds.normalized_rows
+      || item.reference_odds.detail_page?.panels?.flatMap((p: any) => p?.normalized_rows || [])
+      || [];
+    if (rows.length > 0) {
+      cleanedRefOdds = {
+        source: item.reference_odds.source || 'leisu_odd_panel',
+        rows: rows.slice(0, 6),
+      };
+    }
+  }
+
+  // 5. 天气与事件提炼
+  const weatherText = Array.isArray(item.weather?.text) ? item.weather.text : item.weather;
+
+  return {
+    match: item.match || `${item.ybty_home || ''} vs ${item.ybty_away || ''}`,
+    league: item.league || item.ybty_league || item.leisu_league || '',
+    ybty_home: item.ybty_home || '',
+    ybty_away: item.ybty_away || '',
+    start_time_beijing: item.ybty_start_time_beijing || item.provider_start_time || '',
+    minute: Number(item.minute || 0),
+    score: item.score || null,
+    score_verified: mode === 'prematch_eval' ? true : item.score_verified === true,
+    score_source: mode === 'prematch_eval' ? 'prematch_not_applicable' : item.score_source || 'unverified',
+    current_recommendation: item.recommendation || null,
+    verified_ybty_markets: verifiedMarkets,
+    unverified_market_count: Math.max(0, normalizedRaw.length - verifiedMarkets.length),
+    reference_odds: cleanedRefOdds,
+    live_statistics: item.live_statistics && Object.keys(item.live_statistics).length > 0 ? item.live_statistics : null,
+    recent_trends: cleanedRecentTrends,
+    incidents: Array.isArray(item.incidents) && item.incidents.length > 0 ? item.incidents.slice(0, 10) : [],
+    weather: weatherText,
+    lineups: cleanedLineups,
+    live_text: Array.isArray(item.live_text?.entries) ? item.live_text.entries.slice(0, 10) : (Array.isArray(item.live_text) ? item.live_text.slice(0, 10) : null),
+    data_availability: {
+      realtime_score: Boolean(item.score),
+      score_verified: mode === 'prematch_eval' ? true : item.score_verified === true,
+      statistics: Boolean(item.live_statistics && Object.keys(item.live_statistics).length > 0),
+      lineups: Boolean(cleanedLineups && cleanedLineups.home_starters?.length > 0),
+      recent_records: Boolean(cleanedRecentTrends),
+    },
+  };
+}
+
+// Helper to sanitize market assessment fields (direction, line, options formatting)
+function sanitizeMarketAssessment(item: any) {
+  if (!item) return item;
+  let category = String(item.category || '').trim();
+  let direction = String(item.direction || '').trim();
+  let line = item.line != null && item.line !== '' && item.line !== 'null' ? String(item.line).trim() : null;
+
+  // 1. Remove deduplicated words e.g. "2.5/3 2.5/3" or "Home -0/0.5 -0/0.5"
+  direction = direction.replace(/(\S+)\s+\1/g, '$1');
+
+  // 2. Normalize english words to standard Chinese
+  if (/^(home|home\s*主|home\s*胜)$/i.test(direction) || (direction.toLowerCase().startsWith('home') && !direction.includes('主'))) {
+    direction = category.includes('让球') ? '主队' : '主胜';
+  } else if (/^(away|away\s*客|away\s*胜)$/i.test(direction) || (direction.toLowerCase().startsWith('away') && !direction.includes('客'))) {
+    direction = category.includes('让球') ? '客队' : '客胜';
+  } else if (/^(draw|draw\s*平)$/i.test(direction)) {
+    direction = '平局';
+  } else if (/^over\b/i.test(direction)) {
+    direction = direction.replace(/^over\s*/i, '大球 ').trim();
+  } else if (/^under\b/i.test(direction)) {
+    direction = direction.replace(/^under\s*/i, '小球 ').trim();
+  }
+
+  // 3. Remove line duplication in direction if line exists
+  if (line) {
+    if (direction.includes(line)) {
+      direction = direction.replace(line, '').trim();
+      if (!direction) {
+        if (category.includes('大小球')) direction = '大球';
+        else if (category.includes('让球')) direction = '主队';
+        else direction = category;
+      }
+    }
+  }
+
+  direction = direction.replace(/\s+/g, ' ').trim();
+
+  return {
+    ...item,
+    direction: direction || '暂无方向',
+    line,
+  };
+}
+
+// Helper function to assemble evaluation prompts for API or Manual Export
+function buildPromptData(body: any, isExportPrompt: boolean = false) {
+  const { match_name, ybty_home, ybty_away, minute, score, odds_info, mode, selected_match_refs, parlay_requests, batch_matches, batch_match_refs } = body || {};
+
+  let rulesContent = '';
+  try {
+    const instructionsPath = path.join(process.cwd(), 'CUSTOM_INSTRUCTIONS_COMPLETE.md');
+    if (fs.existsSync(instructionsPath)) {
+      rulesContent = fs.readFileSync(instructionsPath, 'utf-8');
+    }
+  } catch (e) {
+    console.warn('Rules file missing or unreadable', e);
+  }
+
+  const currentLedgerFeedback = readJsonFile<any[]>('output/recommendation_ledger.json', []);
+  const archivedLedgerFeedback = readJsonFile<any[]>('output/recommendation_ledger_archives.json', []);
+  const feedbackById = new Map<string, any>();
+  [...currentLedgerFeedback, ...archivedLedgerFeedback.flatMap((archive: any) => Array.isArray(archive?.items) ? archive.items : [])]
+    .forEach((item: any) => feedbackById.set(String(item?.id || `${item?.match}|${item?.created_at}`), item));
+  const historicalFeedback = Array.from(feedbackById.values())
+    .filter((item: any) => item?.review?.final_score || (Array.isArray(item?.parlay_legs) && item.parlay_legs.some((leg: any) => leg?.final_score)))
+    .sort((a: any, b: any) => String(b?.created_at || '').localeCompare(String(a?.created_at || '')))
+    .slice(0, 20)
+    .map((item: any) => ({
+      match: item.match,
+      grade: item.grade,
+      recommendation: item.recommendation,
+      final_score: item.review?.final_score || null,
+      ht_score: item.review?.ht_score || null,
+      is_parlay: item.is_parlay === true,
+      parlay_legs: Array.isArray(item.parlay_legs) ? item.parlay_legs.map((leg: any) => ({ match: leg.match, market: leg.market, line: leg.line, odds: leg.odds, final_score: leg.final_score || null })) : [],
+      record_type: item.record_type,
+    }));
+
+  const rulesSummary = `【核心硬性规则摘要】
+1. 只有 verified_ybty_markets 中的盘口才能 recommend/watch 并引用赔率；不得猜测未核验盘口。
+2. 有赔率时必须计算隐含概率(100/odds)；模型概率≤隐含概率时 status=avoid, grade=NO_BET。
+3. 赛前无 score_verified 限制；赛前 score_verified=true 仅表示规则不适用，不得因此降级。
+4. 每个玩法独立研究；必须覆盖全12类玩法，每类各返回一项。
+5. 波胆/双方进球/单双/进球数/进球时间段使用 status=prediction, odds=null，给出方向概率。
+6. grade A/B/C 全部展示；没有合格正式主选时 recommendation=null。
+7. 必须引用本场实际数据（statistics/incidents/lineups/recent_trends/reference_odds）说明理由，不得只凭赔率判断。
+8. 串关：同一方向 B 级最多进一组串关；A 级≥85分且阵容明确时最多两组。
+9. 杯赛/友谊赛/强弱悬殊在阵容未确认前最高 C 级，不进正式串关。`;
+
+  if (mode === 'parlay_check') {
+    const refs = Array.isArray(selected_match_refs) ? selected_match_refs : [];
+    const requests = Array.isArray(parlay_requests)
+      ? parlay_requests.filter((item: any) => Number(item?.size) >= 2 && Number(item?.count) >= 1)
+      : [];
+    if (refs.length < 2 || requests.length === 0 || requests.some((item: any) => Number(item.size) > refs.length)) {
+      throw new Error('串关生成参数无效：至少选择两场比赛，且串关长度不能超过已选比赛数。');
+    }
+
+    const live = readJsonFile<any>('output/ybty_leisu_decisions.json', { decisions: [] });
+    const prematch = readJsonFile<any>('output/ybty_leisu_prematch_decisions.json', { decisions: [], research_queue: [] });
+    const storedMatches = [
+      ...(Array.isArray(live.decisions) ? live.decisions : []),
+      ...(Array.isArray(prematch.decisions) ? prematch.decisions : []),
+      ...(Array.isArray(prematch.research_queue) ? prematch.research_queue : []),
+    ];
+    const history = readJsonFile<any[]>('output/ai_evaluation_history.json', []);
+    const normalize = (value: unknown) => String(value || '').trim().toLowerCase().replace(/[\s_-]/g, '');
+    const findLatestAssessment = (ref: any) => {
+      for (const snapshot of history) {
+        const results = Array.isArray(snapshot?.result?.matches) ? snapshot.result.matches : [snapshot?.result];
+        const found = results.find((item: any) => item && (
+          normalize(item.match) === normalize(ref.match)
+          || (normalize(item.ybty_home) === normalize(ref.ybty_home) && normalize(item.ybty_away) === normalize(ref.ybty_away))
+        ));
+        if (found) return found;
+      }
+      return null;
+    };
+    const parlayCandidates = refs.map((ref: any) => {
+      const stored = storedMatches.find((item: any) => normalize(item.match) === normalize(ref.match))
+        || storedMatches.find((item: any) => normalize(item.ybty_home) === normalize(ref.ybty_home) && normalize(item.ybty_away) === normalize(ref.ybty_away));
+      return stored ? { ...stored, ai_evaluation: findLatestAssessment(ref) } : null;
+    }).filter(Boolean);
+
+    if (parlayCandidates.length !== refs.length) {
+      throw new Error('部分所选比赛已不在当前系统比赛池中，请刷新后重新选择。');
+    }
+
+    const candidatesInfoText = parlayCandidates.map((c: any, idx: number) => {
+      const home = c.ybty_home || (c.match ? c.match.split('vs')[0]?.trim() : '主队');
+      const away = c.ybty_away || (c.match ? c.match.split('vs')[1]?.trim() : '客队');
+      const scHome = c.score?.home ?? 0;
+      const scAway = c.score?.away ?? 0;
+      const minStr = c.minute ? `${c.minute}'` : '赛前';
+      const grade = c.grade || 'B';
+      const marketPool = Array.isArray(c.ai_evaluation?.market_assessments)
+        ? c.ai_evaluation.market_assessments.filter((item: any) => Number(item?.odds) > 1 && item?.line !== null && item?.line !== '' && ['recommend', 'watch'].includes(String(item?.status)))
+        : [];
+      return `比赛 #${idx + 1}: ${JSON.stringify({ match: c.match || (home + ' vs ' + away), ybty_home: home, ybty_away: away, score: `${scHome}-${scAway}`, minute: minStr, grade, system_recommendation: c.recommendation, ybty_markets: c.ybty_markets, ybty_raw_markets: c.ybty_raw_markets, ai_market_assessments: marketPool })}`;
+    }).join('\n');
+
+    const prompt = `你是顶尖、严肃且专业的足球投注评估与精选推荐 AI，严格遵循项目的足球分析与硬性风控协议：
+
+---【核心结算与盘口规则】---
+1. 全场大小球 (Full Time Over/Under)：只看完场终场时的双方总进球数 vs 盘口！
+2. 滚球让球盘 (Live Asian Handicap / 后续时段让球)：结算基准从下注瞬间归零 (0:0) 重新计算！
+3. 四分之一盘口：拆分为赢半、输半、走盘，禁止粗暴判全赢或全输。
+
+---【串关风控规则】---
+1. 同一比赛可以在不同串关中采用不同玩法，但每个玩法必须分别达到B级以上。
+2. 普通B级同一方向最多进入1组正式串关；A级且模型评分≥85的同一方向最多2组。
+
+请求模式: parlay_check
+---【用户选择的比赛池（${parlayCandidates.length} 场）】---
+${candidatesInfoText || '无比赛数据'}
+---【用户要求生成的串关规格】---
+${JSON.stringify(parlay_requests || [])}
+---【历史台账反馈】---
+${JSON.stringify(historicalFeedback)}
+
+---【串关 Legs 字段命名规范（极其重要）】---
+1. market 必须填写中文标准玩法名称，例如 "全场大小球", "全场让球", "全场独赢1X2", "半场大小球", "半场让球"。严禁输出 full_total, full_spread, full_h2h 等英文键名！
+2. line 必须明确注明的投注方向与盘口值：
+   - 大小球：必须包含“大”或“小”，例如 "大 3.5"、"小 2.5"；
+   - 让球盘：必须写明主队或客队名称及盘口，例如 "维京 -0.5"、"邓迪FC 0"、"霍布罗 +0/0.5"；
+   - 独赢盘：必须写明 "主胜"、"客胜" 或 "平局"（如 "维京胜"）。
+
+请从每场的 system_recommendation、ai_market_assessments 与 YBTY 真实盘口中选择胜率较高且赔率合理的方向，按要求生成串关。输出严格的 JSON 结构：
+{
+  "summary": "本次多规格串关生成总结",
+  "grade": "A | B | C",
+  "recommendation": {
+    "market": "串关组合核对结论",
+    "line": "N/A",
+    "odds": 1.85,
+    "best_timing_tip": "串关下注建议"
+  },
+  "score_verified": false,
+  "score_source": "ybty_market",
+  "verification_passed": true,
+  "evidence": ["串关安全点1"],
+  "risks": ["串关风险拦截项1"],
+  "timing_strategy": "串关资金策略",
+  "parlay_safety_check": {
+    "is_valid_parlay": true,
+    "allow_max_parlay_tickets": 1,
+    "reasons": ["分析说明"]
+  },
+  "parlay_recommendations": [{"size": 3, "ticket_index": 1, "grade": "A|B|C", "estimated_total_odds": 5.67, "reason": "选单理由", "legs": [{"match":"比赛名","ybty_home":"主队","ybty_away":"客队","market":"真实玩法","line":"真实盘口","odds":1.88,"probability":65,"grade":"A|B|C"}]}]
+}`;
+
+    return {
+      mode: 'parlay_check',
+      prompts: [prompt],
+      match_count: parlayCandidates.length,
+      evaluationData: [],
+      parlayCandidates,
+    };
+  }
+
+  // Non-parlay mode
+  let requestedMatches: any[];
+  if (Array.isArray(batch_match_refs) && batch_match_refs.length > 0) {
+    const decisionFile = mode === 'prematch_eval'
+      ? readJsonFile<any>('output/ybty_leisu_prematch_decisions.json', { decisions: [], research_queue: [] })
+      : readJsonFile<any>('output/ybty_leisu_decisions.json', { decisions: [] });
+    const storedMatches = [
+      ...(Array.isArray(decisionFile.decisions) ? decisionFile.decisions : []),
+      ...(Array.isArray(decisionFile.research_queue) ? decisionFile.research_queue : []),
+    ];
+    const candidateFile = mode === 'prematch_eval'
+      ? readJsonFile<any>('output/ybty_leisu_prematch_candidates.json', { candidates: [] })
+      : readJsonFile<any>('output/ybty_leisu_candidates.json', { candidates: [] });
+    const ybtySnapshot = mode === 'prematch_eval'
+      ? readJsonFile<any>('output/ybty_prematch_latest.json', { matches: [] })
+      : readJsonFile<any>('output/ybty_latest.json', { matches: [] });
+    const leisuSnapshot = mode === 'prematch_eval'
+      ? readJsonFile<any>('output/leisu_prematch_latest.json', { events: [] })
+      : readJsonFile<any>('output/leisu_latest.json', { events: [] });
+    const sameTeams = (homeA: unknown, awayA: unknown, homeB: unknown, awayB: unknown) =>
+      cleanTeamName(homeA) === cleanTeamName(homeB) && cleanTeamName(awayA) === cleanTeamName(awayB);
+    const hydrateStoredMatch = (found: any) => {
+      const candidateWrapper = (Array.isArray(candidateFile.candidates) ? candidateFile.candidates : []).find((entry: any) =>
+        entry?.match === found.match
+        || sameTeams(entry?.candidate?.home, entry?.candidate?.away, found.ybty_home, found.ybty_away)
+        || sameTeams(entry?.ybty_home, entry?.ybty_away, found.ybty_home, found.ybty_away));
+      const candidateDetails = candidateWrapper ? {
+        live_statistics: candidateWrapper.live_statistics,
+        reference_odds: candidateWrapper.reference_odds,
+        recent_trends: candidateWrapper.recent_trends,
+        incidents: candidateWrapper.incidents,
+        weather: candidateWrapper.weather,
+        lineups: candidateWrapper.lineups,
+        player_candidates: candidateWrapper.player_candidates,
+        live_text: candidateWrapper.live_text,
+        detail_context: candidateWrapper.detail_context,
+      } : {};
+      const rawYbty = (Array.isArray(ybtySnapshot.matches) ? ybtySnapshot.matches : []).find((entry: any) =>
+        sameTeams(entry.home, entry.away, found.ybty_home, found.ybty_away));
+      const rawLeisu = (Array.isArray(leisuSnapshot.events) ? leisuSnapshot.events : []).find((entry: any) =>
+        sameTeams(entry?.homeTeam?.name || entry?.home, entry?.awayTeam?.name || entry?.away, found.leisu_home, found.leisu_away));
+      const rawDetails = rawLeisu ? {
+        live_statistics: rawLeisu._statistics || rawLeisu.live_statistics,
+        incidents: rawLeisu._incidents || rawLeisu.incidents,
+        weather: rawLeisu._weather || rawLeisu.weather,
+        live_text: rawLeisu._live_text || rawLeisu.live_text,
+        detail_context: rawLeisu._detail_context || rawLeisu.detail_context,
+      } : {};
+      const mergeMissing = (base: any, supplement: any) => {
+        const merged = { ...base };
+        for (const [key, value] of Object.entries(supplement || {})) {
+          const current = merged[key];
+          const currentEmpty = current == null
+            || (Array.isArray(current) && current.length === 0)
+            || (typeof current === 'object' && !Array.isArray(current) && Object.keys(current).length === 0);
+          if (currentEmpty && value != null) merged[key] = value;
+        }
+        return merged;
+      };
+      let hydrated = mergeMissing(found, candidateDetails);
+      hydrated = mergeMissing(hydrated, rawDetails);
+      if ((!Array.isArray(hydrated.ybty_raw_markets) || hydrated.ybty_raw_markets.length === 0) && Array.isArray(rawYbty?.markets)) {
+        hydrated.ybty_raw_markets = rawYbty.markets;
+      }
+      return hydrated;
+    };
+    const unresolved: string[] = [];
+    requestedMatches = batch_match_refs.map((ref: any) => {
+      const exact = storedMatches.find((item: any) => item.match === ref.match);
+      const byTeams = storedMatches.find((item: any) =>
+        cleanTeamName(item.ybty_home) === cleanTeamName(ref.ybty_home) &&
+        cleanTeamName(item.ybty_away) === cleanTeamName(ref.ybty_away)
+      );
+      const found = exact || byTeams;
+      if (!found) unresolved.push(ref.match || `${ref.ybty_home} vs ${ref.ybty_away}`);
+      return found ? hydrateStoredMatch(found) : found;
+    }).filter(Boolean);
+    if (unresolved.length > 0) {
+      throw new Error(`部分比赛已不在当前分析批次中，请刷新页面后重新选择：${unresolved.join('、')}`);
+    }
+  } else {
+    requestedMatches = Array.isArray(batch_matches) && batch_matches.length > 0
+      ? batch_matches
+      : [{ match: match_name, ybty_home, ybty_away, minute, score, odds_info }];
+  }
+
+  const evaluationData = requestedMatches.map((item: any) => compressMatchDataForPrompt(item, mode));
+
+  const CHUNK_SIZE = isExportPrompt ? 15 : (mode === 'prematch_eval' ? 3 : 4);
+  const chunks: any[][] = [];
+  for (let i = 0; i < evaluationData.length; i += CHUNK_SIZE) {
+    chunks.push(evaluationData.slice(i, i + CHUNK_SIZE));
+  }
+
+  const prompts = chunks.map((chunkData, index) => {
+    return `你是足球投注研究审核员。请按照项目协议，对以下 ${chunkData.length} 场比赛（第 ${index + 1}/${chunks.length} 批，共 ${evaluationData.length} 场）逐场进行全玩法评估。
+评估模式：${mode === 'prematch_eval' ? '赛前评估。赛前没有滚球比分核验要求，不得因为 score_verified 字段降级；score_verified=true 在此仅表示该规则不适用。' : '滚球评估。只有滚球才执行 score_verified 核验和未核验缺省限制。'}
+
+【必须覆盖且各返回一项的12类玩法】
+全场大小球、半场大小球、全场让球、半场让球、全场独赢1X2、波胆、双方是否进球、总进球单双、主队进球数、客队进球数、总进球数、进球时间段。
+
+【 direction (方向) 与 line (盘口) 填写硬性规定】：
+- direction: 必须使用规范直观的中文描述，禁止在 direction 里重复出现盘口数字或 "home 主" 等格式！
+  • 让球: 只能填 "主队" 或 "客队" (盘口数字写入 line，如 "-0.5/1")；
+  • 大小球: 只能填 "大球" 或 "小球" (盘口数字写入 line，如 "2.5/3")；
+  • 独赢1X2: 只能填 "主胜"、"平局" 或 "客胜" (line 填 null)；
+  • 双方进球: 只能填 "是" 或 "否" (line 填 null)；
+  • 单双: 只能填 "单" 或 "双" (line 填 null)；
+  • 其它预测类: 用直观中文表示方向，如 "3球及以上"、"16-30分钟"、"2-1"。
+- line: 仅填纯盘口数值 (如 "-0.5/1", "2.5/3")，无盘口数值则填 null。严禁在 direction 字段里包含盘口数值！
+
+${rulesSummary}
+
+严格返回 JSON：
+{"summary":"批量总览","matches":[{"match":"原比赛名","ybty_home":"YBTY主队","ybty_away":"YBTY客队","summary":"本场结论","grade":"A|B|C","score_verified":false,"score_source":"来源","verification_passed":false,"recommendation":null,"market_assessments":[{"category":"上述12类之一","market":"真实市场名或模型预测","direction":"规范中文方向","line":null,"odds":null,"probability":65,"probability_scope":"该概率对应的明确方向","alternatives":[{"direction":"次选","probability":20}],"grade":"A|B|C|NO_BET","status":"recommend|watch|prediction|avoid|unavailable","reason":"必须引用本场实际数据说明"}],"evidence":["依据"],"risks":["风险"]}]}
+
+比赛数据 (${chunkData.length} 场)：
+${JSON.stringify(chunkData)}`;
+  });
+
+  return {
+    mode,
+    prompts,
+    match_count: evaluationData.length,
+    evaluationData,
+  };
+}
+
+// Export Prompt Endpoint for Manual Feeding to Web Gemini
+app.post('/api/ai/export-prompt', (req, res) => {
+  try {
+    const promptData = buildPromptData(req.body, true);
+    const combinedPrompt = promptData.prompts.join('\n\n==================== [ 如果分批，下一批 Prompt 见下方 ] ====================\n\n');
+    res.json({
+      success: true,
+      mode: promptData.mode,
+      match_count: promptData.match_count,
+      prompt_count: promptData.prompts.length,
+      prompts: promptData.prompts,
+      combined_prompt: combinedPrompt,
+      instructions: '请复制上方 Prompt 文本，直接发送给网页版 Google Gemini (gemini.google.com)。Gemini 输出回答后，将其生成的 JSON 内容复制，点击系统中的“导入 Gemini 评估结果”进行解析与保存。',
+    });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || '导出 Prompt 失败' });
+  }
+});
+
+// Import Manual Web Gemini Output Endpoint
+app.post('/api/ai/import-evaluation', (req, res) => {
+  try {
+    const { raw_text, mode = 'live_eval' } = req.body || {};
+    if (!raw_text || typeof raw_text !== 'string' || !raw_text.trim()) {
+      return res.status(400).json({ error: '请粘贴网页版 Gemini 输出的文本/JSON 结果。' });
+    }
+
+    let parsed = parseModelJson(raw_text);
+    parsed.ai_provider = 'gemini_manual_web_import';
+
+    // Post-process matches if present
+    if (Array.isArray(parsed.matches) && parsed.matches.length > 0) {
+      const requiredCategoriesV2 = ['全场大小球', '半场大小球', '全场让球', '半场让球', '全场独赢1X2', '波胆', '双方是否进球', '总进球单双', '主队进球数', '客队进球数', '总进球数', '进球时间段'];
+      parsed.matches = parsed.matches.map((matchResult: any) => {
+        const assessments = Array.isArray(matchResult.market_assessments) ? matchResult.market_assessments : [];
+        const byCategory = new Map(assessments.map((item: any) => [String(item.category || ''), item]));
+        return {
+          ...matchResult,
+          score_verified: mode === 'prematch_eval' ? true : matchResult.score_verified === true,
+          score_source: mode === 'prematch_eval' ? 'prematch_not_applicable' : (matchResult.score_source || 'unverified'),
+          market_assessments: requiredCategoriesV2.map((category) => {
+            const rawAssessment = byCategory.get(category) || {
+              category,
+              market: category,
+              direction: '暂无可靠方向',
+              line: null,
+              odds: null,
+              probability: null,
+              grade: 'NO_BET',
+              status: 'unavailable',
+              reason: 'AI未返回该玩法的可靠评估，已由系统按数据不足处理。',
+            };
+            return sanitizeMarketAssessment(rawAssessment);
+          }),
+        };
+      });
+    }
+
+    if (Array.isArray(parsed.parlay_recommendations)) {
+      parsed.parlay_recommendations = parsed.parlay_recommendations.map((ticket: any) => ({
+        ...ticket,
+        legs: Array.isArray(ticket.legs) ? ticket.legs.map((leg: any) => sanitizeParlayLeg(leg)) : [],
+      }));
+    }
+
+    // Auto-save snapshot into ai_evaluation_history.json
+    const history = readJsonFile<any[]>('output/ai_evaluation_history.json', []);
+    const snapshotId = `web_gemini_${Date.now()}`;
+    const snapshot = {
+      id: snapshotId,
+      mode,
+      scope: Array.isArray(parsed.matches) ? 'batch' : 'single',
+      evaluated_matches: Array.isArray(parsed.matches)
+        ? parsed.matches.map((item: any) => item.match || `${item.ybty_home || ''} vs ${item.ybty_away || ''}`)
+        : [parsed.match || '网页版导入评估'],
+      saved_at: new Date().toISOString(),
+      result: parsed,
+    };
+    history.unshift(snapshot);
+    requireJsonWrites([['output/ai_evaluation_history.json', history]]);
+
+    res.json({
+      success: true,
+      snapshot_id: snapshotId,
+      result: parsed,
+      message: '网页版 Gemini 评估结果解析并导入成功！已自动保存至评估历史中。',
+    });
+  } catch (err: any) {
+    res.status(400).json({ error: `无法解析导入文本为有效的 JSON 格式：${err.message || '结构不符合标准'}` });
+  }
+});
+
 // Server-side AI Evaluation using Google Gemini API
 app.post('/api/ai/evaluate', async (req, res) => {
   try {
@@ -1972,99 +2641,12 @@ app.post('/api/ai/evaluate', async (req, res) => {
     if (geminiApiKeys.length === 0) {
       return res.status(400).json({
         error: '未配置 Google Gemini API Key。',
-        instructions: '请在 .env 文件中配置 GEMINI_API_KEY（或 GEMINI_API_KEYS，多个 Key 用逗号分隔）。',
+        instructions: '请在 .env 文件中配置 GEMINI_API_KEY，或直接使用【导出 Prompt 发送给网页版 Gemini】功能自由分析！',
       });
     }
 
-    const { match_name, ybty_home, ybty_away, minute, score, odds_info, mode, selected_match_refs, parlay_requests, batch_matches, batch_match_refs } = req.body;
-
-    let parlayCandidates: any[] = [];
-
-    if (mode === 'parlay_check') {
-      const refs = Array.isArray(selected_match_refs) ? selected_match_refs : [];
-      const requests = Array.isArray(parlay_requests)
-        ? parlay_requests.filter((item: any) => Number(item?.size) >= 2 && Number(item?.count) >= 1)
-        : [];
-      if (refs.length < 2 || requests.length === 0 || requests.some((item: any) => Number(item.size) > refs.length)) {
-        return res.status(422).json({
-          error: '串关生成参数无效：至少选择两场比赛，且串关长度不能超过已选比赛数。',
-        });
-      }
-
-      const live = readJsonFile<any>('output/ybty_leisu_decisions.json', { decisions: [] });
-      const prematch = readJsonFile<any>('output/ybty_leisu_prematch_decisions.json', { decisions: [], research_queue: [] });
-      const storedMatches = [
-        ...(Array.isArray(live.decisions) ? live.decisions : []),
-        ...(Array.isArray(prematch.decisions) ? prematch.decisions : []),
-        ...(Array.isArray(prematch.research_queue) ? prematch.research_queue : []),
-      ];
-      const history = readJsonFile<any[]>('output/ai_evaluation_history.json', []);
-      const normalize = (value: unknown) => String(value || '').trim().toLowerCase().replace(/[\s_-]/g, '');
-      const findLatestAssessment = (ref: any) => {
-        for (const snapshot of history) {
-          const results = Array.isArray(snapshot?.result?.matches) ? snapshot.result.matches : [snapshot?.result];
-          const found = results.find((item: any) => item && (
-            normalize(item.match) === normalize(ref.match)
-            || (normalize(item.ybty_home) === normalize(ref.ybty_home) && normalize(item.ybty_away) === normalize(ref.ybty_away))
-          ));
-          if (found) return found;
-        }
-        return null;
-      };
-      parlayCandidates = refs.map((ref: any) => {
-        const stored = storedMatches.find((item: any) => normalize(item.match) === normalize(ref.match))
-          || storedMatches.find((item: any) => normalize(item.ybty_home) === normalize(ref.ybty_home) && normalize(item.ybty_away) === normalize(ref.ybty_away));
-        return stored ? { ...stored, ai_evaluation: findLatestAssessment(ref) } : null;
-      }).filter(Boolean);
-      if (parlayCandidates.length !== refs.length) {
-        return res.status(409).json({ error: '部分所选比赛已不在当前系统比赛池中，请刷新后重新选择。' });
-      }
-    }
-
-    // Read CUSTOM_INSTRUCTIONS_COMPLETE.md rules
-    let rulesContent = '';
-    try {
-      const instructionsPath = path.join(process.cwd(), 'CUSTOM_INSTRUCTIONS_COMPLETE.md');
-      if (fs.existsSync(instructionsPath)) {
-        rulesContent = fs.readFileSync(instructionsPath, 'utf-8');
-      }
-    } catch (e) {
-      console.warn('Rules file missing or unreadable', e);
-    }
-
-    const currentLedgerFeedback = readJsonFile<any[]>('output/recommendation_ledger.json', []);
-    const archivedLedgerFeedback = readJsonFile<any[]>('output/recommendation_ledger_archives.json', []);
-    const feedbackById = new Map<string, any>();
-    [...currentLedgerFeedback, ...archivedLedgerFeedback.flatMap((archive: any) => Array.isArray(archive?.items) ? archive.items : [])]
-      .forEach((item: any) => feedbackById.set(String(item?.id || `${item?.match}|${item?.created_at}`), item));
-    const historicalFeedback = Array.from(feedbackById.values())
-      .filter((item: any) => item?.review?.final_score || (Array.isArray(item?.parlay_legs) && item.parlay_legs.some((leg: any) => leg?.final_score)))
-      .sort((a: any, b: any) => String(b?.created_at || '').localeCompare(String(a?.created_at || '')))
-      .slice(0, 20)
-      .map((item: any) => ({
-        match: item.match,
-        grade: item.grade,
-        recommendation: item.recommendation,
-        final_score: item.review?.final_score || null,
-        ht_score: item.review?.ht_score || null,
-        is_parlay: item.is_parlay === true,
-        parlay_legs: Array.isArray(item.parlay_legs) ? item.parlay_legs.map((leg: any) => ({ match: leg.match, market: leg.market, line: leg.line, odds: leg.odds, final_score: leg.final_score || null })) : [],
-        record_type: item.record_type,
-      }));
-
-    // Condensed rules summary embedded in every chunk to reduce token cost.
-    // Full rulesContent (~7k tokens) is only referenced once; chunks use this ~400-token digest instead.
-    const rulesSummary = `【核心硬性规则摘要】
-1. 只有 verified_ybty_markets 中的盘口才能 recommend/watch 并引用赔率；不得猜测未核验盘口。
-2. 有赔率时必须计算隐含概率(100/odds)；模型概率≤隐含概率时 status=avoid, grade=NO_BET。
-3. 赛前无 score_verified 限制；赛前 score_verified=true 仅表示规则不适用，不得因此降级。
-4. 每个玩法独立研究；必须覆盖全12类玩法，每类各返回一项。
-5. 波胆/双方进球/单双/进球数/进球时间段使用 status=prediction, odds=null，给出方向概率。
-6. grade A/B/C 全部展示；没有合格正式主选时 recommendation=null。
-7. 必须引用本场实际数据（statistics/incidents/lineups/recent_trends/reference_odds）说明理由，不得只凭赔率判断。
-8. 串关：同一方向 B 级最多进一组串关；A 级≥85分且阵容明确时最多两组。
-9. 杯赛/友谊赛/强弱悬殊在阵容未确认前最高 C 级，不进正式串关。`;
-
+    const promptData = buildPromptData(req.body);
+    const { mode, parlayCandidates, evaluationData } = promptData;
 
     const runGemini = async (contents: string): Promise<string> => {
       if (geminiApiKeys.length === 0) throw Object.assign(new Error('未配置 Gemini API Key。'), { provider: 'gemini', status: 400 });
@@ -2131,225 +2713,15 @@ app.post('/api/ai/evaluate', async (req, res) => {
     };
 
     if (mode !== 'parlay_check') {
-      let requestedMatches: any[];
-      if (Array.isArray(batch_match_refs) && batch_match_refs.length > 0) {
-        const decisionFile = mode === 'prematch_eval'
-          ? readJsonFile<any>('output/ybty_leisu_prematch_decisions.json', { decisions: [], research_queue: [] })
-          : readJsonFile<any>('output/ybty_leisu_decisions.json', { decisions: [] });
-        const storedMatches = [
-          ...(Array.isArray(decisionFile.decisions) ? decisionFile.decisions : []),
-          ...(Array.isArray(decisionFile.research_queue) ? decisionFile.research_queue : []),
-        ];
-        const candidateFile = mode === 'prematch_eval'
-          ? readJsonFile<any>('output/ybty_leisu_prematch_candidates.json', { candidates: [] })
-          : readJsonFile<any>('output/ybty_leisu_candidates.json', { candidates: [] });
-        const ybtySnapshot = mode === 'prematch_eval'
-          ? readJsonFile<any>('output/ybty_prematch_latest.json', { matches: [] })
-          : readJsonFile<any>('output/ybty_latest.json', { matches: [] });
-        const leisuSnapshot = mode === 'prematch_eval'
-          ? readJsonFile<any>('output/leisu_prematch_latest.json', { events: [] })
-          : readJsonFile<any>('output/leisu_latest.json', { events: [] });
-        const sameTeams = (homeA: unknown, awayA: unknown, homeB: unknown, awayB: unknown) =>
-          cleanTeamName(homeA) === cleanTeamName(homeB) && cleanTeamName(awayA) === cleanTeamName(awayB);
-        const hydrateStoredMatch = (found: any) => {
-          const candidateWrapper = (Array.isArray(candidateFile.candidates) ? candidateFile.candidates : []).find((entry: any) =>
-            entry?.match === found.match
-            || sameTeams(entry?.candidate?.home, entry?.candidate?.away, found.ybty_home, found.ybty_away)
-            || sameTeams(entry?.ybty_home, entry?.ybty_away, found.ybty_home, found.ybty_away));
-          const candidateDetails = candidateWrapper ? {
-            live_statistics: candidateWrapper.live_statistics,
-            reference_odds: candidateWrapper.reference_odds,
-            recent_trends: candidateWrapper.recent_trends,
-            incidents: candidateWrapper.incidents,
-            weather: candidateWrapper.weather,
-            lineups: candidateWrapper.lineups,
-            player_candidates: candidateWrapper.player_candidates,
-            live_text: candidateWrapper.live_text,
-            detail_context: candidateWrapper.detail_context,
-          } : {};
-          const rawYbty = (Array.isArray(ybtySnapshot.matches) ? ybtySnapshot.matches : []).find((entry: any) =>
-            sameTeams(entry.home, entry.away, found.ybty_home, found.ybty_away));
-          const rawLeisu = (Array.isArray(leisuSnapshot.events) ? leisuSnapshot.events : []).find((entry: any) =>
-            sameTeams(entry?.homeTeam?.name || entry?.home, entry?.awayTeam?.name || entry?.away, found.leisu_home, found.leisu_away));
-          const rawDetails = rawLeisu ? {
-            live_statistics: rawLeisu._statistics || rawLeisu.live_statistics,
-            incidents: rawLeisu._incidents || rawLeisu.incidents,
-            weather: rawLeisu._weather || rawLeisu.weather,
-            live_text: rawLeisu._live_text || rawLeisu.live_text,
-            detail_context: rawLeisu._detail_context || rawLeisu.detail_context,
-          } : {};
-          const mergeMissing = (base: any, supplement: any) => {
-            const merged = { ...base };
-            for (const [key, value] of Object.entries(supplement || {})) {
-              const current = merged[key];
-              const currentEmpty = current == null
-                || (Array.isArray(current) && current.length === 0)
-                || (typeof current === 'object' && !Array.isArray(current) && Object.keys(current).length === 0);
-              if (currentEmpty && value != null) merged[key] = value;
-            }
-            return merged;
-          };
-          let hydrated = mergeMissing(found, candidateDetails);
-          hydrated = mergeMissing(hydrated, rawDetails);
-          if ((!Array.isArray(hydrated.ybty_raw_markets) || hydrated.ybty_raw_markets.length === 0) && Array.isArray(rawYbty?.markets)) {
-            hydrated.ybty_raw_markets = rawYbty.markets;
-          }
-          return hydrated;
-        };
-        const unresolved: string[] = [];
-        requestedMatches = batch_match_refs.map((ref: any) => {
-          const exact = storedMatches.find((item: any) => item.match === ref.match);
-          const byTeams = storedMatches.find((item: any) =>
-            cleanTeamName(item.ybty_home) === cleanTeamName(ref.ybty_home) &&
-            cleanTeamName(item.ybty_away) === cleanTeamName(ref.ybty_away)
-          );
-          const found = exact || byTeams;
-          if (!found) unresolved.push(ref.match || `${ref.ybty_home} vs ${ref.ybty_away}`);
-          return found ? hydrateStoredMatch(found) : found;
-        }).filter(Boolean);
-        if (unresolved.length > 0) {
-          return res.status(409).json({ error: '部分比赛已不在当前分析批次中，请刷新页面后重新选择。', unresolved_matches: unresolved });
-        }
-      } else {
-        requestedMatches = Array.isArray(batch_matches) && batch_matches.length > 0
-          ? batch_matches
-          : [{ match: match_name, ybty_home, ybty_away, minute, score, odds_info }];
-      }
-      const evaluationData = requestedMatches.map((item: any) => ({
-        match: item.match || `${item.ybty_home || ''} vs ${item.ybty_away || ''}`,
-        league: item.league || item.ybty_league || item.leisu_league || '',
-        ybty_home: item.ybty_home || '',
-        ybty_away: item.ybty_away || '',
-        start_time_beijing: item.ybty_start_time_beijing || item.provider_start_time || '',
-        minute: Number(item.minute || 0),
-        score: item.score || null,
-        score_verified: mode === 'prematch_eval' ? true : item.score_verified === true,
-        score_source: mode === 'prematch_eval' ? 'prematch_not_applicable' : item.score_source || 'unverified',
-        current_recommendation: item.recommendation || null,
-        verified_ybty_markets: normalizeYbtyMarketTypes(item.ybty_raw_markets)
-          .filter((market: any) => /^(full|half)_(h2h|spread|total)$/.test(String(market?.market || '')) && market?.market_type_verified !== false)
-          .map((market: any) => ({
-            market: market.market,
-            market_title: market.market_title || null,
-            line_index: market.line_index,
-            options: (Array.isArray(market.options) ? market.options : []).map((option: any) => ({
-              side: option.side || null,
-              line: option.line ?? option.selection ?? null,
-              odds: Number.isFinite(Number(option.odds)) ? Number(option.odds) : null,
-              suspended: option.suspended === true,
-              side_verified: option.side_verified === true,
-            })),
-          })),
-        unverified_market_summary: normalizeYbtyMarketTypes(item.ybty_raw_markets)
-          .filter((market: any) => market?.market_type_verified === false || !/^(full|half)_(h2h|spread|total)$/.test(String(market?.market || '')))
-          .map((market: any) => ({
-            raw_market: market.market || 'unclassified',
-            line_index: market.line_index,
-            reason: market.market_type_source || 'market period/type not verified',
-            usable_option_count: (Array.isArray(market.options) ? market.options : []).filter((option: any) =>
-              option?.suspended !== true && Number.isFinite(Number(option?.odds)) && Number(option.odds) > 1
-            ).length,
-          })),
-        reference_market: item.reference_market || null,
-        reference_odds: item.reference_odds ? {
-          source: item.reference_odds.source || null,
-          current: item.reference_odds.current || null,
-          normalized_rows: item.reference_odds.detail_page?.panels?.flatMap((panel: any) => panel?.normalized_rows || []).slice(0, 12) || [],
-        } : null,
-        live_statistics: item.live_statistics || null,
-        recent_trends: item.recent_trends || null,
-        incidents: Array.isArray(item.incidents) ? item.incidents.slice(0, 20) : [],
-        weather: item.weather || null,
-        lineups: item.lineups || null,
-        player_candidates: Array.isArray(item.player_candidates) ? item.player_candidates.slice(0, 20) : [],
-        live_text: Array.isArray(item.live_text?.entries) ? item.live_text.entries.slice(0, 20) : item.live_text || null,
-        detail_summary: item.detail_context ? {
-          coverage: item.detail_context.coverage || null,
-          weather_text: Array.isArray(item.detail_context.weather_text) ? item.detail_context.weather_text.slice(0, 5) : [],
-          live_text: Array.isArray(item.detail_context.live_text) ? item.detail_context.live_text.slice(0, 20) : [],
-          lineup_text: Array.isArray(item.detail_context.lineup_text) ? item.detail_context.lineup_text.slice(0, 20) : [],
-          text_records: Array.isArray(item.detail_context.text_records)
-            ? item.detail_context.text_records.slice(0, 50).map((record: any) => [record.endpoint, record.path, record.text])
-            : [],
-          number_records: Array.isArray(item.detail_context.number_records)
-            ? item.detail_context.number_records.slice(0, 100).map((record: any) => [record.endpoint, record.path, record.value])
-            : [],
-          player_candidates: Array.isArray(item.detail_context.player_candidates)
-            ? item.detail_context.player_candidates.slice(0, 20)
-            : [],
-        } : null,
-        data_availability: {
-          realtime_score: Boolean(item.score),
-          score_verified: mode === 'prematch_eval' ? true : item.score_verified === true,
-          statistics: Boolean(item.live_statistics),
-          corners: Boolean(item.live_statistics?.corners),
-          attacks: Boolean(item.live_statistics?.attacks),
-          dangerous_attacks: Boolean(item.live_statistics?.dangerous_attacks),
-          shots: Boolean(item.live_statistics?.shots),
-          shots_on_target: Boolean(item.live_statistics?.shots_on_target),
-          cards: Boolean(item.live_statistics?.yellow_cards || item.live_statistics?.red_cards),
-          incidents: Array.isArray(item.incidents) && item.incidents.length > 0,
-          live_text: Boolean(item.live_text || item.detail_context?.live_text?.length),
-          lineups: Boolean(item.lineups || item.detail_context?.lineup_text?.length || item.detail_context?.player_candidates?.length),
-          recent_or_h2h_records: Boolean(item.recent_trends || item.detail_context?.text_records?.length || item.detail_context?.number_records?.length),
-        },
-      }));
-
-      const missingMarketMatches = evaluationData.filter((item: any) => item.verified_ybty_markets.length === 0 && item.unverified_market_summary.length === 0).map((item: any) => item.match);
-      const missingDetailMatches = evaluationData.filter((item: any) => !(
-        item.live_statistics || item.recent_trends || item.lineups || item.weather || item.detail_summary ||
-        item.incidents.length > 0 || item.player_candidates.length > 0 || item.live_text
-      )).map((item: any) => item.match);
-      if (missingMarketMatches.length > 0 || missingDetailMatches.length > 0) {
-        return res.status(422).json({
-          error: '批量AI评估已拦截：当前比赛只有决策摘要，没有完整盘口或比赛详情，不能执行全玩法深挖。',
-          missing_markets: missingMarketMatches,
-          missing_details: missingDetailMatches,
-          instructions: '请重新导入同一批次的完整 YBTY + 雷速整合数据；系统会保留 markets、统计、事件、阵容、走势与详情字段。',
-        });
-      }
-
-      // Chunk evaluationData into groups. Use 3 for prematch (heavier data) and 4 for live.
-      // Each chunk is dispatched to a separate Gemini key concurrently using per-key rate gates.
-      const CHUNK_SIZE = mode === 'prematch_eval' ? 3 : 4;
-      const chunks: any[][] = [];
-      for (let i = 0; i < evaluationData.length; i += CHUNK_SIZE) {
-        chunks.push(evaluationData.slice(i, i + CHUNK_SIZE));
-      }
-
-      // Concurrency = number of configured keys (no artificial cap — per-key gates prevent overload)
       const maxConcurrency = Math.max(1, geminiApiKeys.length);
-      console.log(`[AI Evaluation] 批量评估共有 ${evaluationData.length} 场比赛，每组 ${CHUNK_SIZE} 场切分为 ${chunks.length} 组，使用并发度 ${maxConcurrency}（按 Key 独立速率门，不同 Key 完全并行）...`);
+      console.log(`[AI Evaluation] 批量评估共有 ${promptData.match_count} 场比赛，切分为 ${promptData.prompts.length} 组 Prompt...`);
 
-      const chunkResults = new Array<{ summary?: string; matches?: any[]; error?: string }>(chunks.length);
+      const chunkResults = new Array<{ summary?: string; matches?: any[]; error?: string }>(promptData.prompts.length);
       let nextChunkIdx = 0;
-      const workers = Array.from({ length: Math.min(maxConcurrency, chunks.length) }, async () => {
-        while (nextChunkIdx < chunks.length) {
+      const workers = Array.from({ length: Math.min(maxConcurrency, promptData.prompts.length) }, async () => {
+        while (nextChunkIdx < promptData.prompts.length) {
           const chunkIdx = nextChunkIdx++;
-          const chunkData = chunks[chunkIdx];
-          const batchPromptV2 = `你是足球投注研究审核员。请按照项目协议，对 ${chunkData.length} 场比赛逐场进行全玩法评估。
-评估模式：${mode === 'prematch_eval' ? '赛前评估。赛前没有滚球比分核验要求，不得因为 score_verified 字段降级；score_verified=true 在此仅表示该规则不适用。' : '滚球评估。只有滚球才执行 score_verified 核验和未核验缺省限制。'}
-
-必须覆盖且各返回一项：全场大小球、半场大小球、全场让球、半场让球、全场独赢1X2、波胆、双方是否进球、总进球单双、主队进球数、客队进球数、总进球数、进球时间段。
-
-评估规则：
-1. 必须综合 realtime score、live_statistics（角球、进攻、危险进攻、射门、射正、控球、红黄牌）、incidents、live_text、lineups、recent_trends、reference_odds 和 detail_summary 中的历史/交锋原始记录；不得只根据独赢赔率判断。
-2. data_availability 明确表示本次快照实际抓到的字段。缺少单个字段时说明限制，但不能把已经存在的其他证据忽略掉。
-3. 只有 verified_ybty_markets 中的真实盘口才能给 recommend/watch 并引用盘口和赔率。不得猜测未核验盘口。
-4. 波胆、双方进球、单双、球队进球数、总进球数和进球时间段属于模型预测；有足够比赛证据时使用 status=prediction、odds=null，并给出单一方向的概率。
-5. 每个玩法独立研究。可以同时给出多个合格方向，不得只返回一个玩法，也不得为了多样化改写真实盘口。
-6. 有赔率时计算隐含概率 100/odds；模型概率不高于隐含概率时必须 status=avoid、grade=NO_BET。
-7. 滚球 score_verified=false 时最高 C 级且不得成为正式主选，但仍须完成所有玩法分析和模型预测。
-8. A/B/C 全部展示。recommendation 仅为所有合格玩法中最优正式主选；没有合格正式主选则为 null。
-
-严格返回 JSON：
-{"summary":"批量总览","matches":[{"match":"原比赛名","ybty_home":"YBTY主队","ybty_away":"YBTY客队","summary":"本场结论","grade":"A|B|C","score_verified":false,"score_source":"来源","verification_passed":false,"recommendation":null,"market_assessments":[{"category":"上述12类之一","market":"真实市场名或模型预测","direction":"一个明确方向","line":null,"odds":null,"probability":65,"probability_scope":"该概率对应的明确方向","alternatives":[{"direction":"次选","probability":20}],"grade":"A|B|C|NO_BET","status":"recommend|watch|prediction|avoid|unavailable","reason":"必须引用本场实际数据说明"}],"evidence":["依据"],"risks":["风险"]}]}
-
-${rulesSummary}
-
-比赛数据：
-${JSON.stringify(chunkData)}`;
-
+          const batchPromptV2 = promptData.prompts[chunkIdx];
 
           try {
             const batchText = await runAI(batchPromptV2);
@@ -2381,7 +2753,7 @@ ${JSON.stringify(chunkData)}`;
       const processedMatches = allMatchesResults.map((matchResult: any, idx: number) => {
         const assessments = Array.isArray(matchResult.market_assessments) ? matchResult.market_assessments : [];
         const byCategory = new Map(assessments.map((item: any) => [String(item.category || ''), item]));
-        const inputMatch = evaluationData.find((item: any) => item.match === matchResult.match) || evaluationData[idx];
+        const inputMatch = evaluationData[idx] || {};
         const verifiedMarketTypes = new Set((inputMatch?.verified_ybty_markets || []).map((market: any) => market.market));
         const requiredMarketByCategory: Record<string, string> = {
           '全场大小球': 'full_total',
@@ -2447,13 +2819,16 @@ ${JSON.stringify(chunkData)}`;
           }),
         };
       }).map((matchResult: any) => {
-        const formalMarkets = (matchResult.market_assessments || []).filter((assessment: any) =>
+        const sanitizedAssessments = (matchResult.market_assessments || []).map((item: any) => sanitizeMarketAssessment(item));
+        const formalMarkets = sanitizedAssessments.filter((assessment: any) =>
           assessment.status === 'recommend' && ['A', 'B'].includes(String(assessment.grade || ''))
         );
-        if (formalMarkets.length === 0) {
-          return { ...matchResult, recommendation: null, verification_passed: false };
-        }
-        return matchResult;
+        return {
+          ...matchResult,
+          market_assessments: sanitizedAssessments,
+          recommendation: formalMarkets.length === 0 ? null : matchResult.recommendation,
+          verification_passed: formalMarkets.length > 0,
+        };
       });
 
       return res.json({
@@ -2463,87 +2838,17 @@ ${JSON.stringify(chunkData)}`;
       });
     }
 
-    let candidatesInfoText = '';
-    if (parlayCandidates.length > 0) {
-      candidatesInfoText = parlayCandidates.map((c: any, idx: number) => {
-        const home = c.ybty_home || (c.match ? c.match.split('vs')[0]?.trim() : '主队');
-        const away = c.ybty_away || (c.match ? c.match.split('vs')[1]?.trim() : '客队');
-        const scHome = c.score?.home ?? 0;
-        const scAway = c.score?.away ?? 0;
-        const minStr = c.minute ? `${c.minute}'` : '赛前';
-        const grade = c.grade || 'B';
-        const marketPool = Array.isArray(c.ai_evaluation?.market_assessments)
-          ? c.ai_evaluation.market_assessments.filter((item: any) => Number(item?.odds) > 1 && item?.line !== null && item?.line !== '' && ['recommend', 'watch'].includes(String(item?.status)))
-          : [];
-        return `比赛 #${idx + 1}: ${JSON.stringify({ match: c.match || (home + ' vs ' + away), ybty_home: home, ybty_away: away, score: `${scHome}-${scAway}`, minute: minStr, grade, system_recommendation: c.recommendation, ybty_markets: c.ybty_markets, ybty_raw_markets: c.ybty_raw_markets, ai_market_assessments: marketPool })}`;
-      }).join('\n');
-    }
-
-    const prompt = `
-你是一个顶尖、严肃且专业的足球投注评估与精选推荐 AI，严格遵循以下项目的最新足球分析与硬性风控协议：
-
----【核心结算与盘口规则】---
-1. 全场大小球 (Full Time Over/Under)：
-   - 结算绝对标准：只看完场终场时的双方总进球数 vs 盘口！
-   - 示例：无论在 0-0、1-0 还是 2-1 时买入“全场大 2.25”，只要全场完场比分为 2-1 (总进球 3)，3 > 2.25，即为【全赢】！
-2. 滚球让球盘 (Live Asian Handicap / 后续时段让球)：
-   - 结算绝对标准：从下注瞬间起，比分基准归零 (0 : 0) 重新计算！只以买入后双方新增进球/净胜球结算。
-   - 示例：在 1-0 时买入主队“-0.5”，完场比分 2-1（下注后双方各进1球，新增比分 1-1），让球算【输】。
-3. 四分之一盘口 (2.25 / 2.75 / -0.75 / -1.25)：
-   - 必须精确拆分计算赢半 (+50% 利润)、输半 (-50% 本金) 与走盘 (0%)，禁止粗暴判全赢或全输。
-
----【串关风控与高信心例外规则】---
-1. 同一比赛可以在不同串关中采用不同玩法，但每个玩法必须分别完成研究并达到B级以上；不得为了多样化临时改写市场、盘口或赔率。
-2. 普通B级同一方向最多进入1组正式串关；A级且模型评分≥85、首发与战意明确的同一方向最多进入2组。
-3. 单张普通串关不重复放同一场比赛；同一比赛跨串关暴露、同轮杯赛或相同轮换风险必须计入相关性和总风险，概率不够时只保留一组。
-
-请求模式: ${mode}
-${mode === 'parlay_check' ? `
----【用户选择的比赛池（${parlayCandidates.length} 场）】---
-${candidatesInfoText || '无比赛数据'}
----【用户要求生成的串关规格】---
-${JSON.stringify(parlay_requests || [])}
----【历史台账反馈】---
-${JSON.stringify(historicalFeedback)}
-` : `
-赛事名称: ${match_name || `${ybty_home} vs ${ybty_away}`}
-YBTY队名: 主队 [${ybty_home}] vs 客队 [${ybty_away}]
-比赛分钟: ${minute ?? '未指定'}
-当前比分: ${score ? `${score.home}-${score.away}` : '未指定'}
-盘口与赔率信息: ${odds_info || '无'}
-`}
-
-请从每场的 system_recommendation、ai_market_assessments 与 YBTY 真实盘口中选择胜率较高且赔率合理的方向，按用户要求的每种长度和数量生成串关。不得编造盘口或赔率；单张串关不得重复同一比赛。输出严格的 JSON 结构：
-让球腿的 market 必须写成“全场让球（明确球队名）”或“半场让球（明确球队名）”，禁止只写“全场让球”；大小球腿必须在 market 或 line 中明确写出“大/小”，禁止只给数字盘口。
-{
-  "summary": "本次多规格串关生成总结",
-  "grade": "A | B | C",
-  "recommendation": {
-    "market": "串关组合核对结论 (如: 3串1组合通过 / 被风控拦截)",
-    "line": "N/A",
-    "odds": 1.85,
-    "best_timing_tip": "串关下注建议与资金配比分配"
-  },
-  "score_verified": false,
-  "score_source": "ybty_market",
-  "verification_passed": true,
-  "evidence": ["串关安全点1", "串关安全点2"],
-  "risks": ["串关风险拦截项1", "串关风险拦截项2"],
-  "timing_strategy": "串关资金策略与注码管理建议",
-  "parlay_safety_check": {
-    "is_valid_parlay": true,
-    "allow_max_parlay_tickets": 1,
-    "reasons": ["关于这5腿比赛是否有同场重复、核心腿重叠或杯赛风险的逐条分析说明"]
-  },
-  "parlay_recommendations": [{"size": 8, "ticket_index": 1, "grade": "A|B|C", "estimated_total_odds": 12.34, "reason": "为何选择这些方向", "legs": [{"match":"比赛名","ybty_home":"主队","ybty_away":"客队","market":"真实玩法","line":"真实盘口","odds":1.88,"probability":65,"grade":"A|B|C"}]}]
-}
-`;
-
-    const resultText = await runAI(prompt);
+    const resultText = await runAI(promptData.prompts[0]);
     let parsedJson = {};
     try {
       parsedJson = parseModelJson(resultText);
       (parsedJson as any).ai_provider = 'gemini';
+      if (Array.isArray((parsedJson as any).parlay_recommendations)) {
+        (parsedJson as any).parlay_recommendations = (parsedJson as any).parlay_recommendations.map((ticket: any) => ({
+          ...ticket,
+          legs: Array.isArray(ticket.legs) ? ticket.legs.map((leg: any) => sanitizeParlayLeg(leg, promptData.parlayCandidates)) : [],
+        }));
+      }
     } catch {
       parsedJson = { summary: resultText, grade: 'C', verification_passed: false, ai_provider: 'gemini' };
     }
@@ -2557,12 +2862,12 @@ YBTY队名: 主队 [${ybty_home}] vs 客队 [${ybty_away}]
     res.status(serviceUnavailable ? 503 : networkFailure ? 502 : 500).json({
       error: err.message || 'AI Evaluation Failed',
       ...(serviceUnavailable ? {
-        instructions: 'Google Gemini AI 服务当前触发配额上限或暂时不可用。已启动防死锁保护，请检查 API Key 额度，或在 .env 中配置多个 GEMINI_API_KEYS 用逗号分隔轮询；本地比赛数据完好，可稍后重试。',
+        instructions: 'Google Gemini API 触发配额上限或额度限制。建议点击“导出 Prompt”按钮，复制数据直接在网页版 Gemini (gemini.google.com) 中免费快速分析，随后粘贴结果导入系统！',
         retryable: true,
         upstream_status: serviceStatus,
       } : {}),
       ...(networkFailure ? {
-        instructions: 'Gemini 网络连接失败。请允许 node.exe 访问 generativelanguage.googleapis.com:443，或检查网络代理与安全设置。',
+        instructions: 'Gemini 网络连接失败。建议直接使用【导出 Prompt】功能发送给网页版 Gemini。',
       } : {}),
     });
   }
@@ -2580,13 +2885,13 @@ async function start() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
+    app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
-  app.listen(PORT, '127.0.0.1', () => {
-    console.log(`[LX Football System] Express Server running on http://127.0.0.1:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[LX Football System] Express Server running on http://0.0.0.0:${PORT}`);
   });
 }
 

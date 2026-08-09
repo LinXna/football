@@ -18,7 +18,9 @@ import {
   CheckCircle2,
   ShieldCheck,
   Send,
-  Trophy
+  Trophy,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 
 interface Props {
@@ -27,6 +29,7 @@ interface Props {
   summary: any;
   brief: any;
   onSelectForAi: (match: DecisionItem) => void;
+  onRefreshAll?: () => void;
 }
 
 export const PrematchMatchesView: React.FC<Props> = ({
@@ -35,6 +38,7 @@ export const PrematchMatchesView: React.FC<Props> = ({
   summary,
   brief,
   onSelectForAi,
+  onRefreshAll,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [gradeFilter, setGradeFilter] = useState<string>('ALL');
@@ -49,6 +53,9 @@ export const PrematchMatchesView: React.FC<Props> = ({
   const [selectedMatchNames, setSelectedMatchNames] = useState<string[]>([]);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [batchMsg, setBatchMsg] = useState<string | null>(null);
+
+  // Custom Clear Confirm Modal State
+  const [confirmClearModal, setConfirmClearModal] = useState<{ open: boolean; selectedOnly: boolean } | null>(null);
 
   const matchesWithCustom = decisions.map((m) => customUpdatedMatches[m.match] || m);
 
@@ -123,9 +130,13 @@ export const PrematchMatchesView: React.FC<Props> = ({
     setTimeout(() => setBatchMsg(null), 3000);
   };
 
-  const handleClearOutdated = async (selectedOnly = false) => {
+  const handleClearOutdated = (selectedOnly = false) => {
     if (selectedOnly && selectedMatchNames.length === 0) return;
-    if (!window.confirm(selectedOnly ? `确定只清空已勾选的 ${selectedMatchNames.length} 场非滚球比赛吗？` : '确定清空整个非滚球分析库吗？')) return;
+    setConfirmClearModal({ open: true, selectedOnly });
+  };
+
+  const executeClearOutdated = async (selectedOnly = false) => {
+    if (selectedOnly && selectedMatchNames.length === 0) return;
     try {
       const res = await fetch('/api/clear-outdated-matches', {
         method: 'POST',
@@ -134,10 +145,15 @@ export const PrematchMatchesView: React.FC<Props> = ({
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setBatchMsg(`🧹 已成功${selectedOnly ? '清空所选非滚球比赛' : '清空非滚球分析库'}！(共清空 ${data.cleared_prematch} 场，推荐台账与复盘数据完好无损)。系统正在刷新...`);
-        setTimeout(() => {
-          window.location.reload();
-        }, 1200);
+        setBatchMsg(`🧹 已成功${selectedOnly ? '清空所选非滚球比赛' : '清空非滚球分析库'}！(共清空 ${data.cleared_prematch} 场，推荐台账与复盘数据完好无损)。`);
+        setSelectedMatchNames([]);
+        if (onRefreshAll) {
+          onRefreshAll();
+        } else {
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        }
       } else {
         setBatchMsg(`清空失败：${data.error || `HTTP ${res.status}`}`);
       }
@@ -503,6 +519,42 @@ export const PrematchMatchesView: React.FC<Props> = ({
           onApplyBatchUpdates={handleApplyBatchUpdates}
           onBatchSubmitToLedger={handleBatchSubmitToLedger}
         />
+      )}
+
+      {/* Clear Confirmation Modal */}
+      {confirmClearModal?.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md rounded-xl border border-rose-800/60 bg-slate-900 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-amber-400 font-bold text-base">
+              <AlertTriangle className="w-6 h-6 text-amber-400 shrink-0" />
+              <h3>{confirmClearModal.selectedOnly ? '确认清空所选非滚球比赛？' : '确认一键清空非滚球分析库？'}</h3>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              {confirmClearModal.selectedOnly
+                ? `您确定要清空已勾选的 ${selectedMatchNames.length} 场非滚球比赛吗？`
+                : '您即将清空整个非滚球分析库中的比赛和研判简报。此操作不可撤销，但历史推荐台账与复盘数据完好无损。'}
+            </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => setConfirmClearModal(null)}
+                className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-700"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  const isSel = confirmClearModal.selectedOnly;
+                  setConfirmClearModal(null);
+                  void executeClearOutdated(isSel);
+                }}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-500 shadow-md flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                确定清空
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

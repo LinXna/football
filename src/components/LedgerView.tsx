@@ -21,7 +21,8 @@ import {
   ArrowRight,
   Trophy,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Archive
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { evaluateQuarterSettlement, evaluateParlaySettlement, isQuarterLine, parseQuarterLine, SettlementDetail, ParlaySettlementDetail } from '../lib/quarterSettlement';
@@ -125,6 +126,10 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showDeleteSelectedModal, setShowDeleteSelectedModal] = useState<boolean>(false);
   const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
+  const [showArchiveModal, setShowArchiveModal] = useState<boolean>(false);
+  const [archiveBatchName, setArchiveBatchName] = useState<string>('');
+  const [archiveClearCurrent, setArchiveClearCurrent] = useState<boolean>(true);
+  const [isArchiving, setIsArchiving] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [archives, setArchives] = useState<any[]>([]);
   const [currentLedger, setCurrentLedger] = useState<LedgerItem[]>(initialLedger);
@@ -157,20 +162,36 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
   };
   const showArchive = (archive: any) => { setLedger(Array.isArray(archive.items) ? archive.items : []); setLedgerViewMode(archive.id); };
 
-  const handleArchiveCurrentBatch = async () => {
+  const handleArchiveCurrentBatch = () => {
     if (currentLedger.length === 0) return;
-    const name = window.prompt('请输入本批次名称，例如：2026-08-08 晚场', `台账批次 ${new Date().toLocaleString('zh-CN')}`);
-    if (!name) return;
-    const clearCurrent = window.confirm('归档后是否清空当前台账，开始记录下一批？\n确定＝归档并清空；取消＝仅归档副本。');
+    setArchiveBatchName(`台账批次 ${new Date().toLocaleString('zh-CN')}`);
+    setArchiveClearCurrent(true);
+    setShowArchiveModal(true);
+  };
+
+  const executeArchiveCurrentBatch = async () => {
+    if (currentLedger.length === 0 || !archiveBatchName.trim()) return;
+    setIsArchiving(true);
     try {
-      const resp = await fetch('/api/ledger/archive', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, clear_current: clearCurrent }) });
+      const resp = await fetch('/api/ledger/archive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: archiveBatchName.trim(), clear_current: archiveClearCurrent }),
+      });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
-      if (clearCurrent) { setCurrentLedger([]); setLedger([]); setLedgerViewMode('current'); }
-      setSyncToast(`✅ 已归档批次“${data.archive.name}”，共 ${data.archive.item_count} 条。${clearCurrent ? '当前台账已清空。' : ''}`);
+      if (archiveClearCurrent) {
+        setCurrentLedger([]);
+        setLedger([]);
+        setLedgerViewMode('current');
+      }
+      setSyncToast(`✅ 已归档批次“${data.archive.name}”，共 ${data.archive.item_count} 条。${archiveClearCurrent ? '当前台账已清空。' : ''}`);
+      setShowArchiveModal(false);
       await loadArchives();
     } catch (err: any) {
       setSyncToast(`归档失败：${err.message || '未知错误'}`);
+    } finally {
+      setIsArchiving(false);
     }
   };
 
@@ -1377,6 +1398,54 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
                     <Trash2 className="w-4 h-4" /> 彻底清空全部 ({ledger.length}条)
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Archive Modal */}
+      {showArchiveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setShowArchiveModal(false)}>
+          <div className="w-full max-w-md rounded-xl border border-indigo-500/40 bg-slate-900 p-6 shadow-2xl space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
+              <Archive className="w-4 h-4 text-indigo-400" />
+              归档当前推荐台账批次
+            </h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">批次名称</label>
+                <input
+                  type="text"
+                  value={archiveBatchName}
+                  onChange={(e) => setArchiveBatchName(e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                  placeholder="例如：2026-08-08 晚场"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer pt-1">
+                <input
+                  type="checkbox"
+                  checked={archiveClearCurrent}
+                  onChange={(e) => setArchiveClearCurrent(e.target.checked)}
+                  className="rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-0"
+                />
+                <span>归档后自动清空当前台账（准备记录下一批）</span>
+              </label>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => setShowArchiveModal(false)}
+                className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-700"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => void executeArchiveCurrentBatch()}
+                disabled={isArchiving || !archiveBatchName.trim()}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-40"
+              >
+                {isArchiving ? '归档中…' : '确认归档'}
               </button>
             </div>
           </div>

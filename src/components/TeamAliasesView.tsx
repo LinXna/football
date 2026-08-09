@@ -17,6 +17,7 @@ export const TeamAliasesView: React.FC<Props> = ({ manualAliases, autoAliases, o
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editingCanonical, setEditingCanonical] = useState('');
   const [editingAliases, setEditingAliases] = useState('');
+  const [deleteConfirmKey, setDeleteConfirmKey] = useState<string | null>(null);
 
   const combinedKeys = Array.from(new Set([...Object.keys(manualAliases), ...Object.keys(autoAliases)]));
 
@@ -88,8 +89,11 @@ export const TeamAliasesView: React.FC<Props> = ({ manualAliases, autoAliases, o
     }
   };
 
-  const handleDeleteAlias = async (key: string) => {
-    if (!window.confirm(`确定删除“${key}”的整条球队映射吗？手工别名和自动别名都会删除。`)) return;
+  const handleDeleteAlias = (key: string) => {
+    setDeleteConfirmKey(key);
+  };
+
+  const executeDeleteAlias = async (key: string) => {
     setSaving(true);
     setMsg(null);
     try {
@@ -106,6 +110,7 @@ export const TeamAliasesView: React.FC<Props> = ({ manualAliases, autoAliases, o
       setMsg({ type: 'error', text: err.message || '删除球队映射失败' });
     } finally {
       setSaving(false);
+      setDeleteConfirmKey(null);
     }
   };
 
@@ -252,6 +257,19 @@ export const TeamAliasesView: React.FC<Props> = ({ manualAliases, autoAliases, o
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => setEditingKey(null)} className="rounded bg-slate-800 px-4 py-2 text-xs text-slate-300">取消</button>
               <button onClick={() => void handleSaveEdit()} disabled={saving || !editingCanonical.trim()} className="rounded bg-indigo-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-40">{saving ? '保存中…' : '保存修改'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirmKey && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setDeleteConfirmKey(null)}>
+          <div className="w-full max-w-md rounded-xl border border-rose-800/60 bg-slate-900 p-6 shadow-2xl space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-slate-100 text-sm">确认删除球队映射？</h3>
+            <p className="text-xs text-slate-300">确定删除“{deleteConfirmKey}”的整条球队映射吗？手工别名和自动别名都会被彻底删除。</p>
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setDeleteConfirmKey(null)} className="rounded bg-slate-800 px-4 py-2 text-xs text-slate-300">取消</button>
+              <button onClick={() => void executeDeleteAlias(deleteConfirmKey)} disabled={saving} className="rounded bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-500 disabled:opacity-40">{saving ? '删除中…' : '确定删除'}</button>
             </div>
           </div>
         </div>

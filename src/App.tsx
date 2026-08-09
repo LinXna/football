@@ -319,6 +319,7 @@ export default function App() {
             pipelineStatus={livePipeline}
             summary={liveSummary}
             onSelectForAi={handleSelectForAi}
+            onRefreshAll={reloadAll}
           />
         )}
 
@@ -329,6 +330,7 @@ export default function App() {
             summary={prematchSummary}
             brief={prematchBrief}
             onSelectForAi={handleSelectForAi}
+            onRefreshAll={reloadAll}
           />
         )}
 

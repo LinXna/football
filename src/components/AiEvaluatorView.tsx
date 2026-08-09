@@ -11,7 +11,13 @@ import {
   BookOpen,
   Info,
   Send,
-  Trophy
+  Trophy,
+  Copy,
+  Upload,
+  FileText,
+  ExternalLink,
+  Check,
+  Trash2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -31,6 +37,53 @@ const hasUsableRecommendation = (item: DecisionItem): boolean => {
     && Number.isFinite(Number(recommendation.odds))
     && Number(recommendation.odds) > 1;
 };
+
+function formatMarketName(market?: string): string {
+  if (!market) return '未知玩法';
+  const m = String(market).trim();
+  if (/^full_total$/i.test(m)) return '全场大小球';
+  if (/^half_total$/i.test(m)) return '半场大小球';
+  if (/^full_spread$/i.test(m)) return '全场让球';
+  if (/^half_spread$/i.test(m)) return '半场让球';
+  if (/^full_h2h$/i.test(m)) return '全场独赢1X2';
+  if (/^half_h2h$/i.test(m)) return '半场独赢1X2';
+  if (/^total$/i.test(m)) return '全场大小球';
+  if (/^spread$/i.test(m)) return '全场让球';
+  if (/^h2h$/i.test(m)) return '全场独赢1X2';
+  return m;
+}
+
+function formatLineText(market?: string, line?: string | number | null, home?: string, away?: string): string {
+  const m = formatMarketName(market);
+  let l = line != null && line !== '' && line !== 'null' ? String(line).trim() : '';
+  const h = home || '';
+  const a = away || '';
+
+  if (/大小球/i.test(m)) {
+    if (!/大|小|over|under/i.test(l)) {
+      l = `大 ${l}`.trim();
+    } else {
+      l = l.replace(/^over\s*/i, '大 ').replace(/^under\s*/i, '小 ');
+    }
+  } else if (/让球/i.test(m)) {
+    const normalize = (v: any) => String(v || '').toLowerCase().replace(/[\s\-_·\.（）()]/g, '');
+    const normH = normalize(h);
+    const normA = normalize(a);
+    const normL = normalize(l);
+    const hasHomeOrAway = /主|客|home|away/i.test(l) || (normH && normL.includes(normH)) || (normA && normL.includes(normA));
+    if (!hasHomeOrAway && h) {
+      l = `${h} ${l}`.trim();
+    }
+  } else if (/独赢/i.test(m)) {
+    if (!/胜|平|draw|home|away/i.test(l)) {
+      if (l === '1' || /home/i.test(l)) l = `${h || '主队'}胜`;
+      else if (l === '2' || /away/i.test(l)) l = `${a || '客队'}胜`;
+      else if (l === 'x' || /draw/i.test(l)) l = '平局';
+      else if (h) l = `${h}胜`;
+    }
+  }
+  return l;
+}
 
 export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, liveMatches, prematchMatches, onRefreshLedger }) => {
   const [matchName, setMatchName] = useState(selectedMatch?.match || '');
@@ -60,6 +113,23 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
   const [savedParlayTickets, setSavedParlayTickets] = useState<Set<string>>(new Set());
   const [batchProgress, setBatchProgress] = useState<string | null>(null);
+
+  // Export Prompt and Manual Web Gemini Import states
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportedPrompt, setExportedPrompt] = useState<string>('');
+  const [exportInfo, setExportInfo] = useState<{ match_count: number; prompt_count: number; instructions: string } | null>(null);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccessMsg, setImportSuccessMsg] = useState<string | null>(null);
+
+  const [showClearHistoryConfirmModal, setShowClearHistoryConfirmModal] = useState(false);
+  const [isClearingHistory, setIsClearingHistory] = useState(false);
+
   const evaluationMatches = mode === 'live_eval' ? liveMatches : prematchMatches;
   const parlayEligibleMatches = allMatches.filter((match, index, source) =>
     source.findIndex((item) => item.match === match.match) === index
@@ -77,6 +147,47 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
       setHistoryLoading(false);
     }
   }, []);
+
+  const handleClearEvaluationHistory = () => {
+    setShowClearHistoryConfirmModal(true);
+  };
+
+  const executeClearEvaluationHistory = async () => {
+    setIsClearingHistory(true);
+    try {
+      let resp = await fetch('/api/ai/evaluations/clear', { method: 'POST' });
+      if (resp.status === 404) {
+        resp = await fetch('/api/ai/evaluations/clear', { method: 'DELETE' });
+      }
+      if (resp.status === 404) {
+        resp = await fetch('/api/ai/evaluations', { method: 'DELETE' });
+      }
+      if (!resp.ok) {
+        const text = await resp.text();
+        let errMsg = `HTTP ${resp.status}`;
+        try {
+          const errJson = JSON.parse(text);
+          errMsg = errJson.error || errMsg;
+        } catch { /* empty */ }
+        if (resp.status === 404) {
+          throw new Error('本地后端未检测到该接口。请确保使用 npm run dev 启动，或者在 npm start 前先执行 npm run build 重新编译 backend 后端代码！');
+        }
+        throw new Error(errMsg);
+      }
+      const data = await resp.json();
+      if (data.success) {
+        setEvaluationHistory([]);
+        setSaveMessage('已成功清空 AI 评估历史！');
+        setShowClearHistoryConfirmModal(false);
+      } else {
+        setSaveMessage(`清空失败：${data.error || '未知错误'}`);
+      }
+    } catch (err: any) {
+      setSaveMessage(`清空历史异常：${err.message}`);
+    } finally {
+      setIsClearingHistory(false);
+    }
+  };
 
   React.useEffect(() => {
     loadEvaluationHistory();
@@ -274,8 +385,8 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
             match: leg.match,
             ybty_home: leg.ybty_home,
             ybty_away: leg.ybty_away,
-            market: leg.market,
-            line: leg.line,
+            market: formatMarketName(leg.market),
+            line: formatLineText(leg.market, leg.line, leg.ybty_home, leg.ybty_away),
             odds: leg.odds,
             grade: leg.grade,
             model_score: leg.probability,
@@ -333,6 +444,98 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
       onRefreshLedger?.();
     } catch (err: any) {
       setSaveMessage(`AI投注建议写入失败：${err.message || '未知错误'}`);
+    }
+  };
+
+  const handleExportPrompt = async () => {
+    const requestedParlays = Object.entries(parlayRequests)
+      .filter(([, count]) => count > 0)
+      .map(([size, count]) => ({ size: Number(size), count }));
+
+    if (mode === 'parlay_check' && (parlaySelected.length < 2 || requestedParlays.length === 0)) {
+      setErrorMsg('请至少选择两场比赛，并选择至少一种串关长度和生成数量。');
+      return;
+    }
+
+    setExportLoading(true);
+    setErrorMsg(null);
+    setExportedPrompt('');
+    setCopiedPrompt(false);
+    const storedSingleMatch = allMatches.find((item) => item.match === matchName);
+
+    try {
+      const resp = await fetch('/api/ai/export-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          match_name: matchName,
+          ybty_home: ybtyHome,
+          ybty_away: ybtyAway,
+          minute,
+          score: { home: scoreHome, away: scoreAway },
+          odds_info: oddsInfo,
+          mode,
+          selected_match_refs: mode === 'parlay_check' ? parlaySelected.map((item) => ({ match: item.match, ybty_home: item.ybty_home, ybty_away: item.ybty_away })) : undefined,
+          parlay_requests: mode === 'parlay_check' ? requestedParlays : undefined,
+          batch_match_refs: mode !== 'parlay_check'
+            ? (evaluationScope === 'batch'
+              ? batchSelected.map((item) => ({ match: item.match, ybty_home: item.ybty_home, ybty_away: item.ybty_away }))
+              : storedSingleMatch
+                ? [{ match: storedSingleMatch.match, ybty_home: storedSingleMatch.ybty_home, ybty_away: storedSingleMatch.ybty_away }]
+                : undefined)
+            : undefined,
+        }),
+      });
+
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || '导出 Prompt 失败');
+
+      setExportedPrompt(data.combined_prompt || (Array.isArray(data.prompts) ? data.prompts.join('\n\n') : ''));
+      setExportInfo({
+        match_count: data.match_count || 1,
+        prompt_count: data.prompt_count || 1,
+        instructions: data.instructions || '请复制此 Prompt 粘贴至网页版 Gemini。',
+      });
+      setExportModalOpen(true);
+    } catch (err: any) {
+      setErrorMsg(`导出 Prompt 失败: ${err.message || '未知错误'}`);
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const handleCopyPrompt = () => {
+    if (!exportedPrompt) return;
+    navigator.clipboard.writeText(exportedPrompt);
+    setCopiedPrompt(true);
+    setTimeout(() => setCopiedPrompt(false), 3000);
+  };
+
+  const handleImportEvaluation = async () => {
+    if (!importText.trim()) {
+      setImportError('请输入或粘贴网页版 Gemini 返回的 JSON 文本！');
+      return;
+    }
+    setImportLoading(true);
+    setImportError(null);
+    try {
+      const resp = await fetch('/api/ai/import-evaluation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raw_text: importText, mode }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || '解析导入失败');
+
+      setResult(data.result);
+      setImportSuccessMsg('✅ 成功导入网页版 Gemini 评估结果！已自动载入下方评估视图并保存到历史台账中。');
+      setImportModalOpen(false);
+      setImportText('');
+      loadEvaluationHistory();
+    } catch (err: any) {
+      setImportError(err.message || '解析导入失败，请确认文本格式包含标准的 JSON 结构。');
+    } finally {
+      setImportLoading(false);
     }
   };
 
@@ -571,14 +774,33 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
             )}
           </div>
 
-          <button
-            onClick={() => setParlayConfigOpen(true)}
-            disabled={loading || parlaySelected.length < 2}
-            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 shadow-lg transition-all"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            下一步：选择串关规格
-          </button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <button
+              onClick={() => setParlayConfigOpen(true)}
+              disabled={loading || parlaySelected.length < 2}
+              className="py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 shadow-lg transition-all"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              下一步：选择串关规格
+            </button>
+
+            <button
+              onClick={() => setParlayConfigOpen(true)}
+              disabled={exportLoading || parlaySelected.length < 2}
+              className="py-2.5 bg-slate-800 hover:bg-slate-700 border border-amber-500/40 text-amber-300 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-md"
+            >
+              {exportLoading ? <Loader2 className="w-4 h-4 animate-spin text-amber-400" /> : <FileText className="w-4 h-4 text-amber-400" />}
+              📋 导出串关 Prompt (网页版)
+            </button>
+
+            <button
+              onClick={() => { setImportModalOpen(true); setImportError(null); }}
+              className="py-2.5 bg-slate-800 hover:bg-slate-700 border border-sky-500/40 text-sky-300 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-md"
+            >
+              <Upload className="w-4 h-4 text-sky-400" />
+              📥 导入网页版 Gemini 评估
+            </button>
+          </div>
 
           {parlayConfigOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setParlayConfigOpen(false)}>
@@ -603,9 +825,18 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                     );
                   })}
                 </div>
-                <div className="mt-5 flex justify-end gap-2">
+                <div className="mt-5 flex flex-wrap justify-end gap-2">
                   <button onClick={() => setParlayConfigOpen(false)} className="rounded bg-slate-800 px-4 py-2 text-xs text-slate-300">取消</button>
-                  <button onClick={() => { setParlayConfigOpen(false); void handleEvaluate(); }} disabled={!Object.values(parlayRequests).some((count) => count > 0)} className="rounded bg-indigo-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-40">生成串关推荐</button>
+                  <button
+                    onClick={() => { setParlayConfigOpen(false); void handleExportPrompt(); }}
+                    disabled={!Object.values(parlayRequests).some((count) => count > 0)}
+                    className="rounded bg-amber-600 hover:bg-amber-500 px-4 py-2 text-xs font-bold text-white disabled:opacity-40 flex items-center gap-1"
+                  >
+                    📋 导出 Prompt (网页版)
+                  </button>
+                  <button onClick={() => { setParlayConfigOpen(false); void handleEvaluate(); }} disabled={!Object.values(parlayRequests).some((count) => count > 0)} className="rounded bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs font-bold text-white disabled:opacity-40 flex items-center gap-1">
+                    ⚡ API 直连评估
+                  </button>
                 </div>
               </div>
             </div>
@@ -752,18 +983,143 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
           </div>
 
           </div>
-          <button
-            onClick={handleEvaluate}
-            disabled={loading || (evaluationScope === 'batch' ? batchSelected.length === 0 : (!ybtyHome || !ybtyAway))}
-            className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 shadow-lg transition-all"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {evaluationScope === 'batch' ? `批量评估 ${batchSelected.length} 场及全部玩法` : '开始单场全部玩法评估'}
-            <span className="hidden">
-            开始 AI 协议深挖与等级判定
-            </span>
-          </button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2">
+            <button
+              onClick={handleEvaluate}
+              disabled={loading || (evaluationScope === 'batch' ? batchSelected.length === 0 : (!ybtyHome || !ybtyAway))}
+              className="py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 shadow-lg transition-all"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {evaluationScope === 'batch' ? `API 评估 (${batchSelected.length} 场)` : 'API 单场评估'}
+            </button>
+
+            <button
+              onClick={handleExportPrompt}
+              disabled={exportLoading || (evaluationScope === 'batch' ? batchSelected.length === 0 : (!ybtyHome || !ybtyAway))}
+              className="py-2.5 bg-slate-800 hover:bg-slate-700 border border-amber-500/40 text-amber-300 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-md"
+            >
+              {exportLoading ? <Loader2 className="w-4 h-4 animate-spin text-amber-400" /> : <FileText className="w-4 h-4 text-amber-400" />}
+              📋 导出 Prompt (网页版)
+            </button>
+
+            <button
+              onClick={() => { setImportModalOpen(true); setImportError(null); }}
+              className="py-2.5 bg-slate-800 hover:bg-slate-700 border border-sky-500/40 text-sky-300 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-md"
+            >
+              <Upload className="w-4 h-4 text-sky-400" />
+              📥 导入网页版 Gemini 评估
+            </button>
+          </div>
+
           {batchProgress && <div className="text-center text-xs font-semibold text-sky-300">{batchProgress}</div>}
+        </div>
+      )}
+
+      {/* Export Prompt Modal */}
+      {exportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setExportModalOpen(false)}>
+          <div className="w-full max-w-3xl rounded-2xl border border-amber-500/40 bg-slate-950 p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-amber-300 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-amber-400" />
+                导出 Prompt（无需 Key 额度，供网页版 Gemini 使用）
+              </h3>
+              <button onClick={() => setExportModalOpen(false)} className="text-slate-400 hover:text-white text-lg font-bold">✕</button>
+            </div>
+
+            <div className="bg-amber-950/30 border border-amber-800/40 rounded-xl p-3.5 text-xs text-amber-200/90 space-y-1.5">
+              <div className="font-bold flex items-center gap-1.5 text-amber-300">
+                <Info className="w-4 h-4 shrink-0" /> 使用说明：
+              </div>
+              <p>1. 点击下方【一键复制 Prompt】（已包含 {exportInfo?.match_count || 1} 场比赛的盘口数据、伤停信息与完整分析规则）。</p>
+              <p>2. 打开 <a href="https://gemini.google.com" target="_blank" rel="noreferrer" className="underline text-sky-400 hover:text-sky-300 font-bold inline-flex items-center gap-0.5">Google Gemini 网页版 <ExternalLink className="w-3 h-3" /></a> 并粘贴发送给 Gemini。</p>
+              <p>3. 复制 Gemini 网页版返回的输出，点击主界面【导入网页版 Gemini 评估】按钮粘贴导入！</p>
+            </div>
+
+            <div className="flex-1 min-h-[280px] relative">
+              <textarea
+                readOnly
+                value={exportedPrompt}
+                className="w-full h-full min-h-[280px] bg-slate-900 border border-slate-800 text-slate-200 text-xs font-mono p-3.5 rounded-xl focus:outline-none focus:border-amber-500/50 resize-none selection:bg-amber-500/30"
+                onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <span className="text-xs text-slate-400">
+                {exportInfo?.prompt_count && exportInfo.prompt_count > 1 ? `已为您整合 ${exportInfo.prompt_count} 组比赛数据` : '全量 Prompt 数据已就绪'}
+              </span>
+              <div className="flex gap-2">
+                <button onClick={() => setExportModalOpen(false)} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs font-medium hover:bg-slate-700">
+                  关闭
+                </button>
+                <button onClick={handleCopyPrompt} className="px-5 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg">
+                  {copiedPrompt ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+                  {copiedPrompt ? '✅ 已复制 Prompt！' : '一键复制 Prompt'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Evaluation Modal */}
+      {importModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setImportModalOpen(false)}>
+          <div className="w-full max-w-2xl rounded-2xl border border-sky-500/40 bg-slate-950 p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-sky-300 flex items-center gap-2">
+                <Upload className="w-5 h-5 text-sky-400" />
+                导入网页版 Gemini 评估结果
+              </h3>
+              <button onClick={() => setImportModalOpen(false)} className="text-slate-400 hover:text-white text-lg font-bold">✕</button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              请将网页版 Gemini 返回的完整回答粘贴至下方框内，系统会自动解析 JSON 并自动执行规则校验与防套利过滤：
+            </p>
+
+            <div className="flex-1 min-h-[220px]">
+              <textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder="在此粘贴网页版 Gemini 输出的 JSON 内容..."
+                className="w-full h-full min-h-[220px] bg-slate-900 border border-slate-800 text-slate-100 text-xs font-mono p-3.5 rounded-xl focus:outline-none focus:border-sky-500 resize-none"
+              />
+            </div>
+
+            {importError && (
+              <div className="p-3 bg-rose-950/40 border border-rose-800/60 rounded-xl text-rose-300 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{importError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button onClick={() => setImportModalOpen(false)} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs font-medium hover:bg-slate-700">
+                取消
+              </button>
+              <button
+                onClick={handleImportEvaluation}
+                disabled={importLoading || !importText.trim()}
+                className="px-5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg"
+              >
+                {importLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                解析并导入系统
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Notification Banner */}
+      {importSuccessMsg && (
+        <div className="p-4 bg-emerald-950/50 border border-emerald-800/60 rounded-xl text-emerald-300 text-xs flex items-center justify-between gap-2 shadow-lg">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{importSuccessMsg}</span>
+          </div>
+          <button onClick={() => setImportSuccessMsg(null)} className="text-emerald-400 hover:text-emerald-200 font-bold">✕</button>
         </div>
       )}
 
@@ -812,7 +1168,16 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                     {(matchResult.market_assessments || []).map((market, marketIndex) => (
                       <div key={`${market.category}-${marketIndex}`} className="rounded-lg border border-slate-800 bg-slate-900/80 p-3 text-xs">
                         <div className="flex items-center justify-between gap-2"><strong className="text-slate-200">{market.category}</strong><span className={market.status === 'recommend' ? 'text-emerald-400' : market.status === 'watch' || market.status === 'prediction' ? 'text-sky-400' : 'text-amber-400'}>{market.status === 'recommend' ? '推荐' : market.status === 'watch' ? '观察' : market.status === 'prediction' ? '模型预测' : market.status === 'unavailable' ? '数据不足' : '不建议'}</span></div>
-                        <div className="mt-2 font-semibold text-emerald-300">{market.direction || '--'} {market.line ?? ''} {market.odds ? `@${market.odds}` : ''}</div>
+                        <div className="mt-2 font-semibold text-emerald-300">
+                          {(() => {
+                            let dir = String(market.direction || '--').trim();
+                            let line = market.line != null && market.line !== '' && market.line !== 'null' ? String(market.line).trim() : '';
+                            if (line && dir.includes(line)) {
+                              return `${dir} ${market.odds ? `@${market.odds}` : ''}`.trim();
+                            }
+                            return `${dir} ${line} ${market.odds ? `@${market.odds}` : ''}`.replace(/\s+/g, ' ').trim();
+                          })()}
+                        </div>
                         <div className="mt-1 text-slate-400">概率：{market.probability ?? '--'}% · 等级：{market.grade}{market.value_edge !== null && market.value_edge !== undefined ? ` · 价值差：${market.value_edge > 0 ? '+' : ''}${market.value_edge}%` : ''}</div>
                         {market.probability_scope && <div className="mt-1 text-[10px] text-slate-500">概率对象：{market.probability_scope}</div>}
                         {Array.isArray(market.alternatives) && market.alternatives.length > 0 && (
@@ -950,13 +1315,17 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                       </div>
                     </div>
                     <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
-                      {ticket.legs.map((leg, index) => (
-                        <div key={`${leg.match}-${index}`} className="rounded border border-slate-800 bg-slate-950 p-2 text-xs">
-                          <div className="font-bold text-slate-200">腿 #{index + 1} · {leg.ybty_home || leg.match} vs {leg.ybty_away || ''}</div>
-                          <div className="mt-1 text-emerald-300">{leg.market} {leg.line} <span className="text-amber-300">@{leg.odds}</span></div>
-                          <div className="mt-1 text-slate-500">AI概率 {leg.probability}% · {leg.grade}级</div>
-                        </div>
-                      ))}
+                      {ticket.legs.map((leg, index) => {
+                        const mName = formatMarketName(leg.market);
+                        const lText = formatLineText(leg.market, leg.line, leg.ybty_home, leg.ybty_away);
+                        return (
+                          <div key={`${leg.match}-${index}`} className="rounded border border-slate-800 bg-slate-950 p-2 text-xs">
+                            <div className="font-bold text-slate-200">腿 #{index + 1} · {leg.ybty_home || leg.match} vs {leg.ybty_away || ''}</div>
+                            <div className="mt-1 text-emerald-300">{mName} {lText} <span className="text-amber-300">@{leg.odds}</span></div>
+                            <div className="mt-1 text-slate-500">AI概率 {leg.probability}% · {leg.grade}级</div>
+                          </div>
+                        );
+                      })}
                     </div>
                     <div className="mt-2 text-xs text-slate-400">{ticket.reason}</div>
                   </div>
@@ -976,9 +1345,16 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
             <h3 className="text-sm font-bold text-slate-100">已保存的 AI 评估历史</h3>
             <p className="mt-1 text-xs text-slate-400">用于复查当时的完整分析，不计入正式推荐命中率。</p>
           </div>
-          <button onClick={loadEvaluationHistory} disabled={historyLoading} className="rounded bg-slate-800 px-3 py-1.5 text-xs text-sky-300 hover:bg-slate-700 disabled:opacity-50">
-            {historyLoading ? '读取中…' : '刷新历史'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={loadEvaluationHistory} disabled={historyLoading} className="rounded bg-slate-800 px-3 py-1.5 text-xs text-sky-300 hover:bg-slate-700 disabled:opacity-50">
+              {historyLoading ? '读取中…' : '刷新历史'}
+            </button>
+            {evaluationHistory.length > 0 && (
+              <button onClick={handleClearEvaluationHistory} className="rounded bg-rose-950/80 hover:bg-rose-900/80 border border-rose-800/80 px-3 py-1.5 text-xs text-rose-300">
+                🧹 清空历史 ({evaluationHistory.length})
+              </button>
+            )}
+          </div>
         </div>
         {evaluationHistory.length === 0 ? (
           <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4 text-center text-xs text-slate-500">暂无已保存评估</div>
@@ -1030,6 +1406,37 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
           </div>
         )}
       </div>
+
+      {/* Clear Evaluation History Confirm Modal */}
+      {showClearHistoryConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setShowClearHistoryConfirmModal(false)}>
+          <div className="w-full max-w-md rounded-xl border border-rose-800/60 bg-slate-900 p-6 shadow-2xl space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 text-amber-400 font-bold text-base">
+              <AlertTriangle className="w-6 h-6 text-amber-400 shrink-0" />
+              <h3>确认清空 AI 评估历史记录？</h3>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              您即将彻底清空所有已保存的 {evaluationHistory.length} 条 AI 评估历史快照。此操作不影响正式推荐台账，但历史快照清除后不可恢复。是否确定继续？
+            </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => setShowClearHistoryConfirmModal(false)}
+                className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-700"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => void executeClearEvaluationHistory()}
+                disabled={isClearingHistory}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-500 disabled:opacity-40 flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                {isClearingHistory ? '清空中…' : '确定清空'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
