@@ -7,6 +7,8 @@ export interface SettlementParams {
   halfTimeScore?: { home: number; away: number } | null;
   scoreVerified?: boolean; // Rule #4 constraint
   isLive?: boolean;
+  /** Explicit provider settlement basis. Live totals default to full-match totals. */
+  basis?: 'full_match_total' | 'remaining_goals' | 'remaining_period_dominance' | string;
   homeTeam?: string;
   awayTeam?: string;
 }
@@ -163,6 +165,7 @@ export function classifyMarket(marketStr: string, lineInput?: string | number, h
 
   const isHalfTime = m.includes('半场') || m.includes('上半场') || m.includes('1st half') || m.includes('ht') || m.includes('half');
   const normalizedMarket = m.replace(/[\s\-_·\.（）()]/g, '');
+  const normalizedDirection = `${m}${l}`.replace(/[\s\-_·\.（）()]/g, '');
   const normalizedHome = String(homeTeam || '').toLowerCase().replace(/[\s\-_·\.（）()]/g, '');
   const normalizedAway = String(awayTeam || '').toLowerCase().replace(/[\s\-_·\.（）()]/g, '');
 
@@ -200,10 +203,10 @@ export function classifyMarket(marketStr: string, lineInput?: string | number, h
 
   // 5. 让球。必须先于大小球判断，避免球队名中的“大/小”被误判为大小球方向。
   if (m.includes('让球') || m.includes('spread') || m.includes('handicap')) {
-    if ((normalizedAway && normalizedMarket.includes(normalizedAway)) || m.includes('客') || m.includes('away')) {
+    if ((normalizedAway && normalizedDirection.includes(normalizedAway)) || m.includes('客') || l.includes('客') || m.includes('away') || l.includes('away')) {
       return { type: 'spread_away', displayName: isHalfTime ? '半场客队让球' : '客队让球', isHalfTime };
     }
-    if ((normalizedHome && normalizedMarket.includes(normalizedHome)) || m.includes('主') || m.includes('home')) {
+    if ((normalizedHome && normalizedDirection.includes(normalizedHome)) || m.includes('主') || l.includes('主') || m.includes('home') || l.includes('home')) {
       return { type: 'spread_home', displayName: isHalfTime ? '半场主队让球' : '主队让球', isHalfTime };
     }
     return { type: 'spread_unknown', displayName: isHalfTime ? '半场让球方向不明' : '全场让球方向不明', isHalfTime };
@@ -250,6 +253,7 @@ export function evaluateQuarterSettlement(params: SettlementParams): SettlementD
     halfTimeScore,
     scoreVerified = true,
     isLive: explicitIsLive = false,
+    basis,
     homeTeam,
     awayTeam,
   } = params;
@@ -387,8 +391,8 @@ export function evaluateQuarterSettlement(params: SettlementParams): SettlementD
     effectiveValue = (finH + finA) % 2;
     calculationExplanation = `${scorePrefix}，进球总数 ${finH + finA} (${effectiveValue !== 0 ? '单' : '双'})`;
   } else if (marketCategory.type === 'total_over' || marketCategory.type === 'total_under') {
-    if (isLive && !marketCategory.isHalfTime) {
-      // Rule #5: In-play total goals = Final Total Goals - Rec Total Goals
+    if (isLive && !marketCategory.isHalfTime && basis === 'remaining_goals') {
+      // Only explicitly marked remaining-goal markets subtract the recommendation score.
       const totalFin = finH + finA;
       const totalRec = recH + recA;
       effectiveValue = totalFin - totalRec;
@@ -398,8 +402,8 @@ export function evaluateQuarterSettlement(params: SettlementParams): SettlementD
       calculationExplanation = `${scorePrefix}，进球数: 主 (${finH}) + 客 (${finA}) = ${effectiveValue} 进球`;
     }
   } else if (marketCategory.type.startsWith('spread')) {
-    if (isLive && !marketCategory.isHalfTime) {
-      // Rule #6: In-play spread = Net goal diff in remaining time
+    if (isLive && !marketCategory.isHalfTime && basis === 'remaining_period_dominance') {
+      // Only explicitly marked later-period handicaps use goals scored after recommendation.
       const diffH = finH - recH;
       const diffA = finA - recA;
       if (marketCategory.type === 'spread_home') {
@@ -641,6 +645,9 @@ export function evaluateParlaySettlement(
     market: string;
     line: string | number;
     odds: number;
+    basis?: string;
+    is_live?: boolean;
+    minute?: number;
     score_at_recommendation?: { home: number; away: number };
     final_score?: { home: number; away: number } | null;
     score_verified?: boolean;
@@ -685,6 +692,7 @@ export function evaluateParlaySettlement(
       halfTimeScore: (leg as any).half_time_score || (leg as any).ht_score || (leg as any).half_score || null,
       scoreVerified: leg.score_verified === true,
       isLive: isLegLive,
+      basis: (leg as any).basis || (leg as any).recommendation?.basis,
       homeTeam: leg.ybty_home,
       awayTeam: leg.ybty_away,
     });

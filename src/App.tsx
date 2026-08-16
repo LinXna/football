@@ -1,17 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { 
   DecisionItem, 
   PipelineStatus, 
   LedgerItem, 
   TeamAliasMap 
 } from './types';
-import { LiveMatchesView } from './components/LiveMatchesView';
-import { PrematchMatchesView } from './components/PrematchMatchesView';
-import { AiEvaluatorView } from './components/AiEvaluatorView';
-import { LedgerView } from './components/LedgerView';
-import { TeamAliasesView } from './components/TeamAliasesView';
-import { ExportDataView } from './components/ExportDataView';
 import { BettingRecommendationsView } from './components/BettingRecommendationsView';
+import { requestJson } from './lib/apiClient';
 
 import { 
   Activity, 
@@ -27,6 +22,13 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { UnverifiedScoresModal } from './components/UnverifiedScoresModal';
+
+const LiveMatchesView = lazy(() => import('./components/LiveMatchesView').then(({ LiveMatchesView }) => ({ default: LiveMatchesView })));
+const PrematchMatchesView = lazy(() => import('./components/PrematchMatchesView').then(({ PrematchMatchesView }) => ({ default: PrematchMatchesView })));
+const AiEvaluatorView = lazy(() => import('./components/AiEvaluatorView').then(({ AiEvaluatorView }) => ({ default: AiEvaluatorView })));
+const LedgerView = lazy(() => import('./components/LedgerView').then(({ LedgerView }) => ({ default: LedgerView })));
+const TeamAliasesView = lazy(() => import('./components/TeamAliasesView').then(({ TeamAliasesView }) => ({ default: TeamAliasesView })));
+const ExportDataView = lazy(() => import('./components/ExportDataView').then(({ ExportDataView }) => ({ default: ExportDataView })));
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'recommendations' | 'live' | 'prematch' | 'ai' | 'ledger' | 'aliases' | 'export'>('recommendations');
@@ -60,8 +62,7 @@ export default function App() {
 
   const fetchLiveData = async () => {
     try {
-      const res = await fetch('/api/pipeline/live');
-      const data = await res.json();
+      const data = await requestJson<any>('/api/pipeline/live');
       setLivePipeline(data.status || {});
       setLiveDecisions(data.decisions || []);
       setLiveSummary(data.summary || {});
@@ -72,8 +73,7 @@ export default function App() {
 
   const fetchPrematchData = async () => {
     try {
-      const res = await fetch('/api/pipeline/prematch');
-      const data = await res.json();
+      const data = await requestJson<any>('/api/pipeline/prematch');
       setPrematchPipeline(data.status || {});
       setPrematchDecisions(data.decisions || []);
       setPrematchSummary(data.summary || {});
@@ -85,8 +85,7 @@ export default function App() {
 
   const fetchLedgerData = async () => {
     try {
-      const res = await fetch('/api/ledger');
-      const data = await res.json();
+      const data = await requestJson<LedgerItem[]>('/api/ledger');
       setLedger(data || []);
     } catch (err) {
       console.error('Failed to fetch ledger data', err);
@@ -95,8 +94,7 @@ export default function App() {
 
   const fetchBacktestData = async () => {
     try {
-      const res = await fetch('/api/backtest');
-      const data = await res.json();
+      const data = await requestJson<{ report: string; formal_results: any }>('/api/backtest');
       setBacktestReport(data || { report: '', formal_results: {} });
     } catch (err) {
       console.error('Failed to fetch backtest report', err);
@@ -105,8 +103,7 @@ export default function App() {
 
   const fetchAliasesData = async () => {
     try {
-      const res = await fetch('/api/aliases');
-      const data = await res.json();
+      const data = await requestJson<{ manual: TeamAliasMap; auto: TeamAliasMap }>('/api/aliases');
       setManualAliases(data.manual || {});
       setAutoAliases(data.auto || {});
     } catch (err) {
@@ -304,6 +301,7 @@ export default function App() {
 
       {/* Main App Content View Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+        <Suspense fallback={<div className="py-16 text-center text-sm text-slate-400">正在加载页面…</div>}>
         {activeTab === 'recommendations' && (
           <BettingRecommendationsView
             liveMatches={liveDecisions}
@@ -362,6 +360,7 @@ export default function App() {
         {activeTab === 'export' && (
           <ExportDataView onRefreshAll={reloadAll} />
         )}
+        </Suspense>
       </main>
 
       {/* Unverified Scores Center Modal */}

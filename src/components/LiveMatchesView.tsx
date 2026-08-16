@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { DecisionItem, PipelineStatus, getLeagueName, getTeamDisplay } from '../types';
 import { DataSupplementModal } from './DataSupplementModal';
 import { BatchSupplementModal } from './BatchSupplementModal';
+import { displayText, playerNames } from '../lib/displayValue';
 import { 
   ShieldCheck, 
   ShieldAlert, 
@@ -185,7 +186,7 @@ export const LiveMatchesView: React.FC<Props> = ({
           score_source: m.score_source || 'ybty_market',
           score_verified: m.score_verified === true,
           grade: m.grade || 'B',
-          model_score: m.model_score || 75.0,
+          model_score: Number.isFinite(Number(m.model_score)) ? Number(m.model_score) : 0,
           recommendation: m.recommendation,
           evidence: m.evidence || ['技术面达标'],
           risks: m.risks || [],
@@ -541,7 +542,7 @@ export const LiveMatchesView: React.FC<Props> = ({
                           </div>
                           <ul className="list-disc list-inside text-slate-300 space-y-0.5">
                             {m.evidence.map((ev, i) => (
-                              <li key={i}>{ev}</li>
+                              <li key={i}>{displayText(ev, '未提供内容')}</li>
                             ))}
                           </ul>
                         </div>
@@ -554,7 +555,7 @@ export const LiveMatchesView: React.FC<Props> = ({
                           </div>
                           <ul className="list-disc list-inside text-slate-300 space-y-0.5">
                             {m.risks.map((rk, i) => (
-                              <li key={i}>{rk}</li>
+                              <li key={i}>{displayText(rk, '未提供内容')}</li>
                             ))}
                           </ul>
                         </div>
@@ -570,11 +571,11 @@ export const LiveMatchesView: React.FC<Props> = ({
                         <div className="grid grid-cols-2 gap-2 text-slate-400 text-[11px]">
                           <div>
                             <span className="text-slate-200 font-medium">{m.lineups.home?.team}:</span>{' '}
-                            {m.lineups.home?.players?.slice(0, 5).join('、') || '暂无球员名单'}
+                            {playerNames(m.lineups.home?.players || m.lineups.home?.starters).slice(0, 5).join('、') || '暂无球员名单'}
                           </div>
                           <div>
                             <span className="text-slate-200 font-medium">{m.lineups.away?.team}:</span>{' '}
-                            {m.lineups.away?.players?.slice(0, 5).join('、') || '暂无球员名单'}
+                            {playerNames(m.lineups.away?.players || m.lineups.away?.starters).slice(0, 5).join('、') || '暂无球员名单'}
                           </div>
                         </div>
                       </div>
@@ -586,7 +587,7 @@ export const LiveMatchesView: React.FC<Props> = ({
                         <div className="font-semibold text-slate-300 mb-1">实况文字时间线 (Live Timeline)</div>
                         <div className="text-slate-400 text-[11px] max-h-24 overflow-y-auto space-y-1">
                           {m.live_text.entries.map((item, i) => (
-                            <div key={i} className="border-b border-slate-800/40 pb-0.5">{item}</div>
+                            <div key={i} className="border-b border-slate-800/40 pb-0.5">{displayText(item, '未提供文字')}</div>
                           ))}
                         </div>
                       </div>

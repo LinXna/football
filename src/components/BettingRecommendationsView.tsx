@@ -4,6 +4,7 @@ import { DataSupplementModal } from './DataSupplementModal';
 import { BatchSupplementModal } from './BatchSupplementModal';
 import { isQuarterLine, parseQuarterLine, getQuarterSplits, formatAsianLine } from '../lib/quarterSettlement';
 import { generateExtendedAnalysis } from '../lib/extendedRecommendation';
+import { displayText } from '../lib/displayValue';
 import { 
   Trophy, 
   ShieldCheck, 
@@ -201,6 +202,20 @@ export const BettingRecommendationsView: React.FC<Props> = ({
     setTimeout(() => setBatchSuccessMsg(null), 3000);
   };
 
+  const predictionFeaturesFor = (m: DecisionItem) => ({
+    schema_version: 'leisu_prediction_features_v1',
+    captured_at: m.captured_at || new Date().toISOString(),
+    mode: Number(m.minute || 0) > 0 ? 'live' : 'prematch',
+    minute: Number(m.minute || 0),
+    score: m.score || { home: 0, away: 0 },
+    live_statistics: m.live_statistics || null,
+    recent_trends: m.recent_trends || null,
+    reference_odds: m.reference_odds || null,
+    weather: m.weather || null,
+    lineups: m.lineups || null,
+    detail_completeness: (m.detail_context as any)?.completeness || null,
+  });
+
   const buildLedgerItemsForMatch = (m: DecisionItem, includeAllExtended: boolean = true) => {
     const items = [];
 
@@ -221,6 +236,7 @@ export const BettingRecommendationsView: React.FC<Props> = ({
         evidence: m.evidence || [],
         risks: m.risks || [],
         start_time_beijing: m.ybty_start_time_beijing || m.provider_start_time || m.commence_time || '',
+        prediction_features: predictionFeaturesFor(m),
       });
     }
 
@@ -362,6 +378,7 @@ export const BettingRecommendationsView: React.FC<Props> = ({
       risks: m.risks || [],
       start_time_beijing: m.ybty_start_time_beijing || m.provider_start_time || m.commence_time || null,
       candidate_source: 'ybty_market_snapshot_v1',
+      prediction_features: predictionFeaturesFor(m),
       selection_method: '同一市场中取实际赔率最低方向，作为市场基准候选；不等同于正式AI主选',
     };
     const rows: any[] = [];
@@ -1598,7 +1615,7 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                   </div>
                   <div className="mt-1 flex items-center justify-between gap-1 text-slate-400">
                     <span>{Number.isFinite(probability) ? `概率 ${assessment.probability}%` : '概率 --'}</span>
-                    <span className={`rounded border px-1 py-0.5 text-[9px] ${status.className}`}>{status.label} · {assessment.grade || 'NO_BET'}</span>
+                    <span className={`rounded border px-1 py-0.5 text-[9px] ${status.className}`}>{assessment.status === 'prediction' ? status.label : `${status.label} · ${assessment.grade || 'NO_BET'}`}</span>
                   </div>
                 </div>
               );
@@ -1833,7 +1850,7 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                       <span>参考赔率: <strong className={hasAiRecommendation ? 'font-mono text-amber-300' : 'text-slate-500'}>{hasAiRecommendation ? `@${aiRecommendation.odds}` : '未形成'}</strong></span>
                       <span>AI概率: <strong className="font-mono text-sky-300">{hasAiRecommendation && Number.isFinite(Number(aiRecommendedAssessment?.probability)) ? `${aiRecommendedAssessment.probability}%` : '--'}</strong></span>
                     </div>
-                    {latestAiEvaluation?.summary && <div className="line-clamp-2 text-[10px] leading-relaxed text-slate-400" title={latestAiEvaluation.summary}>{latestAiEvaluation.summary}</div>}
+                    {latestAiEvaluation?.summary && <div className="line-clamp-2 text-[10px] leading-relaxed text-slate-400" title={displayText(latestAiEvaluation.summary)}>{displayText(latestAiEvaluation.summary)}</div>}
                     {latestAiEvaluation?.saved_at && <div className="text-[9px] text-slate-600">评估保存时间：{new Date(latestAiEvaluation.saved_at).toLocaleString('zh-CN')}</div>}
                   </div>}
                 </div>
@@ -1887,7 +1904,7 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                               <div className={`p-3 text-xs ${status.className}`}>
                                 <div className="flex items-center justify-between gap-2">
                                   <span className="font-bold">AI 评估建议</span>
-                                  <span className="rounded bg-black/20 px-1.5 py-0.5 text-[9px] font-bold">{status.label} · {assessment.grade || 'NO_BET'}</span>
+                                  <span className="rounded bg-black/20 px-1.5 py-0.5 text-[9px] font-bold">{assessment.status === 'prediction' ? status.label : `${status.label} · ${assessment.grade || 'NO_BET'}`}</span>
                                 </div>
                                 <div className="mt-2 flex items-start justify-between gap-3">
                                   <div className="font-bold text-current">{displayedDirection}</div>
@@ -2252,7 +2269,7 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                       </div>
                       <ul className="list-disc list-inside text-slate-300 space-y-0.5 text-[11px]">
                         {m.evidence.map((ev, i) => (
-                          <li key={i}>{ev}</li>
+                          <li key={i}>{displayText(ev, '未提供内容')}</li>
                         ))}
                       </ul>
                     </div>
@@ -2265,7 +2282,7 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                       </div>
                       <ul className="list-disc list-inside text-slate-300 space-y-0.5 text-[11px]">
                         {m.risks.map((rk, i) => (
-                          <li key={i}>{rk}</li>
+                          <li key={i}>{displayText(rk, '未提供内容')}</li>
                         ))}
                       </ul>
                     </div>

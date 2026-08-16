@@ -74,6 +74,27 @@ function historicalSummary(item: DecisionItem): { h2h: string; recent: string } 
   const root: any = (item as any).recent_trends || {};
   const analysis = root.analysis_data || root;
   const historical = root.historical_analysis || analysis.historical_analysis;
+  const interfaceRecent = historical?.recent_matches;
+  const interfaceH2h = Array.isArray(historical?.head_to_head) ? historical.head_to_head : [];
+  if (interfaceRecent || interfaceH2h.length) {
+    const homeRecent = Array.isArray(interfaceRecent?.home) ? interfaceRecent.home : [];
+    const awayRecent = Array.isArray(interfaceRecent?.away) ? interfaceRecent.away : [];
+    const averageGoals = (rows: any[]) => rows.length
+      ? rows.reduce((sum, row) => sum + (Number(row?.goals) || 0), 0) / rows.length
+      : null;
+    const homeAverage = averageGoals(homeRecent);
+    const awayAverage = averageGoals(awayRecent);
+    const h2hGoals = interfaceH2h.flatMap((row: any) => {
+      const home = Number(Array.isArray(row?.home_scores) ? row.home_scores[0] : NaN);
+      const away = Number(Array.isArray(row?.away_scores) ? row.away_scores[0] : NaN);
+      return Number.isFinite(home) && Number.isFinite(away) ? [home + away] : [];
+    });
+    const h2hAverage = h2hGoals.length ? h2hGoals.reduce((sum: number, value: number) => sum + value, 0) / h2hGoals.length : null;
+    return {
+      h2h: h2hAverage == null ? '历史交锋：暂无可计算样本' : `历史交锋：${h2hGoals.length}场，平均总进球${h2hAverage.toFixed(2)}`,
+      recent: `近期战绩：主队${homeRecent.length}场${homeAverage == null ? '' : `、平均总进球${homeAverage.toFixed(2)}`}；客队${awayRecent.length}场${awayAverage == null ? '' : `、平均总进球${awayAverage.toFixed(2)}`}。仅作描述，不直接加减预测分。`,
+    };
+  }
   if (!historical || historical.available !== true) {
     const reason = historical?.reason || '雷速本次详情没有提供可核验的近期战绩或交锋结构化数据';
     return { h2h: `历史交锋：无可核验数据（${reason}）`, recent: `近期战绩：无可核验数据（${reason}）` };
@@ -152,8 +173,15 @@ export function generateExtendedAnalysis(matchItem: DecisionItem): ExtendedMatch
     ? `基于YBTY真实全场大小球盘口 ${formatAsianLine(String(totalOptions[0]?.line ?? totalOptions[0]?.selection))}，再按真实1X2主客隐含强度分配期望进球；这是透明的泊松盘口模型，不是雷速历史数据，也没有虚构赔率。`
     : '缺少已核验的YBTY全场大小球或1X2盘口，无法计算进球预测。';
 
-  const referenceRows: any[] = (matchItem as any).reference_odds?.detail_page?.panels?.flatMap((panel: any) => panel.normalized_rows || []) || [];
-  const lineMovementSummary = referenceRows.length > 1
+  const referenceOdds: any = (matchItem as any).reference_odds
+    || (matchItem as any).detail_context?.formal?.odds
+    || {};
+  const referenceRows: any[] = referenceOdds?.detail_page?.panels?.flatMap((panel: any) => panel.normalized_rows || []) || [];
+  const interfaceMarkets = referenceOdds?.markets || {};
+  const phaseChanges = Object.values(interfaceMarkets).filter((market: any) => market?.initial && (market?.pregame || market?.live)).length;
+  const lineMovementSummary = phaseChanges > 0
+    ? `雷速提供${phaseChanges}个市场的初盘及当前阶段快照；只比较真实快照，不推测中间路径。`
+    : referenceRows.length > 1
     ? `雷速提供 ${referenceRows.length} 个真实盘口阶段快照；页面不再虚构连续走势。`
     : '雷速没有提供可比较的多阶段盘口，无法判断真实升降盘。';
 

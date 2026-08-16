@@ -20,6 +20,8 @@ import {
   Trash2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { displayText } from '../lib/displayValue';
+import { buildValidParlayRequests } from '../lib/parlayRequests';
 
 interface Props {
   selectedMatch: DecisionItem | null;
@@ -97,7 +99,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
 
   const [parlaySelected, setParlaySelected] = useState<DecisionItem[]>([]);
   const [parlayConfigOpen, setParlayConfigOpen] = useState(false);
-  const [parlayRequests, setParlayRequests] = useState<Record<number, number>>({ 3: 1 });
+  const [parlayRequests, setParlayRequests] = useState<Record<number, number>>({ 2: 1 });
   const [evaluationScope, setEvaluationScope] = useState<'single' | 'batch'>('batch');
   const [batchSelected, setBatchSelected] = useState<DecisionItem[]>([]);
   const [batchChunkSize, setBatchChunkSize] = useState<number>(0);
@@ -118,6 +120,9 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [exportedPrompt, setExportedPrompt] = useState<string>('');
+  const [exportedCombinedPrompt, setExportedCombinedPrompt] = useState<string>('');
+  const [exportedPrompts, setExportedPrompts] = useState<string[]>([]);
+  const [activeExportPromptIndex, setActiveExportPromptIndex] = useState(0);
   const [exportInfo, setExportInfo] = useState<{ match_count: number; prompt_count: number; instructions: string } | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
 
@@ -360,6 +365,10 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
 
   const handleSaveParlayTicket = async (ticket: NonNullable<AIAnalysisResponse['parlay_recommendations']>[number]) => {
     const ticketKey = `${ticket.size}-${ticket.ticket_index}`;
+    if ((ticket as any).verification_passed !== true || ticket.legs.some((leg: any) => leg.ybty_market_verified !== true || leg.odds_source !== 'ybty_verified')) {
+      setSaveMessage('串关包含未通过YBTY真实盘口核验的腿，已禁止保存。请重新生成串关。');
+      return;
+    }
     try {
       const firstLeg = ticket.legs[0];
       const resp = await fetch('/api/ledger/add-candidate', {
@@ -448,9 +457,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
   };
 
   const handleExportPrompt = async () => {
-    const requestedParlays = Object.entries(parlayRequests)
-      .filter(([, count]) => count > 0)
-      .map(([size, count]) => ({ size: Number(size), count }));
+    const requestedParlays = buildValidParlayRequests(parlayRequests, parlaySelected.length);
 
     if (mode === 'parlay_check' && (parlaySelected.length < 2 || requestedParlays.length === 0)) {
       setErrorMsg('请至少选择两场比赛，并选择至少一种串关长度和生成数量。');
@@ -490,7 +497,13 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || '导出 Prompt 失败');
 
-      setExportedPrompt(data.combined_prompt || (Array.isArray(data.prompts) ? data.prompts.join('\n\n') : ''));
+      const promptSegments = Array.isArray(data.prompts) ? data.prompts : [];
+      setExportedPrompts(promptSegments);
+      setExportedCombinedPrompt(data.combined_prompt || promptSegments[0] || '');
+      setActiveExportPromptIndex(promptSegments.length > 1 ? -1 : 0);
+      // Default to one-copy delivery. Segments remain available as a fallback for
+      // chat clients with unusually small input limits.
+      setExportedPrompt(data.combined_prompt || promptSegments[0] || '');
       setExportInfo({
         match_count: data.match_count || 1,
         prompt_count: data.prompt_count || 1,
@@ -508,7 +521,25 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
     if (!exportedPrompt) return;
     navigator.clipboard.writeText(exportedPrompt);
     setCopiedPrompt(true);
-    setTimeout(() => setCopiedPrompt(false), 3000);
+    setTimeout(() => {
+      setCopiedPrompt(false);
+      if (activeExportPromptIndex >= 0 && exportedPrompts.length > 1 && activeExportPromptIndex < exportedPrompts.length - 1) {
+        showExportPromptSegment(activeExportPromptIndex + 1);
+      }
+    }, 1200);
+  };
+
+  const showExportPromptSegment = (index: number) => {
+    const bounded = Math.max(0, Math.min(exportedPrompts.length - 1, index));
+    setActiveExportPromptIndex(bounded);
+    setExportedPrompt(exportedPrompts[bounded] || '');
+    setCopiedPrompt(false);
+  };
+
+  const showCombinedExportPrompt = () => {
+    setActiveExportPromptIndex(-1);
+    setExportedPrompt(exportedCombinedPrompt);
+    setCopiedPrompt(false);
   };
 
   const handleImportEvaluation = async () => {
@@ -522,7 +553,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
       const resp = await fetch('/api/ai/import-evaluation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw_text: importText, mode }),
+        body: JSON.stringify({ raw_text: importText, mode, expected_match_count: exportInfo?.match_count }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || '解析导入失败');
@@ -540,9 +571,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
   };
 
   const handleEvaluate = async () => {
-    const requestedParlays = Object.entries(parlayRequests)
-      .filter(([, count]) => count > 0)
-      .map(([size, count]) => ({ size: Number(size), count }));
+    const requestedParlays = buildValidParlayRequests(parlayRequests, parlaySelected.length);
     if (mode === 'parlay_check' && (parlaySelected.length < 2 || requestedParlays.length === 0)) {
       setErrorMsg('请至少选择两场比赛，并选择至少一种串关长度和生成数量。');
       return;
@@ -829,12 +858,12 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                   <button onClick={() => setParlayConfigOpen(false)} className="rounded bg-slate-800 px-4 py-2 text-xs text-slate-300">取消</button>
                   <button
                     onClick={() => { setParlayConfigOpen(false); void handleExportPrompt(); }}
-                    disabled={!Object.values(parlayRequests).some((count) => count > 0)}
+                    disabled={buildValidParlayRequests(parlayRequests, parlaySelected.length).length === 0}
                     className="rounded bg-amber-600 hover:bg-amber-500 px-4 py-2 text-xs font-bold text-white disabled:opacity-40 flex items-center gap-1"
                   >
                     📋 导出 Prompt (网页版)
                   </button>
-                  <button onClick={() => { setParlayConfigOpen(false); void handleEvaluate(); }} disabled={!Object.values(parlayRequests).some((count) => count > 0)} className="rounded bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs font-bold text-white disabled:opacity-40 flex items-center gap-1">
+                  <button onClick={() => { setParlayConfigOpen(false); void handleEvaluate(); }} disabled={buildValidParlayRequests(parlayRequests, parlaySelected.length).length === 0} className="rounded bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs font-bold text-white disabled:opacity-40 flex items-center gap-1">
                     ⚡ API 直连评估
                   </button>
                 </div>
@@ -1047,15 +1076,19 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
 
             <div className="flex items-center justify-between pt-2">
               <span className="text-xs text-slate-400">
-                {exportInfo?.prompt_count && exportInfo.prompt_count > 1 ? `已为您整合 ${exportInfo.prompt_count} 组比赛数据` : '全量 Prompt 数据已就绪'}
+                {activeExportPromptIndex < 0 ? `一次复制全部 ${exportInfo?.match_count || 1} 场` : exportInfo?.prompt_count && exportInfo.prompt_count > 1 ? `备用分段：当前第 ${activeExportPromptIndex + 1}/${exportInfo.prompt_count} 段` : '全量 Prompt 数据已就绪'}
               </span>
               <div className="flex gap-2">
+                {exportedPrompts.length > 1 && activeExportPromptIndex >= 0 && <button onClick={showCombinedExportPrompt} className="px-3 py-2 rounded-lg bg-emerald-700 text-white text-xs">一次复制全部</button>}
+                {exportedPrompts.length > 1 && activeExportPromptIndex < 0 && <button onClick={() => showExportPromptSegment(0)} className="px-3 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs">改用分段备用</button>}
+                {exportedPrompts.length > 1 && activeExportPromptIndex >= 0 && <button disabled={activeExportPromptIndex === 0} onClick={() => showExportPromptSegment(activeExportPromptIndex - 1)} className="px-3 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs disabled:opacity-40">上一段</button>}
+                {exportedPrompts.length > 1 && activeExportPromptIndex >= 0 && <button disabled={activeExportPromptIndex >= exportedPrompts.length - 1} onClick={() => showExportPromptSegment(activeExportPromptIndex + 1)} className="px-3 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs disabled:opacity-40">下一段</button>}
                 <button onClick={() => setExportModalOpen(false)} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs font-medium hover:bg-slate-700">
                   关闭
                 </button>
                 <button onClick={handleCopyPrompt} className="px-5 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg">
                   {copiedPrompt ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
-                  {copiedPrompt ? '✅ 已复制 Prompt！' : '一键复制 Prompt'}
+                  {copiedPrompt ? '✅ 已复制！' : activeExportPromptIndex < 0 ? '一键复制全部 Prompt' : exportedPrompts.length > 1 ? `复制第 ${activeExportPromptIndex + 1} 段` : '一键复制 Prompt'}
                 </button>
               </div>
             </div>
@@ -1163,7 +1196,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                     <strong className="text-sm text-slate-100">{matchResult.match || `${matchResult.ybty_home} vs ${matchResult.ybty_away}`}</strong>
                     <span className={`rounded px-2 py-1 text-xs font-bold ${matchResult.grade === 'A' ? 'bg-emerald-500/20 text-emerald-300' : matchResult.grade === 'B' ? 'bg-sky-500/20 text-sky-300' : 'bg-amber-500/20 text-amber-300'}`}>{matchResult.grade}级</span>
                   </div>
-                  <p className="mb-3 text-xs text-slate-300">{matchResult.summary}</p>
+                  <p className="mb-3 text-xs text-slate-300">{displayText(matchResult.summary, '未提供总结')}</p>
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
                     {(matchResult.market_assessments || []).map((market, marketIndex) => (
                       <div key={`${market.category}-${marketIndex}`} className="rounded-lg border border-slate-800 bg-slate-900/80 p-3 text-xs">
@@ -1178,7 +1211,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                             return `${dir} ${line} ${market.odds ? `@${market.odds}` : ''}`.replace(/\s+/g, ' ').trim();
                           })()}
                         </div>
-                        <div className="mt-1 text-slate-400">概率：{market.probability ?? '--'}% · 等级：{market.grade}{market.value_edge !== null && market.value_edge !== undefined ? ` · 价值差：${market.value_edge > 0 ? '+' : ''}${market.value_edge}%` : ''}</div>
+                        <div className="mt-1 text-slate-400">概率：{market.probability ?? '--'}%{market.status === 'prediction' ? ' · 预测项（非投注评级）' : ` · 等级：${market.grade}`}{market.value_edge !== null && market.value_edge !== undefined ? ` · 价值差：${market.value_edge > 0 ? '+' : ''}${market.value_edge}%` : ''}</div>
                         {market.probability_scope && <div className="mt-1 text-[10px] text-slate-500">概率对象：{market.probability_scope}</div>}
                         {Array.isArray(market.alternatives) && market.alternatives.length > 0 && (
                           <div className="mt-1 text-[10px] text-slate-500">备选：{market.alternatives.map((item) => `${item.direction} ${item.probability}%`).join('；')}</div>
@@ -1243,7 +1276,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
           </div>
 
           <div className="text-xs text-slate-200 leading-relaxed bg-slate-950/60 p-4 rounded-lg border border-slate-800/80">
-            <ReactMarkdown>{result.summary}</ReactMarkdown>
+            <ReactMarkdown>{displayText(result.summary, '未提供总结')}</ReactMarkdown>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -1254,7 +1287,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                 </div>
                 <ul className="list-disc list-inside text-slate-300 space-y-1">
                   {result.evidence.map((e, i) => (
-                    <li key={i}>{e}</li>
+                    <li key={i}>{displayText(e, '未提供内容')}</li>
                   ))}
                 </ul>
               </div>
@@ -1267,7 +1300,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                 </div>
                 <ul className="list-disc list-inside text-slate-300 space-y-1">
                   {result.risks.map((r, i) => (
-                    <li key={i}>{r}</li>
+                    <li key={i}>{displayText(r, '未提供内容')}</li>
                   ))}
                 </ul>
               </div>
@@ -1287,7 +1320,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                 )}
                 <ul className="list-disc list-inside mt-1 text-slate-400 space-y-0.5">
                   {result.parlay_safety_check.reasons?.map((res, idx) => (
-                    <li key={idx}>{res}</li>
+                    <li key={idx}>{displayText(res, '未提供原因')}</li>
                   ))}
                 </ul>
               </div>
@@ -1307,7 +1340,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                         <span className="font-mono font-bold text-amber-300">总赔率 @{Number(ticket.estimated_total_odds).toFixed(2)}</span>
                         <button
                           onClick={() => void handleSaveParlayTicket(ticket)}
-                          disabled={savedParlayTickets.has(`${ticket.size}-${ticket.ticket_index}`)}
+                          disabled={savedParlayTickets.has(`${ticket.size}-${ticket.ticket_index}`) || (ticket as any).verification_passed !== true}
                           className="rounded bg-emerald-600 px-2.5 py-1 font-bold text-white hover:bg-emerald-500 disabled:bg-emerald-950 disabled:text-emerald-400"
                         >
                           {savedParlayTickets.has(`${ticket.size}-${ticket.ticket_index}`) ? '已保存到投注台账' : '保存此串关'}

@@ -1,5 +1,6 @@
 # Node dependencies and build output
 node_modules/
+.pnpm-store/
 dist/
 
 # Local environment secrets
@@ -10,4 +11,23 @@ dist/
 # Tool caches and logs
 .vite/
 *.log
+*.bak
+*.corrupt-*.json
 
+# Python caches and local test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local runtime data and generated exports
+output/*.json
+output/*.html
+output/*.log
+output/*.tmp
+
+# Runtime output is reproducible; keep only explicitly curated reports in Git.
+output/*
+!output/BACKTEST_REPORT_*.md
+
+# Keep documented sample/reference artifacts under version control explicitly
+!output/BACKTEST_REPORT_*.md

@@ -1,4 +1,2 @@
 @echo off
-chcp 65001 >nul
-cd /d "%~dp0"
-start "" pythonw.exe "%~dp0manage_team_aliases.py"
+call "%~dp0scripts\cmd\manage_team_aliases.cmd" %*

@@ -33,6 +33,34 @@ interface Props {
   backtestReport: { report: string; formal_results: any };
 }
 
+interface CalibrationSummary {
+  sample_size: number;
+  sufficient_sample: boolean;
+  brier_score: number | null;
+  expected_calibration_error: number | null;
+  roi_percent: number | null;
+  label?: string;
+  evidence_level?: string;
+}
+
+interface CalibrationReportView {
+  overall: CalibrationSummary;
+  minimum_sample_size: number;
+  warning?: string | null;
+  segments?: Record<string, CalibrationSummary[]>;
+  interface_features?: {
+    status: string;
+    active: boolean;
+    sample_size: number;
+    train_size: number;
+    test_size: number;
+    minimum_samples?: number;
+    usable_features?: string[];
+    validation?: { baseline_rmse: number; model_rmse: number; relative_improvement: number };
+    warning?: string | null;
+  };
+}
+
 const evaluateProjectionSettlement = (item: LedgerItem): SettlementDetail => {
   const finalScore = item.review?.final_score;
   const pending = !finalScore || !Number.isFinite(Number(finalScore.home)) || !Number.isFinite(Number(finalScore.away));
@@ -134,6 +162,7 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
   const [archives, setArchives] = useState<any[]>([]);
   const [currentLedger, setCurrentLedger] = useState<LedgerItem[]>(initialLedger);
   const [ledgerViewMode, setLedgerViewMode] = useState<'current' | 'merged' | string>('current');
+  const [calibration, setCalibration] = useState<CalibrationReportView | null>(null);
 
   // Sync state if props change
   React.useEffect(() => {
@@ -152,6 +181,9 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
   }, []);
 
   React.useEffect(() => { void loadArchives(); }, [loadArchives]);
+  React.useEffect(() => {
+    fetch('/api/calibration').then((response) => response.ok ? response.json() : Promise.reject(new Error('Calibration request failed'))).then(setCalibration).catch((error) => console.error(error));
+  }, [ledger]);
 
   const showCurrentLedger = () => { setLedger(currentLedger); setLedgerViewMode('current'); };
   const showMergedLedger = () => {
@@ -244,6 +276,7 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
         finalScore: item.review?.final_score || null,
         halfTimeScore: item.review?.ht_score || item.ht_score || item.half_time_score || null,
         scoreVerified: item.score_verified === true,
+        basis: rec.basis,
         homeTeam: item.ybty_home,
         awayTeam: item.ybty_away,
         isLive: Boolean(
@@ -270,7 +303,7 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
   const projectionItems = machineCandidates.filter((i) => i.prediction_only);
   const marketCandidateItems = machineCandidates.filter((i) => !i.prediction_only);
 
-  const reviewedFormal = ledgerWithSettlement.filter((i) => {
+  const reviewedFormal = formalItems.filter((i) => {
     if (i.isParlay && i.parlaySettlement) {
       return i.parlaySettlement.outcome !== 'pending';
     }
@@ -354,22 +387,22 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
   };
 
   const uniqueDirections = new Map<string, { grade: string; market: string; outcome: string }>();
-  ledgerWithSettlement.forEach((item) => {
+  formalItems.forEach((item) => {
     if (item.isParlay && item.parlaySettlement) {
       item.parlaySettlement.evaluatedLegs.forEach((leg: any) => {
-        const key = [leg.match, leg.market, leg.line, leg.odds].join('|');
+        const key = [leg.match, leg.market, leg.line].join('|');
         const sourceLeg: any = item.parlay_legs?.find((candidate: any) => candidate.leg_index === leg.leg_index || (candidate.match === leg.match && candidate.market === leg.market));
         if (!uniqueDirections.has(key)) uniqueDirections.set(key, { grade: String(sourceLeg?.grade || item.grade || '未评级'), market: String(leg.market || ''), outcome: leg.settlement?.outcome || 'pending' });
       });
     } else {
-      const key = [item.match, item.recommendation?.market, item.recommendation?.line, item.recommendation?.odds].join('|');
+      const key = [item.match, item.recommendation?.market, item.recommendation?.line].join('|');
       if (!uniqueDirections.has(key)) uniqueDirections.set(key, { grade: String(item.grade || '未评级'), market: String(item.recommendation?.market || ''), outcome: item.settlement?.outcome || 'pending' });
     }
   });
   const directionRows = Array.from(uniqueDirections.values());
   const gradeWinRates = Array.from(new Set(directionRows.map((item) => item.grade))).sort().map((grade) => summarizeOutcomes(`${grade}级推荐`, directionRows.filter((item) => item.grade === grade).map((item) => item.outcome)));
   const marketWinRates = Array.from(new Set(directionRows.map((item) => marketCategory(item.market)))).sort().map((category) => summarizeOutcomes(category, directionRows.filter((item) => marketCategory(item.market) === category).map((item) => item.outcome)));
-  const formalParlays = ledgerWithSettlement.filter((item) => item.isParlay && item.parlaySettlement);
+  const formalParlays = formalItems.filter((item) => item.isParlay && item.parlaySettlement);
   const parlayWinRates = Array.from(new Set(formalParlays.map((item) => item.parlay_legs?.length || 0))).filter((size) => size >= 2).sort((a, b) => a - b).map((size) => summarizeOutcomes(`${size}串1`, formalParlays.filter((item) => (item.parlay_legs?.length || 0) === size).map((item) => item.parlaySettlement?.outcome || 'pending')));
   const outcomesFor = (items: typeof ledgerWithSettlement) => items.map((item) => item.isParlay ? item.parlaySettlement?.outcome || 'pending' : item.settlement?.outcome || 'pending');
   const recordTypeWinRates = [
@@ -588,7 +621,7 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl shadow relative overflow-hidden">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-            <span>全台账真实赔率总盈亏 (Units)</span>
+            <span>正式推荐真实赔率总盈亏 (Units)</span>
             <PieChart className="w-4 h-4 text-emerald-400" />
           </div>
           <div className={`text-2xl font-black font-mono ${totalNetProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
@@ -602,7 +635,7 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
 
         <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl shadow">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-            <span>全台账综合胜率</span>
+            <span>正式推荐综合胜率</span>
             <TrendingUp className="w-4 h-4 text-teal-400" />
           </div>
           <div className="text-2xl font-bold text-teal-400">{directWinRate}{directWinRate !== '--' ? '%' : ''}</div>
@@ -647,6 +680,56 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
             ))}
           </div>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-cyan-800/40 bg-slate-900/80 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-slate-100">正式推荐概率校准</h3>
+            <p className="mt-1 text-xs text-slate-500">仅统计具有明确预测概率且已完成结算的正式单场。</p>
+          </div>
+          {calibration ? (
+            <div className="flex flex-wrap gap-4 text-xs">
+              <span>样本 <strong className="text-cyan-300">{calibration.overall.sample_size}/{calibration.minimum_sample_size}</strong></span>
+              <span>Brier <strong className="text-cyan-300">{calibration.overall.brier_score ?? '--'}</strong></span>
+              <span>ECE <strong className="text-cyan-300">{calibration.overall.expected_calibration_error ?? '--'}</strong></span>
+              <span>ROI <strong className="text-cyan-300">{calibration.overall.roi_percent ?? '--'}%</strong></span>
+            </div>
+          ) : <span className="text-xs text-slate-500">正在读取校准报告…</span>}
+        </div>
+        {calibration?.warning && <p className="mt-2 text-xs text-amber-300">{calibration.warning}</p>}
+        {calibration?.interface_features && (
+          <div className="mt-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-400">
+            <div className="flex flex-wrap gap-4">
+              <span>雷速字段校准：<strong className={calibration.interface_features.active ? 'text-emerald-400' : 'text-amber-300'}>{calibration.interface_features.active ? '验证通过' : '未启用'}</strong></span>
+              <span>样本 {calibration.interface_features.sample_size}/{calibration.interface_features.minimum_samples || 200}</span>
+              <span>训练/测试 {calibration.interface_features.train_size}/{calibration.interface_features.test_size}</span>
+              <span>可用字段 {calibration.interface_features.usable_features?.length || 0}</span>
+              {calibration.interface_features.validation && <span>RMSE {calibration.interface_features.validation.model_rmse.toFixed(3)}（基线 {calibration.interface_features.validation.baseline_rmse.toFixed(3)}）</span>}
+            </div>
+            {calibration.interface_features.warning && <p className="mt-1 text-amber-300">{calibration.interface_features.warning}</p>}
+          </div>
+        )}
+        {calibration?.segments && (
+          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+            {[
+              ['by_mode', '按模式'], ['by_market', '按玩法'], ['by_league', '按联赛'], ['by_grade', '按评级'], ['by_model_version', '按模型版本'],
+            ].map(([key, title]) => (
+              <div key={key} className="rounded-lg border border-slate-800 bg-slate-950/60 p-2.5">
+                <div className="text-xs font-semibold text-slate-300">{title}</div>
+                <div className="mt-2 space-y-1.5">
+                  {(calibration.segments?.[key] || []).slice(0, 5).map((row) => (
+                    <div key={row.label} className="text-[10px] text-slate-500">
+                      <div className="flex justify-between gap-2"><span className="truncate text-slate-300">{row.label}</span><span>n={row.sample_size}</span></div>
+                      <div>Brier {row.brier_score ?? '--'} · ECE {row.expected_calibration_error ?? '--'} · {row.evidence_level}</div>
+                    </div>
+                  ))}
+                  {(calibration.segments?.[key] || []).length === 0 && <div className="text-[10px] text-slate-600">暂无样本</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">

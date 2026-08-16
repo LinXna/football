@@ -18,6 +18,8 @@ import {
   Timer
 } from 'lucide-react';
 import { buildAliasLookup, getCanonicalName, normalizeTeamName } from '../lib/teamAliasMatcher';
+import { normalizeLeisuInterfaceExport } from '../lib/leisuInterfaceImport';
+import { scoreDisplay } from '../lib/scoreDisplay';
 
 interface ExportDataViewProps {
   onRefreshAll?: () => void;
@@ -31,7 +33,7 @@ interface ParsedMatchItem {
   ybty_away: string;
   leisu_home?: string;
   leisu_away?: string;
-  score: string;
+  score: string | null;
   market: string;
   line: string;
   odds: number | null;
@@ -367,8 +369,11 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
     if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
       try {
         const parsed = JSON.parse(trimmed);
+        const interfaceItems = normalizeLeisuInterfaceExport(parsed);
         if (Array.isArray(parsed)) {
           return parsed;
+        } else if (interfaceItems) {
+          return interfaceItems;
         } else if (parsed.data && typeof parsed.data === 'object') {
           const ybtyMatches = Array.isArray(parsed.data.ybty?.matches) ? parsed.data.ybty.matches : [];
           const leisuEvents = Array.isArray(parsed.data.leisu?.events) ? parsed.data.leisu.events : [];
@@ -454,7 +459,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
         const lHome = safeExtractString(l.ybty_home || l.home || l.homeTeam || l.home_team || l.host);
         const lAway = safeExtractString(l.ybty_away || l.away || l.awayTeam || l.away_team || l.guest);
         const lLeague = safeExtractString(l.league || l.league_name || l.tournament || l.competition);
-        const lScore = l.score || '0-0';
+        const lScore = scoreDisplay(l.score, '0-0');
         return { leisu_home: lHome, leisu_away: lAway, league: lLeague, score: lScore, minute: l.minute };
       }).filter((cand) => cand.leisu_home || cand.leisu_away);
 
@@ -615,7 +620,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
               leisu_home: lHome,
               leisu_away: lAway,
               league: lLeague,
-              score: foundLeisu.score || (isMatchLive ? '0-0' : '0-0 (未开赛)'),
+              score: scoreDisplay(foundLeisu.score, isMatchLive ? '0-0' : '0-0 (未开赛)'),
               minute: foundLeisu.minute || elapsedMinutes,
               confidence: checkLeagueMatch(leagueName, lLeague) ? 0.98 : 0.90,
               score_verified: foundLeisu.score_verified === true,
@@ -656,7 +661,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
           ybty_away: awayName || (matchStr.includes(' vs ') ? matchStr.split(' vs ')[1] : ''),
           leisu_home: matchedLeisuObj?.leisu_home || '',
           leisu_away: matchedLeisuObj?.leisu_away || '',
-          score: scoreStr,
+          score: isMatchLive ? scoreStr : null,
           market,
           line,
           odds,
@@ -685,7 +690,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
                 ? item.market_source.markets
                 : [],
           live_statistics: item.live_statistics || matchedLeisuRaw?._statistics || matchedLeisuRaw?.live_statistics || null,
-          reference_odds: item.reference_odds || matchedLeisuRaw?.odds || null,
+          reference_odds: item.reference_odds || matchedLeisuRaw?.reference_odds || matchedLeisuRaw?.odds || null,
           recent_trends: item.recent_trends || matchedLeisuRaw?._recent_trends || matchedLeisuRaw?.recent_trends || (
             matchedLeisuRaw && (matchedLeisuRaw._historical_analysis || matchedLeisuRaw.analysis_data)
               ? {
@@ -700,7 +705,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
           lineups: item.lineups || matchedLeisuRaw?._lineups || matchedLeisuRaw?.lineups || null,
           player_candidates: item.player_candidates || matchedLeisuRaw?._player_candidates || matchedLeisuRaw?.player_candidates || [],
           live_text: item.live_text || matchedLeisuRaw?._live_text || matchedLeisuRaw?.live_text || null,
-          detail_context: item.detail_context || matchedLeisuRaw?._detail_context || null,
+          detail_context: item.detail_context || matchedLeisuRaw?.detail_context || matchedLeisuRaw?._detail_context || null,
         };
       };
 

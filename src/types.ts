@@ -66,6 +66,7 @@ export interface DecisionItem {
   ybty_start_time_beijing?: string | null;
   commence_time?: string | null;
   provider_start_time?: string | null;
+  captured_at?: string;
   minute?: number;
   score?: Score;
   ht_score?: Score | null;
@@ -78,6 +79,8 @@ export interface DecisionItem {
     market?: string;
     line?: number | string;
     odds?: number;
+    basis?: string;
+    scope?: string;
   } | null;
   ybty_markets?: {
     h2h?: { home_odds?: number; draw_odds?: number; away_odds?: number; home_suspended?: boolean; draw_suspended?: boolean; away_suspended?: boolean };
@@ -93,6 +96,10 @@ export interface DecisionItem {
   reference_market?: ReferenceMarket;
   weather?: WeatherInfo;
   lineups?: LineupData;
+  live_statistics?: Record<string, any> | null;
+  recent_trends?: Record<string, any> | null;
+  reference_odds?: Record<string, any> | null;
+  detail_context?: Record<string, any> | null;
   live_text?: {
     available?: boolean;
     entries?: string[];
@@ -124,6 +131,8 @@ export interface ParlayLeg {
   market: string;
   line: string | number;
   odds: number;
+  basis?: string;
+  scope?: string;
   score_at_recommendation?: Score;
   final_score?: Score | null;
   ht_score?: Score | null;
@@ -151,6 +160,8 @@ export interface LedgerItem {
     market?: string;
     line?: number | string;
     odds?: number;
+    basis?: string;
+    scope?: string;
   };
   evidence?: string[];
   risks?: string[];
@@ -166,6 +177,7 @@ export interface LedgerItem {
   prediction_only?: boolean;
   prediction_type?: string | null;
   prediction_probability?: number;
+  prediction_features?: Record<string, any> | null;
   model_version?: string | null;
   score_source?: string;
   score_verified?: boolean;
@@ -194,12 +206,19 @@ export interface AIAnalysisRequest {
 }
 
 export function getLeagueName(item: any): string {
+  const leagueText = (value: unknown): string => {
+    if (typeof value === 'string') return value;
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      return String(record.name ?? record.name_zh ?? record.shortName ?? record.label ?? '');
+    }
+    return '';
+  };
   if (!item) return '常规联赛';
-  if (item.league) return item.league;
-  if (item.ybty_league) return item.ybty_league;
-  if (item.leisu_league) return item.leisu_league;
-  if (item.tournament) return item.tournament;
-  if (item.league_name) return item.league_name;
+  for (const value of [item.league, item.ybty_league, item.leisu_league, item.tournament, item.league_name]) {
+    const text = leagueText(value);
+    if (text) return text;
+  }
 
   const matchStr = item.match || item.match_name || '';
   if (matchStr.startsWith('[')) {

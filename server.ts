@@ -2,242 +2,72 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-import { spawn } from 'child_process';
-import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { APP_CONFIG } from './config/appConfig';
+import { projectPath, resolveProjectPath } from './config/projectPaths';
+import { readJsonFile, requireJsonWrites, withJsonTransaction, writeJsonFile } from './server/jsonStore';
+import { registerAliasMutationRoutes, registerAliasReadRoutes } from './server/routes/aliasReadRoutes';
+import { registerAiEvaluationMutationRoutes, registerAiManualImportRoutes, registerAiPromptExportRoutes, registerAiReadRoutes } from './server/routes/aiReadRoutes';
+import { registerLedgerReadRoutes } from './server/routes/ledgerReadRoutes';
+import { registerLedgerMutationRoutes } from './server/routes/ledgerMutationRoutes';
+import { registerPipelineRoutes } from './server/routes/pipelineRoutes';
+import { registerReportReadRoutes } from './server/routes/reportReadRoutes';
+import { registerRuntimeMaintenanceRoutes } from './server/routes/runtimeMaintenanceRoutes';
+import { registerGeminiEvaluationRoutes } from './server/routes/geminiEvaluationRoutes';
+import { registerBatchSupplementRoutes } from './server/routes/batchSupplementRoutes';
+import { synchronizeDecisionAliases } from './server/services/aliasDecisionSynchronizer';
+import { parseModelJson } from './server/services/modelJson';
+import { generateGeminiViaWindowsNetwork as generateGeminiViaWindowsNetworkService } from './server/services/geminiWindowsFallback';
+import { normalizeYbtyMarketTypes } from './server/services/marketTypeNormalizer';
+import { geminiHttpStatus, isGeminiNetworkFailure, isRetryableGeminiFailure, parseGeminiRetryDelay, waitForRetry } from './server/services/geminiRetry';
+import { waitForGeminiRateSlot } from './server/services/geminiRateGate';
+import { advanceGeminiKeyCursor, geminiKeyIndex, getGeminiKeyCooldown, isGeminiKeyAvailable, setGeminiKeyCooldown } from './server/services/geminiKeyCooldown';
+import { normalizeParlayRecommendations } from './server/services/parlayRecommendationNormalizer';
+import { createRecommendationIdentity } from './server/services/recommendationIdentity';
+import { normalizeMarketLabel } from './server/services/marketLabels';
+import { calculateExactBeijingTime as calculateBatchBeijingTime } from './server/services/beijingTime';
+import { summarizeDecisions } from './server/services/decisionSummary';
+import { createTeamAliasResolver } from './server/services/teamAliasResolver';
+import { createBatchSupplementHandler } from './server/services/batchSupplementService';
+import { createGeminiEvaluationHandler } from './server/services/geminiEvaluationService';
+import { resolveMatchEvaluationMode } from './server/services/evaluationMode';
+import { chunkPromptItems } from './server/services/promptChunking';
+import { buildSlimPromptMatch } from './server/services/promptSlimPayload';
 
 const app = express();
-const PORT = 3000;
+const { host: HOST, port: PORT, environment: ENVIRONMENT, geminiModel: GEMINI_MODEL } = APP_CONFIG;
+const recommendationIdentity = createRecommendationIdentity(cleanTeamName);
 
-const GEMINI_MODEL = 'gemini-3.6-flash';
-const PRIMARY_MARKET_SEQUENCE = ['full_h2h', 'full_spread', 'full_total', 'half_h2h', 'half_spread', 'half_total'];
-
-function normalizeYbtyMarketTypes(rawMarkets: any): any[] {
-  const markets = Array.isArray(rawMarkets) ? rawMarkets.map((market: any) => ({ ...market })) : [];
-  if (markets.length < PRIMARY_MARKET_SEQUENCE.length) return markets;
-  const primary = markets.slice(0, PRIMARY_MARKET_SEQUENCE.length);
-  const semanticTypes = primary.map((market: any) => String(market.market || '').replace(/^unclassified_/, ''));
-  const hasPrimaryLayout = primary.every((market: any) => String(market.market_title_raw || '').includes('handicap-col-3'));
-  const hasExpectedSemantics = semanticTypes.join('|') === 'h2h|spread|total|h2h|spread|total';
-  const hasExpectedIndexes = primary.map((market: any) => Number(market.line_index)).join('|') === '0|0|0|1|1|1';
-  if (!hasPrimaryLayout || !hasExpectedSemantics || !hasExpectedIndexes) return markets;
-  for (let index = 0; index < PRIMARY_MARKET_SEQUENCE.length; index += 1) {
-    markets[index] = {
-      ...markets[index],
-      market: PRIMARY_MARKET_SEQUENCE[index],
-      market_type_verified: true,
-      market_type_source: 'verified_dom_primary_six_column_layout',
-      market_type_confidence: 1,
-    };
-  }
-  return markets;
-}
-
-function isGeminiNetworkFailure(error: any): boolean {
-  const code = error?.cause?.code || error?.code;
-  return error?.message === 'fetch failed' || code === 'UND_ERR_CONNECT_TIMEOUT' || code === 'ECONNRESET';
-}
-
-function geminiHttpStatus(error: any): number | null {
-  const direct = Number(error?.status || error?.statusCode || error?.response?.status);
-  if (Number.isFinite(direct) && direct >= 100) return direct;
-  const match = String(error?.message || error || '').match(/(?:\(|\b)(429|500|502|503|504)(?:\)|\b)/);
-  return match ? Number(match[1]) : null;
-}
-
-function isRetryableGeminiFailure(error: any): boolean {
-  const status = geminiHttpStatus(error);
-  return isGeminiNetworkFailure(error) || status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
-}
-
-function waitForRetry(delayMs: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, delayMs));
-}
-
-// Per-key rate gates: each Gemini key gets its own queue and last-request timestamp
-// so different keys can fire concurrently without blocking each other.
-const geminiKeyRateGates = new Map<string, Promise<void>>();
-const geminiKeyLastRequestAt = new Map<string, number>();
-let geminiKeyCursor = 0;
-const geminiKeyCooldowns = new Map<string, number>();
-
-function parseGeminiRetryDelay(error: any): number {
-  const msg = String(error?.message || error?.details || error || '');
-  const match = msg.match(/retry in ([\d\.]+)s/i) || msg.match(/retryDelay[:=]\s*["']?([\d\.]+)s?["']?/i);
-  if (match) {
-    const sec = parseFloat(match[1]);
-    if (Number.isFinite(sec) && sec > 0) return Math.ceil(sec * 1000) + 1000;
-  }
-  return 15000;
-}
-
-// Per-key rate gate: guarantees minimumGapMs between consecutive calls to the SAME key.
-// Different keys proceed in parallel independently.
-async function waitForGeminiRateSlot(apiKey: string, minimumGapMs = 3500): Promise<void> {
-  const previous = geminiKeyRateGates.get(apiKey) || Promise.resolve();
-  let release!: () => void;
-  const next = new Promise<void>((resolve) => { release = resolve; });
-  geminiKeyRateGates.set(apiKey, next);
-  await previous;
-  const lastAt = geminiKeyLastRequestAt.get(apiKey) || 0;
-  const remaining = minimumGapMs - (Date.now() - lastAt);
-  if (remaining > 0) await waitForRetry(remaining);
-  geminiKeyLastRequestAt.set(apiKey, Date.now());
-  release();
-}
-
-function parseModelJson(text: string): any {
-  const cleaned = String(text || '')
-    .replace(/^\s*```(?:json)?\s*/i, '')
-    .replace(/\s*```\s*$/i, '')
-    .replace(/^\uFEFF/, '')
-    .trim();
-  const attempts = [cleaned];
-  const objectStart = cleaned.indexOf('{');
-  const objectEnd = cleaned.lastIndexOf('}');
-  if (objectStart >= 0 && objectEnd > objectStart) attempts.push(cleaned.slice(objectStart, objectEnd + 1));
-  for (const candidate of attempts) {
-    try {
-      return JSON.parse(candidate.replace(/,\s*([}\]])/g, '$1'));
-    } catch {
-      // Try the next normalized representation.
-    }
-  }
-  throw new Error('invalid_model_json');
-}
-
-async function generateGeminiViaWindowsNetwork(apiKey: string, prompt: string): Promise<string> {
-  if (process.platform !== 'win32') {
-    throw new Error('Gemini SDK network request failed. Check the server network connection.');
-  }
-
-  const requestBody = JSON.stringify({
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { responseMimeType: 'application/json' },
-  });
-  const script = [
-    "$ErrorActionPreference = 'Stop'",
-    "[Console]::InputEncoding = [Text.UTF8Encoding]::new($false)",
-    "[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)",
-    "$OutputEncoding = [Console]::OutputEncoding",
-    "$body = [Console]::In.ReadToEnd()",
-    "$headers = @{ 'x-goog-api-key' = $env:GEMINI_API_KEY }",
-    `$uri = 'https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent'`,
-    "$response = Invoke-RestMethod -Uri $uri -Method Post -Headers $headers -ContentType 'application/json; charset=utf-8' -Body $body -TimeoutSec 120",
-    "$response | ConvertTo-Json -Depth 100 -Compress",
-  ].join('; ');
-
-  return await new Promise<string>((resolve, reject) => {
-    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
-      env: { ...process.env, GEMINI_API_KEY: apiKey },
-      windowsHide: true,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    let stdout = '';
-    let stderr = '';
-    child.stdout.setEncoding('utf8');
-    child.stderr.setEncoding('utf8');
-    child.stdout.on('data', (chunk: string) => { stdout += chunk; });
-    child.stderr.on('data', (chunk: string) => { stderr += chunk; });
-    child.on('error', reject);
-    child.on('close', (code: number | null) => {
-      if (code !== 0) {
-        reject(new Error(`Gemini Windows network fallback failed: ${stderr.trim() || `exit code ${code}`}`));
-        return;
-      }
-      try {
-        const response = JSON.parse(stdout);
-        const text = response?.candidates?.[0]?.content?.parts
-          ?.map((part: any) => part?.text || '')
-          .join('')
-          .trim();
-        if (!text) throw new Error('Gemini returned no text content.');
-        resolve(text);
-      } catch (error: any) {
-        reject(new Error(`Invalid Gemini fallback response: ${error.message}`));
-      }
-    });
-    child.stdin.end(requestBody, 'utf8');
-  });
-}
 
 app.use(express.json({ limit: '25mb' }));
 
-// Helper to safely read JSON files
-function readJsonFile<T>(filePath: string, fallback: T): T {
-  try {
-    const fullPath = path.isAbsolute(filePath) ? filePath : path.join(process.cwd(), filePath);
-    if (fs.existsSync(fullPath)) {
-      const rawContent = fs.readFileSync(fullPath, 'utf-8');
-      const content = rawContent.replace(/^\uFEFF/, '').trim();
-      if (!content) return fallback;
-      return JSON.parse(content) as T;
-    }
-  } catch (err) {
-    console.warn(`[Server] Error reading ${filePath}:`, err);
-  }
-  return fallback;
-}
+const LOCKED_MUTATION_PATHS = new Set([
+  '/api/ledger/delete',
+  '/api/ledger/archive',
+  '/api/ledger/add-ai-assessments',
+  '/api/ledger/add-candidate',
+  '/api/ledger/add',
+  '/api/batch-supplement-scores',
+  '/api/ledger/update-review',
+  '/api/aliases',
+  '/api/clear-outdated-matches',
+  '/api/batch-supplement',
+]);
 
-// Helper to safely write JSON files
-function writeJsonFile(filePath: string, data: any): boolean {
-  let tempPath = '';
-  try {
-    const fullPath = path.isAbsolute(filePath) ? filePath : path.join(process.cwd(), filePath);
-    fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-    tempPath = `${fullPath}.${process.pid}.${crypto.randomBytes(6).toString('hex')}.tmp`;
-    fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf-8');
-    fs.renameSync(tempPath, fullPath);
-    return true;
-  } catch (err) {
-    console.error(`[Server] Error writing ${filePath}:`, err);
-    if (tempPath && fs.existsSync(tempPath)) {
-      try { fs.unlinkSync(tempPath); } catch { /* best-effort cleanup */ }
-    }
-    return false;
-  }
-}
+app.use((req, _res, next) => {
+  if (req.method === 'GET' || !LOCKED_MUTATION_PATHS.has(req.path)) return next();
+  try { return withJsonTransaction(() => next()); }
+  catch (error) { return next(error); }
+});
 
-function requireJsonWrites(entries: Array<[string, any]>): void {
-  const transactionId = `${process.pid}.${crypto.randomBytes(6).toString('hex')}`;
-  const staged = entries.map(([filePath, data]) => {
-    const fullPath = path.isAbsolute(filePath) ? filePath : path.join(process.cwd(), filePath);
-    return {
-      filePath,
-      fullPath,
-      tempPath: `${fullPath}.${transactionId}.tmp`,
-      backupPath: `${fullPath}.${transactionId}.bak`,
-      existed: fs.existsSync(fullPath),
-      content: JSON.stringify(data, null, 2),
-    };
+app.get('/api/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    environment: ENVIRONMENT,
+    timestamp: new Date().toISOString(),
   });
-  try {
-    for (const item of staged) {
-      fs.mkdirSync(path.dirname(item.fullPath), { recursive: true });
-      fs.writeFileSync(item.tempPath, item.content, 'utf-8');
-      if (item.existed) fs.copyFileSync(item.fullPath, item.backupPath);
-    }
-    for (const item of staged) fs.renameSync(item.tempPath, item.fullPath);
-  } catch (error) {
-    for (const item of staged) {
-      try {
-        if (fs.existsSync(item.backupPath)) fs.copyFileSync(item.backupPath, item.fullPath);
-        else if (!item.existed && fs.existsSync(item.fullPath)) fs.unlinkSync(item.fullPath);
-      } catch { /* best-effort rollback */ }
-    }
-    throw new Error(`JSON transaction failed for ${entries.map(([filePath]) => filePath).join(', ')}: ${String(error)}`);
-  } finally {
-    for (const item of staged) {
-      for (const cleanupPath of [item.tempPath, item.backupPath]) {
-        try { if (fs.existsSync(cleanupPath)) fs.unlinkSync(cleanupPath); } catch { /* best-effort cleanup */ }
-      }
-    }
-  }
-}
+});
 
 function recommendationKey(item: any): string {
   const recommendation = item?.recommendation || {};
@@ -299,7 +129,7 @@ function hasExplicitBetDirection(item: any): boolean {
 
 function sanitizeParlayLeg(leg: any, candidateMatches: any[] = []): any {
   if (!leg || typeof leg !== 'object') return leg;
-  let market = String(leg.market || '').trim();
+  let market = normalizeMarketLabel(leg.market);
   let line = leg.line != null && leg.line !== '' && leg.line !== 'null' ? String(leg.line).trim() : '';
   const home = String(leg.ybty_home || leg.match?.split(' vs ')[0] || '').trim();
   const away = String(leg.ybty_away || leg.match?.split(' vs ')[1] || '').trim();
@@ -336,6 +166,26 @@ function sanitizeParlayLeg(leg: any, candidateMatches: any[] = []): any {
   }
 
   const combined = `${market} ${line}`.toLowerCase();
+
+  // Prefer the readable normalized rules before the legacy compatibility rules below.
+  if (/大小球|total/i.test(market) && !/(?:大球|小球|over|under)/i.test(combined)) {
+    const direction = String(matchedAssessment?.direction || matchedAssessment?.category || '').toLowerCase();
+    line = `${/(?:小球|under)/i.test(direction) ? '小' : '大'}${line}`.trim();
+  }
+  if (/让球|spread|handicap/i.test(market)) {
+    const normalizedLine = String(line || '').toLowerCase();
+    const hasDirection = /(?:主队|客队|home|away)/i.test(normalizedLine) || (home && normalizedLine.includes(home.toLowerCase())) || (away && normalizedLine.includes(away.toLowerCase()));
+    if (!hasDirection) {
+      const direction = String(matchedAssessment?.direction || '').toLowerCase();
+      line = `${/(?:客队|away)/i.test(direction) ? (away || '客队') : (home || '主队')} ${line}`.trim();
+    }
+  }
+  if (/(?:独赢|h2h|1x2)/i.test(market)) {
+    const value = String(line || '').trim().toLowerCase();
+    if (value === '1' || value === 'home') line = `${home || '主队'}胜`;
+    else if (value === '2' || value === 'away') line = `${away || '客队'}胜`;
+    else if (value === 'x' || value === 'draw') line = '平局';
+  }
 
   // 3. Fix Over/Under direction
   if (/大小球|total/i.test(market)) {
@@ -409,393 +259,46 @@ function hideInvalidRecommendation(item: any): any {
 
 // ---------------- API ROUTES ----------------
 
-// Live Pipeline Status & Decisions
-app.get('/api/pipeline/live', (req, res) => {
-  const status = readJsonFile('output/pipeline_status.json', {});
-  const decisions = readJsonFile<any>('output/ybty_leisu_decisions.json', { decisions: [], summary: {} });
-  const candidates = readJsonFile<any>('output/ybty_leisu_candidates.json', { candidates: [] });
-  const ybtyLatest = readJsonFile<any>('output/ybty_latest.json', { matches: [] });
-  const rawMarketByMatch = new Map<string, any[]>();
-  for (const match of Array.isArray(ybtyLatest.matches) ? ybtyLatest.matches : []) {
-    rawMarketByMatch.set(`${cleanTeamName(match.home)}|${cleanTeamName(match.away)}`, normalizeYbtyMarketTypes(match.markets));
-  }
-  const visibleDecisions = (Array.isArray(decisions.decisions) ? decisions.decisions : []).map((item: any) => hideInvalidRecommendation({
-      ...item,
-      ybty_raw_markets: rawMarketByMatch.get(matchIdentity(item)) || normalizeYbtyMarketTypes(item.ybty_raw_markets),
-    }));
-
-  res.json({
-    status,
-    decisions: visibleDecisions,
-    summary: decisions.summary || {},
-    single_best: decisions.single_best || null,
-    parlay_5x: decisions.parlay_5x || null,
-    candidates: candidates.candidates || [],
-  });
-});
-
-// Prematch Pipeline Status & Decisions
-app.get('/api/pipeline/prematch', (req, res) => {
-  const status = readJsonFile('output/prematch_pipeline_status.json', {});
-  const decisions = readJsonFile<any>('output/ybty_leisu_prematch_decisions.json', { decisions: [], summary: {} });
-  const candidates = readJsonFile<any>('output/ybty_leisu_prematch_candidates.json', { candidates: [] });
-  const brief = readJsonFile('output/prematch_ai_brief.json', {});
-
-  const formalDecisions = Array.isArray(decisions.decisions) ? decisions.decisions : [];
-  const researchQueue = Array.isArray(decisions.research_queue) ? decisions.research_queue : [];
-  const formalMatches = new Set(formalDecisions.map((item: any) => String(item?.match || '')));
-  // B/C research items must remain visible to the UI. A formal decision for the
-  // same match takes precedence so the match is not rendered twice.
-  const visibleDecisions = [
-    ...formalDecisions,
-    ...researchQueue.filter((item: any) => !formalMatches.has(String(item?.match || ''))),
-  ].map((item: any) => hideInvalidRecommendation({ ...item, ybty_raw_markets: normalizeYbtyMarketTypes(item.ybty_raw_markets) }));
-
-  res.json({
-    status,
-    decisions: visibleDecisions,
-    formal_decisions: formalDecisions,
-    research_queue: researchQueue,
-    summary: decisions.summary || {},
-    candidates: candidates.candidates || [],
-    brief,
-  });
+registerPipelineRoutes(app, {
+  cleanTeamName,
+  matchIdentity,
+  normalizeYbtyMarketTypes,
+  hideInvalidRecommendation,
 });
 
 // Recommendation Ledger
-app.get('/api/ledger', (req, res) => {
-  const ledger = readJsonFile<any[]>('output/recommendation_ledger.json', []);
-  res.json(ledger);
+registerLedgerReadRoutes(app);
+registerLedgerMutationRoutes(app, {
+  recommendationKey: recommendationIdentity.recommendationKey,
+  hasExplicitBetDirection: recommendationIdentity.hasExplicitBetDirection,
+  sanitizeParlayLeg,
+  hasUsableRecommendation: recommendationIdentity.hasUsableRecommendation,
+  matchIdentity: recommendationIdentity.matchIdentity,
+  directionIdentity: recommendationIdentity.directionIdentity,
+  areSameMatch,
 });
-
-app.post('/api/ledger/add', (req, res) => {
-  try {
-    const newItem = req.body;
-    if (!newItem || !newItem.match || !newItem.recommendation) {
-      return res.status(400).json({ error: 'Invalid recommendation data' });
-    }
-    const recommendation = newItem.recommendation;
-    if (!hasUsableRecommendation(recommendation)) {
-      return res.status(400).json({ error: 'A formal recommendation requires market, line, and numeric odds' });
-    }
-    if (!['A', 'B'].includes(String(newItem.grade || ''))) {
-      return res.status(400).json({ error: 'A formal recommendation must be B grade or above' });
-    }
-    if (!/^\d{4}-\d{2}-\d{2}/.test(String(newItem.start_time_beijing || ''))) {
-      return res.status(400).json({ error: 'A formal recommendation requires a concrete Beijing start time' });
-    }
-    const isLiveRecommendation = Number(newItem.minute || 0) > 0;
-    if (isLiveRecommendation) {
-      const score = newItem.score_at_recommendation;
-      const validScore = score && Number.isFinite(Number(score.home)) && Number.isFinite(Number(score.away));
-      if (!validScore || newItem.score_verified !== true || !newItem.score_source || newItem.score_source === 'unverified') {
-        return res.status(400).json({ error: 'A live formal recommendation requires a verified score and score source' });
-      }
-    }
-
-    const ledger = readJsonFile<any[]>('output/recommendation_ledger.json', []);
-
-    const duplicate = ledger.find((item: any) =>
-      (item.formal_recommendation === true || item.record_type === 'formal_ai_recommendation') &&
-      recommendationKey(item) === recommendationKey(newItem)
-    );
-    if (duplicate) {
-      return res.status(409).json({ error: 'Duplicate formal recommendation', duplicate_id: duplicate.id });
-    }
-    if (Array.isArray(newItem.parlay_legs)) {
-      newItem.parlay_legs = newItem.parlay_legs.map((leg: any) => sanitizeParlayLeg(leg));
-    }
-    const incomingLegs = Array.isArray(newItem.parlay_legs) ? newItem.parlay_legs : [];
-    const parlayRequested = newItem.is_parlay === true || incomingLegs.length > 0 || /串\s*1|精选彩票/.test(String(newItem.recommendation?.market || ''));
-    if (parlayRequested && incomingLegs.length < 2) {
-      return res.status(400).json({ error: 'A formal parlay must include at least two structured legs' });
-    }
-    if (incomingLegs.length > 0) {
-      const invalidLeg = incomingLegs.find((leg: any) =>
-        !leg?.match || !leg?.ybty_home || !leg?.ybty_away ||
-        !hasUsableRecommendation(leg) ||
-        !hasExplicitBetDirection(leg) ||
-        !['A', 'B'].includes(String(leg?.grade || '')) ||
-        !/^\d{4}-\d{2}-\d{2}/.test(String(leg?.start_time_beijing || '')) ||
-        (Number(leg?.minute || 0) > 0 && leg?.score_verified !== true)
-      );
-      if (invalidLeg) {
-        return res.status(400).json({ error: 'Every formal parlay leg must include an explicit betting side/direction, B+ grade, teams, market, time, odds, and verified live score', leg: invalidLeg.match });
-      }
-      const matchKeys = incomingLegs.map(matchIdentity);
-      if (new Set(matchKeys).size !== matchKeys.length) {
-        return res.status(409).json({ error: 'A parlay cannot contain multiple markets from the same match' });
-      }
-      const directionUsage = new Map<string, number>();
-      for (const item of ledger) {
-        for (const leg of Array.isArray(item.parlay_legs) ? item.parlay_legs : []) {
-          const key = directionIdentity(leg);
-          directionUsage.set(key, (directionUsage.get(key) || 0) + 1);
-        }
-      }
-      const overusedCore = incomingLegs.find((leg: any) => {
-        return (directionUsage.get(directionIdentity(leg)) || 0) >= 1;
-      });
-      if (overusedCore) {
-        return res.status(409).json({
-          error: 'This direction has reached its parlay exposure limit (one formal ticket per researched direction)',
-          leg: overusedCore.match,
-        });
-      }
-    }
-    
-    // Ensure required protocol fields
-    const formalItem = {
-      id: newItem.id || Math.random().toString(16).substring(2, 10),
-      created_at: new Date().toISOString(),
-      match: newItem.match,
-      ybty_home: newItem.ybty_home || newItem.match.split(' vs ')[0] || '',
-      ybty_away: newItem.ybty_away || newItem.match.split(' vs ')[1] || '',
-      minute: newItem.minute ?? 0,
-      score_at_recommendation: newItem.score_at_recommendation || null,
-      score_source: newItem.score_source || 'unverified',
-      score_verified: newItem.score_verified === true,
-      grade: newItem.grade || 'B',
-      model_score: newItem.model_score || 75.0,
-      recommendation: newItem.recommendation, // { market, line, odds }
-      evidence: newItem.evidence || [],
-      risks: newItem.risks || [],
-      review: {
-        status: 'pending',
-        final_score: null,
-        outcome: 'pending'
-      },
-      record_type: 'formal_ai_recommendation',
-      formal_recommendation: true,
-      start_time_beijing: newItem.start_time_beijing || '推算时间',
-      is_parlay: Boolean(newItem.is_parlay || (newItem.parlay_legs && newItem.parlay_legs.length > 0)),
-      parlay_legs: newItem.parlay_legs || [],
-    };
-
-    ledger.unshift(formalItem);
-    const success = writeJsonFile('output/recommendation_ledger.json', ledger);
-
-    if (success) {
-      res.json({ success: true, item: formalItem });
-    } else {
-      res.status(500).json({ error: 'Failed to write ledger file' });
-    }
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
+registerRuntimeMaintenanceRoutes(app);
 
 // Store research/backtest candidates separately from formal recommendations.
 // These records are reviewable after full time but never count toward formal ROI/hit rate.
-app.post('/api/ledger/add-candidate', (req, res) => {
-  try {
-    const newItem = req.body;
-    if (newItem?.is_parlay === true && Array.isArray(newItem.parlay_legs)) {
-      newItem.parlay_legs = newItem.parlay_legs.map((leg: any) => sanitizeParlayLeg(leg));
-    }
-    const recommendation = newItem?.recommendation;
-    const predictionOnly = newItem?.prediction_only === true;
-    if (!newItem?.match || !recommendation?.market || recommendation.line === undefined || (!predictionOnly && !Number.isFinite(Number(recommendation.odds)))) {
-      return res.status(400).json({ error: 'A backtest record requires match, market, line, and real odds unless it is a prediction-only record' });
-    }
-    if (!predictionOnly && !hasExplicitBetDirection(newItem)) {
-      return res.status(400).json({ error: '投注方向不明确：大小球必须写明大/小，让球必须写明主队、客队或具体球队。' });
-    }
-    if (newItem?.is_parlay === true && Array.isArray(newItem.parlay_legs) && newItem.parlay_legs.some((leg: any) => !hasExplicitBetDirection(leg))) {
-      return res.status(400).json({ error: '串关腿投注方向不明确，禁止保存未注明投注球队的让球或未注明大/小的大小球。' });
-    }
-    const ledger = readJsonFile<any[]>('output/recommendation_ledger.json', []);
-    const candidateKey = recommendationKey(newItem);
-    const duplicate = ledger.find((item: any) => item.record_type === 'machine_candidate' && recommendationKey(item) === candidateKey);
-    if (duplicate) return res.status(409).json({ error: 'Duplicate backtest candidate', duplicate_id: duplicate.id });
-
-    const candidateItem = {
-      id: `candidate_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-      created_at: new Date().toISOString(),
-      match: newItem.match,
-      ybty_home: newItem.ybty_home || newItem.match.split(' vs ')[0] || '',
-      ybty_away: newItem.ybty_away || newItem.match.split(' vs ')[1] || '',
-      minute: Number(newItem.minute || 0),
-      score_at_recommendation: newItem.score_at_recommendation || null,
-      score_source: newItem.score_source || 'unverified',
-      score_verified: newItem.score_verified === true,
-      grade: newItem.grade || 'C',
-      model_score: Number(newItem.model_score || 0),
-      recommendation: {
-        market: recommendation.market,
-        line: recommendation.line,
-        odds: predictionOnly ? 1 : Number(recommendation.odds),
-      },
-      candidate_source: newItem.candidate_source || 'ybty_market_snapshot',
-      implied_probability: Number(newItem.implied_probability || 0),
-      prediction_probability: Number(newItem.prediction_probability || 0),
-      prediction_only: predictionOnly,
-      prediction_type: newItem.prediction_type || null,
-      model_version: newItem.model_version || null,
-      selection_method: newItem.selection_method || 'lowest_market_odds',
-      evidence: newItem.evidence || [],
-      risks: newItem.risks || [],
-      review: { status: 'pending', final_score: null, outcome: 'pending' },
-      record_type: 'machine_candidate',
-      formal_recommendation: false,
-      start_time_beijing: newItem.start_time_beijing || null,
-      is_parlay: newItem.is_parlay === true && Array.isArray(newItem.parlay_legs) && newItem.parlay_legs.length >= 2,
-      parlay_legs: Array.isArray(newItem.parlay_legs) ? newItem.parlay_legs : [],
-    };
-    ledger.unshift(candidateItem);
-    if (!writeJsonFile('output/recommendation_ledger.json', ledger)) {
-      return res.status(500).json({ error: 'Failed to write ledger file' });
-    }
-    res.json({ success: true, item: candidateItem });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/ledger/add-ai-assessments', (req, res) => {
-  try {
-    const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
-    if (entries.length === 0) return res.status(400).json({ error: '没有可保存的AI投注建议。' });
-    const ledger = readJsonFile<any[]>('output/recommendation_ledger.json', []);
-    let saved = 0;
-    let duplicates = 0;
-    const rejected: string[] = [];
-    for (const entry of entries) {
-      const recommendation = entry?.recommendation;
-      if (!entry?.match || !recommendation?.market || recommendation.line === undefined || !Number.isFinite(Number(recommendation.odds)) || Number(recommendation.odds) <= 1) {
-        rejected.push(entry?.match || '未知比赛');
-        continue;
-      }
-      if (!hasExplicitBetDirection(entry)) {
-        rejected.push(`${entry.match}（方向不明确）`);
-        continue;
-      }
-      if (ledger.some((item: any) => recommendationKey(item) === recommendationKey(entry))) {
-        duplicates++;
-        continue;
-      }
-      ledger.unshift({
-        id: `ai_candidate_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-        created_at: new Date().toISOString(),
-        match: entry.match,
-        ybty_home: entry.ybty_home || '',
-        ybty_away: entry.ybty_away || '',
-        minute: Number(entry.minute || 0),
-        score_at_recommendation: entry.score_at_recommendation || null,
-        score_source: entry.score_source || 'unverified',
-        score_verified: entry.score_verified === true,
-        grade: entry.grade || 'C',
-        model_score: Number(entry.model_score || 0),
-        recommendation: { market: recommendation.market, line: recommendation.line, odds: Number(recommendation.odds) },
-        candidate_source: 'ai_market_assessment',
-        prediction_probability: Number(entry.prediction_probability || entry.model_score || 0),
-        selection_method: 'ai_full_market_assessment',
-        evidence: entry.evidence || [],
-        risks: entry.risks || [],
-        review: { status: 'pending', final_score: null, outcome: 'pending' },
-        record_type: 'machine_candidate',
-        formal_recommendation: false,
-        start_time_beijing: entry.start_time_beijing || null,
-        is_parlay: false,
-        parlay_legs: [],
-      });
-      saved++;
-    }
-    requireJsonWrites([['output/recommendation_ledger.json', ledger]]);
-    res.json({ success: true, saved, duplicates, rejected, ledger });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || 'AI建议批量写入台账失败' });
-  }
-});
-
-app.get('/api/ledger/archives', (req, res) => {
-  res.json({ archives: readJsonFile<any[]>('output/recommendation_ledger_archives.json', []) });
-});
-
-app.post('/api/ledger/archive', (req, res) => {
-  try {
-    const ledger = readJsonFile<any[]>('output/recommendation_ledger.json', []);
-    if (ledger.length === 0) return res.status(400).json({ error: '当前台账为空，无法归档。' });
-    const archives = readJsonFile<any[]>('output/recommendation_ledger_archives.json', []);
-    const snapshot = {
-      id: `ledger_batch_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
-      name: String(req.body?.name || '').trim() || `台账批次 ${new Date().toLocaleString('zh-CN')}`,
-      archived_at: new Date().toISOString(),
-      item_count: ledger.length,
-      items: ledger,
-    };
-    archives.unshift(snapshot);
-    const clearCurrent = req.body?.clear_current === true;
-    const writes: Array<[string, any]> = [['output/recommendation_ledger_archives.json', archives]];
-    if (clearCurrent) writes.push(['output/recommendation_ledger.json', []]);
-    requireJsonWrites(writes);
-    res.json({ success: true, archive: snapshot, cleared_current: clearCurrent, ledger: clearCurrent ? [] : ledger });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || '台账批次归档失败' });
-  }
-});
-
-// Preserve the complete AI research output independently from the formal ledger.
 // A snapshot may contain NO_BET/C-grade assessments and therefore must not affect ROI statistics.
-app.get('/api/ai/evaluations', (req, res) => {
-  const history = readJsonFile<any[]>('output/ai_evaluation_history.json', []);
-  res.json({ evaluations: history });
-});
+registerAiReadRoutes(app);
+registerAiEvaluationMutationRoutes(app);
+registerAiPromptExportRoutes(app, buildPromptData);
+registerAiManualImportRoutes(app, { parse: parseModelJson, sanitizeMarket: sanitizeMarketAssessment, sanitizeParlayLeg });
 
-const handleClearEvaluations = (req: express.Request, res: express.Response) => {
-  try {
-    writeJsonFile('output/ai_evaluation_history.json', []);
-    res.json({ success: true, message: '已成功清空 AI 评估历史' });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-app.post('/api/ai/evaluations/clear', handleClearEvaluations);
-app.delete('/api/ai/evaluations/clear', handleClearEvaluations);
-app.delete('/api/ai/evaluations', handleClearEvaluations);
-
-app.post('/api/ai/evaluations/save', (req, res) => {
-  try {
-    const { mode, scope, result, evaluated_matches } = req.body || {};
-    const hasBatchResult = Array.isArray(result?.matches) && result.matches.length > 0;
-    const hasSingleResult = result && typeof result === 'object' && (result.summary || result.recommendation || result.market_assessments);
-    if (!hasBatchResult && !hasSingleResult) {
-      return res.status(400).json({ error: '没有可保存的 AI 评估内容' });
-    }
-    const historyPath = 'output/ai_evaluation_history.json';
-    const history = readJsonFile<any[]>(historyPath, []);
-    const snapshot = {
-      id: `ai_eval_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-      saved_at: new Date().toISOString(),
-      mode: mode || 'unknown',
-      scope: scope || (hasBatchResult ? 'batch' : 'single'),
-      evaluated_matches: Array.isArray(evaluated_matches) ? evaluated_matches : [],
-      result,
-      record_type: 'ai_evaluation_snapshot',
-      affects_formal_statistics: false,
-    };
-    history.unshift(snapshot);
-    if (!writeJsonFile(historyPath, history)) {
-      return res.status(500).json({ error: 'AI 评估快照文件写入失败' });
-    }
-    res.json({ success: true, snapshot_id: snapshot.id, saved_at: snapshot.saved_at });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || 'AI 评估快照保存失败' });
-  }
-});
 
 // Helper to normalize team names for cross-provider and alias matching
 function getTeamQualifiers(str: string) {
   const s = (str || '').toLowerCase();
   return {
-    u20: s.includes('u20'),
-    u21: s.includes('u21'),
-    u23: s.includes('u23'),
-    u19: s.includes('u19'),
-    u17: s.includes('u17'),
+    u20: /(?:\bu[\s_-]?20\b|20岁以下)/i.test(s),
+    u21: /(?:\bu[\s_-]?21\b|21岁以下)/i.test(s),
+    u23: /(?:\bu[\s_-]?23\b|23岁以下)/i.test(s),
+    u19: /(?:\bu[\s_-]?19\b|19岁以下)/i.test(s),
+    u17: /(?:\bu[\s_-]?17\b|17岁以下)/i.test(s),
     reserve: s.includes('后备') || s.includes('预备') || s.includes('reserve'),
-    women: s.includes('女') || s.includes('women'),
+    women: s.includes('女足') || s.includes('women'),
     allStar: s.includes('明星') || s.includes('全明星') || s.includes('allstar') || s.includes('all-star'),
   };
 }
@@ -818,9 +321,9 @@ function cleanTeamName(str: any): string {
   if (typeof str !== 'string') return '';
   return str
     .toLowerCase()
-    .replace(/-(ybty|leisu|雷速|YBTY|LEISU)$/gi, '')
+    .replace(/-(ybty|leisu)$/gi, '')
     .replace(/football club|fc|俱乐部|体育/gi, '')
-    .replace(/[\s\(\)\（\）\【\】\[\]]/g, '')
+    .replace(/[\s\-_:\.()（）\[\]【】]/g, '')
     .trim();
 }
 
@@ -889,546 +392,24 @@ function areSameMatch(itemA: any, itemB: any): boolean {
 }
 
 // Update ledger item review (supports auto-syncing same match records & parlay legs)
-app.post('/api/ledger/update-review', (req, res) => {
-  try {
-    const { id, match, ybty_home, ybty_away, leg_index, final_score, ht_score, score_verified, outcome, parlay_legs, syncSameMatch = true } = req.body;
-    if (!id && !match && !ybty_home && (!parlay_legs || !Array.isArray(parlay_legs))) {
-      return res.status(400).json({ error: 'ID, match, or parlay_legs identifier is required' });
-    }
-
-    let ledger = readJsonFile<any[]>('output/recommendation_ledger.json', []);
-    const liveFile = readJsonFile<any>('output/ybty_leisu_decisions.json', { decisions: [], summary: {} });
-    const prematchFile = readJsonFile<any>('output/ybty_leisu_prematch_decisions.json', { decisions: [], summary: {} });
-
-    let updatedCount = 0;
-
-    // Direct Parlay Legs Array Update for a specific Parlay Item
-    if (id && Array.isArray(parlay_legs) && parlay_legs.length > 0) {
-      ledger = ledger.map((item: any) => {
-        if (item.id === id) {
-          updatedCount++;
-          item.is_parlay = true;
-          item.parlay_legs = parlay_legs;
-          item.review = item.review || {};
-          item.review.status = 'reviewed';
-          item.score_verified = parlay_legs.every((l: any) => l.score_verified);
-        }
-        return item;
-      });
-
-      // Auto-sync each leg in parlay_legs to other ledger items and decision files
-      if (syncSameMatch) {
-        for (const leg of parlay_legs) {
-          if (!leg.final_score && !leg.ht_score) continue;
-          const h = leg.ybty_home || (leg.match ? leg.match.split(' vs ')[0] : '');
-          const a = leg.ybty_away || (leg.match ? leg.match.split(' vs ')[1] : '');
-          const legRef = { match: leg.match || `${h} vs ${a}`, ybty_home: h, ybty_away: a };
-
-          // Sync other ledger items
-          ledger = ledger.map((item: any) => {
-            if (item.id !== id && areSameMatch(legRef, item)) {
-              item.review = item.review || {};
-              if (leg.final_score) item.review.final_score = leg.final_score;
-              if (leg.ht_score) item.review.ht_score = leg.ht_score;
-              item.review.status = 'reviewed';
-              item.score_verified = leg.score_verified === true;
-            }
-            if (item.id !== id && item.parlay_legs && Array.isArray(item.parlay_legs)) {
-              item.parlay_legs = item.parlay_legs.map((otherLeg: any) => {
-                if (areSameMatch(legRef, { match: otherLeg.match, ybty_home: otherLeg.ybty_home, ybty_away: otherLeg.ybty_away })) {
-                  return {
-                    ...otherLeg,
-                    final_score: leg.final_score || otherLeg.final_score,
-                    ht_score: leg.ht_score || otherLeg.ht_score,
-                    score_verified: leg.score_verified === true,
-                  };
-                }
-                return otherLeg;
-              });
-            }
-            return item;
-          });
-
-          // Sync decisions files
-          const scoreObj = leg.final_score;
-          const htScoreObj = leg.ht_score;
-          if (liveFile.decisions && Array.isArray(liveFile.decisions)) {
-            liveFile.decisions = liveFile.decisions.map((d: any) => {
-              if (areSameMatch(legRef, d)) {
-                return {
-                  ...d,
-                  score: scoreObj || d.score,
-                  ht_score: htScoreObj || d.ht_score,
-                  score_verified: leg.score_verified === true,
-                  score_source: 'parlay_leg_user_verification',
-                  risks: leg.score_verified === true ? (d.risks || []).filter((r: string) => !r.includes('比分未经校验')) : (d.risks || []),
-                };
-              }
-              return d;
-            });
-          }
-          if (prematchFile.decisions && Array.isArray(prematchFile.decisions)) {
-            prematchFile.decisions = prematchFile.decisions.map((d: any) => {
-              if (areSameMatch(legRef, d)) {
-                return {
-                  ...d,
-                  score: scoreObj || d.score,
-                  ht_score: htScoreObj || d.ht_score,
-                  score_verified: leg.score_verified === true,
-                  score_source: 'parlay_leg_user_verification',
-                  risks: leg.score_verified === true ? (d.risks || []).filter((r: string) => !r.includes('比分未经校验')) : (d.risks || []),
-                };
-              }
-              return d;
-            });
-          }
-        }
-      }
-    } else {
-      // Find target item for single match / single leg update
-      const targetItem = ledger.find((i: any) => i.id === id || (match && i.match === match));
-      const refHome = ybty_home || (targetItem ? targetItem.ybty_home : '') || (match ? match.split(' vs ')[0] : '');
-      const refAway = ybty_away || (targetItem ? targetItem.ybty_away : '') || (match ? match.split(' vs ')[1] : '');
-      const dummyRef = { match: match || targetItem?.match || `${refHome} vs ${refAway}`, ybty_home: refHome, ybty_away: refAway };
-
-      ledger = ledger.map((item: any) => {
-        // 1. Single match item update
-        if (syncSameMatch ? areSameMatch(dummyRef, item) : item.id === id) {
-          updatedCount++;
-          item.review = item.review || {};
-          if (final_score) {
-            item.review.final_score = final_score;
-            item.review.status = 'reviewed';
-          }
-          if (ht_score) {
-            item.review.ht_score = ht_score;
-            item.review.status = 'reviewed';
-          }
-          if (outcome && item.id === id) {
-            item.review.outcome = outcome;
-          }
-          if (score_verified !== undefined) {
-            item.score_verified = score_verified;
-          }
-        }
-
-        // 2. Parlay legs update inside parlay items
-        if (item.parlay_legs && Array.isArray(item.parlay_legs) && item.parlay_legs.length > 0) {
-          let parlayLegUpdated = false;
-          item.parlay_legs = item.parlay_legs.map((leg: any) => {
-            const legMatches = areSameMatch(dummyRef, {
-              match: leg.match,
-              ybty_home: leg.ybty_home,
-              ybty_away: leg.ybty_away,
-            });
-
-            if (legMatches || (leg_index !== undefined && leg.leg_index === leg_index && item.id === id)) {
-              parlayLegUpdated = true;
-              return {
-                ...leg,
-                final_score: final_score || leg.final_score,
-                ht_score: ht_score || leg.ht_score,
-                score_verified: score_verified === undefined ? leg.score_verified === true : score_verified === true,
-              };
-            }
-            return leg;
-          });
-
-          if (parlayLegUpdated) {
-            updatedCount++;
-          }
-        }
-
-        return item;
-      });
-    }
-
-    requireJsonWrites([
-      ['output/recommendation_ledger.json', ledger],
-      ['output/ybty_leisu_decisions.json', liveFile],
-      ['output/ybty_leisu_prematch_decisions.json', prematchFile],
-    ]);
-
-    res.json({ success: true, updatedCount, ledger });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Dedicated Batch Score Supplement & Verification Endpoint
-app.post('/api/batch-supplement-scores', (req, res) => {
-  try {
-    const { items } = req.body; // Array of { match, ybty_home, ybty_away, final_score: {home, away}, score_verified: boolean }
-    if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ error: 'No items provided for score supplement' });
-    }
-
-    let ledger = readJsonFile<any[]>('output/recommendation_ledger.json', []);
-    const liveFile = readJsonFile<any>('output/ybty_leisu_decisions.json', { decisions: [], summary: {} });
-    const prematchFile = readJsonFile<any>('output/ybty_leisu_prematch_decisions.json', { decisions: [], summary: {} });
-
-    let updatedLedgerCount = 0;
-    let updatedDecisionsCount = 0;
-
-    for (const sup of items) {
-      const hTeam = sup.ybty_home || (sup.match ? sup.match.split(' vs ')[0] : '');
-      const aTeam = sup.ybty_away || (sup.match ? sup.match.split(' vs ')[1] : '');
-      const dummyMatch = { match: sup.match || `${hTeam} vs ${aTeam}`, ybty_home: hTeam, ybty_away: aTeam };
-      const scoreObj = sup.final_score || sup.score || { home: Number(sup.home_score || 0), away: Number(sup.away_score || 0) };
-      const htScoreObj = sup.ht_score && Number.isFinite(Number(sup.ht_score.home)) && Number.isFinite(Number(sup.ht_score.away))
-        ? { home: Number(sup.ht_score.home), away: Number(sup.ht_score.away) }
-        : null;
-
-      // Update Ledger items & Parlay legs
-      ledger = ledger.map((item: any) => {
-        if (areSameMatch(dummyMatch, item)) {
-          updatedLedgerCount++;
-          item.review = item.review || {};
-          item.review.final_score = scoreObj;
-          if (htScoreObj) item.review.ht_score = htScoreObj;
-          item.review.status = 'reviewed';
-          item.score_verified = sup.score_verified === true;
-          item.score_source = sup.score_source || 'user_batch_verification';
-        }
-
-        if (item.parlay_legs && Array.isArray(item.parlay_legs)) {
-          let legHit = false;
-          item.parlay_legs = item.parlay_legs.map((leg: any) => {
-            if (areSameMatch(dummyMatch, { match: leg.match, ybty_home: leg.ybty_home, ybty_away: leg.ybty_away })) {
-              legHit = true;
-              return {
-                ...leg,
-                final_score: scoreObj,
-                ht_score: htScoreObj || leg.ht_score,
-                score_verified: sup.score_verified === true,
-              };
-            }
-            return leg;
-          });
-          if (legHit) updatedLedgerCount++;
-        }
-
-        return item;
-      });
-
-      // Update Live Decisions
-      if (liveFile.decisions && Array.isArray(liveFile.decisions)) {
-        liveFile.decisions = liveFile.decisions.map((d: any) => {
-          if (areSameMatch(dummyMatch, d)) {
-            updatedDecisionsCount++;
-            return {
-              ...d,
-              score: scoreObj,
-              ht_score: htScoreObj || d.ht_score,
-              score_verified: sup.score_verified === true,
-              score_source: sup.score_source || 'user_batch_verification',
-              risks: sup.score_verified === true ? (d.risks || []).filter((r: string) => !r.includes('比分未经校验')) : (d.risks || []),
-            };
-          }
-          return d;
-        });
-      }
-
-      // Update Prematch Decisions
-      if (prematchFile.decisions && Array.isArray(prematchFile.decisions)) {
-        prematchFile.decisions = prematchFile.decisions.map((d: any) => {
-          if (areSameMatch(dummyMatch, d)) {
-            updatedDecisionsCount++;
-            return {
-              ...d,
-              score: scoreObj,
-              ht_score: htScoreObj || d.ht_score,
-              score_verified: sup.score_verified === true,
-              score_source: sup.score_source || 'user_batch_verification',
-              risks: sup.score_verified === true ? (d.risks || []).filter((r: string) => !r.includes('比分未经校验')) : (d.risks || []),
-            };
-          }
-          return d;
-        });
-      }
-    }
-
-    requireJsonWrites([
-      ['output/recommendation_ledger.json', ledger],
-      ['output/ybty_leisu_decisions.json', liveFile],
-      ['output/ybty_leisu_prematch_decisions.json', prematchFile],
-    ]);
-
-    res.json({
-      success: true,
-      updatedLedgerCount,
-      updatedDecisionsCount,
-      ledger,
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Delete selected items or clear all ledger items
-app.post('/api/ledger/delete', (req, res) => {
-  try {
-    const { ids, clearAll } = req.body;
-    let ledger = readJsonFile<any[]>('output/recommendation_ledger.json', []);
-
-    if (clearAll) {
-      ledger = [];
-    } else if (Array.isArray(ids) && ids.length > 0) {
-      const idSet = new Set(ids);
-      ledger = ledger.filter((i: any) => !idSet.has(i.id));
-    }
-
-    requireJsonWrites([['output/recommendation_ledger.json', ledger]]);
-    res.json({ success: true, ledger });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Backtest Report & Formal Results
-app.get('/api/backtest', (req, res) => {
-  let reportText = '';
-  try {
-    const reportPath = path.join(process.cwd(), 'output/BACKTEST_REPORT_2026-07-29.md');
-    if (fs.existsSync(reportPath)) {
-      reportText = fs.readFileSync(reportPath, 'utf-8');
-    }
-  } catch (err) {
-    console.warn('Could not read backtest report file', err);
-  }
-
-  const formalResults = readJsonFile('output/formal_results_2026-07-29.json', {});
-
-  res.json({
-    report: reportText,
-    formal_results: formalResults,
-  });
-});
+registerReportReadRoutes(app);
 
 // Team Aliases Synchronizer: Refresh decisions JSON files whenever aliases change
 function syncDecisionsWithAliases() {
-  try {
-    const manual = readJsonFile<Record<string, string[]>>('team_aliases.json', {});
-    const auto = readJsonFile<Record<string, string[]>>('team_aliases_auto.json', {});
-
-    const lookupMap = new Map<string, string>();
-    const processDict = (dict: Record<string, string[]>) => {
-      for (const [canonical, list] of Object.entries(dict)) {
-        const normCanonical = normalizeTeamName(canonical);
-        if (normCanonical) lookupMap.set(normCanonical, canonical);
-        if (Array.isArray(list)) {
-          for (const alias of list) {
-            const normAlias = normalizeTeamName(alias);
-            if (normAlias) {
-              lookupMap.set(normAlias, canonical);
-            }
-          }
-        }
-      }
-    };
-
-    processDict(manual);
-    processDict(auto);
-
-    const resolveLeisuName = (ybtyName: string, existingLeisuName?: string) => {
-      if (existingLeisuName && existingLeisuName !== '未匹配' && existingLeisuName !== ybtyName && existingLeisuName !== '未匹配雷速') {
-        return existingLeisuName;
-      }
-      if (!ybtyName) return existingLeisuName || '';
-      const norm = normalizeTeamName(ybtyName);
-      if (lookupMap.has(norm)) {
-        return lookupMap.get(norm)!;
-      }
-      return existingLeisuName || ybtyName;
-    };
-
-    // 1. Live decisions
-    const liveFile = readJsonFile<any>('output/ybty_leisu_decisions.json', { decisions: [], summary: {} });
-    let liveChanged = false;
-    if (Array.isArray(liveFile.decisions)) {
-      liveFile.decisions.forEach((d: any) => {
-        const home = d.ybty_home || (d.match ? d.match.split(' vs ')[0] : '');
-        const away = d.ybty_away || (d.match ? d.match.split(' vs ')[1] : '');
-        const newLeisuHome = resolveLeisuName(home, d.leisu_home);
-        const newLeisuAway = resolveLeisuName(away, d.leisu_away);
-        if (newLeisuHome !== d.leisu_home || newLeisuAway !== d.leisu_away) {
-          d.leisu_home = newLeisuHome;
-          d.leisu_away = newLeisuAway;
-          liveChanged = true;
-        }
-      });
-      if (liveChanged) {
-        requireJsonWrites([['output/ybty_leisu_decisions.json', liveFile]]);
-      }
-    }
-
-    // 2. Prematch decisions
-    const prematchFile = readJsonFile<any>('output/ybty_leisu_prematch_decisions.json', { decisions: [], summary: {} });
-    let prematchChanged = false;
-    const prematchCollections = [prematchFile.decisions, prematchFile.research_queue].filter(Array.isArray);
-    if (prematchCollections.length > 0) {
-      prematchCollections.flat().forEach((d: any) => {
-        const home = d.ybty_home || (d.match ? d.match.split(' vs ')[0] : '');
-        const away = d.ybty_away || (d.match ? d.match.split(' vs ')[1] : '');
-        const newLeisuHome = resolveLeisuName(home, d.leisu_home);
-        const newLeisuAway = resolveLeisuName(away, d.leisu_away);
-        if (newLeisuHome !== d.leisu_home || newLeisuAway !== d.leisu_away) {
-          d.leisu_home = newLeisuHome;
-          d.leisu_away = newLeisuAway;
-          prematchChanged = true;
-        }
-      });
-      if (prematchChanged) {
-        requireJsonWrites([['output/ybty_leisu_prematch_decisions.json', prematchFile]]);
-      }
-    }
-  } catch (e) {
-    console.error('Error in syncDecisionsWithAliases:', e);
-  }
+  synchronizeDecisionAliases(normalizeTeamName);
+  return;
 }
 
 // Perform immediate initial sync on boot
 syncDecisionsWithAliases();
 
 // Team Aliases
-app.get('/api/aliases', (req, res) => {
-  const manual = readJsonFile('team_aliases.json', {});
-  const auto = readJsonFile('team_aliases_auto.json', {});
-  res.json({ manual, auto });
-});
-
-app.post('/api/aliases', (req, res) => {
-  const { canonical_name, alias } = req.body;
-  if (!canonical_name || !alias) {
-    return res.status(400).json({ error: 'canonical_name and alias are required' });
-  }
-
-  const manual = readJsonFile<Record<string, string[]>>('team_aliases.json', {});
-  
-  // Persist only canonical -> aliases. Reverse lookup is built in memory.
-  // A provider alias may belong to only one canonical team.
-  const removed_from: string[] = [];
-  for (const [existingCanonical, aliases] of Object.entries(manual)) {
-    if (existingCanonical === canonical_name || !Array.isArray(aliases)) continue;
-    const filtered = aliases.filter((value) => value !== alias);
-    if (filtered.length !== aliases.length) {
-      manual[existingCanonical] = filtered;
-      removed_from.push(existingCanonical);
-    }
-  }
-  // Remove symmetric records created by older versions of this endpoint.
-  if (alias !== canonical_name && Array.isArray(manual[alias])) {
-    manual[alias] = manual[alias].filter((value) => value !== canonical_name);
-    if (manual[alias].length === 0) delete manual[alias];
-  }
-
-  if (!manual[canonical_name]) manual[canonical_name] = [];
-  if (!manual[canonical_name].includes(alias)) {
-    manual[canonical_name].push(alias);
-  }
-
-  requireJsonWrites([['team_aliases.json', manual]]);
-  const suppressed = readJsonFile<string[]>('team_aliases_suppressed.json', []);
-  const canonicalNorm = normalizeTeamName(canonical_name);
-  const nextSuppressed = suppressed.filter((value) => normalizeTeamName(value) !== canonicalNorm);
-  if (nextSuppressed.length !== suppressed.length) requireJsonWrites([['team_aliases_suppressed.json', nextSuppressed]]);
-
-  // 立即驱动全局决策重发刷盘
-  syncDecisionsWithAliases();
-
-  res.json({ success: true, aliases: manual, removed_from });
-});
-
-app.put('/api/aliases', (req, res) => {
-  try {
-    const oldCanonical = String(req.body?.old_canonical_name || '').trim();
-    const newCanonical = String(req.body?.canonical_name || '').trim();
-    const aliases: string[] = Array.from(new Set<string>((Array.isArray(req.body?.aliases) ? req.body.aliases : [])
-      .map((value: unknown) => String(value || '').trim())
-      .filter((value: string) => value && value !== newCanonical)));
-    if (!oldCanonical || !newCanonical) return res.status(400).json({ error: '原标准队名和新标准队名不能为空。' });
-
-    const manual = readJsonFile<Record<string, string[]>>('team_aliases.json', {});
-    const auto = readJsonFile<Record<string, string[]>>('team_aliases_auto.json', {});
-    if (!(oldCanonical in manual) && !(oldCanonical in auto)) return res.status(404).json({ error: '要修改的球队映射不存在。' });
-    const occupiedCanonical = Array.from(new Set([...Object.keys(manual), ...Object.keys(auto)]))
-      .find((canonical) => canonical !== oldCanonical && normalizeTeamName(canonical) === normalizeTeamName(newCanonical));
-    if (occupiedCanonical) return res.status(409).json({ error: `标准队名“${newCanonical}”与已有“${occupiedCanonical}”重复，请先处理已有映射。` });
-
-    const conflicts: string[] = [];
-    for (const alias of aliases) {
-      const aliasNorm = normalizeTeamName(alias);
-      const canonicalConflict = Array.from(new Set([...Object.keys(manual), ...Object.keys(auto)]))
-        .find((canonical) => canonical !== oldCanonical && canonical !== newCanonical && normalizeTeamName(canonical) === aliasNorm);
-      if (canonicalConflict) conflicts.push(`${alias} → 标准名 ${canonicalConflict}`);
-      for (const [canonical, values] of [...Object.entries(manual), ...Object.entries(auto)]) {
-        if (canonical !== oldCanonical && canonical !== newCanonical && Array.isArray(values) && values.some((value) => normalizeTeamName(value) === aliasNorm)) conflicts.push(`${alias} → ${canonical}`);
-      }
-    }
-    if (conflicts.length > 0) return res.status(409).json({ error: '以下别名已被其他球队占用，未保存。', conflicts: Array.from(new Set(conflicts)) });
-
-    const existingAuto = Array.isArray(auto[oldCanonical]) ? auto[oldCanonical] : [];
-    if (newCanonical !== oldCanonical) {
-      delete manual[oldCanonical];
-      delete auto[oldCanonical];
-    }
-    manual[newCanonical] = aliases;
-    if (existingAuto.length > 0) auto[newCanonical] = existingAuto;
-
-    requireJsonWrites([
-      ['team_aliases.json', manual],
-      ['team_aliases_auto.json', auto],
-    ]);
-    const suppressed = readJsonFile<string[]>('team_aliases_suppressed.json', []);
-    const newCanonicalNorm = normalizeTeamName(newCanonical);
-    const nextSuppressed = suppressed.filter((value) => normalizeTeamName(value) !== newCanonicalNorm);
-    if (nextSuppressed.length !== suppressed.length) requireJsonWrites([['team_aliases_suppressed.json', nextSuppressed]]);
-
-    if (newCanonical !== oldCanonical) {
-      const renameInFile = (filePath: string) => {
-        const file = readJsonFile<any>(filePath, { decisions: [], research_queue: [] });
-        let changed = false;
-        for (const collection of [file.decisions, file.research_queue].filter(Array.isArray)) {
-          for (const item of collection) {
-            if (item.leisu_home === oldCanonical) { item.leisu_home = newCanonical; changed = true; }
-            if (item.leisu_away === oldCanonical) { item.leisu_away = newCanonical; changed = true; }
-          }
-        }
-        if (changed) requireJsonWrites([[filePath, file]]);
-      };
-      renameInFile('output/ybty_leisu_decisions.json');
-      renameInFile('output/ybty_leisu_prematch_decisions.json');
-    }
-    syncDecisionsWithAliases();
-    res.json({ success: true, canonical_name: newCanonical, aliases, automatic_aliases: existingAuto });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || '球队名称修改失败' });
-  }
-});
-
-app.delete('/api/aliases', (req, res) => {
-  try {
-    const canonical = String(req.body?.canonical_name || '').trim();
-    if (!canonical) return res.status(400).json({ error: 'canonical_name 不能为空。' });
-    const manual = readJsonFile<Record<string, string[]>>('team_aliases.json', {});
-    const auto = readJsonFile<Record<string, string[]>>('team_aliases_auto.json', {});
-    if (!(canonical in manual) && !(canonical in auto)) return res.status(404).json({ error: '球队映射不存在或已被删除。' });
-    const removedManual = manual[canonical] || [];
-    const removedAuto = auto[canonical] || [];
-    delete manual[canonical];
-    delete auto[canonical];
-    const suppressed = readJsonFile<string[]>('team_aliases_suppressed.json', []);
-    if (!suppressed.some((value) => normalizeTeamName(value) === normalizeTeamName(canonical))) suppressed.push(canonical);
-    requireJsonWrites([
-      ['team_aliases.json', manual],
-      ['team_aliases_auto.json', auto],
-      ['team_aliases_suppressed.json', suppressed],
-    ]);
-    syncDecisionsWithAliases();
-    res.json({ success: true, canonical_name: canonical, removed_aliases: [...removedManual, ...removedAuto] });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || '删除球队映射失败' });
-  }
+registerAliasReadRoutes(app);
+registerAliasMutationRoutes(app, {
+  normalizeTeamName,
+  synchronizeDecisions: syncDecisionsWithAliases,
 });
 
 function exportFileInfo(filePath: string) {
@@ -1447,7 +428,7 @@ function resolveSnapshotPath(status: any, field: string, fallback: string, warni
   const recorded = status?.[field];
   if (recorded && fs.existsSync(recorded)) return recorded;
   if (recorded) warnings.push(`状态文件记录的 ${field} 不存在，已使用 latest 回退文件`);
-  const fallbackPath = path.join(process.cwd(), fallback);
+  const fallbackPath = resolveProjectPath(fallback);
   if (!fs.existsSync(fallbackPath)) throw new Error(`Missing export source: ${fallback}`);
   return fallbackPath;
 }
@@ -1473,7 +454,7 @@ app.get('/api/export-combined', (req, res) => {
     const statusFile = isPrematch ? 'output/prematch_pipeline_status.json' : 'output/pipeline_status.json';
     const candidatesFile = isPrematch ? 'output/ybty_leisu_prematch_candidates.json' : 'output/ybty_leisu_candidates.json';
     const decisionsFile = isPrematch ? 'output/ybty_leisu_prematch_decisions.json' : 'output/ybty_leisu_decisions.json';
-    const statusPath = path.join(process.cwd(), statusFile);
+    const statusPath = resolveProjectPath(statusFile);
     if (!fs.existsSync(statusPath)) throw new Error(`Missing export source: ${statusFile}`);
     const status = readJsonFile<any>(statusFile, {});
     const ybtyPath = resolveSnapshotPath(status, 'ybty_file', isPrematch ? 'output/ybty_prematch_latest.json' : 'output/ybty_latest.json', warnings);
@@ -1481,11 +462,11 @@ app.get('/api/export-combined', (req, res) => {
     const paths: Record<string, string> = {
       ybty: ybtyPath,
       leisu: leisuPath,
-      candidates: path.join(process.cwd(), candidatesFile),
-      decisions: path.join(process.cwd(), decisionsFile),
+      candidates: resolveProjectPath(candidatesFile),
+      decisions: resolveProjectPath(decisionsFile),
       pipeline_status: statusPath,
     };
-    if (isPrematch) paths.ai_brief = path.join(process.cwd(), 'output/prematch_ai_brief.json');
+    if (isPrematch) paths.ai_brief = projectPath('output', 'prematch_ai_brief.json');
     for (const [name, filePath] of Object.entries(paths)) {
       if (!fs.existsSync(filePath)) throw new Error(`Missing export source ${name}: ${filePath}`);
     }
@@ -1608,509 +589,35 @@ function calculateExactBeijingTime(item: any): string {
 }
 
 function normalizeTeamName(name: string): string {
-  if (!name) return '';
-  let str = String(name).trim();
-  if (str === '[object Object]') return '';
-  str = str.replace(/\(女\)|女足|（女）|Women/gi, '女足');
-  str = str.replace(/\(中\)|（中）|\[中\]/g, '');
-  str = str.replace(/\(主\)|（主）|\[主\]/g, '');
-  str = str.replace(/U20/gi, 'u20').replace(/U21/gi, 'u21').replace(/U23/gi, 'u23').replace(/U19/gi, 'u19');
-  str = str.replace(/[·\.\-\_\s\(\)（）]/g, '');
-  return str.toLowerCase();
+  const input = String(name || '').trim();
+  if (!input || input === '[object Object]') return '';
+  const normalized = input
+    .replace(/\(女\)|（女）|女足|women/gi, '女足')
+    .replace(/\(中\)|（中）|\[中\]/g, '')
+    .replace(/\(主\)|（主）|\[主\]/g, '')
+    .replace(/u[\s_-]?20/gi, 'u20')
+    .replace(/u[\s_-]?21/gi, 'u21')
+    .replace(/u[\s_-]?23/gi, 'u23')
+    .replace(/u[\s_-]?19/gi, 'u19')
+    .replace(/u[\s_-]?17/gi, 'u17');
+  return normalized.replace(/[·.\-_\s()（）【】\[\]]/g, '').toLowerCase();
 }
 
 // Batch CSV/JSON Data Supplement & Match Update Endpoint
-app.post('/api/batch-supplement', (req, res) => {
-  try {
-    const { items, mode: importMode = 'overwrite' } = req.body;
-    if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ error: 'No items provided for batch update' });
-    }
+const handleBatchSupplement = createBatchSupplementHandler(normalizeTeamName);
 
-    const manualAliases = readJsonFile<Record<string, string[]>>('team_aliases.json', {});
-    const autoAliases = readJsonFile<Record<string, string[]>>('team_aliases_auto.json', {});
-
-    const aliasesMap = new Map<string, string>();
-    const registerDict = (dict: Record<string, string[]>) => {
-      for (const [canon, list] of Object.entries(dict)) {
-        const normCanon = normalizeTeamName(canon);
-        if (normCanon) aliasesMap.set(normCanon, canon);
-        if (Array.isArray(list)) {
-          for (const a of list) {
-            const normA = normalizeTeamName(a);
-            if (normA) aliasesMap.set(normA, canon);
-          }
-        }
-      }
-    };
-    registerDict(manualAliases);
-    registerDict(autoAliases);
-
-    let aliasUpdated = false;
-
-    const matchTeamNames = (teamA: string, teamB: string): boolean => {
-      if (!teamA || !teamB) return false;
-      const normA = normalizeTeamName(teamA);
-      const normB = normalizeTeamName(teamB);
-      if (!normA || !normB) return false;
-      if (normA === normB) return true;
-      const canonA = aliasesMap.get(normA) || normA;
-      const canonB = aliasesMap.get(normB) || normB;
-      if (canonA === canonB) return true;
-      if (normA.length >= 3 && normB.length >= 3 && (normA.includes(normB) || normB.includes(normA))) {
-        return true;
-      }
-      return false;
-    };
-
-    const liveFile = readJsonFile<any>('output/ybty_leisu_decisions.json', { decisions: [], summary: {} });
-    const prematchFile = readJsonFile<any>('output/ybty_leisu_prematch_decisions.json', { decisions: [], summary: {} });
-
-    let liveUpdatedCount = 0;
-    let prematchUpdatedCount = 0;
-
-    let liveDecisions = importMode === 'overwrite' ? [] : (liveFile.decisions || []);
-    let prematchDecisions = importMode === 'overwrite' ? [] : (prematchFile.decisions || []);
-
-    for (const item of items) {
-      const homeTeam = item.ybty_home || item.home || item.homeTeam?.name || item.home_team || item.host || '';
-      const awayTeam = item.ybty_away || item.away || item.awayTeam?.name || item.away_team || item.guest || '';
-      
-      let leisuHome = item.leisu_home || item.leisu_home_team || item.matched_leisu_home || item.matched_leisu?.leisu_home || item.candidate?.match?.home || item.match_info?.leisu_home || item.leisu_raw?.home || '';
-      let leisuAway = item.leisu_away || item.leisu_away_team || item.matched_leisu_away || item.matched_leisu?.leisu_away || item.candidate?.match?.away || item.match_info?.leisu_away || item.leisu_raw?.away || '';
-      
-      const rawMatch = item.match || `${homeTeam} vs ${awayTeam}`.trim();
-      const matchName = rawMatch === 'vs' || !rawMatch ? '未知赛事' : rawMatch;
-
-      if ((!leisuHome || !leisuAway) && item.leisu_match && typeof item.leisu_match === 'string') {
-        const lParts = item.leisu_match.split(/\s+vs\s+/i);
-        if (lParts.length >= 2) {
-          if (!leisuHome) leisuHome = lParts[0].replace(/^\[.*?\]\s*/, '').trim();
-          if (!leisuAway) leisuAway = lParts[1].trim();
-        }
-      }
-
-      // Alias dictionaries are canonical -> aliases. Leisu is the canonical
-      // display name for cross-provider matching; writing the reverse direction
-      // creates cycles and lets YBTY names overwrite Leisu raw names.
-      if (homeTeam && leisuHome && homeTeam !== leisuHome) {
-        if (!manualAliases[leisuHome]) manualAliases[leisuHome] = [];
-        if (!manualAliases[leisuHome].includes(homeTeam)) {
-          manualAliases[leisuHome].push(homeTeam);
-          aliasUpdated = true;
-        }
-      }
-      if (awayTeam && leisuAway && awayTeam !== leisuAway) {
-        if (!manualAliases[leisuAway]) manualAliases[leisuAway] = [];
-        if (!manualAliases[leisuAway].includes(awayTeam)) {
-          manualAliases[leisuAway].push(awayTeam);
-          aliasUpdated = true;
-        }
-      }
-
-      const calculatedBeijingTime = calculateExactBeijingTime({
-        ...item,
-        start_time: item.countdown || item.commence_time || item.start_time || item.ybty_start_time || item.clock_status,
-      });
-
-      // The parser's explicit mode decision is authoritative. Prematch records
-      // can carry provider minute/score fields from a contaminated reference
-      // export; those fields must not silently turn the imported match live.
-      const hasExplicitLiveFlag = typeof item.is_live === 'boolean';
-      const declaredImportMode = String(item.export_mode || '').toLowerCase();
-      const isLive = declaredImportMode === 'prematch'
-        ? false
-        : declaredImportMode === 'live'
-          ? true
-          : hasExplicitLiveFlag
-            ? item.is_live === true
-            : item.source_type === 'live' || Boolean(item.minute && item.minute > 0);
-
-      let matchedInLive = false;
-      let matchedInPrematch = false;
-
-      if (importMode !== 'overwrite') {
-        // Check in existing live decisions
-        liveDecisions.forEach((d: any, idx: number) => {
-          const homeMatches = matchTeamNames(d.ybty_home || d.match?.split(' vs ')[0] || '', homeTeam);
-          const awayMatches = matchTeamNames(d.ybty_away || d.match?.split(' vs ')[1] || '', awayTeam);
-          const nameMatches = d.match && matchName && d.match === matchName;
-
-          if (nameMatches || (homeMatches && awayMatches) || (homeMatches && !awayTeam) || (awayMatches && !homeTeam)) {
-            matchedInLive = true;
-            let hScore = d.score?.home ?? 0;
-            let aScore = d.score?.away ?? 0;
-
-            if (item.home_score !== undefined && item.away_score !== undefined) {
-              hScore = Number(item.home_score) || 0;
-              aScore = Number(item.away_score) || 0;
-            } else if (item.homeScore?.current !== undefined && item.awayScore?.current !== undefined) {
-              hScore = Number(item.homeScore.current) || 0;
-              aScore = Number(item.awayScore.current) || 0;
-            } else if (item.score) {
-              if (typeof item.score === 'object') {
-                hScore = item.score.home ?? hScore;
-                aScore = item.score.away ?? aScore;
-              } else if (typeof item.score === 'string' && item.score.includes('-')) {
-                const parts = item.score.split('-').map(Number);
-                if (!isNaN(parts[0])) hScore = parts[0];
-                if (!isNaN(parts[1])) aScore = parts[1];
-              }
-            }
-
-            liveDecisions[idx] = {
-              ...d,
-              ybty_raw_markets: normalizeYbtyMarketTypes(item.ybty_raw_markets || item.markets || d.ybty_raw_markets),
-              live_statistics: item.live_statistics || d.live_statistics || null,
-              reference_odds: item.reference_odds || d.reference_odds || null,
-              recent_trends: item.recent_trends || d.recent_trends || null,
-              incidents: item.incidents || d.incidents || [],
-              weather: item.weather || d.weather || null,
-              lineups: item.lineups || d.lineups || null,
-              player_candidates: item.player_candidates || d.player_candidates || [],
-              live_text: item.live_text || d.live_text || null,
-              detail_context: item.detail_context || d.detail_context || null,
-              leisu_home: leisuHome || d.leisu_home || '',
-              leisu_away: leisuAway || d.leisu_away || '',
-              score: { home: hScore, away: aScore },
-              score_verified: item.score_verified === true,
-              score_source: item.score_source || 'batch_file_supplement',
-              commence_time: calculatedBeijingTime !== '推算时间' ? calculatedBeijingTime : (d.commence_time || d.ybty_start_time_beijing || calculatedBeijingTime),
-              ybty_start_time_beijing: calculatedBeijingTime !== '推算时间' ? calculatedBeijingTime : (d.ybty_start_time_beijing || calculatedBeijingTime),
-              provider_start_time: item.provider_start_time || d.provider_start_time || null,
-              status: d.status === 'PASS' ? 'WATCH' : d.status,
-              grade: d.grade === 'C' || !d.grade ? 'B' : d.grade,
-              recommendation: (() => {
-                const market = item.market || item.recommendation?.market;
-                const line = item.line ?? item.recommendation?.line;
-                const odds = Number(item.odds ?? item.recommendation?.odds);
-                return market && line !== undefined && line !== '' && Number.isFinite(odds) && odds > 1
-                  ? { market, line, odds }
-                  : d.recommendation || null;
-              })(),
-              risks: (d.risks || []).filter((r: string) => !r.includes('盘口水位缺失') && (item.score_verified !== true || !r.includes('比分未经校验')) && !r.includes('开赛时间缺失')),
-              evidence: Array.from(new Set([...(d.evidence || []), `[数据补充/刷盘] 水位盘口与时间已补全 (${calculatedBeijingTime})`])),
-            };
-            liveUpdatedCount++;
-          }
-        });
-
-        // Check in existing prematch decisions
-        prematchDecisions.forEach((d: any, idx: number) => {
-          const homeMatches = matchTeamNames(d.ybty_home || d.match?.split(' vs ')[0] || '', homeTeam);
-          const awayMatches = matchTeamNames(d.ybty_away || d.match?.split(' vs ')[1] || '', awayTeam);
-          const nameMatches = d.match && matchName && d.match === matchName;
-
-          if (nameMatches || (homeMatches && awayMatches) || (homeMatches && !awayTeam) || (awayMatches && !homeTeam)) {
-            matchedInPrematch = true;
-            let hScore = d.score?.home ?? 0;
-            let aScore = d.score?.away ?? 0;
-
-            if (item.score) {
-              if (typeof item.score === 'object') {
-                hScore = item.score.home ?? 0;
-                aScore = item.score.away ?? 0;
-              } else if (typeof item.score === 'string' && item.score.includes('-')) {
-                const parts = item.score.split('-').map(Number);
-                if (!isNaN(parts[0])) hScore = parts[0];
-                if (!isNaN(parts[1])) aScore = parts[1];
-              }
-            }
-
-            prematchDecisions[idx] = {
-              ...d,
-              ybty_raw_markets: normalizeYbtyMarketTypes(item.ybty_raw_markets || item.markets || d.ybty_raw_markets),
-              live_statistics: item.live_statistics || d.live_statistics || null,
-              reference_odds: item.reference_odds || d.reference_odds || null,
-              recent_trends: item.recent_trends || d.recent_trends || null,
-              incidents: item.incidents || d.incidents || [],
-              weather: item.weather || d.weather || null,
-              lineups: item.lineups || d.lineups || null,
-              player_candidates: item.player_candidates || d.player_candidates || [],
-              live_text: item.live_text || d.live_text || null,
-              detail_context: item.detail_context || d.detail_context || null,
-              leisu_home: leisuHome || d.leisu_home || '',
-              leisu_away: leisuAway || d.leisu_away || '',
-              score: { home: hScore, away: aScore },
-              score_verified: item.score_verified === true,
-              score_source: item.score_source || 'batch_file_supplement',
-              commence_time: calculatedBeijingTime !== '推算时间' ? calculatedBeijingTime : (d.commence_time || d.ybty_start_time_beijing || calculatedBeijingTime),
-              ybty_start_time_beijing: calculatedBeijingTime !== '推算时间' ? calculatedBeijingTime : (d.ybty_start_time_beijing || calculatedBeijingTime),
-              provider_start_time: item.provider_start_time || d.provider_start_time || null,
-              status: d.status === 'PASS' ? 'WATCH' : d.status,
-              grade: d.grade === 'C' || !d.grade ? 'B' : d.grade,
-              recommendation: (() => {
-                const market = item.market || item.recommendation?.market;
-                const line = item.line ?? item.recommendation?.line;
-                const odds = Number(item.odds ?? item.recommendation?.odds);
-                return market && line !== undefined && line !== '' && Number.isFinite(odds) && odds > 1
-                  ? { market, line, odds }
-                  : d.recommendation || null;
-              })(),
-              risks: (d.risks || []).filter((r: string) => !r.includes('盘口水位缺失') && (item.score_verified !== true || !r.includes('比分未经校验')) && !r.includes('开赛时间缺失')),
-              evidence: Array.from(new Set([...(d.evidence || []), `[数据补充/刷盘] 水位盘口与时间已补全 (${calculatedBeijingTime})`])),
-            };
-            prematchUpdatedCount++;
-          }
-        });
-      }
-
-      // If item was not matched or in overwrite mode, append new Decision record
-      if (!matchedInLive && !matchedInPrematch) {
-        let hScore = 0;
-        let aScore = 0;
-        if (item.score) {
-          if (typeof item.score === 'object') {
-            hScore = item.score.home ?? 0;
-            aScore = item.score.away ?? 0;
-          } else if (typeof item.score === 'string' && item.score.includes('-')) {
-            const parts = item.score.split('-').map(Number);
-            if (!isNaN(parts[0])) hScore = parts[0];
-            if (!isNaN(parts[1])) aScore = parts[1];
-          }
-        }
-
-        const newRecord = {
-          match: matchName,
-          ybty_home: homeTeam || (matchName.includes(' vs ') ? matchName.split(' vs ')[0] : matchName),
-          ybty_away: awayTeam || (matchName.includes(' vs ') ? matchName.split(' vs ')[1] : ''),
-          leisu_home: leisuHome || '',
-          leisu_away: leisuAway || '',
-          status: 'WATCH',
-          grade: 'B',
-          minute: item.minute || 0,
-          score: { home: hScore, away: aScore },
-          score_verified: item.score_verified === true,
-          score_source: item.score_source || 'import_file',
-          commence_time: calculatedBeijingTime,
-          ybty_start_time_beijing: calculatedBeijingTime,
-          provider_start_time: item.provider_start_time || null,
-          recommendation: (() => {
-            const market = item.market || item.recommendation?.market;
-            const line = item.line ?? item.recommendation?.line;
-            const odds = Number(item.odds ?? item.recommendation?.odds);
-            return market && line !== undefined && line !== '' && Number.isFinite(odds) && odds > 1
-              ? { market, line, odds }
-              : null;
-          })(),
-          evidence: [`[最新导入] 数据来源: ${item.source_type || '整合导入'}，已计算准确开赛与已进行时间`],
-          risks: [],
-          ybty_raw_markets: normalizeYbtyMarketTypes(item.ybty_raw_markets || item.markets),
-          live_statistics: item.live_statistics || null,
-          reference_odds: item.reference_odds || null,
-          recent_trends: item.recent_trends || null,
-          incidents: item.incidents || [],
-          weather: item.weather || null,
-          lineups: item.lineups || null,
-          player_candidates: item.player_candidates || [],
-          live_text: item.live_text || null,
-          detail_context: item.detail_context || null,
-        };
-
-        if (isLive) {
-          liveDecisions.push(newRecord);
-          liveUpdatedCount++;
-        } else {
-          prematchDecisions.push(newRecord);
-          prematchUpdatedCount++;
-        }
-      }
-    }
-
-    // Save live decisions
-    liveFile.decisions = liveDecisions;
-    liveFile.summary = {
-      total: liveDecisions.length,
-      a_grade: liveDecisions.filter((d: any) => d.grade === 'A').length,
-      b_grade: liveDecisions.filter((d: any) => d.grade === 'B').length,
-      watch: liveDecisions.filter((d: any) => d.status === 'WATCH').length,
-      updated_at: new Date().toISOString(),
-    };
-    // Save prematch decisions
-    prematchFile.decisions = prematchDecisions;
-    prematchFile.summary = {
-      total: prematchDecisions.length,
-      a_grade: prematchDecisions.filter((d: any) => d.grade === 'A').length,
-      b_grade: prematchDecisions.filter((d: any) => d.grade === 'B').length,
-      watch: prematchDecisions.filter((d: any) => d.status === 'WATCH').length,
-      updated_at: new Date().toISOString(),
-    };
-    // Also update pipeline status files
-    const liveStatus = readJsonFile<any>('output/pipeline_status.json', {});
-    liveStatus.last_updated = new Date().toISOString();
-    liveStatus.total_matches = liveDecisions.length;
-    const prematchStatus = readJsonFile<any>('output/prematch_pipeline_status.json', {});
-    prematchStatus.last_updated = new Date().toISOString();
-    prematchStatus.total_matches = prematchDecisions.length;
-    // Persist the whole import in one transaction. Previously each file was
-    // serialized/copied/renamed separately and the alias synchronizer then read
-    // and sometimes rewrote the same large decision files a second time.
-    const writes: Array<[string, any]> = [
-      ['output/ybty_leisu_decisions.json', liveFile],
-      ['output/ybty_leisu_prematch_decisions.json', prematchFile],
-      ['output/pipeline_status.json', liveStatus],
-      ['output/prematch_pipeline_status.json', prematchStatus],
-    ];
-    if (aliasUpdated) writes.push(['team_aliases.json', manualAliases]);
-    requireJsonWrites(writes);
-
-    res.json({
-      success: true,
-      import_mode: importMode,
-      live_count: liveDecisions.length,
-      prematch_count: prematchDecisions.length,
-      total_updated: liveDecisions.length + prematchDecisions.length,
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
+registerBatchSupplementRoutes(app, handleBatchSupplement);
 
 // Clear Analysis Library Matches Endpoint (Resets live & prematch analysis databases without affecting recommendation ledger)
-app.post('/api/clear-outdated-matches', (req, res) => {
-  try {
-    const { target, clear_mode, match_names } = req.body || {}; // target: live|prematch|all; clear_mode: selected|all
-    if (!['live', 'prematch', 'all'].includes(String(target))) {
-      return res.status(400).json({ error: '必须明确指定清空目标：live、prematch 或 all。' });
-    }
-    if (!['selected', 'all'].includes(String(clear_mode))) {
-      return res.status(400).json({ error: '必须明确指定 clear_mode：selected 或 all；系统禁止根据空名单自动执行全量清空。' });
-    }
-    const selective = clear_mode === 'selected';
-    const selectedNames = new Set((Array.isArray(match_names) ? match_names : []).map((name: unknown) => String(name || '').trim()).filter(Boolean));
-    if (selective && selectedNames.size === 0) {
-      return res.status(400).json({ error: '清空所选被拒绝：没有收到任何有效比赛名称，不会执行全量清空。' });
-    }
-
-    let clearedLiveCount = 0;
-    let clearedPrematchCount = 0;
-
-    if (target === 'live' || target === 'all') {
-      const liveFile = readJsonFile<any>('output/ybty_leisu_decisions.json', { decisions: [], summary: {} });
-      const liveDecisions = Array.isArray(liveFile.decisions) ? liveFile.decisions : [];
-      clearedLiveCount = selective ? liveDecisions.filter((item: any) => selectedNames.has(String(item?.match || '').trim())).length : liveDecisions.length;
-      liveFile.decisions = selective ? liveDecisions.filter((item: any) => !selectedNames.has(String(item?.match || '').trim())) : [];
-      liveFile.single_best = null;
-      liveFile.parlay_5x = null;
-      liveFile.summary = {
-        total: liveFile.decisions.length,
-        a_grade: liveFile.decisions.filter((item: any) => item.grade === 'A').length,
-        b_grade: liveFile.decisions.filter((item: any) => item.grade === 'B').length,
-        watch: liveFile.decisions.filter((item: any) => item.status === 'WATCH').length,
-        updated_at: new Date().toISOString(),
-      };
-
-      const liveCandidates = readJsonFile<any>('output/ybty_leisu_candidates.json', { candidates: [] });
-      const liveCandidatesList = Array.isArray(liveCandidates.candidates) ? liveCandidates.candidates : [];
-      liveCandidates.candidates = selective ? liveCandidatesList.filter((item: any) => !selectedNames.has(String(item?.match || '').trim())) : [];
-      liveCandidates.summary = { total: liveCandidates.candidates.length, updated_at: new Date().toISOString() };
-
-      const writes: [string, any][] = [
-        ['output/ybty_leisu_decisions.json', liveFile],
-        ['output/ybty_leisu_candidates.json', liveCandidates],
-      ];
-
-      if (!selective) {
-        const ybtyLatest = readJsonFile<any>('output/ybty_latest.json', { matches: [] });
-        ybtyLatest.matches = [];
-        const leisuLatest = readJsonFile<any>('output/leisu_latest.json', { matches: [] });
-        leisuLatest.matches = [];
-        writes.push(['output/ybty_latest.json', ybtyLatest], ['output/leisu_latest.json', leisuLatest]);
-      }
-
-      const liveStatus = readJsonFile<any>('output/pipeline_status.json', {});
-      liveStatus.last_updated = new Date().toISOString();
-      liveStatus.total_matches = liveFile.decisions.length;
-      writes.push(['output/pipeline_status.json', liveStatus]);
-
-      requireJsonWrites(writes);
-    }
-
-    if (target === 'prematch' || target === 'all') {
-      const prematchFile = readJsonFile<any>('output/ybty_leisu_prematch_decisions.json', { decisions: [], summary: {} });
-      const prematchDecisionsCount = Array.isArray(prematchFile.decisions) ? prematchFile.decisions.length : 0;
-      const prematchResearchCount = Array.isArray(prematchFile.research_queue) ? prematchFile.research_queue.length : 0;
-      const prematchDecisions = Array.isArray(prematchFile.decisions) ? prematchFile.decisions : [];
-      const prematchResearch = Array.isArray(prematchFile.research_queue) ? prematchFile.research_queue : [];
-      clearedPrematchCount = selective
-        ? prematchDecisions.filter((item: any) => selectedNames.has(String(item?.match || '').trim())).length + prematchResearch.filter((item: any) => selectedNames.has(String(item?.match || '').trim())).length
-        : prematchDecisionsCount + prematchResearchCount;
-      prematchFile.decisions = selective ? prematchDecisions.filter((item: any) => !selectedNames.has(String(item?.match || '').trim())) : [];
-      prematchFile.research_queue = selective ? prematchResearch.filter((item: any) => !selectedNames.has(String(item?.match || '').trim())) : [];
-      prematchFile.single_best = null;
-      prematchFile.parlay_5x = null;
-      const remainingPrematch = [...prematchFile.decisions, ...prematchFile.research_queue];
-      prematchFile.summary = {
-        total: remainingPrematch.length,
-        assessed: remainingPrematch.length,
-        a_grade: remainingPrematch.filter((item: any) => item.grade === 'A').length,
-        b_grade: remainingPrematch.filter((item: any) => item.grade === 'B').length,
-        c_grade: remainingPrematch.filter((item: any) => item.grade === 'C').length,
-        watch: remainingPrematch.filter((item: any) => item.status === 'WATCH').length,
-        research: prematchFile.research_queue.length,
-        pass: remainingPrematch.filter((item: any) => item.status === 'PASS').length,
-        updated_at: new Date().toISOString(),
-      };
-
-      const prematchCandidates = readJsonFile<any>('output/ybty_leisu_prematch_candidates.json', {});
-      prematchCandidates.candidates = selective ? (prematchCandidates.candidates || []).filter((item: any) => !selectedNames.has(String(item?.match || '').trim())) : [];
-      prematchCandidates.live_events = selective ? (prematchCandidates.live_events || []).filter((item: any) => !selectedNames.has(String(item?.match || '').trim())) : [];
-      if (!selective) prematchCandidates.unmatched_markets = [];
-      prematchCandidates.summary = { ...(prematchCandidates.summary || {}), total: prematchCandidates.candidates.length };
-
-      const prematchBrief = readJsonFile<any>('output/prematch_ai_brief.json', {});
-      prematchBrief.candidates = selective ? (prematchBrief.candidates || []).filter((item: any) => !selectedNames.has(String(item?.match || '').trim())) : [];
-      prematchBrief.highlights = selective ? (prematchBrief.highlights || []).filter((item: any) => !selectedNames.has(String(item?.match || '').trim())) : [];
-      prematchBrief.summary = selective ? `已从非滚球分析库移除 ${clearedPrematchCount} 场所选比赛。` : '非滚球分析库已清空，等待下一次分析。';
-
-      const prematchStatus = readJsonFile<any>('output/prematch_pipeline_status.json', {});
-      prematchStatus.last_updated = new Date().toISOString();
-      prematchStatus.total_matches = remainingPrematch.length;
-      if (!selective) {
-        prematchStatus.market_events = 0;
-        prematchStatus.prematch_events = 0;
-        prematchStatus.matched = 0;
-        prematchStatus.unmatched = 0;
-      }
-      prematchStatus.research = prematchFile.research_queue.length;
-      prematchStatus.pass = remainingPrematch.filter((item: any) => item.status === 'PASS').length;
-
-      const prematchWrites: [string, any][] = [
-        ['output/ybty_leisu_prematch_decisions.json', prematchFile],
-        ['output/ybty_leisu_prematch_candidates.json', prematchCandidates],
-        ['output/prematch_ai_brief.json', prematchBrief],
-        ['output/prematch_pipeline_status.json', prematchStatus],
-      ];
-
-      if (!selective) {
-        const ybtyPrematchLatest = readJsonFile<any>('output/ybty_prematch_latest.json', { matches: [] });
-        ybtyPrematchLatest.matches = [];
-        const leisuPrematchLatest = readJsonFile<any>('output/leisu_prematch_latest.json', { matches: [] });
-        leisuPrematchLatest.matches = [];
-        prematchWrites.push(['output/ybty_prematch_latest.json', ybtyPrematchLatest], ['output/leisu_prematch_latest.json', leisuPrematchLatest]);
-      }
-
-      requireJsonWrites(prematchWrites);
-    }
-
-    res.json({
-      success: true,
-      cleared_live: clearedLiveCount,
-      cleared_prematch: clearedPrematchCount,
-      total_cleared: clearedLiveCount + clearedPrematchCount,
-      selective,
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Helper function to compress and clean match evaluation data for Prompt generation
 function compressMatchDataForPrompt(item: any, mode: string) {
+  return buildSlimPromptMatch(item, mode);
+  /* Legacy compressor retained temporarily below for a low-risk migration; it is unreachable
+     and can be removed after exported-prompt snapshots have been compared in production.
   const normalizedRaw = normalizeYbtyMarketTypes(item.ybty_raw_markets || []);
 
   // 1. 精简已核验的 YBTY 盘口：去除 suspended, side_verified, line_index 等冗余位，只保留可投注的有效赔率
-  const verifiedMarkets = normalizedRaw
+  const verifiedMarkets = withVerifiedYbtyOptionIds(normalizedRaw
     .filter((market: any) => /^(full|half)_(h2h|spread|total)$/.test(String(market?.market || '')) && market?.market_type_verified !== false)
     .map((market: any) => ({
       market: market.market,
@@ -2122,7 +629,17 @@ function compressMatchDataForPrompt(item: any, mode: string) {
           odds: Number(opt.odds),
         })),
     }))
-    .filter((m: any) => m.options.length > 0);
+    .filter((m: any) => m.options.length > 0));
+  const ybtyMarketAudit = normalizedRaw.map((market: any) => ({
+    market: market.market || null,
+    market_type_verified: market.market_type_verified !== false,
+    options: (Array.isArray(market.options) ? market.options : []).map((opt: any) => ({
+      side: opt.side || null,
+      line: opt.line ?? opt.selection ?? null,
+      odds: Number.isFinite(Number(opt.odds)) ? Number(opt.odds) : null,
+      suspended: opt.suspended === true,
+    })),
+  }));
 
   // 2. 战绩近况 (recent_trends) 深度去噪：彻底剔除爬虫残余 canvas_values 和 DOM raw text
   let cleanedRecentTrends: any = null;
@@ -2174,11 +691,17 @@ function compressMatchDataForPrompt(item: any, mode: string) {
         source: item.reference_odds.source || 'leisu_odd_panel',
         rows: rows.slice(0, 6),
       };
+    } else {
+      // New interface exports structured opening/current/market phases instead of legacy rows.
+      cleanedRefOdds = item.reference_odds;
     }
   }
 
   // 5. 天气与事件提炼
   const weatherText = Array.isArray(item.weather?.text) ? item.weather.text : item.weather;
+
+  const interfaceContext = buildPromptInterfaceContext(item, true);
+  const carriesCompleteFormal = Boolean(interfaceContext.source_formal_payload);
 
   return {
     match: item.match || `${item.ybty_home || ''} vs ${item.ybty_away || ''}`,
@@ -2192,14 +715,19 @@ function compressMatchDataForPrompt(item: any, mode: string) {
     score_source: mode === 'prematch_eval' ? 'prematch_not_applicable' : item.score_source || 'unverified',
     current_recommendation: item.recommendation || null,
     verified_ybty_markets: verifiedMarkets,
+    ybty_market_audit: {
+      usage: 'Only verified_ybty_markets may be recommended. This full list is supplied for missing/suspended/unverified-market auditing only.',
+      markets: ybtyMarketAudit,
+    },
     unverified_market_count: Math.max(0, normalizedRaw.length - verifiedMarkets.length),
     reference_odds: cleanedRefOdds,
     live_statistics: item.live_statistics && Object.keys(item.live_statistics).length > 0 ? item.live_statistics : null,
-    recent_trends: cleanedRecentTrends,
+    recent_trends: carriesCompleteFormal ? null : cleanedRecentTrends,
+    interface_context: interfaceContext,
     incidents: Array.isArray(item.incidents) && item.incidents.length > 0 ? item.incidents.slice(0, 10) : [],
     weather: weatherText,
-    lineups: cleanedLineups,
-    live_text: Array.isArray(item.live_text?.entries) ? item.live_text.entries.slice(0, 10) : (Array.isArray(item.live_text) ? item.live_text.slice(0, 10) : null),
+    lineups: carriesCompleteFormal ? null : cleanedLineups,
+    live_text: carriesCompleteFormal ? null : (Array.isArray(item.live_text?.entries) ? item.live_text.entries.slice(0, 10) : (Array.isArray(item.live_text) ? item.live_text.slice(0, 10) : null)),
     data_availability: {
       realtime_score: Boolean(item.score),
       score_verified: mode === 'prematch_eval' ? true : item.score_verified === true,
@@ -2208,6 +736,7 @@ function compressMatchDataForPrompt(item: any, mode: string) {
       recent_records: Boolean(cleanedRecentTrends),
     },
   };
+  */
 }
 
 // Helper to sanitize market assessment fields (direction, line, options formatting)
@@ -2216,6 +745,7 @@ function sanitizeMarketAssessment(item: any) {
   let category = String(item.category || '').trim();
   let direction = String(item.direction || '').trim();
   let line = item.line != null && item.line !== '' && item.line !== 'null' ? String(item.line).trim() : null;
+  if (category === '全场独赢1X2') line = null;
 
   // 1. Remove deduplicated words e.g. "2.5/3 2.5/3" or "Home -0/0.5 -0/0.5"
   direction = direction.replace(/(\S+)\s+\1/g, '$1');
@@ -2260,7 +790,7 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
 
   let rulesContent = '';
   try {
-    const instructionsPath = path.join(process.cwd(), 'CUSTOM_INSTRUCTIONS_COMPLETE.md');
+    const instructionsPath = projectPath('CUSTOM_INSTRUCTIONS_COMPLETE.md');
     if (fs.existsSync(instructionsPath)) {
       rulesContent = fs.readFileSync(instructionsPath, 'utf-8');
     }
@@ -2299,6 +829,14 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
 8. 串关：同一方向 B 级最多进一组串关；A 级≥85分且阵容明确时最多两组。
 9. 杯赛/友谊赛/强弱悬殊在阵容未确认前最高 C 级，不进正式串关。`;
 
+  const verifiedOptionRule = `【YBTY真实选项白名单・最高优先级】
+全场/半场大小球、让球、独赢1X2禁止手工填写或改写投注盘口。必须先从本场 verified_ybty_markets 选择一个真实 option，并原样返回它的 option_id 到 market_option_id。系统将根据 option_id 自动回填并锁定 direction、line、odds，AI填写的同名字段不作为投注依据。严禁把 reference_odds 当作投注赔率；严禁自行换盘、猜盘或生成YBTY未提供的半场盘口。某市场不在 verified_ybty_markets 时必须返回 market_option_id=null、status=unavailable、odds=null、line=null。概率必须针对该 option_id 对应的真实盘口单独评估，不得把其他盘口概率套用过来。`;
+  const oddsSourceRoles = `【赔率数据源角色・必须理解】
+1. YBTY是本系统实际投注平台。所有可下注的玩法、方向、盘口、赔率只能来自 verified_ybty_markets；输出时标记 odds_source="ybty_verified"。
+2. 雷速 reference_odds/formal.odds 是参考公司赔率，不是本系统可下注报价。它必须用于提高判断质量：比较初盘/赛前盘/滚球盘、市场共识、升降盘、赔率分歧和异常水位，并在 reason 中说明 reference_odds_usage。
+3. 正确流程是：用雷速赔率轨迹、比赛统计、阵容、历史数据评估真实概率，再把该概率对应到YBTY当前真实选项，计算YBTY隐含概率与价值差。禁止把雷速的line或odds抄入投注字段。
+4. 雷速和YBTY盘口不同时，应分析分歧原因；最终投注字段仍以YBTY为准，不得为迎合雷速自行修改YBTY盘口。`;
+
   if (mode === 'parlay_check') {
     const refs = Array.isArray(selected_match_refs) ? selected_match_refs : [];
     const requests = Array.isArray(parlay_requests)
@@ -2317,6 +855,43 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
     ];
     const history = readJsonFile<any[]>('output/ai_evaluation_history.json', []);
     const normalize = (value: unknown) => String(value || '').trim().toLowerCase().replace(/[\s_-]/g, '');
+    const parlayCandidateFiles = [
+      readJsonFile<any>('output/ybty_leisu_candidates.json', { candidates: [] }),
+      readJsonFile<any>('output/ybty_leisu_prematch_candidates.json', { candidates: [] }),
+    ];
+    const parlayCandidatePool = parlayCandidateFiles.flatMap((file: any) => Array.isArray(file.candidates) ? file.candidates : []);
+    const parlayYbtySnapshots = [
+      readJsonFile<any>('output/ybty_latest.json', { matches: [] }),
+      readJsonFile<any>('output/ybty_prematch_latest.json', { matches: [] }),
+    ];
+    const parlayYbtyPool = parlayYbtySnapshots.flatMap((file: any) => Array.isArray(file.matches) ? file.matches : []);
+    const sameParlayTeams = (homeA: unknown, awayA: unknown, homeB: unknown, awayB: unknown) =>
+      cleanTeamName(homeA) === cleanTeamName(homeB) && cleanTeamName(awayA) === cleanTeamName(awayB);
+    const hydrateParlayMatch = (stored: any) => {
+      const wrapper = parlayCandidatePool.find((entry: any) =>
+        entry?.match === stored.match
+        || sameParlayTeams(entry?.candidate?.home, entry?.candidate?.away, stored.ybty_home, stored.ybty_away)
+        || sameParlayTeams(entry?.ybty_home, entry?.ybty_away, stored.ybty_home, stored.ybty_away));
+      const ybty = parlayYbtyPool.find((entry: any) =>
+        sameParlayTeams(entry?.home, entry?.away, stored.ybty_home, stored.ybty_away));
+      const source = wrapper || {};
+      return {
+        ...source,
+        ...stored,
+        live_statistics: stored.live_statistics || source.live_statistics || null,
+        reference_odds: stored.reference_odds || source.reference_odds || null,
+        recent_trends: stored.recent_trends || source.recent_trends || null,
+        incidents: stored.incidents || source.incidents || [],
+        weather: stored.weather || source.weather || null,
+        lineups: stored.lineups || source.lineups || null,
+        player_candidates: stored.player_candidates || source.player_candidates || [],
+        live_text: stored.live_text || source.live_text || null,
+        detail_context: stored.detail_context || source.detail_context || null,
+        ybty_raw_markets: Array.isArray(stored.ybty_raw_markets) && stored.ybty_raw_markets.length > 0
+          ? stored.ybty_raw_markets
+          : normalizeYbtyMarketTypes(ybty?.markets || source.ybty_raw_markets || []),
+      };
+    };
     const findLatestAssessment = (ref: any) => {
       for (const snapshot of history) {
         const results = Array.isArray(snapshot?.result?.matches) ? snapshot.result.matches : [snapshot?.result];
@@ -2331,25 +906,35 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
     const parlayCandidates = refs.map((ref: any) => {
       const stored = storedMatches.find((item: any) => normalize(item.match) === normalize(ref.match))
         || storedMatches.find((item: any) => normalize(item.ybty_home) === normalize(ref.ybty_home) && normalize(item.ybty_away) === normalize(ref.ybty_away));
-      return stored ? { ...stored, ai_evaluation: findLatestAssessment(ref) } : null;
+      return stored ? { ...hydrateParlayMatch(stored), ai_evaluation: findLatestAssessment(ref) } : null;
     }).filter(Boolean);
 
     if (parlayCandidates.length !== refs.length) {
       throw new Error('部分所选比赛已不在当前系统比赛池中，请刷新后重新选择。');
     }
 
-    const candidatesInfoText = parlayCandidates.map((c: any, idx: number) => {
-      const home = c.ybty_home || (c.match ? c.match.split('vs')[0]?.trim() : '主队');
-      const away = c.ybty_away || (c.match ? c.match.split('vs')[1]?.trim() : '客队');
-      const scHome = c.score?.home ?? 0;
-      const scAway = c.score?.away ?? 0;
-      const minStr = c.minute ? `${c.minute}'` : '赛前';
-      const grade = c.grade || 'B';
+    const parlayCandidatePayloads = parlayCandidates.map((c: any, idx: number) => {
+      const candidateMode = resolveMatchEvaluationMode(c);
+      const compressed = compressMatchDataForPrompt(c, candidateMode);
       const marketPool = Array.isArray(c.ai_evaluation?.market_assessments)
         ? c.ai_evaluation.market_assessments.filter((item: any) => Number(item?.odds) > 1 && item?.line !== null && item?.line !== '' && ['recommend', 'watch'].includes(String(item?.status)))
         : [];
-      return `比赛 #${idx + 1}: ${JSON.stringify({ match: c.match || (home + ' vs ' + away), ybty_home: home, ybty_away: away, score: `${scHome}-${scAway}`, minute: minStr, grade, system_recommendation: c.recommendation, ybty_markets: c.ybty_markets, ybty_raw_markets: c.ybty_raw_markets, ai_market_assessments: marketPool })}`;
-    }).join('\n');
+
+      return {
+        candidate_index: idx + 1,
+        ...compressed,
+        evaluation_mode: candidateMode,
+        grade: c.grade || 'B',
+        system_recommendation: c.recommendation,
+        ai_market_assessments: marketPool,
+      };
+    });
+    const parlayDataChunks = chunkPromptItems(parlayCandidatePayloads, 4, 380_000);
+    const candidatesInfoText = parlayDataChunks.map((chunk, index) => (
+      `==================== [ 串关候选数据段 ${index + 1}/${parlayDataChunks.length} 开始 ] ====================\n`
+      + `${chunk.map((candidate) => `比赛 #${candidate.candidate_index}: ${JSON.stringify(candidate)}`).join('\n')}\n`
+      + `==================== [ 串关候选数据段 ${index + 1}/${parlayDataChunks.length} 结束；${index + 1 < parlayDataChunks.length ? '请继续读取下一段，不要提前生成串关' : '已读完全部候选，可统一生成串关'} ] ====================`
+    )).join('\n\n');
 
     const prompt = `你是顶尖、严肃且专业的足球投注评估与精选推荐 AI，严格遵循项目的足球分析与硬性风控协议：
 
@@ -2363,10 +948,12 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
 2. 普通B级同一方向最多进入1组正式串关；A级且模型评分≥85的同一方向最多2组。
 
 请求模式: parlay_check
+${verifiedOptionRule}
+${oddsSourceRoles}
 ---【用户选择的比赛池（${parlayCandidates.length} 场）】---
 ${candidatesInfoText || '无比赛数据'}
 ---【用户要求生成的串关规格】---
-${JSON.stringify(parlay_requests || [])}
+${JSON.stringify(requests)}
 ---【历史台账反馈】---
 ${JSON.stringify(historicalFeedback)}
 
@@ -2398,12 +985,22 @@ ${JSON.stringify(historicalFeedback)}
     "allow_max_parlay_tickets": 1,
     "reasons": ["分析说明"]
   },
-  "parlay_recommendations": [{"size": 3, "ticket_index": 1, "grade": "A|B|C", "estimated_total_odds": 5.67, "reason": "选单理由", "legs": [{"match":"比赛名","ybty_home":"主队","ybty_away":"客队","market":"真实玩法","line":"真实盘口","odds":1.88,"probability":65,"grade":"A|B|C"}]}]
+  "parlay_recommendations": [{"size": 3, "ticket_index": 1, "grade": "A|B|C", "estimated_total_odds": 5.67, "reason": "选单理由", "legs": [{"match":"比赛名","ybty_home":"主队","ybty_away":"客队","market":"真实玩法","line":"真实盘口","odds":1.88,"odds_source":"ybty_verified","probability":65,"grade":"A|B|C","reference_odds_usage":"雷速赔率轨迹如何辅助判断"}]}]
 }`;
+
+    const parlayPrompts = isExportPrompt && parlayDataChunks.length > 1
+      ? parlayDataChunks.map((chunk, index) => {
+          const chunkText = candidatesInfoText.split(/\n\n(?==================== \[ 串关候选数据段)/)[index] || '';
+          if (index < parlayDataChunks.length - 1) {
+            return `【串关候选预评估 ${index + 1}/${parlayDataChunks.length}】\n请立即审核本段每场比赛，输出紧凑JSON candidate_digests；每场只保留可进入串关的真实玩法、方向、盘口、赔率、概率、等级、比分核验和淘汰理由。不要生成跨段串关。请在本会话保留该JSON供最后一段组合。\n\n${chunkText}`;
+          }
+          return `【串关候选预评估 ${index + 1}/${parlayDataChunks.length}・最后一段】\n请先审核本段，再结合此前各段已经输出的紧凑 candidate_digests，覆盖全部 ${parlayCandidates.length} 场比赛后统一生成串关。不得重新依赖前序原始长数据，也不得声称前序数据缺失。\n\n${prompt.replace(candidatesInfoText, chunkText)}`;
+        })
+      : [prompt];
 
     return {
       mode: 'parlay_check',
-      prompts: [prompt],
+      prompts: parlayPrompts,
       match_count: parlayCandidates.length,
       evaluationData: [],
       parlayCandidates,
@@ -2498,36 +1095,63 @@ ${JSON.stringify(historicalFeedback)}
 
   const evaluationData = requestedMatches.map((item: any) => compressMatchDataForPrompt(item, mode));
 
-  const CHUNK_SIZE = isExportPrompt ? 15 : (mode === 'prematch_eval' ? 3 : 4);
-  const chunks: any[][] = [];
-  for (let i = 0; i < evaluationData.length; i += CHUNK_SIZE) {
-    chunks.push(evaluationData.slice(i, i + CHUNK_SIZE));
-  }
+  // Full interface exports vary greatly in size. Count-only batching allowed a
+  // handful of detail-rich matches to form one oversized web prompt.
+  const chunks = isExportPrompt
+    ? chunkPromptItems(evaluationData, 4, 380_000)
+    : chunkPromptItems(evaluationData, mode === 'prematch_eval' ? 3 : 4, 180_000);
 
   const prompts = chunks.map((chunkData, index) => {
-    return `你是足球投注研究审核员。请按照项目协议，对以下 ${chunkData.length} 场比赛（第 ${index + 1}/${chunks.length} 批，共 ${evaluationData.length} 场）逐场进行全玩法评估。
+    return `你是足球投注研究审核员。请按照【足球市场审核协议 v2（极简数据版）】，对以下 ${chunkData.length} 场比赛（第 ${index + 1}/${chunks.length} 批，共 ${evaluationData.length} 场）逐场进行全玩法评估。
 评估模式：${mode === 'prematch_eval' ? '赛前评估。赛前没有滚球比分核验要求，不得因为 score_verified 字段降级；score_verified=true 在此仅表示该规则不适用。' : '滚球评估。只有滚球才执行 score_verified 核验和未核验缺省限制。'}
 
-【必须覆盖且各返回一项的12类玩法】
-全场大小球、半场大小球、全场让球、半场让球、全场独赢1X2、波胆、双方是否进球、总进球单双、主队进球数、客队进球数、总进球数、进球时间段。
+【12类玩法・每场必须恰好12项并严格保持顺序】
+1.全场大小球 2.半场大小球 3.全场让球 4.半场让球 5.全场独赢1X2 6.波胆 7.双方是否进球 8.总进球单双 9.主队进球数 10.客队进球数 11.总进球数 12.进球时间段
 
-【 direction (方向) 与 line (盘口) 填写硬性规定】：
-- direction: 必须使用规范直观的中文描述，禁止在 direction 里重复出现盘口数字或 "home 主" 等格式！
-  • 让球: 只能填 "主队" 或 "客队" (盘口数字写入 line，如 "-0.5/1")；
-  • 大小球: 只能填 "大球" 或 "小球" (盘口数字写入 line，如 "2.5/3")；
-  • 独赢1X2: 只能填 "主胜"、"平局" 或 "客胜" (line 填 null)；
-  • 双方进球: 只能填 "是" 或 "否" (line 填 null)；
-  • 单双: 只能填 "单" 或 "双" (line 填 null)；
-  • 其它预测类: 用直观中文表示方向，如 "3球及以上"、"16-30分钟"、"2-1"。
-- line: 仅填纯盘口数值 (如 "-0.5/1", "2.5/3")，无盘口数值则填 null。严禁在 direction 字段里包含盘口数值！
+【数据与投注边界】
+1. match_info 是比赛身份、时间、比分及核验状态的唯一来源；必须原样复制 score_verified 和 score_source，不得自行认定已核验。
+2. 真实投注市场仅有 full_total、half_total、full_spread、half_spread、full_h2h。每类只能从本场 verified_ybty_markets 选择一个 option，原样复制 option_id 到 market_option_id。
+3. 同类有多个有效option时必须逐项比较，只返回可靠 value_edge 最大的一项；无法可靠估计概率时可选择一个真实option作审计，但必须 status="avoid"、grade="NO_BET"。不得混用不同option的ID、方向、盘口或赔率。
+4. 白名单没有对应市场或有效option时：market_option_id/direction/line/odds/odds_source/probability/implied_probability/value_edge 均为null，status="unavailable"，grade="NO_BET"。
+5. reference_odds 仅用于分析初盘、赛前盘、滚球盘变化或市场分歧，绝不能写入 odds；不得换盘、猜盘或虚构半场盘口。
+6. probability 使用0至100，表示从当前分钟和比分出发，该指定方向最终结算成立的概率；不同盘口不得复用概率，无法可靠估计时填null。
+7. 真实市场存在赔率时计算 implied_probability=100/odds、value_edge=probability-implied_probability。value_edge<=0 时必须 status="avoid"、grade="NO_BET"；只有 value_edge>0 且证据充分时才允许 watch/recommend。
+8. 滚球且 score_verified=false 时仍完成12类分析，但五类真实市场禁止recommend/watch，统一 status="avoid"、grade="NO_BET"；比赛级 recommendation=null、verification_passed=false。为便于系统核验，真实市场仍须原样引用白名单option，不得清空或虚构交易字段。
+9. 波胆、双方是否进球、总进球单双、主队进球数、客队进球数、总进球数、进球时间段属于预测类：market="prediction"，market_option_id/line/odds/odds_source/implied_probability/value_edge 均为null，status="prediction"、grade="NO_BET"；direction填写预测结果，probability填写该结果概率，无法可靠预测时二者均填null。
 
-${rulesSummary}
+【字段规范】
+- 让球direction仅为“主队”或“客队”；大小球仅为“大球”或“小球”；独赢仅为“主胜”“平局”“客胜”。
+- 双方进球仅为“是”或“否”；单双仅为“单”或“双”；其它预测类使用直观中文。
+- direction严禁包含盘口数字；line只原样复制option中的纯盘口值（允许"2/2.5"、"-0.5/-1"等亚洲盘字符串），不得换算、拼接方向或队名；无盘口为null。
+- 全场独赢1X2没有盘口线，line必须为null；option中的“主/客/平”只能用于确定direction，不得写入line。
+- market_option_id、line、odds必须来自同一个verified_ybty_markets option；odds_source对真实市场固定为"ybty_verified"。
+- probability_scope只写最简结算口径，如“总进球>2.5”“主队-0.5”“主胜”“比分=1-0”。
+- evidence_refs只引用输入中真实存在的字段路径，不得虚构。
+
+【文本字段极简压缩规范】
+1. 顶层summary固定为“比赛:N|推荐:N|观察:N|熔断:N”。
+2. 本场summary：滚球固定为“分钟'|比分|score_verified=true/false|最终指令”；赛前固定为“赛前|未开赛|score_verified=n/a|最终指令”。最终指令仅可为“推荐”“观察”“无推荐”“熔断无推荐”。
+3. reason最多4段、40个字符，用“|”分隔；仅保留至少两类核心数据/状态标签，优先live_statistics、key_incidents、reference_odds。数据缺失用短标签说明，不得补造。
+4. risk只写1至2个核心风险标签，用“|”分隔；无明显风险写“无核心风险”。
+5. risk只能写短标签，例如“比分未核验|尾声变数”，禁止“……风险”式长句。
+6. 只有输入提供分时趋势或多个时间快照时，才允许使用“放缓、升温、持续压制、守势平稳、进入拉锯”等趋势判断；单次累计统计不得推出趋势。
+7. “赔率倒挂、盘口异动、降赔、升盘”等判断必须有reference_odds或盘口时间序列支持；没有时禁止使用。
+8. 禁止长句、重复解释、背景复述和泛化建议。
+
+【状态联动】
+- recommend：grade只能为A或B，且必须有真实option、有效概率和正value_edge。
+- watch：grade只能为C，且必须有真实option、有效概率和正value_edge。
+- avoid/unavailable/prediction：grade必须为NO_BET。
+- recommendation只能引用本场一个status="recommend"的真实市场；没有时必须为null。verification_passed=true仅表示存在通过全部核验的正式推荐，否则为false。
 
 严格返回 JSON：
-{"summary":"批量总览","matches":[{"match":"原比赛名","ybty_home":"YBTY主队","ybty_away":"YBTY客队","summary":"本场结论","grade":"A|B|C","score_verified":false,"score_source":"来源","verification_passed":false,"recommendation":null,"market_assessments":[{"category":"上述12类之一","market":"真实市场名或模型预测","direction":"规范中文方向","line":null,"odds":null,"probability":65,"probability_scope":"该概率对应的明确方向","alternatives":[{"direction":"次选","probability":20}],"grade":"A|B|C|NO_BET","status":"recommend|watch|prediction|avoid|unavailable","reason":"必须引用本场实际数据说明"}],"evidence":["依据"],"risks":["风险"]}]}
+{"schema_version":"football_market_audit_v2","summary":"比赛:N|推荐:N|观察:N|熔断:N","matches":[{"match":"原比赛名","ybty_home":"YBTY主队","ybty_away":"YBTY客队","summary":"分钟'|比分|score_verified状态|最终指令","score_verified":false,"score_source":"来源","verification_passed":false,"recommendation":null,"market_assessments":[{"category":"上述12类之一","market":"真实市场键或prediction","market_option_id":null,"direction":null,"line":null,"odds":null,"odds_source":null,"probability":null,"probability_scope":"最简结算口径","implied_probability":null,"value_edge":null,"grade":"A|B|C|NO_BET","status":"recommend|watch|prediction|avoid|unavailable","reason":"核心数据|状态标签","evidence_refs":["输入字段路径"],"risk":"风险标签"}]}]}
+
+只输出一个合法JSON对象，不得输出Markdown或额外说明。matches顺序必须与输入一致；每场market_assessments必须恰好12项并保持规定顺序。
 
 比赛数据 (${chunkData.length} 场)：
-${JSON.stringify(chunkData)}`;
+${JSON.stringify(chunkData)}
+输出前再次核对各场数据内唯一的 verified_ybty_markets；系统将按 market_option_id 锁定 direction、line、odds 并复算价值差。`;
   });
 
   return {
@@ -2539,360 +1163,39 @@ ${JSON.stringify(chunkData)}`;
 }
 
 // Export Prompt Endpoint for Manual Feeding to Web Gemini
-app.post('/api/ai/export-prompt', (req, res) => {
-  try {
-    const promptData = buildPromptData(req.body, true);
-    const combinedPrompt = promptData.prompts.join('\n\n==================== [ 如果分批，下一批 Prompt 见下方 ] ====================\n\n');
-    res.json({
-      success: true,
-      mode: promptData.mode,
-      match_count: promptData.match_count,
-      prompt_count: promptData.prompts.length,
-      prompts: promptData.prompts,
-      combined_prompt: combinedPrompt,
-      instructions: '请复制上方 Prompt 文本，直接发送给网页版 Google Gemini (gemini.google.com)。Gemini 输出回答后，将其生成的 JSON 内容复制，点击系统中的“导入 Gemini 评估结果”进行解析与保存。',
-    });
-  } catch (err: any) {
-    res.status(400).json({ error: err.message || '导出 Prompt 失败' });
-  }
-});
-
 // Import Manual Web Gemini Output Endpoint
-app.post('/api/ai/import-evaluation', (req, res) => {
-  try {
-    const { raw_text, mode = 'live_eval' } = req.body || {};
-    if (!raw_text || typeof raw_text !== 'string' || !raw_text.trim()) {
-      return res.status(400).json({ error: '请粘贴网页版 Gemini 输出的文本/JSON 结果。' });
-    }
-
-    let parsed = parseModelJson(raw_text);
-    parsed.ai_provider = 'gemini_manual_web_import';
-
-    // Post-process matches if present
-    if (Array.isArray(parsed.matches) && parsed.matches.length > 0) {
-      const requiredCategoriesV2 = ['全场大小球', '半场大小球', '全场让球', '半场让球', '全场独赢1X2', '波胆', '双方是否进球', '总进球单双', '主队进球数', '客队进球数', '总进球数', '进球时间段'];
-      parsed.matches = parsed.matches.map((matchResult: any) => {
-        const assessments = Array.isArray(matchResult.market_assessments) ? matchResult.market_assessments : [];
-        const byCategory = new Map(assessments.map((item: any) => [String(item.category || ''), item]));
-        return {
-          ...matchResult,
-          score_verified: mode === 'prematch_eval' ? true : matchResult.score_verified === true,
-          score_source: mode === 'prematch_eval' ? 'prematch_not_applicable' : (matchResult.score_source || 'unverified'),
-          market_assessments: requiredCategoriesV2.map((category) => {
-            const rawAssessment = byCategory.get(category) || {
-              category,
-              market: category,
-              direction: '暂无可靠方向',
-              line: null,
-              odds: null,
-              probability: null,
-              grade: 'NO_BET',
-              status: 'unavailable',
-              reason: 'AI未返回该玩法的可靠评估，已由系统按数据不足处理。',
-            };
-            return sanitizeMarketAssessment(rawAssessment);
-          }),
-        };
-      });
-    }
-
-    if (Array.isArray(parsed.parlay_recommendations)) {
-      parsed.parlay_recommendations = parsed.parlay_recommendations.map((ticket: any) => ({
-        ...ticket,
-        legs: Array.isArray(ticket.legs) ? ticket.legs.map((leg: any) => sanitizeParlayLeg(leg)) : [],
-      }));
-    }
-
-    // Auto-save snapshot into ai_evaluation_history.json
-    const history = readJsonFile<any[]>('output/ai_evaluation_history.json', []);
-    const snapshotId = `web_gemini_${Date.now()}`;
-    const snapshot = {
-      id: snapshotId,
-      mode,
-      scope: Array.isArray(parsed.matches) ? 'batch' : 'single',
-      evaluated_matches: Array.isArray(parsed.matches)
-        ? parsed.matches.map((item: any) => item.match || `${item.ybty_home || ''} vs ${item.ybty_away || ''}`)
-        : [parsed.match || '网页版导入评估'],
-      saved_at: new Date().toISOString(),
-      result: parsed,
-    };
-    history.unshift(snapshot);
-    requireJsonWrites([['output/ai_evaluation_history.json', history]]);
-
-    res.json({
-      success: true,
-      snapshot_id: snapshotId,
-      result: parsed,
-      message: '网页版 Gemini 评估结果解析并导入成功！已自动保存至评估历史中。',
-    });
-  } catch (err: any) {
-    res.status(400).json({ error: `无法解析导入文本为有效的 JSON 格式：${err.message || '结构不符合标准'}` });
-  }
-});
-
 // Server-side AI Evaluation using Google Gemini API
-app.post('/api/ai/evaluate', async (req, res) => {
-  try {
-    const geminiApiKeys = Array.from(new Set([
-      ...(process.env.GEMINI_API_KEYS || '').split(/[;,\r\n]+/),
-      process.env.GEMINI_API_KEY || '',
-    ].map((key) => key.trim()).filter(Boolean)));
-
-    if (geminiApiKeys.length === 0) {
-      return res.status(400).json({
-        error: '未配置 Google Gemini API Key。',
-        instructions: '请在 .env 文件中配置 GEMINI_API_KEY，或直接使用【导出 Prompt 发送给网页版 Gemini】功能自由分析！',
-      });
-    }
-
-    const promptData = buildPromptData(req.body);
-    const { mode, parlayCandidates, evaluationData } = promptData;
-
-    const runGemini = async (contents: string): Promise<string> => {
-      if (geminiApiKeys.length === 0) throw Object.assign(new Error('未配置 Gemini API Key。'), { provider: 'gemini', status: 400 });
-      const maxCycles = 5;
-      let lastError: any;
-      for (let cycle = 0; cycle < maxCycles; cycle += 1) {
-        const now = Date.now();
-        const availableIndexes = geminiApiKeys
-          .map((_, idx) => (geminiKeyCursor + idx) % geminiApiKeys.length)
-          .filter((idx) => (geminiKeyCooldowns.get(geminiApiKeys[idx]) || 0) <= now);
-
-        if (availableIndexes.length === 0) {
-          const earliestExpiry = Math.min(...geminiApiKeys.map((k) => geminiKeyCooldowns.get(k) || 0));
-          const waitMs = Math.max(1000, earliestExpiry - now);
-          console.warn(`[AI Evaluation] 所有 Gemini Key 均处于 429 冷却中，自动等待 ${Math.round(waitMs / 1000)}s (轮次 ${cycle + 1}/${maxCycles})...`);
-          await waitForRetry(waitMs);
-          continue;
-        }
-
-        for (const keyIndex of availableIndexes) {
-          const activeKey = geminiApiKeys[keyIndex];
-          const ai = new GoogleGenAI({ apiKey: activeKey });
-          await waitForGeminiRateSlot(activeKey, 3500);
-          try {
-            const response = await ai.models.generateContent({
-              model: GEMINI_MODEL,
-              contents,
-              config: { responseMimeType: 'application/json' },
-            });
-            geminiKeyCursor = (keyIndex + 1) % geminiApiKeys.length;
-            return response.text || '{}';
-          } catch (sdkError: any) {
-            lastError = sdkError;
-            if (isGeminiNetworkFailure(sdkError)) {
-              try {
-                console.warn(`[AI Evaluation] Key #${keyIndex + 1}: SDK 网络异常，尝试 Windows 网络后备方案。`);
-                await waitForGeminiRateSlot(activeKey, 3500);
-                const text = await generateGeminiViaWindowsNetwork(activeKey, contents);
-                geminiKeyCursor = (keyIndex + 1) % geminiApiKeys.length;
-                return text;
-              } catch (fallbackError: any) {
-                lastError = fallbackError;
-              }
-            }
-            const status = geminiHttpStatus(lastError);
-            const isQuotaError = status === 429 || String(lastError?.message || '').includes('RESOURCE_EXHAUSTED');
-            if (isQuotaError) {
-              const cooldownMs = parseGeminiRetryDelay(lastError);
-              geminiKeyCooldowns.set(activeKey, Date.now() + cooldownMs);
-              console.warn(`[AI Evaluation] Gemini Key #${keyIndex + 1}/${geminiApiKeys.length} 触发 429 限额，进入 ${Math.round(cooldownMs / 1000)}s 冷却，自动切换 Key...`);
-              continue;
-            }
-            if (!isRetryableGeminiFailure(lastError)) throw lastError;
-            break;
-          }
-        }
-        await waitForRetry(3000);
-      }
-      throw lastError;
-    };
-
-    const runAI = async (contents: string): Promise<string> => {
-      return await runGemini(contents);
-    };
-
-    if (mode !== 'parlay_check') {
-      const maxConcurrency = Math.max(1, geminiApiKeys.length);
-      console.log(`[AI Evaluation] 批量评估共有 ${promptData.match_count} 场比赛，切分为 ${promptData.prompts.length} 组 Prompt...`);
-
-      const chunkResults = new Array<{ summary?: string; matches?: any[]; error?: string }>(promptData.prompts.length);
-      let nextChunkIdx = 0;
-      const workers = Array.from({ length: Math.min(maxConcurrency, promptData.prompts.length) }, async () => {
-        while (nextChunkIdx < promptData.prompts.length) {
-          const chunkIdx = nextChunkIdx++;
-          const batchPromptV2 = promptData.prompts[chunkIdx];
-
-          try {
-            const batchText = await runAI(batchPromptV2);
-            const parsed = parseModelJson(batchText);
-            chunkResults[chunkIdx] = {
-              summary: parsed.summary,
-              matches: Array.isArray(parsed.matches) ? parsed.matches : [],
-            };
-          } catch (chunkErr: any) {
-            chunkResults[chunkIdx] = { error: `第 ${chunkIdx + 1} 组评估失败：${chunkErr.message || chunkErr}` };
-          }
-        }
-      });
-      await Promise.all(workers);
-
-      const failedChunk = chunkResults.find((res) => res.error);
-      if (failedChunk) {
-        return res.status(502).json({ error: failedChunk.error });
-      }
-
-      let allMatchesResults: any[] = [];
-      let overallSummary = '';
-      for (const result of chunkResults) {
-        if (result.summary && !overallSummary) overallSummary = result.summary;
-        if (result.matches) allMatchesResults.push(...result.matches);
-      }
-
-      const requiredCategoriesV2 = ['全场大小球', '半场大小球', '全场让球', '半场让球', '全场独赢1X2', '波胆', '双方是否进球', '总进球单双', '主队进球数', '客队进球数', '总进球数', '进球时间段'];
-      const processedMatches = allMatchesResults.map((matchResult: any, idx: number) => {
-        const assessments = Array.isArray(matchResult.market_assessments) ? matchResult.market_assessments : [];
-        const byCategory = new Map(assessments.map((item: any) => [String(item.category || ''), item]));
-        const inputMatch = evaluationData[idx] || {};
-        const verifiedMarketTypes = new Set((inputMatch?.verified_ybty_markets || []).map((market: any) => market.market));
-        const requiredMarketByCategory: Record<string, string> = {
-          '全场大小球': 'full_total',
-          '半场大小球': 'half_total',
-          '全场让球': 'full_spread',
-          '半场让球': 'half_spread',
-          '全场独赢1X2': 'full_h2h',
-        };
-        return {
-          ...matchResult,
-          score_verified: mode === 'prematch_eval' ? true : matchResult.score_verified === true,
-          score_source: mode === 'prematch_eval' ? 'prematch_not_applicable' : matchResult.score_source,
-          market_assessments: requiredCategoriesV2.map((category) => {
-            const assessment: any = byCategory.get(category) || {
-              category,
-              market: category,
-              direction: '暂无可靠方向',
-              line: null,
-              odds: null,
-              probability: null,
-              grade: 'NO_BET',
-              status: 'unavailable',
-              reason: 'AI未返回该玩法的可靠评估，已由系统按数据不足处理。',
-            };
-            const requiredMarket = requiredMarketByCategory[category];
-            if (requiredMarket && !verifiedMarketTypes.has(requiredMarket)) {
-              return {
-                ...assessment,
-                direction: '盘口阶段未核验',
-                line: null,
-                odds: null,
-                grade: 'NO_BET',
-                status: 'unavailable',
-                value_edge: null,
-                reason: '输入盘口未确认属于该全场/半场市场，系统已禁止按索引猜测盘口阶段。',
-              };
-            }
-            const odds = Number(assessment.odds);
-            const probability = Number(assessment.probability);
-            if (!requiredMarket && !(odds > 1) && Number.isFinite(probability)) {
-              return {
-                ...assessment,
-                grade: assessment.grade === 'NO_BET' ? 'C' : assessment.grade,
-                status: 'prediction',
-                value_edge: null,
-              };
-            }
-            if (odds > 1 && Number.isFinite(probability)) {
-              const impliedProbability = 100 / odds;
-              const valueEdge = Math.round((probability - impliedProbability) * 100) / 100;
-              if (valueEdge <= 0) {
-                return {
-                  ...assessment,
-                  grade: 'NO_BET',
-                  status: 'avoid',
-                  value_edge: valueEdge,
-                  reason: `${assessment.reason || ''} 模型概率${probability}%不高于赔率隐含概率${impliedProbability.toFixed(1)}%，属于非正期望值。`.trim(),
-                };
-              }
-              return { ...assessment, value_edge: valueEdge };
-            }
-            return { ...assessment, value_edge: null };
-          }),
-        };
-      }).map((matchResult: any) => {
-        const sanitizedAssessments = (matchResult.market_assessments || []).map((item: any) => sanitizeMarketAssessment(item));
-        const formalMarkets = sanitizedAssessments.filter((assessment: any) =>
-          assessment.status === 'recommend' && ['A', 'B'].includes(String(assessment.grade || ''))
-        );
-        return {
-          ...matchResult,
-          market_assessments: sanitizedAssessments,
-          recommendation: formalMarkets.length === 0 ? null : matchResult.recommendation,
-          verification_passed: formalMarkets.length > 0,
-        };
-      });
-
-      return res.json({
-        summary: overallSummary || `已完成 ${processedMatches.length} 场比赛的批量深挖评估。`,
-        matches: processedMatches,
-        ai_provider: 'gemini',
-      });
-    }
-
-    const resultText = await runAI(promptData.prompts[0]);
-    let parsedJson = {};
-    try {
-      parsedJson = parseModelJson(resultText);
-      (parsedJson as any).ai_provider = 'gemini';
-      if (Array.isArray((parsedJson as any).parlay_recommendations)) {
-        (parsedJson as any).parlay_recommendations = (parsedJson as any).parlay_recommendations.map((ticket: any) => ({
-          ...ticket,
-          legs: Array.isArray(ticket.legs) ? ticket.legs.map((leg: any) => sanitizeParlayLeg(leg, promptData.parlayCandidates)) : [],
-        }));
-      }
-    } catch {
-      parsedJson = { summary: resultText, grade: 'C', verification_passed: false, ai_provider: 'gemini' };
-    }
-
-    res.json(parsedJson);
-  } catch (err: any) {
-    console.error('[AI Evaluation Error]', err);
-    const serviceStatus = geminiHttpStatus(err);
-    const serviceUnavailable = serviceStatus === 429 || serviceStatus === 500 || serviceStatus === 502 || serviceStatus === 503 || serviceStatus === 504;
-    const networkFailure = isGeminiNetworkFailure(err) || (!serviceUnavailable && /network fallback failed/i.test(err?.message || ''));
-    res.status(serviceUnavailable ? 503 : networkFailure ? 502 : 500).json({
-      error: err.message || 'AI Evaluation Failed',
-      ...(serviceUnavailable ? {
-        instructions: 'Google Gemini API 触发配额上限或额度限制。建议点击“导出 Prompt”按钮，复制数据直接在网页版 Gemini (gemini.google.com) 中免费快速分析，随后粘贴结果导入系统！',
-        retryable: true,
-        upstream_status: serviceStatus,
-      } : {}),
-      ...(networkFailure ? {
-        instructions: 'Gemini 网络连接失败。建议直接使用【导出 Prompt】功能发送给网页版 Gemini。',
-      } : {}),
-    });
-  }
+const handleGeminiEvaluation = createGeminiEvaluationHandler({
+  buildPromptData,
+  sanitizeMarketAssessment,
+  sanitizeParlayLeg,
 });
+
+registerGeminiEvaluationRoutes(app, handleGeminiEvaluation);
 
 // ---------------- VITE & SERVER SETUP ----------------
 
 async function start() {
-  if (process.env.NODE_ENV !== 'production') {
+  if (ENVIRONMENT !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = projectPath('dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[LX Football System] Express Server running on http://0.0.0.0:${PORT}`);
+  app.listen(PORT, HOST, () => {
+    console.log(`[LX Football System] Express Server running on http://${HOST}:${PORT}`);
   });
 }
 
-start();
+start().catch((error) => {
+  console.error('[LX Football System] Startup failed:', error);
+  process.exitCode = 1;
+});

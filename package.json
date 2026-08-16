@@ -6,7 +6,8 @@
     "dev": "tsx --env-file-if-exists=.env server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.js",
     "start": "node --env-file-if-exists=.env dist/server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test:ts": "node --import tsx --test tests-ts/*.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.15.0",

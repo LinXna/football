@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { DecisionItem, PipelineStatus, getLeagueName, getTeamDisplay } from '../types';
 import { DataSupplementModal } from './DataSupplementModal';
 import { BatchSupplementModal } from './BatchSupplementModal';
+import { displayText } from '../lib/displayValue';
 import { 
   Calendar, 
   Clock, 
@@ -181,7 +182,7 @@ export const PrematchMatchesView: React.FC<Props> = ({
           score_source: m.score_source || 'ybty_prematch',
           score_verified: true,
           grade: m.grade || 'B',
-          model_score: m.model_score || 72.0,
+          model_score: Number.isFinite(Number(m.model_score)) ? Number(m.model_score) : 0,
           recommendation: m.recommendation,
           evidence: m.evidence || ['赛前基本面达标'],
           risks: m.risks || [],
@@ -475,7 +476,7 @@ export const PrematchMatchesView: React.FC<Props> = ({
                         <div className="font-semibold text-sky-400 mb-1">机器搜集考据 (Evidence)</div>
                         <ul className="list-disc list-inside text-slate-300 space-y-0.5">
                           {m.evidence.map((ev, i) => (
-                            <li key={i}>{ev}</li>
+                            <li key={i}>{displayText(ev, '未提供内容')}</li>
                           ))}
                         </ul>
                       </div>
@@ -486,7 +487,7 @@ export const PrematchMatchesView: React.FC<Props> = ({
                         <div className="font-semibold text-amber-400 mb-1">风险拦截因素 (Risks)</div>
                         <ul className="list-disc list-inside text-slate-300 space-y-0.5">
                           {m.risks.map((rk, i) => (
-                            <li key={i}>{rk}</li>
+                            <li key={i}>{displayText(rk, '未提供内容')}</li>
                           ))}
                         </ul>
                       </div>
