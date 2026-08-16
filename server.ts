@@ -1095,64 +1095,114 @@ ${JSON.stringify(historicalFeedback)}
 
   const evaluationData = requestedMatches.map((item: any) => compressMatchDataForPrompt(item, mode));
 
-  // Full interface exports vary greatly in size. Count-only batching allowed a
-  // handful of detail-rich matches to form one oversized web prompt.
-  const chunks = isExportPrompt
-    ? chunkPromptItems(evaluationData, 4, 380_000)
-    : chunkPromptItems(evaluationData, mode === 'prematch_eval' ? 3 : 4, 180_000);
+  if (isExportPrompt && mode !== 'parlay_check') {
+    // Increase token limit to reduce chance of truncating matches. Default can be overridden via env MAX_PROMPT_TOKENS.
+    const MAX_PROMPT_TOKENS = Number(process.env.MAX_PROMPT_TOKENS) || 250_000;
+    const chunks = chunkPromptItems(evaluationData, 4, MAX_PROMPT_TOKENS);
+    const prompts = chunks.map((chunkData, index) => {
+      const batchHeader = chunks.length > 1 ? `Batch ${index + 1}/${chunks.length} – ${chunkData.length} matches` : `Total ${chunkData.length} matches`;
+      return `Please evaluate the following matches ${batchHeader} with a full 12‑category assessment per match. Return ONLY a single valid JSON object (no natural language or Markdown fences).
+
+[Rating and Recommendation Rules]
+1. Real markets (full_h2h/spread/total, half_h2h/spread/total): compute implied_probability = 100 / odds, value_edge = probability - implied_probability.
+2. Formal recommendation (status="recommend", grade="A" or "B"): when estimated win probability significantly exceeds implied probability (value_edge > 0) and supporting data is strong, assign A or B and populate top‑level recommendation, set verification_passed=true.
+3. Watch (status="watch", grade="C"): value_edge positive but small or risk high.
+4. Avoid (status="avoid", grade="NO_BET"): value_edge <= 0 or insufficient support/low odds.
+5. Prediction categories (remaining 7): market="prediction", option_id=null, status="prediction", grade="NO_BET".
+
+[Output JSON Schema Template]
+${JSON.stringify({
+  schema_version: "football_market_audit_v2",
+  summary: `matches:${chunkData.length}|recommend:N|watch:N|avoid:N`,
+  matches: [{
+    match: "Original match name",
+    ybty_home: "YBTY home team",
+    ybty_away: "YBTY away team",
+    summary: "minute|score|score_verified|final instruction",
+    score_verified: true,
+    score_source: "ybty+leisu_api",
+    verification_passed: true,
+    recommendation: {
+      category: "full_spread",
+      market: "full_spread",
+      market_option_id: "full_spread__m1__o2",
+      direction: "away",
+      line: "-0/0.5",
+      odds: 2.2,
+      probability: 65,
+      value_edge: 19.55,
+      grade: "B"
+    },
+    market_assessments: [{
+      category: "one of 12 categories",
+      market: "real market key or prediction",
+      market_option_id: "full_spread__m1__o2 or null",
+      direction: "home/over/away etc",
+      line: "-0/0.5 or null",
+      odds: 2.2,
+      odds_source: "ybty_verified or null",
+      probability: 65,
+      probability_scope: "simplified settlement",
+      implied_probability: 45.45,
+      value_edge: 19.55,
+      grade: "A|B|C|NO_BET",
+      status: "recommend|watch|prediction|avoid|unavailable",
+      reason: "core data|status tag",
+      evidence_refs: ["input field path"],
+      risk: "risk tag"
+    }]
+  }]
+}, null, 2)}
+
+Match data list:
+${JSON.stringify(chunkData, null, 2)}`;
+
+    });
+
+    return {
+      mode,
+      prompts,
+      match_count: evaluationData.length,
+      evaluationData,
+    };
+  }
+
+
+
+
+
+
+  // Non-export path (used by Gemini API auto-evaluation).
+  // Use the same larger token limit to prevent match truncation.
+  const MAX_PROMPT_TOKENS_AUTO = Number(process.env.MAX_PROMPT_TOKENS) || 250_000;
+  const chunks = chunkPromptItems(evaluationData, mode === 'prematch_eval' ? 3 : 4, MAX_PROMPT_TOKENS_AUTO);
 
   const prompts = chunks.map((chunkData, index) => {
-    return `你是足球投注研究审核员。请按照【足球市场审核协议 v2（极简数据版）】，对以下 ${chunkData.length} 场比赛（第 ${index + 1}/${chunks.length} 批，共 ${evaluationData.length} 场）逐场进行全玩法评估。
-评估模式：${mode === 'prematch_eval' ? '赛前评估。赛前没有滚球比分核验要求，不得因为 score_verified 字段降级；score_verified=true 在此仅表示该规则不适用。' : '滚球评估。只有滚球才执行 score_verified 核验和未核验缺省限制。'}
+    const batchLabel = chunks.length > 1
+      ? `Batch ${index + 1}/${chunks.length} – ${chunkData.length} matches (total ${evaluationData.length})`
+      : `Total ${chunkData.length} matches`;
+    const modeLabel = mode === 'prematch_eval'
+      ? 'Pre-match evaluation (no score verification required)'
+      : 'Live evaluation (score_verified must be checked)';
+    return `Follow the [Football Market Audit Protocol v2] strictly. Evaluate ALL ${chunkData.length} matches in ${batchLabel}. Return ONLY a single valid JSON object — no natural language, no Markdown fences.
+Mode: ${modeLabel}
 
-【12类玩法・每场必须恰好12项并严格保持顺序】
-1.全场大小球 2.半场大小球 3.全场让球 4.半场让球 5.全场独赢1X2 6.波胆 7.双方是否进球 8.总进球单双 9.主队进球数 10.客队进球数 11.总进球数 12.进球时间段
+[Rules and Constraints]
+1. Each match must include exactly 12 market assessments in strict order:
+   1.full_total 2.half_total 3.full_spread 4.half_spread 5.full_h2h 6.full_correct_score 7.both_to_score 8.total_goals_odd_even 9.home_goals 10.away_goals 11.total_goals 12.goal_time_window
+2. Real betting markets (full/half total, spread, h2h) must use a real option from this match's verified_ybty_markets, copy option_id verbatim to market_option_id, and set odds_source="ybty_verified". Non-bettable prediction markets use market="prediction" and option_id=null.
+3. probability is expressed as 0-100 percent. Only allow status="watch" or "recommend" when value_edge = probability - (100/odds) > 0 and evidence is sufficient.
+4. If live and score_verified=false: all 5 real markets must be status="avoid", grade="NO_BET", recommendation=null, verification_passed=false.
+5. CRITICAL: The output matches array must contain exactly ${chunkData.length} objects — one per match. Never omit, merge, or use placeholder objects for any match.
 
-【数据与投注边界】
-1. match_info 是比赛身份、时间、比分及核验状态的唯一来源；必须原样复制 score_verified 和 score_source，不得自行认定已核验。
-2. 真实投注市场仅有 full_total、half_total、full_spread、half_spread、full_h2h。每类只能从本场 verified_ybty_markets 选择一个 option，原样复制 option_id 到 market_option_id。
-3. 同类有多个有效option时必须逐项比较，只返回可靠 value_edge 最大的一项；无法可靠估计概率时可选择一个真实option作审计，但必须 status="avoid"、grade="NO_BET"。不得混用不同option的ID、方向、盘口或赔率。
-4. 白名单没有对应市场或有效option时：market_option_id/direction/line/odds/odds_source/probability/implied_probability/value_edge 均为null，status="unavailable"，grade="NO_BET"。
-5. reference_odds 仅用于分析初盘、赛前盘、滚球盘变化或市场分歧，绝不能写入 odds；不得换盘、猜盘或虚构半场盘口。
-6. probability 使用0至100，表示从当前分钟和比分出发，该指定方向最终结算成立的概率；不同盘口不得复用概率，无法可靠估计时填null。
-7. 真实市场存在赔率时计算 implied_probability=100/odds、value_edge=probability-implied_probability。value_edge<=0 时必须 status="avoid"、grade="NO_BET"；只有 value_edge>0 且证据充分时才允许 watch/recommend。
-8. 滚球且 score_verified=false 时仍完成12类分析，但五类真实市场禁止recommend/watch，统一 status="avoid"、grade="NO_BET"；比赛级 recommendation=null、verification_passed=false。为便于系统核验，真实市场仍须原样引用白名单option，不得清空或虚构交易字段。
-9. 波胆、双方是否进球、总进球单双、主队进球数、客队进球数、总进球数、进球时间段属于预测类：market="prediction"，market_option_id/line/odds/odds_source/implied_probability/value_edge 均为null，status="prediction"、grade="NO_BET"；direction填写预测结果，probability填写该结果概率，无法可靠预测时二者均填null。
+[Output JSON Schema — output only this, nothing else]
+{"schema_version":"football_market_audit_v2","summary":"matches:${chunkData.length}|recommend:N|watch:N|avoid:N","matches":[{"match":"original match name","ybty_home":"YBTY home","ybty_away":"YBTY away","summary":"minute|score|score_verified|final instruction","score_verified":false,"score_source":"source","verification_passed":false,"recommendation":null,"market_assessments":[{"category":"one of the 12 categories","market":"real market key or prediction","market_option_id":null,"direction":null,"line":null,"odds":null,"odds_source":null,"probability":null,"probability_scope":"simplified settlement scope","implied_probability":null,"value_edge":null,"grade":"A|B|C|NO_BET","status":"recommend|watch|prediction|avoid|unavailable","reason":"core data|status tag","evidence_refs":["input field path"],"risk":"risk tag"}]}]}
 
-【字段规范】
-- 让球direction仅为“主队”或“客队”；大小球仅为“大球”或“小球”；独赢仅为“主胜”“平局”“客胜”。
-- 双方进球仅为“是”或“否”；单双仅为“单”或“双”；其它预测类使用直观中文。
-- direction严禁包含盘口数字；line只原样复制option中的纯盘口值（允许"2/2.5"、"-0.5/-1"等亚洲盘字符串），不得换算、拼接方向或队名；无盘口为null。
-- 全场独赢1X2没有盘口线，line必须为null；option中的“主/客/平”只能用于确定direction，不得写入line。
-- market_option_id、line、odds必须来自同一个verified_ybty_markets option；odds_source对真实市场固定为"ybty_verified"。
-- probability_scope只写最简结算口径，如“总进球>2.5”“主队-0.5”“主胜”“比分=1-0”。
-- evidence_refs只引用输入中真实存在的字段路径，不得虚构。
-
-【文本字段极简压缩规范】
-1. 顶层summary固定为“比赛:N|推荐:N|观察:N|熔断:N”。
-2. 本场summary：滚球固定为“分钟'|比分|score_verified=true/false|最终指令”；赛前固定为“赛前|未开赛|score_verified=n/a|最终指令”。最终指令仅可为“推荐”“观察”“无推荐”“熔断无推荐”。
-3. reason最多4段、40个字符，用“|”分隔；仅保留至少两类核心数据/状态标签，优先live_statistics、key_incidents、reference_odds。数据缺失用短标签说明，不得补造。
-4. risk只写1至2个核心风险标签，用“|”分隔；无明显风险写“无核心风险”。
-5. risk只能写短标签，例如“比分未核验|尾声变数”，禁止“……风险”式长句。
-6. 只有输入提供分时趋势或多个时间快照时，才允许使用“放缓、升温、持续压制、守势平稳、进入拉锯”等趋势判断；单次累计统计不得推出趋势。
-7. “赔率倒挂、盘口异动、降赔、升盘”等判断必须有reference_odds或盘口时间序列支持；没有时禁止使用。
-8. 禁止长句、重复解释、背景复述和泛化建议。
-
-【状态联动】
-- recommend：grade只能为A或B，且必须有真实option、有效概率和正value_edge。
-- watch：grade只能为C，且必须有真实option、有效概率和正value_edge。
-- avoid/unavailable/prediction：grade必须为NO_BET。
-- recommendation只能引用本场一个status="recommend"的真实市场；没有时必须为null。verification_passed=true仅表示存在通过全部核验的正式推荐，否则为false。
-
-严格返回 JSON：
-{"schema_version":"football_market_audit_v2","summary":"比赛:N|推荐:N|观察:N|熔断:N","matches":[{"match":"原比赛名","ybty_home":"YBTY主队","ybty_away":"YBTY客队","summary":"分钟'|比分|score_verified状态|最终指令","score_verified":false,"score_source":"来源","verification_passed":false,"recommendation":null,"market_assessments":[{"category":"上述12类之一","market":"真实市场键或prediction","market_option_id":null,"direction":null,"line":null,"odds":null,"odds_source":null,"probability":null,"probability_scope":"最简结算口径","implied_probability":null,"value_edge":null,"grade":"A|B|C|NO_BET","status":"recommend|watch|prediction|avoid|unavailable","reason":"核心数据|状态标签","evidence_refs":["输入字段路径"],"risk":"风险标签"}]}]}
-
-只输出一个合法JSON对象，不得输出Markdown或额外说明。matches顺序必须与输入一致；每场market_assessments必须恰好12项并保持规定顺序。
-
-比赛数据 (${chunkData.length} 场)：
-${JSON.stringify(chunkData)}
-输出前再次核对各场数据内唯一的 verified_ybty_markets；系统将按 market_option_id 锁定 direction、line、odds 并复算价值差。`;
+Match data list (${chunkData.length} matches):
+${JSON.stringify(chunkData)}`;
   });
+
+
 
   return {
     mode,
@@ -1191,7 +1241,8 @@ async function start() {
   }
 
   app.listen(PORT, HOST, () => {
-    console.log(`[LX Football System] Express Server running on http://${HOST}:${PORT}`);
+    const displayHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
+    console.log(`[LX Football System] Express Server running on http://${displayHost}:${PORT}`);
   });
 }
 

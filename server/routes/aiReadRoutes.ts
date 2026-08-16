@@ -73,10 +73,10 @@ export function registerAiPromptExportRoutes(app: express.Express, buildPromptDa
       const deliveryPrompts = promptData.mode === 'parlay_check' || segmentCount <= 1
         ? rawPrompts
         : rawPrompts.map((prompt: string, index: number) => index < segmentCount - 1
-          ? `【分段评估 ${index + 1}/${segmentCount}】\n请立即完整评估本段比赛，并严格输出本段JSON。不要只回复“已接收”。输出后请在本会话中保留这份结构化结果，等待下一段；后续最终合并应使用这份较小的JSON结果，不要依赖重新回忆本段原始长数据。\n\n${prompt}\n\n【本段结束控制・最高优先级】现在只输出本段全部比赛的完整JSON，每场必须包含12类market_assessments。真实市场必须再次对照紧邻上方的YBTY投注白名单；禁止输出白名单外的line或odds。`
-          : `【分段评估 ${index + 1}/${segmentCount}・最后一段】\n先完整评估本段比赛；然后把本会话此前第1至第${index}段已经输出的结构化JSON结果与本段结果直接合并。\n\n${prompt}\n\n【最终合并控制指令・优先级最高】\n不要重新概括或用占位对象替代前序结果，必须原样保留前序每场的12类market_assessments，再加入本段结果。最终返回恰好 ${promptData.match_count} 个 matches 对象，逐一覆盖：${JSON.stringify(matchManifest)}。任何比赛的market_assessments少于12项都视为未完成。只输出一个合法合并JSON。`);
+          ? `[Segment Evaluation ${index + 1}/${segmentCount}]\nPlease evaluate this segment fully and output the complete JSON for this segment. Do not respond with "Received". After output, retain this structured result in the conversation for the next segment; the final merge should use these smaller JSON results without re-reading the original long data.\n\n${prompt}\n\n[End of Segment Control · Highest Priority] Now output the full JSON for all matches in this segment, each must include the 12 market assessments. Verify markets against the YBTY whitelist provided above; do not output any line or odds outside the whitelist.`
+          : `[Segment Evaluation ${index + 1}/${segmentCount} · Final Segment]\nFirst fully evaluate this segment; then merge the previously output JSON results from segments 1 to ${index} with the current segment results directly.\n\n${prompt}\n\n[Final Merge Control · Highest Priority]\nDo not re-summarize or use placeholder objects for prior results; retain the exact 12 market assessments for each prior match, then add the current segment results. The final output must contain exactly ${promptData.match_count} matches objects, covering: ${JSON.stringify(matchManifest)}. Any match with fewer than 12 market assessments is considered incomplete. Output a single valid merged JSON.`);
       const combinedPrompt = segmentCount > 1
-        ? `【分段读取总指令】\n以下 ${segmentCount} 个数据段属于同一次评估任务。请从第1段顺序读取到第${segmentCount}段；看到中间的“下一数据段”时不要提前回答。全部读取完成后，只返回一个合并后的最终 JSON，matches 必须覆盖所有分段中的比赛，不要为每段分别返回 JSON。\n\n${promptData.prompts.map((prompt: string, index: number) => `==================== [ 数据段 ${index + 1}/${segmentCount} 开始 ] ====================\n${prompt}\n==================== [ 数据段 ${index + 1}/${segmentCount} 结束 ] ====================`).join('\n\n==================== [ 下一数据段，请继续读取，不要回答 ] ====================\n\n')}\n\n【全部数据段结束】现在统一分析并只输出一个合并 JSON。`
+        ? `[Segment Reading Instruction]\nThe following ${segmentCount} data segments belong to the same evaluation task. Please read them in order from segment 1 to ${segmentCount}; do not answer prematurely when you see "Next data segment". After reading everything, return only one merged final JSON. Matches must cover all matches from all segments; do not return separate JSONs for each segment.\n\n${promptData.prompts.map((prompt: string, index: number) => `==================== [ Data Segment ${index + 1}/${segmentCount} Start ] ====================\n${prompt}\n==================== [ Data Segment ${index + 1}/${segmentCount} End ] ====================`).join('\n\n==================== [ Next data segment, please continue reading, do not answer ] ====================\n\n')}\n\n[All Data Segments End] Now perform a unified analysis and output only one merged JSON.`
         : promptData.prompts[0] || '';
       res.json({
         success: true,
@@ -87,8 +87,8 @@ export function registerAiPromptExportRoutes(app: express.Express, buildPromptDa
         match_manifest: matchManifest,
         combined_prompt: combinedPrompt,
         instructions: segmentCount > 1
-          ? `请按顺序分别发送 ${segmentCount} 段到同一会话；每段都会先生成本段完整结果，最后一段再合并全部结果。不要一次性合并发送。`
-          : '复制此 Prompt 到 Gemini，完成后将返回的 JSON 导入系统。',
+          ? `Please send each of the ${segmentCount} segments sequentially in the same conversation; each segment will first generate its complete result, and the final segment will merge all results. Do not send a combined result all at once.`
+          : `Copy this Prompt to Gemini, complete it, and then import the returned JSON into the system.`
       });
     } catch (error: any) {
       res.status(400).json({ error: error?.message || 'Failed to export prompt' });
@@ -100,6 +100,8 @@ export function registerAiManualImportRoutes(app: express.Express, deps: { parse
   const categories = ['全场大小球', '半场大小球', '全场让球', '半场让球', '全场独赢1X2', '波胆', '双方是否进球', '总进球单双', '主队进球数', '客队进球数', '总进球数', '进球时间段'];
   app.post('/api/ai/import-evaluation', (req, res) => {
     try {
+      // `expected_match_count` is optional – supplied by the front-end when it has the count from the export step.
+      // When absent (e.g. user pastes directly without having exported), we skip the count check gracefully.
       const { raw_text, mode = 'live_eval', expected_match_count } = req.body || {};
       if (typeof raw_text !== 'string' || !raw_text.trim()) return res.status(400).json({ error: 'Paste a JSON result from Gemini Web' });
       const parsed = deps.parse(raw_text);

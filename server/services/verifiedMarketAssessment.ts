@@ -83,12 +83,20 @@ export function validateAssessmentAgainstVerifiedMarkets(assessment: any, market
   const matchedById = requestedOptionId
     ? candidates.find((option) => option.option_id === requestedOptionId)
     : undefined;
-  const matched = matchedById || candidates.find((option) => {
+  const matchedByLineAndOdds = candidates.find((option) => {
     if (String(option.side || '') !== side) return false;
     const actualLine = normalizedLine(option.line ?? option.selection);
     const lineMatches = marketKey.endsWith('_h2h') || actualLine === requestedLine;
     return lineMatches && Number.isFinite(requestedOdds) && Math.abs(Number(option.odds) - requestedOdds) <= 0.011;
   });
+  const matchedBySide = side
+    ? (requestedLine
+        ? candidates.find((option) => String(option.side || '') === side && normalizedLine(option.line ?? option.selection) === requestedLine)
+        : candidates.find((option) => String(option.side || '') === side))
+    : undefined;
+
+  const matched = matchedById || matchedByLineAndOdds || matchedBySide;
+
   if (matched) return {
     ...assessment,
     market: marketKey,
