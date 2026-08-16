@@ -926,10 +926,11 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
         evaluation_mode: candidateMode,
         grade: c.grade || 'B',
         system_recommendation: c.recommendation,
+        ai_recommendation: c.ai_evaluation?.recommendation || null,
         ai_market_assessments: marketPool,
       };
     });
-    const parlayDataChunks = chunkPromptItems(parlayCandidatePayloads, 4, 380_000);
+    const parlayDataChunks = chunkPromptItems(parlayCandidatePayloads, 15, 380_000);
     const candidatesInfoText = parlayDataChunks.map((chunk, index) => (
       `==================== [ 串关候选数据段 ${index + 1}/${parlayDataChunks.length} 开始 ] ====================\n`
       + `${chunk.map((candidate) => `比赛 #${candidate.candidate_index}: ${JSON.stringify(candidate)}`).join('\n')}\n`
@@ -1096,67 +1097,144 @@ ${JSON.stringify(historicalFeedback)}
   const evaluationData = requestedMatches.map((item: any) => compressMatchDataForPrompt(item, mode));
 
   if (isExportPrompt && mode !== 'parlay_check') {
-    // Increase token limit to reduce chance of truncating matches. Default can be overridden via env MAX_PROMPT_TOKENS.
-    const MAX_PROMPT_TOKENS = Number(process.env.MAX_PROMPT_TOKENS) || 250_000;
-    const chunks = chunkPromptItems(evaluationData, 4, MAX_PROMPT_TOKENS);
+    // With slim JSON payload (~1KB per match), export up to 15 matches in a single unified prompt to prevent truncation and segment splitting.
+    const MAX_PROMPT_TOKENS = Number(process.env.MAX_PROMPT_TOKENS) || 300_000;
+    const chunks = chunkPromptItems(evaluationData, 15, MAX_PROMPT_TOKENS);
     const prompts = chunks.map((chunkData, index) => {
       const batchHeader = chunks.length > 1 ? `Batch ${index + 1}/${chunks.length} – ${chunkData.length} matches` : `Total ${chunkData.length} matches`;
-      return `Please evaluate the following matches ${batchHeader} with a full 12‑category assessment per match. Return ONLY a single valid JSON object (no natural language or Markdown fences).
+      return `Please evaluate the following matches (${batchHeader}) with rigorous football risk controls.
+Return ONLY a single valid JSON object (no markdown, no conversational commentary).
 
-[Rating and Recommendation Rules]
-1. Real markets (full_h2h/spread/total, half_h2h/spread/total): compute implied_probability = 100 / odds, value_edge = probability - implied_probability.
-2. Formal recommendation (status="recommend", grade="A" or "B"): when estimated win probability significantly exceeds implied probability (value_edge > 0) and supporting data is strong, assign A or B and populate top‑level recommendation, set verification_passed=true.
-3. Watch (status="watch", grade="C"): value_edge positive but small or risk high.
-4. Avoid (status="avoid", grade="NO_BET"): value_edge <= 0 or insufficient support/low odds.
-5. Prediction categories (remaining 7): market="prediction", option_id=null, status="prediction", grade="NO_BET".
+[Evaluation and Risk Control Protocol]
+1. Mandatory 5 Real Betting Markets (Each match's market_assessments MUST evaluate ALL 5 core markets):
+   - 全场大小球 (full_total)
+   - 半场大小球 (half_total: If this match has no half_total options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
+   - 全场让球 (full_spread)
+   - 半场让球 (half_spread: If this match has no half_spread options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
+   - 全场独赢1X2 (full_h2h: If this match has no full_h2h options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
+   
+   For each available market:
+   - ONLY select valid options from this match's verified_ybty_markets! Copy option_id verbatim to market_option_id.
+   - Calculate implied_probability = 100 / odds, value_edge = probability - implied_probability.
+   - Formal recommendation (status="recommend", grade="A"|"B"): only when value_edge > 0 with strong tactical & statistical backing.
+   - Watch (status="watch", grade="C"): small value_edge or higher uncertainty.
+   - Avoid (status="avoid", grade="NO_BET"): value_edge <= 0 or lacking margin of safety.
+
+2. Best Overall Recommendation (recommendation field):
+   - Pick the single best/highest-value option among the 5 real markets above (grade="A" or "B").
+   - If none of the 5 markets qualify for A/B recommendation, set recommendation to null (or grade="NO_BET").
+
+3. Non-bettable Predictions (predictions object):
+   - Fill in all 7 prediction fields: correct_score (波胆), btts (双方进球: 是/否), odd_even (单双: 单/双), home_goals (主队进球: X球), away_goals (客队进球: X球), total_goals (总进球: X球), timing (进球时段).
+
+4. Live Score Verification:
+   - If score_verified is false, DO NOT give any A/B grade real market recommendations. All 5 real markets must be status="avoid" / grade="NO_BET".
+
+5. Completeness Constraint:
+   - CRITICAL: You MUST output all ${chunkData.length} matches in the "matches" array.
+   - For every match, market_assessments must include all 5 real markets, and predictions must include all 7 fields.
 
 [Output JSON Schema Template]
-${JSON.stringify({
-  schema_version: "football_market_audit_v2",
-  summary: `matches:${chunkData.length}|recommend:N|watch:N|avoid:N`,
-  matches: [{
-    match: "Original match name",
-    ybty_home: "YBTY home team",
-    ybty_away: "YBTY away team",
-    summary: "minute|score|score_verified|final instruction",
-    score_verified: true,
-    score_source: "ybty+leisu_api",
-    verification_passed: true,
-    recommendation: {
-      category: "full_spread",
-      market: "full_spread",
-      market_option_id: "full_spread__m1__o2",
-      direction: "away",
-      line: "-0/0.5",
-      odds: 2.2,
-      probability: 65,
-      value_edge: 19.55,
-      grade: "B"
-    },
-    market_assessments: [{
-      category: "one of 12 categories",
-      market: "real market key or prediction",
-      market_option_id: "full_spread__m1__o2 or null",
-      direction: "home/over/away etc",
-      line: "-0/0.5 or null",
-      odds: 2.2,
-      odds_source: "ybty_verified or null",
-      probability: 65,
-      probability_scope: "simplified settlement",
-      implied_probability: 45.45,
-      value_edge: 19.55,
-      grade: "A|B|C|NO_BET",
-      status: "recommend|watch|prediction|avoid|unavailable",
-      reason: "core data|status tag",
-      evidence_refs: ["input field path"],
-      risk: "risk tag"
-    }]
-  }]
-}, null, 2)}
+{
+  "schema_version": "football_market_audit_v2",
+  "summary": "matches:${chunkData.length}|recommend:N|watch:N|avoid:N",
+  "matches": [
+    {
+      "match": "Original match name",
+      "ybty_home": "YBTY home team",
+      "ybty_away": "YBTY away team",
+      "summary": "minute|score|score_verified|conclusion",
+      "score_verified": true,
+      "score_source": "ybty_verified",
+      "verification_passed": true,
+      "recommendation": {
+        "category": "全场让球",
+        "market": "full_spread",
+        "market_option_id": "full_spread__m1__o1",
+        "direction": "主队",
+        "line": "-0.5",
+        "odds": 1.95,
+        "probability": 62.0,
+        "value_edge": 10.7,
+        "grade": "B"
+      },
+      "market_assessments": [
+        {
+          "category": "全场大小球",
+          "market_option_id": "full_total__m1__o1",
+          "direction": "大 2.5",
+          "line": "2.5",
+          "odds": 1.98,
+          "probability": 60.0,
+          "grade": "B",
+          "status": "recommend",
+          "reason": "攻势迅猛且创造多次威胁",
+          "risk": "防守反击风险"
+        },
+        {
+          "category": "半场大小球",
+          "market_option_id": "half_total__m1__o2",
+          "direction": "小 1.0",
+          "line": "1.0",
+          "odds": 1.85,
+          "probability": 55.0,
+          "grade": "C",
+          "status": "watch",
+          "reason": "半场防守较为严密",
+          "risk": "偶发失误"
+        },
+        {
+          "category": "全场让球",
+          "market_option_id": "full_spread__m1__o1",
+          "direction": "主队 -0.5",
+          "line": "-0.5",
+          "odds": 1.95,
+          "probability": 62.0,
+          "grade": "B",
+          "status": "recommend",
+          "reason": "主队进攻压制明显且数据占优",
+          "risk": "客队反击威胁"
+        },
+        {
+          "category": "半场让球",
+          "market_option_id": "half_spread__m1__o1",
+          "direction": "主队 -0/0.5",
+          "line": "-0/0.5",
+          "odds": 2.03,
+          "probability": 49.2,
+          "grade": "NO_BET",
+          "status": "avoid",
+          "reason": "半场时间有限，让步缺乏足够安全边际",
+          "risk": "半场平局"
+        },
+        {
+          "category": "全场独赢1X2",
+          "market_option_id": "full_h2h__1",
+          "direction": "主胜",
+          "line": null,
+          "odds": 1.90,
+          "probability": 55.0,
+          "grade": "B",
+          "status": "recommend",
+          "reason": "主胜赔率具备正向价值边际",
+          "risk": "平局丢分"
+        }
+      ],
+      "predictions": {
+        "correct_score": "2-1",
+        "btts": "是",
+        "odd_even": "单",
+        "home_goals": "2球",
+        "away_goals": "1球",
+        "total_goals": "3球",
+        "timing": "61-75分钟"
+      }
+    }
+  ]
+}
 
-Match data list:
+Match data list (${chunkData.length} matches):
 ${JSON.stringify(chunkData, null, 2)}`;
-
     });
 
     return {
@@ -1173,9 +1251,8 @@ ${JSON.stringify(chunkData, null, 2)}`;
 
 
   // Non-export path (used by Gemini API auto-evaluation).
-  // Use the same larger token limit to prevent match truncation.
   const MAX_PROMPT_TOKENS_AUTO = Number(process.env.MAX_PROMPT_TOKENS) || 250_000;
-  const chunks = chunkPromptItems(evaluationData, mode === 'prematch_eval' ? 3 : 4, MAX_PROMPT_TOKENS_AUTO);
+  const chunks = chunkPromptItems(evaluationData, mode === 'prematch_eval' ? 6 : 8, MAX_PROMPT_TOKENS_AUTO);
 
   const prompts = chunks.map((chunkData, index) => {
     const batchLabel = chunks.length > 1

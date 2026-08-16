@@ -72,6 +72,28 @@ function expectedSide(category: string, direction: unknown): string | null {
 export function validateAssessmentAgainstVerifiedMarkets(assessment: any, markets: VerifiedMarket[]): any {
   const marketKey = categoryMarket[String(assessment?.category || '')];
   if (!marketKey) return assessment;
+
+  const isExplicitlyUnavailable =
+    assessment?.status === 'unavailable' ||
+    (!assessment?.market_option_id && !assessment?.odds && !assessment?.line) ||
+    (assessment?.grade === 'NO_BET' && !assessment?.market_option_id && !assessment?.odds);
+
+  if (isExplicitlyUnavailable) {
+    return {
+      ...assessment,
+      market: marketKey,
+      market_option_id: null,
+      direction: assessment?.direction || null,
+      line: null,
+      odds: null,
+      grade: 'NO_BET',
+      status: 'unavailable',
+      value_edge: null,
+      ybty_market_verified: false,
+      verification_error: 'market_unavailable_or_no_bet',
+    };
+  }
+
   const side = expectedSide(String(assessment.category), assessment.direction);
   const candidates = withVerifiedYbtyOptionIds(markets)
     .filter((market) => market?.market === marketKey && market?.market_type_verified !== false)

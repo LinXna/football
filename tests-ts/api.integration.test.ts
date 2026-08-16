@@ -77,6 +77,39 @@ test('HTTP API validates, deduplicates, synchronizes, and preserves protected da
     assert.equal(calibration.status, 200);
     assert.equal(((await calibration.json()) as any).overall.sample_size, 1);
 
+    const parlayImport = await post('/api/ai/import-evaluation', {
+      mode: 'parlay_check',
+      expected_match_count: 9,
+      raw_text: JSON.stringify({
+        summary: '精选多规格串关',
+        grade: 'A',
+        recommendation: { market: '多规格风控串关组合', line: 'N/A', odds: 3.5, best_timing_tip: '稳健下注' },
+        score_verified: true,
+        score_source: 'ybty_market',
+        verification_passed: true,
+        evidence: ['风控达标'],
+        risks: ['伤停风险'],
+        timing_strategy: '合理分仓',
+        parlay_safety_check: { is_valid_parlay: true, allow_max_parlay_tickets: 1, reasons: ['通过'] },
+        parlay_recommendations: [
+          {
+            size: 2,
+            ticket_index: 1,
+            grade: 'A',
+            estimated_total_odds: 3.5,
+            reason: '核心组合',
+            legs: [
+              { match: 'Alpha vs Beta', ybty_home: 'Alpha', ybty_away: 'Beta', market: '全场大小球', line: '大 2.5', odds: 1.9, probability: 65, grade: 'A' },
+            ],
+          },
+        ],
+      }),
+    });
+    assert.equal(parlayImport.status, 200);
+    const parlayData = await parlayImport.json() as any;
+    assert.equal(parlayData.success, true);
+    assert.equal(parlayData.result.summary, '精选多规格串关');
+
     const clear = await post('/api/clear-outdated-matches', { target: 'all', clear_mode: 'all' });
     assert.equal(clear.status, 200);
     assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'output/leisu_latest.json'), 'utf-8')).events.length, 0);

@@ -17,7 +17,9 @@ import { buildPromptInterfaceContext, buildPromptLiveEfficiency } from '../serve
 import { resolveMatchEvaluationMode } from '../server/services/evaluationMode';
 import { chunkPromptItems } from '../server/services/promptChunking';
 import { enforceLiveScoreVerification, validateAssessmentAgainstVerifiedMarkets, validateParlayLegAgainstCandidate, withVerifiedYbtyOptionIds } from '../server/services/verifiedMarketAssessment';
-import { buildSlimPromptMatch, filterPromptKeyIncidents } from '../server/services/promptSlimPayload';
+import { buildSlimPromptMatch, filterPromptKeyIncidents, extractFocusedIncidents, buildAttackPressureSummary } from '../server/services/promptSlimPayload';
+import { normalizeMatchPredictionsAndAssessments } from '../server/services/marketAssessmentsNormalizer';
+import { normalizeParlayRecommendations } from '../server/services/parlayRecommendationNormalizer';
 import { scoreDisplay } from '../src/lib/scoreDisplay';
 import { displayText, playerNames } from '../src/lib/displayValue';
 import { getLeagueName } from '../src/types';
@@ -67,16 +69,18 @@ test('slim prompt payload removes mirrors, audits, weather, and non-key commenta
   }, 'live_eval');
   assert.equal(slim.match_info.match, 'Home vs Away');
   assert.equal(slim.match_info.score_verified, false);
-  assert.deepEqual(slim.key_incidents, ["45' - 半场结束，比分0-0", "62' - 进球！0-1", "64' - VAR取消进球"]);
+  assert.deepEqual(slim.focused_incidents.match_events, ["45' - 半场结束", "62' - 进球 - 0-1", "64' - VAR - 取消进球"]);
   assert.equal(slim.verified_ybty_markets[0].options.length, 1);
   assert.equal(slim.verified_ybty_markets[0].options[0].option_id, 'full_h2h__1');
   assert.equal('interface_context' in slim, false);
   assert.equal('ybty_market_audit' in slim, false);
   assert.equal('weather' in slim, false);
+  assert.equal('key_incidents' in slim, false);
+  assert.equal('live_statistics' in slim, false);
 });
 
 test('key incident filter keeps betting-relevant events and drops greetings', () => {
-  assert.deepEqual(filterPromptKeyIncidents({ incidents: ['欢迎观看', '点球罚失', '主队换人', '天气晴朗'] }), ['点球罚失', '主队换人']);
+  assert.deepEqual(filterPromptKeyIncidents({ incidents: ['欢迎观看', "20' - 点球！罚失", "55' - 主队换人", '天气晴朗'] }), ["20' - 点球 - 罚失", "55' - 换人 - 主队换人"]);
 });
 
 test('key incident filter removes duplicated minute prefixes and semantic duplicates', () => {
@@ -88,8 +92,8 @@ test('key incident filter removes duplicated minute prefixes and semantic duplic
       "62' - 第1个进球！客队取得领先！",
     ],
   }), [
-    "45' - 随着裁判一声哨响，上半场结束，目前比分0-0",
-    "62' - 第1个进球！客队取得领先！",
+    "45' - 半场结束",
+    "62' - 进球 - 客队取得领先",
   ]);
 });
 
@@ -240,6 +244,9 @@ test('AI market line and odds must exactly match a verified YBTY option', () => 
   assert.equal(invented.odds, null);
   const missingHalf = validateAssessmentAgainstVerifiedMarkets({ category: '半场大小球', direction: '小球', line: '1/1.5', odds: 1.85 }, markets);
   assert.equal(missingHalf.status, 'unavailable');
+  const explicitUnavailable = validateAssessmentAgainstVerifiedMarkets({ category: '半场大小球', status: 'unavailable', direction: null, line: null, odds: null, grade: 'NO_BET' }, markets);
+  assert.equal(explicitUnavailable.status, 'unavailable');
+  assert.equal(explicitUnavailable.verification_error, 'market_unavailable_or_no_bet');
 });
 
 test('YBTY option id locks direction, line and odds instead of trusting AI copies', () => {
@@ -432,3 +439,121 @@ test('corrupted JSON is quarantined and recovered from backup or fails closed', 
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('extractFocusedIncidents extracts red cards, card/corner tallies, and match events', () => {
+  const item = {
+    minute: 75,
+    leisu_home: '主队',
+    leisu_away: '客队',
+    incidents: [
+      "12' - 黄牌！主队4号",
+      "35' - 进球！主队1-0领先",
+      "40' - 红牌！客队后卫被罚下",
+      "55' - 角球！主队开出角球",
+      "68' - 换人！主队换上中场",
+      "72' - 黄牌！主队6号犯规",
+    ],
+    live_statistics: {
+      yellow_cards: { home: 2, away: 1 },
+      corners: { home: 6, away: 2 },
+      red_cards: { home: 0, away: 1 },
+    },
+  };
+  const focused = extractFocusedIncidents(item);
+  assert.ok(focused.red_cards?.some((r) => r.includes('红牌')));
+  assert.equal(focused.cards_and_corners?.yellow_cards?.home, 2);
+  assert.equal(focused.cards_and_corners?.corners?.home, 6);
+  assert.equal(focused.cards_and_corners?.red_cards?.away, 1);
+  assert.equal(focused.match_events?.length, 6);
+  assert.ok(focused.match_events?.some((i) => i.includes("72' - 黄牌 - 主队")));
+  assert.ok(focused.match_events?.some((i) => i.includes("35' - 进球 - 主队")));
+  assert.ok(focused.match_events?.some((i) => i.includes("40' - 红牌 - 客队")));
+});
+
+test('buildAttackPressureSummary combines possession, shots, danger attacks, corners, yellows', () => {
+  const stats = {
+    possession: { home: 60, away: 40 },
+    shots: { home: 8, away: 2 },
+    shots_on_target: { home: 4, away: 1 },
+    dangerous_attacks: { home: 35, away: 12 },
+    corners: { home: 5, away: 1 },
+    yellow_cards: { home: 1, away: 2 },
+  };
+  const summary = buildAttackPressureSummary(stats);
+  assert.equal(summary, '控球: 60% vs 40%, 射门: 8-2, 射正: 4-1, 危险进攻: 35-12, 角球: 5-1, 黄牌: 1-2');
+});
+
+test('normalizeMatchPredictionsAndAssessments expands compact predictions into 12 categories', () => {
+  const compactMatch = {
+    match: 'Team A vs Team B',
+    ybty_home: 'Team A',
+    ybty_away: 'Team B',
+    market_assessments: [
+      {
+        category: '全场大小球',
+        market_option_id: 'full_total__1',
+        direction: '大 2.5',
+        line: '2.5',
+        odds: 1.95,
+        probability: 60,
+        grade: 'B',
+        status: 'recommend',
+      },
+    ],
+    predictions: {
+      correct_score: '2-1',
+      btts: '是',
+      odd_even: '单',
+      home_goals: '2球',
+      away_goals: '1球',
+      total_goals: '3球',
+      timing: '61-75分钟',
+    },
+  };
+  const normalized = normalizeMatchPredictionsAndAssessments(compactMatch);
+  assert.equal(normalized.market_assessments.length, 12); // 5 bettable real markets + 7 expanded predictions
+  const scorePred = normalized.market_assessments.find((a: any) => a.category === '波胆');
+  assert.equal(scorePred?.direction, '2-1');
+  assert.equal(scorePred?.status, 'prediction');
+  const bttsPred = normalized.market_assessments.find((a: any) => a.category === '双方是否进球');
+  assert.equal(bttsPred?.direction, '是');
+  const timingPred = normalized.market_assessments.find((a: any) => a.category === '进球时间段');
+  assert.equal(timingPred?.direction, '61-75分钟');
+
+  // Verify that unavailable bettable markets pass validation without invented errors
+  const verifiedMarkets = [
+    {
+      market: 'full_total',
+      options: [{ option_id: 'full_total__m1__o1', line: '2.5', side: 'over', odds: 1.98 }],
+    },
+  ];
+  for (const assessment of normalized.market_assessments) {
+    const validated = validateAssessmentAgainstVerifiedMarkets(assessment, verifiedMarkets);
+    assert.notEqual(validated.verification_error, 'ai_option_not_in_ybty_whitelist');
+    assert.notEqual(validated.verification_error, 'invalid_ybty_option_id');
+  }
+});
+
+test('parseModelJson repairs JSON with missing commas and trailing commas from LLMs', () => {
+  const brokenJson = `
+  \`\`\`json
+  {
+    "summary": "ok",
+    "ticket": {
+      "size": 8,
+      "reason": "8串1大满贯极限组合，覆盖8场精选场次，适合小资金博取巨额赔付。"
+      "legs": [
+        { "name": "match1", "odds": 1.78 },
+        { "name": "match2", "odds": 1.69 },
+      ]
+    }
+  }
+  \`\`\`
+  `;
+  const parsed = parseModelJson(brokenJson);
+  assert.equal(parsed.summary, 'ok');
+  assert.equal(parsed.ticket.size, 8);
+  assert.equal(parsed.ticket.legs.length, 2);
+});
+
+

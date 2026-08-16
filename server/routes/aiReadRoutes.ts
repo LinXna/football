@@ -6,6 +6,7 @@ import { normalizeParlayRecommendations } from '../services/parlayRecommendation
 import { normalizeYbtyMarketTypes } from '../services/marketTypeNormalizer';
 import { enforceLiveScoreVerification, validateAssessmentAgainstVerifiedMarkets } from '../services/verifiedMarketAssessment';
 import { resolveScoreVerification } from '../services/scoreValidation';
+import { normalizeMatchPredictionsAndAssessments } from '../services/marketAssessmentsNormalizer';
 
 /** Read-only access to retained AI evaluation snapshots. */
 export function registerAiReadRoutes(app: express.Express): void {
@@ -105,23 +106,64 @@ export function registerAiManualImportRoutes(app: express.Express, deps: { parse
       const { raw_text, mode = 'live_eval', expected_match_count } = req.body || {};
       if (typeof raw_text !== 'string' || !raw_text.trim()) return res.status(400).json({ error: 'Paste a JSON result from Gemini Web' });
       const parsed = deps.parse(raw_text);
+      if (Array.isArray(parsed.matches)) {
+        parsed.matches = parsed.matches.map((m: any) => normalizeMatchPredictionsAndAssessments(m));
+      } else if (parsed && typeof parsed === 'object') {
+        Object.assign(parsed, normalizeMatchPredictionsAndAssessments(parsed));
+      }
+      const isParlayMode = mode === 'parlay_check' || Array.isArray(parsed?.parlay_recommendations) || Boolean(parsed?.parlay_safety_check);
       const expectedCount = Number(expected_match_count);
-      if (Number.isInteger(expectedCount) && expectedCount > 1 && (!Array.isArray(parsed.matches) || parsed.matches.length !== expectedCount)) {
+      if (!isParlayMode && Number.isInteger(expectedCount) && expectedCount > 1 && (!Array.isArray(parsed.matches) || parsed.matches.length !== expectedCount)) {
         throw new Error(`AI返回不完整：应包含 ${expectedCount} 场比赛，实际只有 ${Array.isArray(parsed.matches) ? parsed.matches.length : 0} 场。请不要导入，回到同一AI会话要求其补全全部比赛。`);
       }
-      if (Number.isInteger(expectedCount) && expectedCount > 1 && Array.isArray(parsed.matches)) {
+      if (!isParlayMode && Number.isInteger(expectedCount) && expectedCount > 1 && Array.isArray(parsed.matches)) {
         const incomplete = parsed.matches.filter((match: any) => !Array.isArray(match.market_assessments) || match.market_assessments.length < categories.length);
         if (incomplete.length > 0) {
           throw new Error(`AI返回存在占位比赛：${incomplete.length} 场未包含完整12类玩法（${incomplete.slice(0, 3).map((item: any) => item.match).join('、')}${incomplete.length > 3 ? '等' : ''}）。请在同一AI会话要求补全后再导入。`);
         }
       }
       parsed.ai_provider = 'gemini_manual_web_import';
-      const decisionFiles = mode === 'parlay_check'
+      const decisionFiles = isParlayMode
         ? [readJsonFile<any>(DATA_FILES.live.decisions, { decisions: [] }), readJsonFile<any>(DATA_FILES.prematch.decisions, { decisions: [], research_queue: [] })]
         : mode === 'prematch_eval'
           ? [readJsonFile<any>(DATA_FILES.prematch.decisions, { decisions: [], research_queue: [] })]
           : [readJsonFile<any>(DATA_FILES.live.decisions, { decisions: [] })];
-      const sourceMatches = decisionFiles.flatMap((file: any) => [...(file.decisions || []), ...(file.research_queue || [])]);
+      const candidateFiles = [
+        readJsonFile<any>(DATA_FILES.live.candidates, { candidates: [] }),
+        readJsonFile<any>(DATA_FILES.prematch.candidates, { candidates: [] }),
+      ];
+      const ybtyFiles = [
+        readJsonFile<any>(DATA_FILES.live.ybtySnapshot, { matches: [] }),
+        readJsonFile<any>(DATA_FILES.prematch.ybtySnapshot, { matches: [] }),
+      ];
+      const parlayCandidatePool = candidateFiles.flatMap((file: any) => Array.isArray(file.candidates) ? file.candidates : []);
+      const parlayYbtyPool = ybtyFiles.flatMap((file: any) => Array.isArray(file.matches) ? file.matches : []);
+      const storedMatches = decisionFiles.flatMap((file: any) => [...(file.decisions || []), ...(file.research_queue || [])]);
+
+      const cleanTeam = (str: any): string => {
+        if (typeof str !== 'string') return '';
+        return str.toLowerCase().replace(/-(ybty|leisu)$/gi, '').replace(/football club|fc|俱乐部|体育/gi, '').replace(/[\s\-_:\.()（）\[\]【】]/g, '').trim();
+      };
+      const sameTeams = (homeA: unknown, awayA: unknown, homeB: unknown, awayB: unknown) =>
+        cleanTeam(homeA) === cleanTeam(homeB) && cleanTeam(awayA) === cleanTeam(awayB);
+
+      const sourceMatches = storedMatches.map((stored: any) => {
+        const wrapper = parlayCandidatePool.find((entry: any) =>
+          entry?.match === stored.match
+          || sameTeams(entry?.candidate?.home, entry?.candidate?.away, stored.ybty_home, stored.ybty_away)
+          || sameTeams(entry?.ybty_home, entry?.ybty_away, stored.ybty_home, stored.ybty_away));
+        const ybty = parlayYbtyPool.find((entry: any) =>
+          sameTeams(entry?.home, entry?.away, stored.ybty_home, stored.ybty_away));
+        const source = wrapper || {};
+        return {
+          ...source,
+          ...stored,
+          ybty_raw_markets: Array.isArray(stored.ybty_raw_markets) && stored.ybty_raw_markets.length > 0
+            ? stored.ybty_raw_markets
+            : normalizeYbtyMarketTypes(ybty?.markets || source.ybty_raw_markets || []),
+        };
+      });
+
       const normalizeName = (value: unknown) => String(value || '').toLowerCase().replace(/[\s._\-()（）]/g, '');
       if (Array.isArray(parsed.matches)) parsed.matches = parsed.matches.map((match: any) => {
         const assessments = Array.isArray(match.market_assessments) ? match.market_assessments : [];
@@ -147,7 +189,19 @@ export function registerAiManualImportRoutes(app: express.Express, deps: { parse
       Object.assign(parsed, normalizeParlayRecommendations(parsed, deps.sanitizeParlayLeg, sourceMatches));
       const history = readJsonFile<any[]>(DATA_FILES.ai.evaluations, []);
       const snapshotId = `web_gemini_${Date.now()}`;
-      history.unshift({ id: snapshotId, mode, scope: Array.isArray(parsed.matches) ? 'batch' : 'single', evaluated_matches: Array.isArray(parsed.matches) ? parsed.matches.map((item: any) => item.match || `${item.ybty_home || ''} vs ${item.ybty_away || ''}`) : [parsed.match || 'manual web import'], saved_at: new Date().toISOString(), result: parsed });
+      const evaluatedMatches = Array.isArray(parsed.matches)
+        ? parsed.matches.map((item: any) => item.match || `${item.ybty_home || ''} vs ${item.ybty_away || ''}`)
+        : Array.isArray(parsed.parlay_recommendations)
+          ? Array.from(new Set(parsed.parlay_recommendations.flatMap((ticket: any) => Array.isArray(ticket?.legs) ? ticket.legs.map((leg: any) => leg?.match || `${leg?.ybty_home || ''} vs ${leg?.ybty_away || ''}`).filter(Boolean) : [])))
+          : [parsed.match || 'manual web import'];
+      history.unshift({
+        id: snapshotId,
+        mode,
+        scope: Array.isArray(parsed.matches) ? 'batch' : isParlayMode ? 'parlay' : 'single',
+        evaluated_matches: evaluatedMatches,
+        saved_at: new Date().toISOString(),
+        result: parsed,
+      });
       if (!writeJsonFile(DATA_FILES.ai.evaluations, history)) return res.status(500).json({ error: 'Failed to save imported evaluation' });
       res.json({ success: true, snapshot_id: snapshotId, result: parsed, message: 'Evaluation imported and saved.' });
     } catch (error: any) { res.status(400).json({ error: `Invalid imported JSON: ${error?.message || 'unknown error'}` }); }
