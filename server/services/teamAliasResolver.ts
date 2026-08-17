@@ -1,3 +1,5 @@
+import { matchSequentialName } from '../../src/lib/sequentialNameMatcher';
+
 export function createTeamAliasResolver(
   manual: Record<string, string[]>,
   automatic: Record<string, string[]>,
@@ -16,6 +18,12 @@ export function createTeamAliasResolver(
     const a = normalize(left); const b = normalize(right);
     if (!a || !b) return false;
     if (a === b || (aliases.get(a) || a) === (aliases.get(b) || b)) return true;
-    return a.length >= 3 && b.length >= 3 && (a.includes(b) || b.includes(a));
+    if (a.length >= 3 && b.length >= 3 && (a.includes(b) || b.includes(a))) return true;
+    if (matchSequentialName(left, right)) return true;
+    const canLeft = aliases.get(a);
+    const canRight = aliases.get(b);
+    if (canLeft && matchSequentialName(canLeft, right)) return true;
+    if (canRight && matchSequentialName(left, canRight)) return true;
+    return false;
   };
 }

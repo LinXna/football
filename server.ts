@@ -947,6 +947,13 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
 ---【串关风控规则】---
 1. 同一比赛可以在不同串关中采用不同玩法，但每个玩法必须分别达到B级以上。
 2. 普通B级同一方向最多进入1组正式串关；A级且模型评分≥85的同一方向最多2组。
+3. 跨串重复使用同一场比赛必须进行独立性审查，避免相关性风险击穿全部组合。
+
+---【职业辛迪加投注操盘策略（Pro-Bettor Execution Strategies）】---
+在选择串关腿或单场方向时，必须应用职业操盘思维：
+- 策略 A：半场测试 + 下半场动态追加（Probe & Scale-in）—— 适合破门预期高但赛前盘口过深的场次。
+- 策略 B：让球盘与大小球联动对冲（Handicap + Total Goals Correlation）—— 领先/落后战术演变下的盘口联动。
+- 策略 C：终局波动与绝杀捕捉（Late Goal Squeeze）—— 75+分钟分差为0或1球时的攻防失衡高赔收割。
 
 请求模式: parlay_check
 ${verifiedOptionRule}
@@ -958,12 +965,10 @@ ${JSON.stringify(requests)}
 ---【历史台账反馈】---
 ${JSON.stringify(historicalFeedback)}
 
----【串关 Legs 字段命名规范（极其重要）】---
+---【串关 Legs 字段命名与比分规范（极其重要）】---
 1. market 必须填写中文标准玩法名称，例如 "全场大小球", "全场让球", "全场独赢1X2", "半场大小球", "半场让球"。严禁输出 full_total, full_spread, full_h2h 等英文键名！
-2. line 必须明确注明的投注方向与盘口值：
-   - 大小球：必须包含“大”或“小”，例如 "大 3.5"、"小 2.5"；
-   - 让球盘：必须写明主队或客队名称及盘口，例如 "维京 -0.5"、"邓迪FC 0"、"霍布罗 +0/0.5"；
-   - 独赢盘：必须写明 "主胜"、"客胜" 或 "平局"（如 "维京胜"）。
+2. line 必须明确注明的投注方向与盘口值（大小球带大/小，让球盘带球队名与盘口，独赢盘写主胜/客胜/平局）。
+3. 每条腿必须附带当时比分 (score: {home, away}) 与分钟 (minute)，以及操盘策略建议 (pro_strategy)。
 
 请从每场的 system_recommendation、ai_market_assessments 与 YBTY 真实盘口中选择胜率较高且赔率合理的方向，按要求生成串关。输出严格的 JSON 结构：
 {
@@ -986,7 +991,7 @@ ${JSON.stringify(historicalFeedback)}
     "allow_max_parlay_tickets": 1,
     "reasons": ["分析说明"]
   },
-  "parlay_recommendations": [{"size": 3, "ticket_index": 1, "grade": "A|B|C", "estimated_total_odds": 5.67, "reason": "选单理由", "legs": [{"match":"比赛名","ybty_home":"主队","ybty_away":"客队","market":"真实玩法","line":"真实盘口","odds":1.88,"odds_source":"ybty_verified","probability":65,"grade":"A|B|C","reference_odds_usage":"雷速赔率轨迹如何辅助判断"}]}]
+  "parlay_recommendations": [{"size": 3, "ticket_index": 1, "grade": "A|B|C", "estimated_total_odds": 5.67, "reason": "选单理由", "legs": [{"match":"比赛名","ybty_home":"主队","ybty_away":"客队","minute":45,"score":{"home":0,"away":0},"market":"真实玩法","line":"真实盘口","odds":1.88,"odds_source":"ybty_verified","probability":65,"grade":"A|B|C","pro_strategy":"策略A：半场确认攻势后追加全场大球","reference_odds_usage":"雷速赔率轨迹如何辅助判断"}]}]
 }`;
 
     const parlayPrompts = isExportPrompt && parlayDataChunks.length > 1
@@ -1106,7 +1111,14 @@ ${JSON.stringify(historicalFeedback)}
 Return ONLY a single valid JSON object (no markdown, no conversational commentary).
 
 [Evaluation and Risk Control Protocol]
-1. Mandatory 5 Real Betting Markets (Each match's market_assessments MUST evaluate ALL 5 core markets):
+1. Pro-Bettor Execution Framework & Game Phase Analysis (职业操盘手实战策略与发力期分析):
+   - 比赛阶段动态权重 (Game Momentum & Fatigue Windows): 结合开局试探(0-15')、半场攻坚(15-45')、战术调整(45-60')、终局反扑(75-90+')不同时段特征，严禁死板时间均摊。
+   - 策略 A (半场测试+下半场追加 Probe & Scale-in): 适于破门预期高但赛前盘口水位过深，先小打半场，数据确认后下半场追加全场大/让球。
+   - 策略 B (让球盘与大小球联动对冲 Handicap & Goal Correlation): 结合早早领先后的控场或逆境搏命反扑，联动锁定小球或剩余大球。
+   - 策略 C (75+终局绝杀波动 Late Goal Squeeze): 终局平局或1球分差且落后方高压时，捕捉绝杀大0.5或终局盘口高赔。
+   - 为每场比赛输出 pro_strategy_guide，明确最佳操盘步骤。
+
+2. Mandatory 5 Real Betting Markets (Each match's market_assessments MUST evaluate ALL 5 core markets):
    - 全场大小球 (full_total)
    - 半场大小球 (half_total: If this match has no half_total options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
    - 全场让球 (full_spread)
@@ -1120,17 +1132,17 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
    - Watch (status="watch", grade="C"): small value_edge or higher uncertainty.
    - Avoid (status="avoid", grade="NO_BET"): value_edge <= 0 or lacking margin of safety.
 
-2. Best Overall Recommendation (recommendation field):
+3. Best Overall Recommendation (recommendation field):
    - Pick the single best/highest-value option among the 5 real markets above (grade="A" or "B").
    - If none of the 5 markets qualify for A/B recommendation, set recommendation to null (or grade="NO_BET").
 
-3. Non-bettable Predictions (predictions object):
+4. Non-bettable Predictions (predictions object):
    - Fill in all 7 prediction fields: correct_score (波胆), btts (双方进球: 是/否), odd_even (单双: 单/双), home_goals (主队进球: X球), away_goals (客队进球: X球), total_goals (总进球: X球), timing (进球时段).
 
-4. Live Score Verification:
+5. Live Score Verification:
    - If score_verified is false, DO NOT give any A/B grade real market recommendations. All 5 real markets must be status="avoid" / grade="NO_BET".
 
-5. Completeness Constraint:
+6. Completeness Constraint:
    - CRITICAL: You MUST output all ${chunkData.length} matches in the "matches" array.
    - For every match, market_assessments must include all 5 real markets, and predictions must include all 7 fields.
 

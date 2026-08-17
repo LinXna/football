@@ -47,6 +47,7 @@ export function normalizeMatchPredictionsAndAssessments(match: any): any {
       status: rec.grade === 'A' || rec.grade === 'B' ? 'recommend' : rec.grade === 'C' ? 'watch' : 'avoid',
       reason: rec.reason || 'AI推荐方向',
       risk: rec.risk || '盘口正常波动风险',
+      pro_trader_tip: rec.best_timing_tip || rec.pro_trader_tip || null,
     };
     assessments.push(recAssessment);
     existingMap.set(rec.category, recAssessment);
@@ -67,6 +68,7 @@ export function normalizeMatchPredictionsAndAssessments(match: any): any {
         status: 'unavailable',
         reason: '该玩法当前无明显价值边际或数据不足',
         risk: '暂无投注价值',
+        pro_trader_tip: null,
       };
       assessments.push(defaultBettable);
       existingMap.set(bettableCat, defaultBettable);
@@ -160,8 +162,43 @@ export function normalizeMatchPredictionsAndAssessments(match: any): any {
     }
   }
 
+  // Generate or normalize pro trader strategy guide if not present
+  let proStrategy = match.pro_strategy_guide || null;
+  if (!proStrategy && match.recommendation && ['A', 'B'].includes(String(match.recommendation.grade || match.grade || ''))) {
+    const recMarket = String(match.recommendation.category || match.recommendation.market || '');
+    const recLine = String(match.recommendation.line || '');
+    const min = Number(match.minute || 0);
+
+    if (min >= 75) {
+      proStrategy = {
+        strategy_name: '策略 C：终局绝杀与盘口收割 (Late Goal Squeeze)',
+        action_path: `比赛进入第 ${min} 分钟尾盘高风险高回报窗口。重点关注 ${recMarket} ${recLine}，捕捉终局防守脱节与补时破门机会。`,
+        trigger_conditions: '落后方全线压上、连续制造角球或射门压制',
+      };
+    } else if (min >= 40 && min <= 60 && recMarket.includes('大小球')) {
+      proStrategy = {
+        strategy_name: '策略 A：半场测试 + 下半场动态追加 (Probe & Scale-in)',
+        action_path: `半场数据验证通过，建议下半场盘口下调或降水后果断追加 ${recMarket} ${recLine}。若下半场前15分钟节奏骤降则停止追加。`,
+        trigger_conditions: '半场射门与危险进攻持续高企，下半场换上主力攻击手',
+      };
+    } else if (recMarket.includes('让球') || recMarket.includes('独赢')) {
+      proStrategy = {
+        strategy_name: '策略 B：让球盘与大小球联动对冲 (Handicap & Goal Correlation)',
+        action_path: `锁定核心优势方向 ${recMarket} ${recLine}。若早早领先且对手反扑无力，可联动锁定全场小球做保护。`,
+        trigger_conditions: '取得领先后对手阵型变化与换人反扑力度',
+      };
+    } else {
+      proStrategy = {
+        strategy_name: '标准价值投注策略 (Straight Value Execution)',
+        action_path: `按单注正期望值模型执行 ${recMarket} ${recLine} @${match.recommendation.odds || '--'}。`,
+        trigger_conditions: '盘口水位保持在安全边际内',
+      };
+    }
+  }
+
   return {
     ...match,
+    pro_strategy_guide: proStrategy,
     market_assessments: assessments,
   };
 }

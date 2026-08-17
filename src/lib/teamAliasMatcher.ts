@@ -1,3 +1,5 @@
+import { matchSequentialName } from './sequentialNameMatcher';
+
 /**
  * Team Alias Matching and Normalization Utility
  */
@@ -89,13 +91,24 @@ export function isSameTeam(teamA: string, teamB: string, lookupMap: Map<string, 
   const canonicalA = getCanonicalName(teamA, lookupMap);
   const canonicalB = getCanonicalName(teamB, lookupMap);
 
-  if (canonicalA === canonicalB) return true;
+  if (canonicalA && canonicalB && canonicalA === canonicalB) return true;
 
   const normA = normalizeTeamName(teamA);
   const normB = normalizeTeamName(teamB);
 
-  if (normA === normB) return true;
+  if (normA && normB && normA === normB) return true;
   if (normA.length >= 2 && normB.length >= 2 && (normA.includes(normB) || normB.includes(normA))) {
+    return true;
+  }
+
+  // Use character-by-character in-order sequential matching with gender/age tier priority
+  if (matchSequentialName(teamA, teamB)) {
+    return true;
+  }
+  if (canonicalA && matchSequentialName(canonicalA, teamB)) {
+    return true;
+  }
+  if (canonicalB && matchSequentialName(teamA, canonicalB)) {
     return true;
   }
 

@@ -17,7 +17,21 @@ export function normalizeParlayRecommendations(result: any, sanitizeLeg: (leg: a
           || candidates.find((item: any) => normalize(item.ybty_home) === normalize(sanitized.ybty_home) && normalize(item.ybty_away) === normalize(sanitized.ybty_away))
           || candidates.find((item: any) => cleanTeam(item.match) === cleanTeam(sanitized.match))
           || candidates.find((item: any) => cleanTeam(item.ybty_home) === cleanTeam(sanitized.ybty_home) && cleanTeam(item.ybty_away) === cleanTeam(sanitized.ybty_away));
-        return candidate ? validateParlayLegAgainstCandidate(sanitized, candidate) : { ...sanitized, ybty_market_verified: false, verification_error: 'candidate_not_found' };
+        
+        const candidateScore = candidate?.score || candidate?.match_info?.score || null;
+        const candidateMinute = candidate?.minute ?? candidate?.match_info?.minute ?? undefined;
+        const scoreVerified = candidate?.score_verified ?? candidate?.match_info?.score_verified ?? false;
+
+        const baseValidated = candidate 
+          ? validateParlayLegAgainstCandidate(sanitized, candidate) 
+          : { ...sanitized, ybty_market_verified: false, verification_error: 'candidate_not_found' };
+
+        return {
+          ...baseValidated,
+          score: candidateScore || baseValidated.score || null,
+          minute: candidateMinute !== undefined ? candidateMinute : baseValidated.minute,
+          score_verified: scoreVerified,
+        };
       }) : [];
       const invalid = legs.filter((leg: any) => leg.ybty_market_verified !== true);
       return { ...ticket, legs, verification_passed: invalid.length === 0, grade: invalid.length ? 'C' : ticket.grade, validation_errors: invalid.map((leg: any) => `${leg.match}: ${leg.validation_reason || leg.verification_error}`) };

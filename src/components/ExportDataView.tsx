@@ -15,9 +15,12 @@ import {
   Plus,
   RefreshCw,
   Tag,
-  Timer
+  Timer,
+  Edit2,
+  X
 } from 'lucide-react';
-import { buildAliasLookup, getCanonicalName, normalizeTeamName } from '../lib/teamAliasMatcher';
+import { buildAliasLookup, getCanonicalName, normalizeTeamName, isSameTeam } from '../lib/teamAliasMatcher';
+import { matchSequentialName } from '../lib/sequentialNameMatcher';
 import { normalizeLeisuInterfaceExport } from '../lib/leisuInterfaceImport';
 import { scoreDisplay } from '../lib/scoreDisplay';
 
@@ -122,6 +125,12 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
   const [newCanonical, setNewCanonical] = useState<string>('');
   const [newAlias, setNewAlias] = useState<string>('');
   const [aliasMsg, setAliasMsg] = useState<string | null>(null);
+  const [editingMatchedIndex, setEditingMatchedIndex] = useState<number | null>(null);
+
+  // Unbind or rebind a matched match
+  const handleUnbindMatch = (idx: number) => {
+    setEditingMatchedIndex((cur) => (cur === idx ? null : idx));
+  };
 
   // Fetch aliases on mount
   const loadAliases = async () => {
@@ -202,7 +211,9 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
       if (normA.length >= 2 && normB.length >= 2) {
         if (normA.includes(normB) || normB.includes(normA)) return true;
       }
+      if (matchSequentialName(normA, normB)) return true;
     }
+    if (matchSequentialName(leagueA, leagueB)) return true;
     return false;
   };
 
@@ -590,8 +601,20 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
             const lCanonHome = getCanonicalName(lHome, aliasLookup);
             const lCanonAway = getCanonicalName(lAway, aliasLookup);
 
-            const matchHome = (canonHome && canonHome === lCanonHome) || (normHome && normHome === normalizeTeamName(lHome));
-            const matchAway = (canonAway && canonAway === lCanonAway) || (normAway && normAway === normalizeTeamName(lAway));
+            const matchHome = (canonHome && canonHome === lCanonHome) || 
+                              (canonHome && canonHome === lHome) ||
+                              (homeName && homeName === lCanonHome) ||
+                              (normHome && normHome === normalizeTeamName(lHome)) ||
+                              isSameTeam(homeName, lHome, aliasLookup) ||
+                              matchSequentialName(homeName, lHome) ||
+                              (canonHome && matchSequentialName(canonHome, lHome));
+            const matchAway = (canonAway && canonAway === lCanonAway) || 
+                              (canonAway && canonAway === lAway) ||
+                              (awayName && awayName === lCanonAway) ||
+                              (normAway && normAway === normalizeTeamName(lAway)) ||
+                              isSameTeam(awayName, lAway, aliasLookup) ||
+                              matchSequentialName(awayName, lAway) ||
+                              (canonAway && matchSequentialName(canonAway, lAway));
             return matchHome && matchAway;
           });
 
@@ -603,8 +626,20 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
               const lCanonHome = getCanonicalName(lHome, aliasLookup);
               const lCanonAway = getCanonicalName(lAway, aliasLookup);
 
-              const matchHome = (canonHome && canonHome === lCanonHome) || (normHome && normHome === normalizeTeamName(lHome));
-              const matchAway = (canonAway && canonAway === lCanonAway) || (normAway && normAway === normalizeTeamName(lAway));
+              const matchHome = (canonHome && canonHome === lCanonHome) || 
+                                (canonHome && canonHome === lHome) ||
+                                (homeName && homeName === lCanonHome) ||
+                                (normHome && normHome === normalizeTeamName(lHome)) ||
+                                isSameTeam(homeName, lHome, aliasLookup) ||
+                                matchSequentialName(homeName, lHome) ||
+                                (canonHome && matchSequentialName(canonHome, lHome));
+              const matchAway = (canonAway && canonAway === lCanonAway) || 
+                                (canonAway && canonAway === lAway) ||
+                                (awayName && awayName === lCanonAway) ||
+                                (normAway && normAway === normalizeTeamName(lAway)) ||
+                                isSameTeam(awayName, lAway, aliasLookup) ||
+                                matchSequentialName(awayName, lAway) ||
+                                (canonAway && matchSequentialName(canonAway, lAway));
               return matchHome && matchAway;
             });
           }
@@ -847,6 +882,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
       const data = await resp.json();
       if (resp.ok && data.success) {
         setAliasMsg(`已成功将别名 [${alias.trim()}] 绑定至标准队名 [${canonical.trim()}]，全表已自动重新对齐！`);
+        setEditingMatchedIndex(null);
         const fresh = await loadAliases();
         if (activeRawData()) handleParseInput(activeRawData(), fresh || undefined);
       } else {
@@ -881,6 +917,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
         });
       }
       setAliasMsg(`成功与雷速对齐！[${ybtyHome}] / [${ybtyAway}] 已自动关联至雷速队名 [${leisuHome}] / [${leisuAway}]。`);
+      setEditingMatchedIndex(null);
       const fresh = await loadAliases();
       if (activeRawData()) handleParseInput(activeRawData(), fresh || undefined);
     } catch (e: any) {
@@ -1306,16 +1343,27 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
                     </div>
 
                     {/* Leisu Cross-Match Data Status */}
-                    {item.matched_leisu ? (
+                    {item.matched_leisu && editingMatchedIndex !== idx ? (
                       <div className="bg-emerald-950/30 border border-emerald-800/60 p-2.5 rounded-lg space-y-1.5 text-xs">
                         <div className="flex items-center justify-between text-emerald-300 font-bold">
                           <span className="flex items-center gap-1.5">
                             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                             ✅ 已成功对接雷速分析数据 (匹配置信度: {Math.round(item.matched_leisu.confidence * 100)}%)
                           </span>
-                          <span className="text-[10px] text-emerald-400 font-mono">
-                            雷速即时比分: {item.matched_leisu.score} {item.matched_leisu.minute ? `(${item.matched_leisu.minute}')` : ''}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-emerald-400 font-mono">
+                              雷速即时比分: {item.matched_leisu.score} {item.matched_leisu.minute ? `(${item.matched_leisu.minute}')` : ''}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleUnbindMatch(idx)}
+                              className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 rounded text-[10px] font-semibold flex items-center gap-1 border border-slate-700 transition-colors"
+                              title="如果匹配错误，可点击直接重新选择雷速比赛或修正别名"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                              修改匹配
+                            </button>
+                          </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] text-slate-300">
                           <div>雷速对应主队: <span className="font-bold text-white">{item.matched_leisu.leisu_home}</span></div>
@@ -1327,11 +1375,23 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
                         <div className="flex items-center justify-between text-amber-300 font-bold">
                           <span className="flex items-center gap-1.5">
                             <AlertTriangle className="w-4 h-4 text-amber-400" />
-                            ⚠️ 尚未匹配到雷速比分/分析数据
+                            {item.matched_leisu ? '🔄 正在修改匹配关系 (请选择或输入雷速对应比赛/别名)' : '⚠️ 尚未匹配到雷速比分/分析数据'}
                           </span>
-                          <span className="text-[10px] text-amber-200/80">
-                            未匹配原因说明
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-amber-200/80">
+                              {item.matched_leisu ? '可重新选择候选或单独改绑' : '未匹配原因说明'}
+                            </span>
+                            {item.matched_leisu && (
+                              <button
+                                type="button"
+                                onClick={() => setEditingMatchedIndex(null)}
+                                className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] flex items-center gap-1 border border-slate-700"
+                              >
+                                <X className="w-3 h-3" />
+                                取消修改
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <p className="text-[11px] text-amber-200/90 leading-relaxed font-mono">
                           {item.unmatch_reason || '雷速数据池中未匹配到此比赛。请在下方直接点击绑定主客队别名。'}

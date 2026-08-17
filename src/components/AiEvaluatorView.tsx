@@ -837,7 +837,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                 <h3 className="text-base font-bold text-white">选择串关长度和推荐组数</h3>
                 <p className="mt-1 text-xs text-slate-400">可多选。系统会在已选 {parlaySelected.length} 场比赛的全部玩法中，优先选择胜率较高且赔率合理的方向。</p>
                 <div className="mt-4 space-y-2">
-                  {[8, 7, 6, 5, 4, 3, 2].filter((size) => size <= parlaySelected.length).map((size) => {
+                  {[10, 9, 8, 7, 6, 5, 4, 3, 2].filter((size) => size <= parlaySelected.length).map((size) => {
                     const enabled = Number(parlayRequests[size] || 0) > 0;
                     return (
                       <div key={size} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900 p-3 text-sm">
@@ -1191,16 +1191,47 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
             <div className="space-y-4">
               <div className="text-sm font-bold text-emerald-300">批量评估完成：{result.matches.length} 场</div>
               {result.matches.map((matchResult, matchIndex) => (
-                <div key={`${matchResult.match}-${matchIndex}`} className="rounded-xl border border-slate-700 bg-slate-950/70 p-4">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <strong className="text-sm text-slate-100">{matchResult.match || `${matchResult.ybty_home} vs ${matchResult.ybty_away}`}</strong>
-                    <span className={`rounded px-2 py-1 text-xs font-bold ${matchResult.grade === 'A' ? 'bg-emerald-500/20 text-emerald-300' : matchResult.grade === 'B' ? 'bg-sky-500/20 text-sky-300' : 'bg-amber-500/20 text-amber-300'}`}>{matchResult.grade}级</span>
+                <div key={`${matchResult.match}-${matchIndex}`} className="rounded-xl border border-slate-700 bg-slate-950/70 p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <strong className="text-sm text-slate-100">{matchResult.match || `${matchResult.ybty_home} vs ${matchResult.ybty_away}`}</strong>
+                      {matchResult.score && (
+                        <span className="px-2 py-0.5 rounded bg-amber-950/60 border border-amber-800/60 text-amber-300 font-mono font-bold text-xs">
+                          {typeof matchResult.score === 'object' ? `${matchResult.score.home}-${matchResult.score.away}` : matchResult.score}
+                        </span>
+                      )}
+                      {matchResult.minute !== undefined && Number(matchResult.minute) > 0 && (
+                        <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[11px]">
+                          {matchResult.minute}'
+                        </span>
+                      )}
+                    </div>
+                    <span className={`rounded px-2.5 py-1 text-xs font-bold ${matchResult.grade === 'A' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : matchResult.grade === 'B' ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>{matchResult.grade}级</span>
                   </div>
-                  <p className="mb-3 text-xs text-slate-300">{displayText(matchResult.summary, '未提供总结')}</p>
+
+                  {/* Pro Trader Strategy & Action Guide Banner */}
+                  {matchResult.pro_strategy_guide && (
+                    <div className="rounded-lg border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 via-slate-900 to-indigo-950/30 p-3 text-xs space-y-1">
+                      <div className="flex items-center gap-2 text-indigo-300 font-bold">
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>🎯 专业操盘策略：{matchResult.pro_strategy_guide.strategy_name}</span>
+                      </div>
+                      <p className="text-slate-200 leading-relaxed font-medium">
+                        👉 操盘路径：{matchResult.pro_strategy_guide.action_path}
+                      </p>
+                      {matchResult.pro_strategy_guide.trigger_conditions && (
+                        <div className="text-[11px] text-slate-400">
+                          ⚡ 关键触发/止损信号：{matchResult.pro_strategy_guide.trigger_conditions}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <p className="text-xs text-slate-300">{displayText(matchResult.summary, '未提供总结')}</p>
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
                     {(matchResult.market_assessments || []).map((market, marketIndex) => (
                       <div key={`${market.category}-${marketIndex}`} className="rounded-lg border border-slate-800 bg-slate-900/80 p-3 text-xs">
-                        <div className="flex items-center justify-between gap-2"><strong className="text-slate-200">{market.category}</strong><span className={market.status === 'recommend' ? 'text-emerald-400' : market.status === 'watch' || market.status === 'prediction' ? 'text-sky-400' : 'text-amber-400'}>{market.status === 'recommend' ? '推荐' : market.status === 'watch' ? '观察' : market.status === 'prediction' ? '模型预测' : market.status === 'unavailable' ? '数据不足' : '不建议'}</span></div>
+                        <div className="flex items-center justify-between gap-2"><strong className="text-slate-200">{market.category}</strong><span className={market.status === 'recommend' ? 'text-emerald-400 font-bold' : market.status === 'watch' || market.status === 'prediction' ? 'text-sky-400' : 'text-amber-400'}>{market.status === 'recommend' ? '🔥 推荐' : market.status === 'watch' ? '观察' : market.status === 'prediction' ? '模型预测' : market.status === 'unavailable' ? '数据不足' : '不建议'}</span></div>
                         <div className="mt-2 font-semibold text-emerald-300">
                           {(() => {
                             let dir = String(market.direction || '--').trim();
@@ -1213,6 +1244,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                         </div>
                         <div className="mt-1 text-slate-400">概率：{market.probability ?? '--'}%{market.status === 'prediction' ? ' · 预测项（非投注评级）' : ` · 等级：${market.grade}`}{market.value_edge !== null && market.value_edge !== undefined ? ` · 价值差：${market.value_edge > 0 ? '+' : ''}${market.value_edge}%` : ''}</div>
                         {market.probability_scope && <div className="mt-1 text-[10px] text-slate-500">概率对象：{market.probability_scope}</div>}
+                        {market.pro_trader_tip && <div className="mt-1 text-[11px] text-indigo-300 font-medium">💡 操盘时机：{market.pro_trader_tip}</div>}
                         {Array.isArray(market.alternatives) && market.alternatives.length > 0 && (
                           <div className="mt-1 text-[10px] text-slate-500">备选：{market.alternatives.map((item) => `${item.direction} ${item.probability}%`).join('；')}</div>
                         )}
@@ -1274,6 +1306,24 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
               </button>
             </div>
           </div>
+
+          {/* Pro Trader Strategy & Action Path (Single Match) */}
+          {result.pro_strategy_guide && (
+            <div className="rounded-lg border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 via-slate-900 to-indigo-950/30 p-3.5 text-xs space-y-1.5">
+              <div className="flex items-center gap-2 text-indigo-300 font-bold text-sm">
+                <Sparkles className="w-4 h-4 text-indigo-400" />
+                <span>🎯 职业操盘策略：{result.pro_strategy_guide.strategy_name}</span>
+              </div>
+              <p className="text-slate-200 leading-relaxed font-medium">
+                👉 操盘路径：{result.pro_strategy_guide.action_path}
+              </p>
+              {result.pro_strategy_guide.trigger_conditions && (
+                <div className="text-[11px] text-slate-400">
+                  ⚡ 关键触发/止损信号：{result.pro_strategy_guide.trigger_conditions}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="text-xs text-slate-200 leading-relaxed bg-slate-950/60 p-4 rounded-lg border border-slate-800/80">
             <ReactMarkdown>{displayText(result.summary, '未提供总结')}</ReactMarkdown>
@@ -1352,10 +1402,27 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                         const mName = formatMarketName(leg.market);
                         const lText = formatLineText(leg.market, leg.line, leg.ybty_home, leg.ybty_away);
                         return (
-                          <div key={`${leg.match}-${index}`} className="rounded border border-slate-800 bg-slate-950 p-2 text-xs">
-                            <div className="font-bold text-slate-200">腿 #{index + 1} · {leg.ybty_home || leg.match} vs {leg.ybty_away || ''}</div>
-                            <div className="mt-1 text-emerald-300">{mName} {lText} <span className="text-amber-300">@{leg.odds}</span></div>
-                            <div className="mt-1 text-slate-500">AI概率 {leg.probability}% · {leg.grade}级</div>
+                          <div key={`${leg.match}-${index}`} className="rounded border border-slate-800 bg-slate-950 p-2.5 text-xs space-y-1.5">
+                            <div className="flex items-center justify-between gap-1">
+                              <div className="font-bold text-slate-200">腿 #{index + 1} · {leg.ybty_home || leg.match} vs {leg.ybty_away || ''}</div>
+                              {leg.score && (
+                                <span className="px-1.5 py-0.5 rounded bg-amber-950/60 border border-amber-800/50 text-amber-300 font-mono font-bold text-[10px]">
+                                  {typeof leg.score === 'object' ? `${leg.score.home}-${leg.score.away}` : leg.score}
+                                </span>
+                              )}
+                              {leg.minute !== undefined && Number(leg.minute) > 0 && (
+                                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono text-[10px]">
+                                  {leg.minute}'
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-emerald-300 font-semibold">{mName} {lText} <span className="text-amber-300 font-mono font-bold">@{leg.odds}</span></div>
+                            <div className="text-slate-400 text-[11px]">AI概率 {leg.probability}% · <span className={leg.grade === 'A' ? 'text-emerald-400 font-bold' : leg.grade === 'B' ? 'text-sky-400 font-bold' : 'text-amber-400'}>{leg.grade}级</span></div>
+                            {leg.pro_strategy && (
+                              <div className="text-[10px] text-indigo-300 bg-indigo-950/40 border border-indigo-800/40 rounded px-1.5 py-0.5 mt-1">
+                                🎯 操盘思维：{leg.pro_strategy}
+                              </div>
+                            )}
                           </div>
                         );
                       })}

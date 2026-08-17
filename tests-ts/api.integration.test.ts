@@ -115,10 +115,15 @@ test('HTTP API validates, deduplicates, synchronizes, and preserves protected da
     assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'output/leisu_latest.json'), 'utf-8')).events.length, 0);
     assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'output/recommendation_ledger.json'), 'utf-8')).length, 1);
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'team_aliases.json'), 'utf-8')), {});
+    const filteredStderr = stderr
+      .split('\n')
+      .filter((line) => line.trim() && !line.includes('Port 24678 is already in use') && !line.includes('WebSocket server error'))
+      .join('\n')
+      .trim();
+    assert.equal(filteredStderr, '');
   } finally {
     child.kill();
     await new Promise<void>((resolve) => child.once('exit', () => resolve()));
     fs.rmSync(root, { recursive: true, force: true });
   }
-  assert.equal(stderr, '');
 });

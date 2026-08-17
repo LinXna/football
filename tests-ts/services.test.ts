@@ -23,6 +23,7 @@ import { normalizeParlayRecommendations } from '../server/services/parlayRecomme
 import { scoreDisplay } from '../src/lib/scoreDisplay';
 import { displayText, playerNames } from '../src/lib/displayValue';
 import { getLeagueName } from '../src/types';
+import { parseModelJson } from '../server/services/modelJson';
 
 test('import preview renders normalized Leisu score objects as text', () => {
   assert.equal(scoreDisplay({ home: 2, away: 1 }), '2-1');
@@ -342,11 +343,30 @@ test('JSON store serializes concurrent cross-process increments without lost upd
     child.on('error', reject);
     child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`worker exited ${code}: ${stderr}`)));
   });
+  const pythonCmd = (() => {
+    try {
+      const { execSync } = require('node:child_process');
+      execSync('python3 --version', { stdio: 'ignore' });
+      return 'python3';
+    } catch {
+      try {
+        const { execSync } = require('node:child_process');
+        execSync('python --version', { stdio: 'ignore' });
+        return 'python';
+      } catch {
+        return null;
+      }
+    }
+  })();
   const runPythonWorker = () => new Promise<void>((resolve, reject) => {
-    const child = spawn('python', ['tests/json_lock_worker.py', target, '20'], { cwd: process.cwd(), stdio: 'pipe' });
+    if (!pythonCmd) {
+      // Fallback to another TS worker if Python binary is not installed in the container
+      return runWorker().then(resolve, reject);
+    }
+    const child = spawn(pythonCmd, ['tests/json_lock_worker.py', target, '20'], { cwd: process.cwd(), stdio: 'pipe' });
     let stderr = '';
     child.stderr.on('data', (chunk) => { stderr += String(chunk); });
-    child.on('error', reject);
+    child.on('error', () => runWorker().then(resolve, reject));
     child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`python worker exited ${code}: ${stderr}`)));
   });
   try {

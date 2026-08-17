@@ -133,11 +133,14 @@ export interface ParlayLeg {
   odds: number;
   basis?: string;
   scope?: string;
+  minute?: number;
+  score?: Score;
   score_at_recommendation?: Score;
   final_score?: Score | null;
   ht_score?: Score | null;
   half_time_score?: Score | null;
   score_verified?: boolean;
+  pro_strategy?: string;
   outcome?: 'win' | 'half_win' | 'push' | 'half_loss' | 'loss' | 'pending' | 'invalid_data' | string;
 }
 
@@ -278,13 +281,24 @@ export interface AIAnalysisResponse {
   match?: string;
   ybty_home?: string;
   ybty_away?: string;
+  minute?: number;
+  score?: Score | string | null;
   summary: string;
   grade: 'A' | 'B' | 'C';
   recommendation: {
     market: string;
     line: string;
     odds: number;
+    category?: string;
+    best_timing_tip?: string;
+    pro_strategy_tag?: string;
   } | null;
+  pro_strategy_guide?: {
+    strategy_name: string; // e.g. '半场测试+下半场追加' | '让球与大小球联动对冲' | '75+尾盘绝杀波动' | '标准全场直投'
+    action_path: string; // 具体操盘步骤与加注/止损时机
+    trigger_conditions?: string; // 触发或对冲条件
+  };
+  game_momentum_phase?: string; // e.g. '0-15开局试探' | '15-45半场攻坚' | '45-60战术重组' | '75-90+终局反扑'
   score_verified: boolean;
   score_source: string;
   verification_passed: boolean;
@@ -306,11 +320,14 @@ export interface AIAnalysisResponse {
       match: string;
       ybty_home?: string;
       ybty_away?: string;
+      minute?: number;
+      score?: Score | string | null;
       market: string;
       line: string | number;
       odds: number;
       probability: number;
       grade: 'A' | 'B' | 'C';
+      pro_strategy?: string;
     }>;
   }>;
 }
@@ -328,4 +345,5 @@ export interface AIMarketAssessment {
   grade: 'A' | 'B' | 'C' | 'NO_BET';
   status: 'recommend' | 'watch' | 'prediction' | 'avoid' | 'unavailable';
   reason: string;
+  pro_trader_tip?: string;
 }
