@@ -827,9 +827,13 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
 2. 终局大比分封盘处理（Decisive Match State & Suspended 1X2）：
    - 当单方建立净胜球 ≥ 2 且场面完全掌控，导致机构已下架或封盘该队独赢选项（verified_ybty_markets 仅剩落后方逆转或平局超高赔 @10+）时，严禁机械选择小概率负向选项；
    - 全场独赢1X2统一输出 market_option_id=null, status="unavailable", grade="NO_BET", direction="主胜(已封盘)"（或客胜已封盘），probability 填写真实终局胜率（90%~98%），odds=null, line=null，在 reason 中清晰说明“领先优势稳固，机构已封盘无赔率，不予下注”。
-3. 机构抽水剥离与公允赔率期望边际 (+EV)：
-   - 必须参考 quantitative_analysis.fair_market_pricing 中的 overround_pct 与 fair_prob_pct。只有模型评估胜率显著高于市场公平概率 (Value Edge > 0) 且具备正期望边际时才允许作为 A/B 级推荐。
-4. 动态进球率与即时大小球双向精算模型（In-Play Goal Expectancy & Balanced Market Selection）：
+3. 机构抽水剥离与公允赔率期望边际 (+EV) 及防诱盘价值陷阱审计：
+   - 必须参考 quantitative_analysis.fair_market_pricing 中的 overround_pct 与 fair_prob_pct。只有模型评估胜率显著高于市场公平概率 (Value Edge > 0) 且具备正期望边际时才允许作为 A/B 级推荐；
+   - 警惕【价值陷阱（Value Trap / 诱盘）】：在成熟体育博彩市场中，真实 +EV 边际通常在 +3% ~ +15% 之间。任何单腿评估出 >80% 胜率（在 1.80+ 赔率下）或 >+25% EV 的极端数值，99% 属于认知偏差或诱盘陷阱，必须结合实时危险进攻、射正转化率与战意动机强制进行二次概率校准！
+4. 滚球全场让球结算与认知防偏（In-Play Asian Handicap・0:0 起算）：
+   - ⚠️【核心结算规则】：滚球让球必须从当前下单瞬间 (0:0) 重新起算剩余时段净胜球，已有进球完全清零！例如半场 3-1 领先时买“主队 0 平手盘”，下半场若主队 0-1 输给客队（全场 3-2），买主队平手盘是【全输】！半场 4-1 买主队 -1.5，下半场双方均未破门（全场 4-1），下半场比分 0-0，买主队 -1.5 是【全输】！
+   - 严禁出现“因半场领先2-3球所以平手盘或让球盘胜率高达85%~95%”的严重常识错误！领先方下半场控速轮换，下半场净胜球胜率通常在 45%~60%，严禁将已有比分当做让球安全垫！
+5. 动态进球率与即时大小球双向精算模型（In-Play Goal Expectancy & Balanced Market Selection）：
    - 核心逻辑：严禁预设立场（既不盲目看大，也不机械偏向看小）。必须客观计算下半场“剩余期望进球 λ_rest”与当前盘口所需净进球数 (Line - Current_Goals) 的期望收益比 (+EV)。
    - 大球动能支持条件 (+EV Over 判定)：
      * 强对抗开放局：双方攻防转换极快、半场已出现多球对攻（如 2-2）且持续创造绝对机会，或比分落后方大举压上反扑拉开防守空间；
@@ -841,11 +845,10 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
    - 战术纪律与吃牌的辩证分析：
      * 吃牌反映拼抢强度与战术犯规，不能单一等同于“吃牌必小球”；
      * 领先方在比分领先且自身吃牌时注重控球自保，但若被落后方高压冲击，仍可能因防线失误或反击进球；落后方连续吃牌代表防线被打穿脱节，易被反击再丢球。应综合攻防真实射正研判，严禁教条化推论。
-5. 攻防质量与场面倾角：参考 quantitative_analysis.attack_conversion 中的 dangerous_attack_to_shot_ratio 与 field_tilt_share，区分禁区实质渗透与无威胁倒脚控球。
-6. 阵容透明度与杯赛风控：参考 quantitative_analysis.lineup_transparency 与 tournament_risk。杯赛/友谊赛且首发阵容未确认时严禁 A 级推荐，最高限制 C 级。
-7. 独赢 1X2 替代玩法转化：当独赢赔率处于 1.05~1.25 鸡肋区间（缺乏安全边际）或 0-0/2-2 胶着时，评为 NO_BET / avoid，并在 reason 中明确引导转投具备退款/走盘保护的“让球 0（平手盘）/ 让球 -0.5”。
-8. 赛前无 score_verified 限制；赛前 score_verified=true 仅表示规则不适用，不得因此降级。
-9. 每个玩法独立研究；必须覆盖全12类玩法，每类各返回一项。
+6. 攻防质量与场面倾角：参考 quantitative_analysis.attack_conversion 中的 dangerous_attack_to_shot_ratio 与 field_tilt_share，区分禁区实质渗透与无威胁倒脚控球。
+7. 阵容透明度与杯赛风控：参考 quantitative_analysis.lineup_transparency 与 tournament_risk。杯赛/友谊赛且首发阵容未确认时严禁 A 级推荐，最高限制 C 级。
+8. 独赢 1X2 替代玩法转化：当独赢赔率处于 1.05~1.25 鸡肋区间（缺乏安全边际）或 0-0/2-2 胶着时，评为 NO_BET / avoid，并在 reason 中明确引导转投具备退款/走盘保护的“让球 0（平手盘）/ 让球 -0.5”。
+9. 赛前无 score_verified 限制；赛前 score_verified=true 仅表示规则不适用，不得因此降级。
 10. 波胆/双方进球/单双/进球数/进球时间段使用 status=prediction, odds=null，给出方向概率。
 11. grade A/B/C 全部展示；没有合格正式主选时 recommendation=null。
 12. 串关与仓位：同一方向 B 级最多进一组串关；A 级≥85分且阵容明确时最多两组。单场 A 级仓位 3%~5%，B 级 1%~2%，串关 1% 以内。`;
@@ -924,9 +927,17 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
       }
       return null;
     };
+    const formatParlayChunkText = (chunk: any[], index: number, total: number) => (
+      `==================== [ 串关候选数据段 ${index + 1}/${total} 开始 ] ====================\n`
+      + `${chunk.map((candidate) => `比赛 #${candidate.candidate_index}: ${JSON.stringify(candidate)}`).join('\n')}\n`
+      + `==================== [ 串关候选数据段 ${index + 1}/${total} 结束；${index + 1 < total ? '请继续读取下一段，不要提前生成串关' : '已读完全部候选，可统一生成串关'} ] ====================`
+    );
+
     const parlayCandidates = refs.map((ref: any) => {
       const stored = storedMatches.find((item: any) => normalize(item.match) === normalize(ref.match))
-        || storedMatches.find((item: any) => normalize(item.ybty_home) === normalize(ref.ybty_home) && normalize(item.ybty_away) === normalize(ref.ybty_away));
+        || storedMatches.find((item: any) => normalize(item.ybty_home) === normalize(ref.ybty_home) && normalize(item.ybty_away) === normalize(ref.ybty_away))
+        || storedMatches.find((item: any) => sameParlayTeams(item.ybty_home, item.ybty_away, ref.ybty_home, ref.ybty_away))
+        || storedMatches.find((item: any) => cleanTeamName(item.match) === cleanTeamName(ref.match));
       if (!stored) return null;
       const hydrated = hydrateParlayMatch(stored);
       if (ref.score_verified === true) {
@@ -964,11 +975,9 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
       };
     });
     const parlayDataChunks = chunkPromptItems(parlayCandidatePayloads, 15, 380_000);
-    const candidatesInfoText = parlayDataChunks.map((chunk, index) => (
-      `==================== [ 串关候选数据段 ${index + 1}/${parlayDataChunks.length} 开始 ] ====================\n`
-      + `${chunk.map((candidate) => `比赛 #${candidate.candidate_index}: ${JSON.stringify(candidate)}`).join('\n')}\n`
-      + `==================== [ 串关候选数据段 ${index + 1}/${parlayDataChunks.length} 结束；${index + 1 < parlayDataChunks.length ? '请继续读取下一段，不要提前生成串关' : '已读完全部候选，可统一生成串关'} ] ====================`
-    )).join('\n\n');
+    const candidatesInfoText = parlayDataChunks.map((chunk, index) =>
+      formatParlayChunkText(chunk, index, parlayDataChunks.length)
+    ).join('\n\n');
 
     const prompt = `你是兼具【专业足球比赛数据分析员】与【职业足球投资操盘手/专业投注专家】双重视角的顶尖 AI，必须严格以深度的足球技战术数据分析和严密的量化博弈风控进行研判：
 
@@ -980,21 +989,34 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
    - 剔除机构抽水（Overround），基于真实概率分布进行公允定价，锁定具备正期望值（Value Edge = 真实概率 - 盘口隐含概率 > 0）的优质盘口；
    - 严格遵循联合胜率（Joint Probability = ∏ P_i）、整单综合 EV、1/4 凯利公式注码风控、亚盘四分之一盘口精确期望，并执行严格的反脆弱与剧本相关性审计，严防同质化爆仓。
 
----【5大核心玩法专业量化定价与结算模型】---
+---【5大核心玩法专业量化定价与结算模型（极其重要・严禁认知错误）】---
 1. 全场大小球 (Full-Time Total Goals)：以全场90分钟双方总进球数为结算基准，结合双方攻防xG、总进球概率分布与盘口对比。
 2. 半场大小球 (First-Half Total Goals)：以半场45分钟双方总进球数为基准。适合捕捉开局快节奏对攻、抢攻期或试探性慢热，规避下半场垃圾时间风险。
-3. 全场让球 (Full-Time Asian Handicap)：赛前以全场最终净胜球结算；滚球让球必须从当前下单瞬间 (0:0) 重新起算剩余时段净胜球。
+3. 滚球全场让球 (In-Play Asian Handicap・必须从 0:0 重新起算)：
+   - ⚠️【核心结算规则・严禁把已有比分当做让球安全垫】：滚球让球必须从当前下单瞬间 (0:0) 重新起算剩余时段净胜球，已有进球完全清零！
+   - 经典案例警告：
+     * 若半场比分为 3-1，此时下注“主队 0（平手盘）”，下半场必须以 0:0 起算！如果下半场主队 0 球、客队打入 1 球（全场 3-2），下半场比分为 0-1，买主队平手盘是【全输】！
+     * 若半场比分为 4-1，此时下注“主队 -1.5”，下半场主队必须再次净胜 2 球以上（例如下半场 2-0，全场 6-1）才算赢盘！如果下半场主队控球倒脚、双方均未破门（全场保持 4-1），下半场比分实际为 0-0，买主队 -1.5 是【全输】！
+   - 严禁出现“因为半场领先2-3球所以平手盘或-1.5盘胜率高达85%~95%”的严重常识性错误！领先球队下半场往往轮换控速、防守松懈，其下半场净胜球胜率通常仅在 45%~60% 之间，绝非稳赢！
 4. 半场让球 (First-Half Asian Handicap)：以上半场45分钟净胜球结算。适合捕捉强队半场抢开局压迫、早盘强弱分化明显的比赛。
 5. 全场独赢 1X2 (Full-Time 1X2)：结合双方真实胜平负概率与机构欧赔抽水率对比，寻找具备显著正期望值 (EV > 0) 的高性价比选项。
 6. 亚盘四分之一盘口精确期望：-0.25/+0.25、-0.75/+0.75、2/2.5、2.5/3 等盘口，必须拆解为赢半、输半、走盘计算综合数学期望，杜绝粗暴二元化全赢全输推算。
 
----【专业足球投资组合与联合概率风控模型】---
-1. 独立正期望值原则 (Independent Positive EV)：每条进入串关的腿必须具备扎实的正向价值边际（真实研判概率 > 盘口隐含胜率 100/赔率），杜绝为了凑腿而盲目拼凑缺乏数据支持的鸡肋盘口。
+---【专业足球投资组合与量化风控模型】---
+1. 独立正期望值与防诱盘价值陷阱审计 (True Positive EV & Trap Audit)：
+   - +EV 是长期盈利的数学基石，但必须是结合技战术、实时射正与战意推演后的【真实价值】，绝非无脑追逐账面赔率差；
+   - 警惕【机构价值陷阱（Value Trap / 诱盘）】：
+     * 当机构给某方开出异常丰厚的让步或超高水位时，必须深度排查是否为诱上/诱下陷阱（例如：领先方已满足净胜球或小组出线、下半场准备换下核心攻击手、落后方急躁压上但缺乏禁区实质威胁等）；
+     * 在成熟体育博彩市场中，真实 +EV 边际通常在 +3% ~ +15% 之间。任何单腿评估出 >80% 胜率（在 1.80+ 赔率下）或 >+25% EV 的极端数值，99% 属于认知偏差或诱盘陷阱，必须立即进行二次客观概率校准！
 2. 动态相关性与反脆弱审查 (Correlation Risk & Antifragility)：
-   - 科学评估相关性风险级别（低/中/高），严禁因“同属一个联赛”或“同时间开赛”而机械一刀切丢弃比赛；
-   - 常规联赛普通轮次中，各场比赛由不同主帅、不同球队阵容独立竞技，属于【低相关性/独立事件】。只要各单场研究独立达标且具备正期望值 (+EV)，必须正常允许组入串关；
-   - 仅对【真正的高相关性系统性风险】进行风险降权与分散（例如：同轮次杯赛未知集体大轮换、同类型极端脆弱剧本如全部纯超低赔穿深盘、收官轮连环保级默契球），通过多维度玩法（如让球+大小球）实现健康的资产分散。
-3. 多玩法结构搭配与互补：鼓励在串关中综合搭配 5 大核心盘口（如全场让球 + 半场大小球、全场大小球 + 独赢），实现节奏与风险维度的结构互补。
+   - 科学评估相关性风险级别（低/中/高），常规联赛普通轮次中，各场比赛属于【低相关性/独立事件】。只要各单场研究独立达标且具备真实正期望值 (+EV)，正常允许组入串关；
+   - 严防同质化爆仓风险（如全部单子均押注单一方向或单一剧本），通过多维度玩法（如让球+大小球）实现健康的资产分散。
+3. 战术剧本驱动与多规格组合差异化 (Game-Script & Scenario-Driven Portfolio Architecture)：
+   - 操盘手必须充分利用当前比赛池中天然存在的不同比赛状态（如大比分领先场次 vs 0-0 焦灼场次 vs 对攻开放场次），客观推演下半场真实走势：
+     * 剧本 1【下半场反击与攻防动能】（如 2串1）：针对下半场仍有强烈破门战意、射正转化率极高的强攻场次；
+     * 剧本 2【攻势停滞与防守窒息】（如 3串1 或 4串1）：针对 30~45 分钟 0-0 且射正极少、三区压迫低效的场次，组合全场小球/半场小球，利用比赛时间流逝形成高确定性收割；
+     * 剧本 3【多维度跨盘口立体对冲】（如 4串1 或 10串1）：在同一张票中融合“受让抗冷 + 僵局小球 + 强势独赢 + 开放大球”，形成节奏与风险互补的立体资产配置；
+   - 严禁盲目复制同质化盘口，必须在各规格票之间展现清晰的战术差异化与 5 大盘口立体覆盖。
 4. 比分真实性门禁 (Score Verification Gate)：滚球比赛若即时比分未经可靠核验（score_verified: false），一票否决，严禁作为高确定性依据组入正式高信心串关。
 
 ---【职业辛迪加多玩法组合策略（全面覆盖 5 大核心盘口）】---
@@ -1071,6 +1093,7 @@ ${JSON.stringify(historicalFeedback)}
           "minute": 45,
           "score": { "home": 0, "away": 0 },
           "market": "全场让球",
+          "market_option_id": "full_spread__1",
           "line": "主队 -0.5",
           "odds": 1.88,
           "odds_source": "ybty_verified",
@@ -1086,7 +1109,7 @@ ${JSON.stringify(historicalFeedback)}
 
     const parlayPrompts = isExportPrompt && parlayDataChunks.length > 1
       ? parlayDataChunks.map((chunk, index) => {
-          const chunkText = candidatesInfoText.split(/\n\n(?==================== \[ 串关候选数据段)/)[index] || '';
+          const chunkText = formatParlayChunkText(chunk, index, parlayDataChunks.length);
           if (index < parlayDataChunks.length - 1) {
             return `【串关候选预评估 ${index + 1}/${parlayDataChunks.length}】\n请立即审核本段每场比赛，输出紧凑JSON candidate_digests；每场只保留可进入串关的真实玩法、方向、盘口、赔率、概率、等级、比分核验和淘汰理由。不要生成跨段串关。请在本会话保留该JSON供最后一段组合。\n\n${chunkText}`;
           }

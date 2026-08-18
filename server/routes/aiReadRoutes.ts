@@ -68,9 +68,11 @@ export function registerAiPromptExportRoutes(app: express.Express, buildPromptDa
       const promptData = buildPromptData(req.body, true);
       const rawPrompts = promptData.prompts;
       const segmentCount = rawPrompts.length;
-      const matchManifest = Array.isArray(promptData.evaluationData)
-        ? promptData.evaluationData.map((item: any) => item.match_info?.match || item.match || `${item.match_info?.ybty_home || item.ybty_home || ''} vs ${item.match_info?.ybty_away || item.ybty_away || ''}`)
-        : [];
+      const matchManifest = Array.isArray(promptData.parlayCandidates) && promptData.parlayCandidates.length > 0
+        ? promptData.parlayCandidates.map((item: any) => item.match_info?.match || item.match || `${item.ybty_home || ''} vs ${item.ybty_away || ''}`)
+        : Array.isArray(promptData.evaluationData)
+          ? promptData.evaluationData.map((item: any) => item.match_info?.match || item.match || `${item.match_info?.ybty_home || item.ybty_home || ''} vs ${item.match_info?.ybty_away || item.ybty_away || ''}`)
+          : [];
       const deliveryPrompts = promptData.mode === 'parlay_check' || segmentCount <= 1
         ? rawPrompts
         : rawPrompts.map((prompt: string, index: number) => index < segmentCount - 1

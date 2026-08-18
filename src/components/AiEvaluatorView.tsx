@@ -1129,49 +1129,62 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
             </div>
 
             {/* Prompt Mode Switcher Tabs */}
-            <div className="flex items-center gap-2 p-1 bg-slate-900 border border-slate-800 rounded-xl">
-              <button
-                type="button"
-                onClick={() => switchExportPromptStyle('standard')}
-                className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-                  exportPromptStyle === 'standard'
-                    ? 'bg-amber-500 text-slate-950 shadow-md'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <span>🎯 标准操盘手模式（原网页版）</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => switchExportPromptStyle('objective')}
-                className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-                  exportPromptStyle === 'objective'
-                    ? 'bg-sky-500 text-slate-950 shadow-md'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <span>⚡ 客观纯量化模式（无主观策略 · 5大硬性盘口）</span>
-              </button>
-            </div>
-
-            {exportPromptStyle === 'objective' ? (
-              <div className="bg-sky-950/40 border border-sky-800/50 rounded-xl p-3.5 text-xs text-sky-200/90 space-y-1.5">
-                <div className="font-bold flex items-center gap-1.5 text-sky-300">
-                  <Sparkles className="w-4 h-4 shrink-0 text-sky-400" /> 客观纯量化模式规范：
+            {mode === 'parlay_check' ? (
+              <div className="bg-indigo-950/40 border border-indigo-800/50 rounded-xl p-3.5 text-xs text-indigo-200/90 space-y-1.5">
+                <div className="font-bold flex items-center gap-1.5 text-indigo-300">
+                  <Layers className="w-4 h-4 shrink-0 text-indigo-400" /> 🏆 职业辛迪加多规格串关与反脆弱风控模式：
                 </div>
-                <p>1. <strong>无主观偏见</strong>：剔除所有策略引导与主观倾向，纯粹按真实数据与数学期望值评估。</p>
-                <p>2. <strong>5大强制实战盘口</strong>：强制覆盖全场/半场大小球、全场/半场让球、全场独赢1X2，原样复制 option_id。</p>
-                <p>3. <strong>最佳主选提炼 & 门禁</strong>：单场提炼1项A/B级最优，未核验比分强制降级为 NO_BET / avoid，且必须输出完整 {exportInfo?.match_count || 1} 场 JSON。</p>
+                <p>1. <strong>全盘口动态协同</strong>：覆盖 {exportInfo?.match_count || 1} 场比赛的 5 大真实盘口（verified_ybty_markets），结合技术统计与初评参考挑选具备正期望值 (+EV) 的最优组合。</p>
+                <p>2. <strong>反脆弱与独立性审查</strong>：强制计算联合胜率、整单 EV、1/4 凯利注码及剧本独立性评分，严防同质化爆仓风险。</p>
+                <p>3. <strong>一键导入与台账归档</strong>：复制下方 Prompt 粘贴至 Gemini 网页版，获取结果后在主界面直接一键解析并导入系统台账。</p>
               </div>
             ) : (
-              <div className="bg-amber-950/30 border border-amber-800/40 rounded-xl p-3.5 text-xs text-amber-200/90 space-y-1.5">
-                <div className="font-bold flex items-center gap-1.5 text-amber-300">
-                  <Info className="w-4 h-4 shrink-0" /> 标准模式使用说明：
+              <>
+                <div className="flex items-center gap-2 p-1 bg-slate-900 border border-slate-800 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => switchExportPromptStyle('standard')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                      exportPromptStyle === 'standard'
+                        ? 'bg-amber-500 text-slate-950 shadow-md'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <span>🎯 标准操盘手模式（原网页版）</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchExportPromptStyle('objective')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                      exportPromptStyle === 'objective'
+                        ? 'bg-sky-500 text-slate-950 shadow-md'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <span>⚡ 客观纯量化模式（无主观策略 · 5大硬性盘口）</span>
+                  </button>
                 </div>
-                <p>1. 点击下方【一键复制 Prompt】（已包含 {exportInfo?.match_count || 1} 场比赛盘口、职业操盘手策略与完整分析规则）。</p>
-                <p>2. 打开 <a href="https://gemini.google.com" target="_blank" rel="noreferrer" className="underline text-sky-400 hover:text-sky-300 font-bold inline-flex items-center gap-0.5">Google Gemini 网页版 <ExternalLink className="w-3 h-3" /></a> 并粘贴发送给 Gemini。</p>
-                <p>3. 复制 Gemini 网页版返回的输出，点击主界面【导入网页版 Gemini 评估】按钮粘贴导入！</p>
-              </div>
+
+                {exportPromptStyle === 'objective' ? (
+                  <div className="bg-sky-950/40 border border-sky-800/50 rounded-xl p-3.5 text-xs text-sky-200/90 space-y-1.5">
+                    <div className="font-bold flex items-center gap-1.5 text-sky-300">
+                      <Sparkles className="w-4 h-4 shrink-0 text-sky-400" /> 客观纯量化模式规范：
+                    </div>
+                    <p>1. <strong>无主观偏见</strong>：剔除所有策略引导与主观倾向，纯粹按真实数据与数学期望值评估。</p>
+                    <p>2. <strong>5大强制实战盘口</strong>：强制覆盖全场/半场大小球、全场/半场让球、全场独赢1X2，原样复制 option_id。</p>
+                    <p>3. <strong>最佳主选提炼 & 门禁</strong>：单场提炼1项A/B级最优，未核验比分强制降级为 NO_BET / avoid，且必须输出完整 {exportInfo?.match_count || 1} 场 JSON。</p>
+                  </div>
+                ) : (
+                  <div className="bg-amber-950/30 border border-amber-800/40 rounded-xl p-3.5 text-xs text-amber-200/90 space-y-1.5">
+                    <div className="font-bold flex items-center gap-1.5 text-amber-300">
+                      <Info className="w-4 h-4 shrink-0" /> 标准模式使用说明：
+                    </div>
+                    <p>1. 点击下方【一键复制 Prompt】（已包含 {exportInfo?.match_count || 1} 场比赛盘口、职业操盘手策略与完整分析规则）。</p>
+                    <p>2. 打开 <a href="https://gemini.google.com" target="_blank" rel="noreferrer" className="underline text-sky-400 hover:text-sky-300 font-bold inline-flex items-center gap-0.5">Google Gemini 网页版 <ExternalLink className="w-3 h-3" /></a> 并粘贴发送给 Gemini。</p>
+                    <p>3. 复制 Gemini 网页版返回的输出，点击主界面【导入网页版 Gemini 评估】按钮粘贴导入！</p>
+                  </div>
+                )}
+              </>
             )}
 
             <div className="flex-1 min-h-[280px] relative">
