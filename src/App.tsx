@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState, useMemo } from 'react';
 import { 
   DecisionItem, 
   PipelineStatus, 
@@ -135,7 +135,7 @@ export default function App() {
   const allMatchesForParlay = [...liveDecisions, ...prematchDecisions];
 
   // Calculate total unverified matches count
-  const unverifiedMatchesCount = React.useMemo(() => {
+  const unverifiedMatchesCount = useMemo(() => {
     const keys = new Set<string>();
     const clean = (s: string) => (s || '').trim().toLowerCase().replace(/[\s\-_]/g, '');
 

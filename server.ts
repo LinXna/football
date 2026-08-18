@@ -818,16 +818,33 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
       record_type: item.record_type,
     }));
 
-  const rulesSummary = `【核心硬性规则摘要】
-1. 只有 verified_ybty_markets 中的盘口才能 recommend/watch 并引用赔率；不得猜测未核验盘口。
-2. 有赔率时必须计算隐含概率(100/odds)；模型概率≤隐含概率时 status=avoid, grade=NO_BET。
-3. 赛前无 score_verified 限制；赛前 score_verified=true 仅表示规则不适用，不得因此降级。
-4. 每个玩法独立研究；必须覆盖全12类玩法，每类各返回一项。
-5. 波胆/双方进球/单双/进球数/进球时间段使用 status=prediction, odds=null，给出方向概率。
-6. grade A/B/C 全部展示；没有合格正式主选时 recommendation=null。
-7. 必须引用本场实际数据（statistics/incidents/lineups/recent_trends/reference_odds）说明理由，不得只凭赔率判断。
-8. 串关：同一方向 B 级最多进一组串关；A 级≥85分且阵容明确时最多两组。
-9. 杯赛/友谊赛/强弱悬殊在阵容未确认前最高 C 级，不进正式串关。`;
+  const rulesSummary = `【核心硬性规则与专业量化指标】
+1. 只有 verified_ybty_markets 中的盘口才能 recommend/watch 并引用赔率；必须原样复制 market_option_id。
+2. 终局大比分封盘处理（Decisive Match State & Suspended 1X2）：
+   - 当单方建立净胜球 ≥ 2 且场面完全掌控，导致机构已下架或封盘该队独赢选项（verified_ybty_markets 仅剩落后方逆转或平局超高赔 @10+）时，严禁机械选择小概率负向选项；
+   - 全场独赢1X2统一输出 market_option_id=null, status="unavailable", grade="NO_BET", direction="主胜(已封盘)"（或客胜已封盘），probability 填写真实终局胜率（90%~98%），odds=null, line=null，在 reason 中清晰说明“领先优势稳固，机构已封盘无赔率，不予下注”。
+3. 机构抽水剥离与公允赔率期望边际 (+EV)：
+   - 必须参考 quantitative_analysis.fair_market_pricing 中的 overround_pct 与 fair_prob_pct。只有模型评估胜率显著高于市场公平概率 (Value Edge > 0) 且具备正期望边际时才允许作为 A/B 级推荐。
+4. 动态进球率与即时大小球双向精算模型（In-Play Goal Expectancy & Balanced Market Selection）：
+   - 核心逻辑：严禁预设立场（既不盲目看大，也不机械偏向看小）。必须客观计算下半场“剩余期望进球 λ_rest”与当前盘口所需净进球数 (Line - Current_Goals) 的期望收益比 (+EV)。
+   - 大球动能支持条件 (+EV Over 判定)：
+     * 强对抗开放局：双方攻防转换极快、半场已出现多球对攻（如 2-2）且持续创造绝对机会，或比分落后方大举压上反扑拉开防守空间；
+     * 单方实质围攻：优势方三区压迫高 (field_tilt_share > 60%) 且角球与有效射正高频产生，防守方门前险象环生，期望进球率 λ_rest 处于高位；
+     * 机构防范水位：当 YBTY 在具备走盘/赢半保护的拆分盘（如 3.5/4、4.5/5、1/1.5）开出明显偏低防范水位（@1.60~@1.75）时，代表破门概率高，应顺势选择大球保护副盘。
+   - 小球防守支持条件 (+EV Under 判定)：
+     * 低频阵地胶着：双方半场有效射正极度匮乏（如 ≤1~2次且角球少、无门将扑救险情），比赛处于无实质破门威胁的无效控球期；
+     * 净胜球 ≥3 大比分降速：当单方取得 3-0/4-0 等决定性领先，且进球主要由偶发高转化率驱动时，领先方进入战术轮换控节奏，下半场破门速率自然回落，不盲目追 4.5/5.0 等过深大球盘。
+   - 战术纪律与吃牌的辩证分析：
+     * 吃牌反映拼抢强度与战术犯规，不能单一等同于“吃牌必小球”；
+     * 领先方在比分领先且自身吃牌时注重控球自保，但若被落后方高压冲击，仍可能因防线失误或反击进球；落后方连续吃牌代表防线被打穿脱节，易被反击再丢球。应综合攻防真实射正研判，严禁教条化推论。
+5. 攻防质量与场面倾角：参考 quantitative_analysis.attack_conversion 中的 dangerous_attack_to_shot_ratio 与 field_tilt_share，区分禁区实质渗透与无威胁倒脚控球。
+6. 阵容透明度与杯赛风控：参考 quantitative_analysis.lineup_transparency 与 tournament_risk。杯赛/友谊赛且首发阵容未确认时严禁 A 级推荐，最高限制 C 级。
+7. 独赢 1X2 替代玩法转化：当独赢赔率处于 1.05~1.25 鸡肋区间（缺乏安全边际）或 0-0/2-2 胶着时，评为 NO_BET / avoid，并在 reason 中明确引导转投具备退款/走盘保护的“让球 0（平手盘）/ 让球 -0.5”。
+8. 赛前无 score_verified 限制；赛前 score_verified=true 仅表示规则不适用，不得因此降级。
+9. 每个玩法独立研究；必须覆盖全12类玩法，每类各返回一项。
+10. 波胆/双方进球/单双/进球数/进球时间段使用 status=prediction, odds=null，给出方向概率。
+11. grade A/B/C 全部展示；没有合格正式主选时 recommendation=null。
+12. 串关与仓位：同一方向 B 级最多进一组串关；A 级≥85分且阵容明确时最多两组。单场 A 级仓位 3%~5%，B 级 1%~2%，串关 1% 以内。`;
 
   const verifiedOptionRule = `【YBTY真实选项白名单・最高优先级】
 全场/半场大小球、让球、独赢1X2禁止手工填写或改写投注盘口。必须先从本场 verified_ybty_markets 选择一个真实 option，并原样返回它的 option_id 到 market_option_id。系统将根据 option_id 自动回填并锁定 direction、line、odds，AI填写的同名字段不作为投注依据。严禁把 reference_odds 当作投注赔率；严禁自行换盘、猜盘或生成YBTY未提供的半场盘口。某市场不在 verified_ybty_markets 时必须返回 market_option_id=null、status=unavailable、odds=null、line=null。概率必须针对该 option_id 对应的真实盘口单独评估，不得把其他盘口概率套用过来。`;
@@ -906,7 +923,19 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
     const parlayCandidates = refs.map((ref: any) => {
       const stored = storedMatches.find((item: any) => normalize(item.match) === normalize(ref.match))
         || storedMatches.find((item: any) => normalize(item.ybty_home) === normalize(ref.ybty_home) && normalize(item.ybty_away) === normalize(ref.ybty_away));
-      return stored ? { ...hydrateParlayMatch(stored), ai_evaluation: findLatestAssessment(ref) } : null;
+      if (!stored) return null;
+      const hydrated = hydrateParlayMatch(stored);
+      if (ref.score_verified === true) {
+        hydrated.score_verified = true;
+        hydrated.score_source = ref.score_source || 'user_verified';
+      }
+      if (ref.score) {
+        hydrated.score = ref.score;
+      }
+      if (ref.minute !== undefined && ref.minute !== null) {
+        hydrated.minute = ref.minute;
+      }
+      return { ...hydrated, ai_evaluation: findLatestAssessment(ref) };
     }).filter(Boolean);
 
     if (parlayCandidates.length !== refs.length) {
@@ -1088,7 +1117,19 @@ ${JSON.stringify(historicalFeedback)}
       );
       const found = exact || byTeams;
       if (!found) unresolved.push(ref.match || `${ref.ybty_home} vs ${ref.ybty_away}`);
-      return found ? hydrateStoredMatch(found) : found;
+      if (!found) return null;
+      const hydrated = hydrateStoredMatch(found);
+      if (ref.score_verified === true) {
+        hydrated.score_verified = true;
+        hydrated.score_source = ref.score_source || 'user_verified';
+      }
+      if (ref.score) {
+        hydrated.score = ref.score;
+      }
+      if (ref.minute !== undefined && ref.minute !== null) {
+        hydrated.minute = ref.minute;
+      }
+      return hydrated;
     }).filter(Boolean);
     if (unresolved.length > 0) {
       throw new Error(`部分比赛已不在当前分析批次中，请刷新页面后重新选择：${unresolved.join('、')}`);
@@ -1096,7 +1137,16 @@ ${JSON.stringify(historicalFeedback)}
   } else {
     requestedMatches = Array.isArray(batch_matches) && batch_matches.length > 0
       ? batch_matches
-      : [{ match: match_name, ybty_home, ybty_away, minute, score, odds_info }];
+      : [{
+          match: match_name,
+          ybty_home,
+          ybty_away,
+          minute,
+          score,
+          odds_info,
+          score_verified: body?.score_verified === true,
+          score_source: body?.score_source || (body?.score_verified ? 'user_verified' : undefined),
+        }];
   }
 
   const evaluationData = requestedMatches.map((item: any) => compressMatchDataForPrompt(item, mode));
@@ -1118,7 +1168,19 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
    - 策略 C (75+终局绝杀波动 Late Goal Squeeze): 终局平局或1球分差且落后方高压时，捕捉绝杀大0.5或终局盘口高赔。
    - 为每场比赛输出 pro_strategy_guide，明确最佳操盘步骤。
 
-2. Mandatory 5 Real Betting Markets (Each match's market_assessments MUST evaluate ALL 5 core markets):
+2. Quantitative Analysis, In-play Calibration & Decisive Match State (量化分析、即时校准与终局封盘准则):
+   - 机构抽水与公允价格: 参阅 quantitative_analysis.fair_market_pricing 中的 overround_pct 与 fair_prob_pct。只有模型评估胜率显著高于市场公平概率 (Value Edge > 0) 时才允许作为 A/B 级推荐。
+   - 终局大比分封盘处理 (Decisive Match State & Suspended 1X2): 当单方建立净胜球 ≥ 2 且场面完全掌控，导致机构已下架或封盘该队独赢选项（verified_ybty_markets 仅剩落后方逆转或平局超高赔 @10+）时，严禁机械选择小概率负向选项；全场独赢1X2统一输出 market_option_id=null, status="unavailable", grade="NO_BET", direction="主胜(已封盘)"（或客胜已封盘），probability 填写真实终局胜率（90%~98%），odds=null, line=null，在 reason 中清晰说明“领先优势稳固，机构已封盘无赔率，不予下注”。
+   - 动态进球率与即时大小球双向精算模型（In-Play Goal Expectancy & Balanced Market Selection）:
+     * 核心逻辑: 严禁预设立场（既不盲目看大，也不机械偏向看小）。必须客观计算下半场“剩余期望进球 λ_rest”与当前盘口所需净进球数 (Line - Current_Goals) 的期望收益比 (+EV)。
+     * 大球动能支持条件 (+EV Over 判定): 强对抗开放局（如 2-2 对攻且持续创造机会、落后方大举反扑）、单方实质围攻（三区压迫 field_tilt_share > 60% 且角球与有效射正高频产生）、机构在四分之一拆分副盘（如 3.5/4 @1.65~@1.75）开出明显偏低防范水位时，应顺势选择大球保护副盘。
+     * 小球防守支持条件 (+EV Under 判定): 低频阵地胶着（双方半场有效射正极度匮乏 ≤1~2次且角球少、无门将扑救险情）、净胜球 ≥3 大比分降速（3-0/4-0 等领先方战术轮换控节奏、垃圾时间期望进球回落），不盲目追深盘大球。
+     * 战术纪律与吃牌的辩证分析: 吃牌反映拼抢强度与犯规压力，不能简单等同于“吃牌必小球”；落后方连续吃牌防线脱节易被反击丢球，领先方吃牌需结合落后方反扑强度与射正综合研判，严禁教条化推论。
+   - 进攻威胁与场面倾斜: 参阅 quantitative_analysis.attack_conversion 中的 dangerous_attack_to_shot_ratio（危险进攻转化比）与 field_tilt_share（进攻三区压迫占比），识别无效控球。
+   - 阵容透明度与杯赛轮换: 参阅 quantitative_analysis.lineup_transparency 与 tournament_risk。杯赛/友谊赛且阵容未确认时严禁 A 级正式推荐，最高限制 C 级。
+   - 独赢 1X2 替代玩法引导: 当独赢赔率在 1.05~1.25 处于低收益鸡肋区间（缺乏安全边际）或 0-0/2-2 胶着时，评为 NO_BET / avoid，并在 reason 中明确引导转投具备退款/走盘保护的“让球 0（平手盘）/ 让球 -0.5”。
+
+3. Mandatory 5 Real Betting Markets (Each match's market_assessments MUST evaluate ALL 5 core markets):
    - 全场大小球 (full_total)
    - 半场大小球 (half_total: If this match has no half_total options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
    - 全场让球 (full_spread)
@@ -1126,23 +1188,23 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
    - 全场独赢1X2 (full_h2h: If this match has no full_h2h options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
    
    For each available market:
-   - ONLY select valid options from this match's verified_ybty_markets! Copy option_id verbatim to market_option_id.
+   - ONLY select valid options from this match's verified_ybty_markets (except for Dominant Lead Suspended Odds as defined above)! Copy option_id verbatim to market_option_id.
    - Calculate implied_probability = 100 / odds, value_edge = probability - implied_probability.
    - Formal recommendation (status="recommend", grade="A"|"B"): only when value_edge > 0 with strong tactical & statistical backing.
    - Watch (status="watch", grade="C"): small value_edge or higher uncertainty.
    - Avoid (status="avoid", grade="NO_BET"): value_edge <= 0 or lacking margin of safety.
 
-3. Best Overall Recommendation (recommendation field):
+4. Best Overall Recommendation (recommendation field):
    - Pick the single best/highest-value option among the 5 real markets above (grade="A" or "B").
    - If none of the 5 markets qualify for A/B recommendation, set recommendation to null (or grade="NO_BET").
 
-4. Non-bettable Predictions (predictions object):
+5. Non-bettable Predictions (predictions object):
    - Fill in all 7 prediction fields: correct_score (波胆), btts (双方进球: 是/否), odd_even (单双: 单/双), home_goals (主队进球: X球), away_goals (客队进球: X球), total_goals (总进球: X球), timing (进球时段).
 
-5. Live Score Verification:
+6. Live Score Verification:
    - If score_verified is false, DO NOT give any A/B grade real market recommendations. All 5 real markets must be status="avoid" / grade="NO_BET".
 
-6. Completeness Constraint:
+7. Completeness Constraint:
    - CRITICAL: You MUST output all ${chunkData.length} matches in the "matches" array.
    - For every match, market_assessments must include all 5 real markets, and predictions must include all 7 fields.
 
@@ -1324,7 +1386,7 @@ async function start() {
   } else {
     const distPath = projectPath('dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*all', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

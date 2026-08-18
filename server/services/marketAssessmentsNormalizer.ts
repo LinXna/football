@@ -1,3 +1,5 @@
+import { calculateBankrollGuidance } from './quantitativeFeatures';
+
 export const PREDICTION_CATEGORIES = [
   '波胆',
   '双方是否进球',
@@ -196,9 +198,21 @@ export function normalizeMatchPredictionsAndAssessments(match: any): any {
     }
   }
 
+  let bankrollGuidance = match.bankroll_guidance || null;
+  if (!bankrollGuidance && match.recommendation) {
+    const recGrade = String(match.recommendation.grade || match.grade || 'C');
+    const valueEdge = Number(match.recommendation.value_edge);
+    bankrollGuidance = calculateBankrollGuidance({
+      grade: recGrade,
+      isParlay: false,
+      valueEdge: Number.isFinite(valueEdge) ? valueEdge : null,
+    });
+  }
+
   return {
     ...match,
     pro_strategy_guide: proStrategy,
+    bankroll_guidance: bankrollGuidance,
     market_assessments: assessments,
   };
 }

@@ -1,6 +1,13 @@
 import { normalizeYbtyMarketTypes } from './marketTypeNormalizer';
 import { withVerifiedYbtyOptionIds } from './verifiedMarketAssessment';
 import { resolveScoreVerification } from './scoreValidation';
+import {
+  calculateAttackConversion,
+  calculateMarketOverroundAndFairOdds,
+  classifyLineupTransparency,
+  detectTournamentRisk,
+  analyzeH2HRecency,
+} from './quantitativeFeatures';
 
 const BETTABLE_MARKET = /^(full|half)_(h2h|spread|total)$/;
 const KEY_EVENT = /进球|破门|goal|红牌|red card|黄牌|yellow card|角球|corner|半场结束|中场|half.?time|下半场开始|second half|点球|penalty|var|取消进球|伤退|受伤|injur|换人|substitut|中断|暂停/i;
@@ -207,7 +214,45 @@ function scoreText(row: any): string | null {
   const home = row.home_name || row.home || row.home_team;
   const away = row.away_name || row.away || row.away_team;
   const score = row.score || (row.home_score != null && row.away_score != null ? `${row.home_score}-${row.away_score}` : null);
-  return [home, score, away].filter(Boolean).join(' ') || null;
+  if (!home && !away && !score) return null;
+
+  // Extract match date/year to evaluate time decay
+  let dateStr = '';
+  const rawDate = row.match_date || row.date || row.match_time || row.time || row.commence_time || row.start_time;
+  if (rawDate) {
+    if (typeof rawDate === 'number' || (typeof rawDate === 'string' && /^\d{10,13}$/.test(rawDate))) {
+      const ts = Number(rawDate) > 1e11 ? Number(rawDate) : Number(rawDate) * 1000;
+      const d = new Date(ts);
+      if (!isNaN(d.getTime())) {
+        dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      }
+    } else if (typeof rawDate === 'string') {
+      const m = rawDate.match(/(\d{4}[-/.]\d{1,2}(?:[-/.]\d{1,2})?)/);
+      if (m) {
+        dateStr = m[1].replace(/[\/.]/g, '-');
+      }
+    }
+  }
+
+  let recencyTag = '';
+  if (dateStr) {
+    const matchYear = parseInt(dateStr.slice(0, 4), 10);
+    const currentYear = new Date().getFullYear();
+    const diffYears = currentYear - matchYear;
+    if (diffYears <= 1) {
+      recencyTag = `[${dateStr}·近1年]`;
+    } else if (diffYears === 2) {
+      recencyTag = `[${dateStr}·2年前]`;
+    } else {
+      recencyTag = `[${dateStr}·${diffYears}年前]`;
+    }
+  }
+
+  const league = row.league_name || row.competition_name || row.league || '';
+  const leagueTag = league ? `[${league}]` : '';
+
+  const mainText = [home, score, away].filter(Boolean).join(' ');
+  return [recencyTag || null, leagueTag || null, mainText].filter(Boolean).join(' ') || null;
 }
 
 /** Compress 60+ lines of recent form arrays into compact strings */
@@ -283,7 +328,8 @@ function slimStandings(standings: any): string | undefined {
 function trendSummary(item: any): any {
   const historical = item?.recent_trends?.historical_analysis || item?.detail_context?.formal || {};
   const existing = item?.trend_summary || historical?.trend_summary || item?.recent_trends;
-  const h2h = asArray(historical?.head_to_head || item?.head_to_head || existing?.h2h).map(scoreText).filter(Boolean).slice(0, 5);
+  const rawH2H = asArray(historical?.head_to_head || item?.head_to_head || existing?.h2h);
+  const h2h = rawH2H.map(scoreText).filter(Boolean).slice(0, 6);
   const homeForm = slimRecentForm(existing?.home_recent_form || existing?.home || item?.recent_trends?.home);
   const awayForm = slimRecentForm(existing?.away_recent_form || existing?.away || item?.recent_trends?.away);
   const standings = slimStandings(existing?.standings || item?.recent_trends?.standings || historical?.league_standings);
@@ -294,6 +340,56 @@ function trendSummary(item: any): any {
     standings: standings || undefined,
     home_form: homeForm,
     away_form: awayForm,
+  };
+}
+
+function slimLineupDetails(lineupInput: any): any {
+  if (!lineupInput || typeof lineupInput !== 'object') return null;
+  const isConfirmed = lineupInput.confirmed === true || lineupInput.status === 'confirmed';
+
+  const extractPlayerList = (val: any): string[] => {
+    if (!Array.isArray(val)) return [];
+    return val
+      .map((p: any) => {
+        if (typeof p === 'string') return p;
+        if (!p || typeof p !== 'object') return '';
+        const name = p.name || p.person_name || p.player_name || '';
+        const num = p.shirt_number || p.number || '';
+        const pos = p.position || '';
+        const numStr = num ? `#${num}` : '';
+        const posStr = pos ? `(${pos})` : '';
+        return [numStr, name, posStr].filter(Boolean).join('');
+      })
+      .filter(Boolean);
+  };
+
+  const homeStarters = extractPlayerList(lineupInput.home?.starters || lineupInput.home_starters || lineupInput.home_starter_details);
+  const awayStarters = extractPlayerList(lineupInput.away?.starters || lineupInput.away_starters || lineupInput.away_starter_details);
+  const homeSubs = extractPlayerList(lineupInput.home?.substitutes || lineupInput.home_substitutes).slice(0, 7);
+  const awaySubs = extractPlayerList(lineupInput.away?.substitutes || lineupInput.away_substitutes).slice(0, 7);
+  const injuries = Array.isArray(lineupInput.injuries || lineupInput.missing_players)
+    ? (lineupInput.injuries || lineupInput.missing_players).map((item: any) => typeof item === 'string' ? item : `${item.team || ''}:${item.name || ''}(${item.reason || '缺阵'})`).filter(Boolean)
+    : [];
+
+  if (homeStarters.length === 0 && awayStarters.length === 0 && injuries.length === 0) {
+    if (Array.isArray(lineupInput.home) || Array.isArray(lineupInput.players)) {
+      const homeCount = Array.isArray(lineupInput.home) ? lineupInput.home.length : 0;
+      const awayCount = Array.isArray(lineupInput.away) ? lineupInput.away.length : 0;
+      return {
+        status: 'squad_pool_only',
+        note: `大名单(主队${homeCount}人/客队${awayCount}人)，首发11人未公布`,
+      };
+    }
+    return null;
+  }
+
+  return {
+    confirmed: isConfirmed || (homeStarters.length >= 10 && awayStarters.length >= 10),
+    home_starters: homeStarters.length > 0 ? homeStarters : undefined,
+    away_starters: awayStarters.length > 0 ? awayStarters : undefined,
+    home_substitutes: homeSubs.length > 0 ? homeSubs : undefined,
+    away_substitutes: awaySubs.length > 0 ? awaySubs : undefined,
+    missing_injuries: injuries.length > 0 ? injuries : undefined,
   };
 }
 
@@ -345,18 +441,51 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
   const focusedIncidents = mode === 'prematch_eval' ? null : extractFocusedIncidents(item);
   const pressureSummary = buildAttackPressureSummary(liveStatistics, item?.score);
 
+  const league = item?.league || item?.ybty_league || item?.leisu_league || '';
+  const homeTeam = item?.ybty_home || item?.home || item?.home_team || '';
+  const awayTeam = item?.ybty_away || item?.away || item?.away_team || '';
+  const attackConversion = calculateAttackConversion(liveStatistics, item?.score);
+  const lineupData = item?.lineups || item?.detail_context?.formal?.lineup || item?.detail_context?.lineup || item?.detail_context?.formal?.static_match?.lineup;
+  const lineupTransparency = classifyLineupTransparency(lineupData);
+  const slimLineups = slimLineupDetails(lineupData);
+  const tournamentRisk = detectTournamentRisk(league, lineupTransparency, homeTeam, awayTeam);
+  const historicalH2HList = asArray(item?.recent_trends?.historical_analysis?.head_to_head || item?.head_to_head || item?.trend_summary?.h2h);
+  const h2hRecencyAnalysis = analyzeH2HRecency(historicalH2HList);
+
+  const fairPricing = verifiedMarkets.map((m: any) => {
+    const analysis = calculateMarketOverroundAndFairOdds(m.options);
+    if (!analysis) return null;
+    return {
+      market: m.market,
+      overround_pct: analysis.overround_pct,
+      fair_options: analysis.fair_options.map((opt) => ({
+        option_id: opt.option_id,
+        line: opt.line,
+        side: opt.side,
+        odds: opt.odds,
+        fair_odds: opt.fair_odds,
+        fair_prob_pct: opt.fair_prob_pct,
+      })),
+    };
+  }).filter(Boolean);
+
   const rawPayload = {
     match_info: {
-      match: item?.match || `${item?.ybty_home || ''} vs ${item?.ybty_away || ''}`,
-      league: item?.league || item?.ybty_league || item?.leisu_league || '',
-      ybty_home: item?.ybty_home || '',
-      ybty_away: item?.ybty_away || '',
+      match: item?.match || `${homeTeam} vs ${awayTeam}`,
+      league,
+      ybty_home: homeTeam,
+      ybty_away: awayTeam,
       start_time_beijing: item?.ybty_start_time_beijing || item?.provider_start_time || '',
       minute: minute > 0 ? minute : undefined,
       score: item?.score || null,
       score_verified: scoreVerification.verified,
       score_source: scoreVerification.source,
       score_unverified_warning: (mode !== 'prematch_eval' && !scoreVerification.verified) ? '比分未交叉核验，严禁A/B级正式推荐' : undefined,
+    },
+    quantitative_analysis: {
+      attack_conversion: attackConversion || undefined,
+      lineup_transparency: lineupTransparency.tier !== 'unknown_or_unannounced' ? lineupTransparency : undefined,
+      fair_market_pricing: fairPricing.length > 0 ? fairPricing : undefined,
     },
     attack_pressure_summary: pressureSummary || undefined,
     focused_incidents: focusedIncidents && (focusedIncidents.red_cards || focusedIncidents.cards_and_corners || focusedIncidents.match_events) ? focusedIncidents : undefined,

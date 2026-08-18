@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { DecisionItem, AIAnalysisResponse, getLeagueName, getTeamDisplay } from '../types';
 import { 
   Sparkles, 
@@ -139,7 +139,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
   const parlayEligibleMatches = allMatches.filter((match, index, source) =>
     source.findIndex((item) => item.match === match.match) === index
   );
-  const loadEvaluationHistory = React.useCallback(async () => {
+  const loadEvaluationHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
       const resp = await fetch('/api/ai/evaluations');
@@ -194,7 +194,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
     }
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     loadEvaluationHistory();
   }, [loadEvaluationHistory]);
 
@@ -216,7 +216,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
   };
 
   // Sync state when selectedMatch changes from parent
-  React.useEffect(() => {
+  useEffect(() => {
     if (selectedMatch) {
       populateFromMatch(selectedMatch);
       if (prematchMatches.includes(selectedMatch)) setMode('prematch_eval');
@@ -224,11 +224,11 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
     }
   }, [selectedMatch, liveMatches, prematchMatches]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (mode !== 'parlay_check') setBatchSelected(evaluationMatches);
   }, [mode, liveMatches, prematchMatches]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const availableMatches = new Set(parlayEligibleMatches.map((item) => item.match));
     setParlaySelected((current) => current.filter((selected) => availableMatches.has(selected.match)));
   }, [allMatches, evaluationHistory]);
@@ -482,13 +482,37 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
           score: { home: scoreHome, away: scoreAway },
           odds_info: oddsInfo,
           mode,
-          selected_match_refs: mode === 'parlay_check' ? parlaySelected.map((item) => ({ match: item.match, ybty_home: item.ybty_home, ybty_away: item.ybty_away })) : undefined,
+          selected_match_refs: mode === 'parlay_check' ? parlaySelected.map((item) => ({
+            match: item.match,
+            ybty_home: item.ybty_home,
+            ybty_away: item.ybty_away,
+            score_verified: item.score_verified === true,
+            score_source: item.score_source || (item.score_verified ? 'verified' : 'unverified'),
+            score: item.score || null,
+            minute: item.minute,
+          })) : undefined,
           parlay_requests: mode === 'parlay_check' ? requestedParlays : undefined,
           batch_match_refs: mode !== 'parlay_check'
             ? (evaluationScope === 'batch'
-              ? batchSelected.map((item) => ({ match: item.match, ybty_home: item.ybty_home, ybty_away: item.ybty_away }))
+              ? batchSelected.map((item) => ({
+                  match: item.match,
+                  ybty_home: item.ybty_home,
+                  ybty_away: item.ybty_away,
+                  score_verified: item.score_verified === true,
+                  score_source: item.score_source || (item.score_verified ? 'verified' : 'unverified'),
+                  score: item.score || null,
+                  minute: item.minute,
+                }))
               : storedSingleMatch
-                ? [{ match: storedSingleMatch.match, ybty_home: storedSingleMatch.ybty_home, ybty_away: storedSingleMatch.ybty_away }]
+                ? [{
+                    match: storedSingleMatch.match,
+                    ybty_home: storedSingleMatch.ybty_home,
+                    ybty_away: storedSingleMatch.ybty_away,
+                    score_verified: storedSingleMatch.score_verified === true,
+                    score_source: storedSingleMatch.score_source || (storedSingleMatch.score_verified ? 'verified' : 'unverified'),
+                    score: { home: scoreHome, away: scoreAway },
+                    minute,
+                  }]
                 : undefined)
             : undefined,
         }),
@@ -598,13 +622,29 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
           score: { home: scoreHome, away: scoreAway },
           odds_info: oddsInfo,
           mode,
-          selected_match_refs: mode === 'parlay_check' ? parlaySelected.map((item) => ({ match: item.match, ybty_home: item.ybty_home, ybty_away: item.ybty_away })) : undefined,
+          selected_match_refs: mode === 'parlay_check' ? parlaySelected.map((item) => ({
+            match: item.match,
+            ybty_home: item.ybty_home,
+            ybty_away: item.ybty_away,
+            score_verified: item.score_verified === true,
+            score_source: item.score_source || (item.score_verified ? 'verified' : 'unverified'),
+            score: item.score || null,
+            minute: item.minute,
+          })) : undefined,
           parlay_requests: mode === 'parlay_check' ? requestedParlays : undefined,
           batch_match_refs: mode !== 'parlay_check'
             ? (evaluationScope === 'batch'
               ? batchRefs
               : storedSingleMatch
-                ? [{ match: storedSingleMatch.match, ybty_home: storedSingleMatch.ybty_home, ybty_away: storedSingleMatch.ybty_away }]
+                ? [{
+                    match: storedSingleMatch.match,
+                    ybty_home: storedSingleMatch.ybty_home,
+                    ybty_away: storedSingleMatch.ybty_away,
+                    score_verified: storedSingleMatch.score_verified === true,
+                    score_source: storedSingleMatch.score_source || (storedSingleMatch.score_verified ? 'verified' : 'unverified'),
+                    score: { home: scoreHome, away: scoreAway },
+                    minute,
+                  }]
                 : undefined)
             : undefined,
           }),
@@ -1227,6 +1267,17 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                     </div>
                   )}
 
+                  {/* Bankroll Sizing & Risk Management Banner */}
+                  {matchResult.bankroll_guidance && matchResult.bankroll_guidance.stake_sizing_tier !== 'NO_STAKE' && (
+                    <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/30 p-2.5 text-xs flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-emerald-300 font-bold">
+                        <Trophy className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>💰 建议仓位配比：{matchResult.bankroll_guidance.recommended_stake_pct}</span>
+                      </div>
+                      <span className="text-[11px] text-slate-400">{matchResult.bankroll_guidance.guidance_text}</span>
+                    </div>
+                  )}
+
                   <p className="text-xs text-slate-300">{displayText(matchResult.summary, '未提供总结')}</p>
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
                     {(matchResult.market_assessments || []).map((market, marketIndex) => (
@@ -1322,6 +1373,17 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                   ⚡ 关键触发/止损信号：{result.pro_strategy_guide.trigger_conditions}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Bankroll Sizing & Risk Management (Single Match) */}
+          {result.bankroll_guidance && result.bankroll_guidance.stake_sizing_tier !== 'NO_STAKE' && (
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/30 p-3 text-xs flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-emerald-300 font-bold">
+                <Trophy className="w-4 h-4 text-emerald-400" />
+                <span>💰 建议仓位配比：{result.bankroll_guidance.recommended_stake_pct}</span>
+              </div>
+              <span className="text-[11px] text-slate-400">{result.bankroll_guidance.guidance_text}</span>
             </div>
           )}
 
@@ -1427,6 +1489,15 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                         );
                       })}
                     </div>
+                    {ticket.bankroll_guidance && (
+                      <div className="mt-2 rounded border border-emerald-500/30 bg-emerald-950/20 px-3 py-2 text-xs flex flex-wrap items-center justify-between gap-2 text-emerald-300">
+                        <div className="flex items-center gap-1.5 font-semibold">
+                          <Trophy className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>💰 串关仓位建议：{ticket.bankroll_guidance.recommended_stake_pct}</span>
+                        </div>
+                        <span className="text-[11px] text-slate-400">{ticket.bankroll_guidance.guidance_text}</span>
+                      </div>
+                    )}
                     <div className="mt-2 text-xs text-slate-400">{ticket.reason}</div>
                   </div>
                 ))}

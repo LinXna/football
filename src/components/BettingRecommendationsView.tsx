@@ -4,6 +4,7 @@ import { DataSupplementModal } from './DataSupplementModal';
 import { BatchSupplementModal } from './BatchSupplementModal';
 import { isQuarterLine, parseQuarterLine, getQuarterSplits, formatAsianLine } from '../lib/quarterSettlement';
 import { generateExtendedAnalysis } from '../lib/extendedRecommendation';
+import { analyzeDualConsensus, DualConsensusAnalysis, formatMarketLabel, formatBetOption } from '../lib/consensusArbitration';
 import { displayText } from '../lib/displayValue';
 import { 
   Trophy, 
@@ -33,7 +34,12 @@ import {
   BarChart3,
   Crosshair,
   Divide,
-  BookOpen
+  BookOpen,
+  Scale,
+  ShieldX,
+  Flame,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 interface Props {
@@ -72,13 +78,14 @@ export const BettingRecommendationsView: React.FC<Props> = ({
   onSelectForAi,
   onRefreshLedger,
 }) => {
-  const [filterType, setFilterType] = useState<'ALL' | 'GRADE_AB' | 'GRADE_B' | 'GRADE_C' | 'LIVE' | 'PREMATCH' | 'PARLAY'>('ALL');
+  const [filterType, setFilterType] = useState<'ALL' | 'DUAL_CONSENSUS' | 'AI_UPGRADE' | 'AVOID_RISK' | 'GRADE_AB' | 'GRADE_B' | 'GRADE_C' | 'LIVE' | 'PREMATCH' | 'PARLAY'>('ALL');
   const [marketViewTab, setMarketViewTab] = useState<'PARLAY_TICKETS' | 'ALL_MARKETS' | 'OU_HANDICAP' | 'GOAL_PREDICTIONS' | 'INTERVALS' | 'LIVE_TIMING'>('ALL_MARKETS');
   const [searchTerm, setSearchTerm] = useState('');
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [submitSuccessId, setSubmitSuccessId] = useState<string | null>(null);
   const [showExplanation, setShowExplanation] = useState(true);
   const [aiEvaluationHistory, setAiEvaluationHistory] = useState<any[]>([]);
+  const [expanded12MarketsMatch, setExpanded12MarketsMatch] = useState<string | null>(null);
 
   // Single Modal State
   const [supplementMatch, setSupplementMatch] = useState<DecisionItem | null>(null);
@@ -90,6 +97,11 @@ export const BettingRecommendationsView: React.FC<Props> = ({
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [isBatchSubmitting, setIsBatchSubmitting] = useState(false);
   const [batchSuccessMsg, setBatchSuccessMsg] = useState<string | null>(null);
+
+  // Parlay Promotion States
+  const [parlaySubmittingId, setParlaySubmittingId] = useState<string | null>(null);
+  const [isBatchSubmittingParlays, setIsBatchSubmittingParlays] = useState<boolean>(false);
+  const [parlaySuccessMsg, setParlaySuccessMsg] = useState<string | null>(null);
 
   const allCombined = [
     ...liveMatches.map((m) => ({ ...m, source_type: 'live' as const })),
@@ -133,14 +145,26 @@ export const BettingRecommendationsView: React.FC<Props> = ({
 
     if (!nameMatch) return false;
 
+    const latestAiEvaluation = findLatestAiEvaluation(m);
+    const consensus = analyzeDualConsensus(m, latestAiEvaluation);
+
+    if (filterType === 'DUAL_CONSENSUS') {
+      return consensus.tier === 'DUAL_STRONG_CONSENSUS';
+    }
+    if (filterType === 'AI_UPGRADE') {
+      return consensus.tier === 'AI_VALUE_UPGRADE';
+    }
+    if (filterType === 'AVOID_RISK') {
+      return consensus.isHighRisk || consensus.tier === 'DIVERGENCE_AVOID' || consensus.tier === 'HIGH_RISK_AVOID';
+    }
     if (filterType === 'GRADE_AB') {
-      return m.grade === 'A' || m.grade === 'B' || m.status === 'WATCH';
+      return m.grade === 'A' || m.grade === 'B' || m.status === 'WATCH' || consensus.isBetWorthy;
     }
     if (filterType === 'GRADE_B') return m.grade === 'B';
     if (filterType === 'GRADE_C') return m.grade === 'C' || !m.grade;
     if (filterType === 'LIVE') return m.source_type === 'live';
     if (filterType === 'PREMATCH') return m.source_type === 'prematch';
-    if (filterType === 'PARLAY') return m.grade === 'A' || m.grade === 'B';
+    if (filterType === 'PARLAY') return m.grade === 'A' || m.grade === 'B' || consensus.isBetWorthy;
 
     return true;
   });
@@ -948,9 +972,6 @@ export const BettingRecommendationsView: React.FC<Props> = ({
     },
     { gradeEligible: 0, awaitingResearch: 0, invalidOdds: 0, missingTime: 0, unverifiedLiveScore: 0, eligibleLegs: 0, nonMoneylineEligible: 0 },
   );
-  const [parlaySubmittingId, setParlaySubmittingId] = useState<string | null>(null);
-  const [isBatchSubmittingParlays, setIsBatchSubmittingParlays] = useState<boolean>(false);
-  const [parlaySuccessMsg, setParlaySuccessMsg] = useState<string | null>(null);
 
   const handlePromoteParlayToLedger = async (ticket: ReturnType<typeof generateAiParlayTickets>[0]) => {
     setParlaySubmittingId(ticket.ticketId);
@@ -1234,6 +1255,9 @@ export const BettingRecommendationsView: React.FC<Props> = ({
           </span>
           {[
             { id: 'ALL', label: '全部比赛' },
+            { id: 'DUAL_CONSENSUS', label: '🏆 双重强共识 (最佳优选)' },
+            { id: 'AI_UPGRADE', label: '💡 AI量化升级' },
+            { id: 'AVOID_RISK', label: '⛔ 风险/分歧规避' },
             { id: 'GRADE_AB', label: 'A/B级精选' },
             { id: 'GRADE_B', label: 'B级研究候选' },
             { id: 'GRADE_C', label: 'C级观察候选' },
@@ -1761,55 +1785,68 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                   </div>
                 </div>
 
-                {/* Match Teams & Betting Target */}
-                <div className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
-                  {/* Teams & Score */}
+                {/* Match Teams & Dual Perspectives Grid (Compact 3-column row) */}
+                <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">
+                  {/* Col 1: Teams & Score */}
                   {(() => {
                     const teams = getTeamDisplay(m);
                     return (
-                      <div className="lg:col-span-2 flex items-center justify-between bg-slate-950/70 p-3.5 rounded-lg border border-slate-800">
-                        <div className="text-right flex-1 pr-3 space-y-0.5">
-                          <div className="text-sm font-bold text-slate-100">{teams.homeYbty}</div>
-                          <div className="text-xs font-semibold text-purple-300">{teams.homeLeisu}</div>
+                      <div className="flex items-center justify-between bg-slate-950/70 p-3 rounded-lg border border-slate-800">
+                        <div className="text-right flex-1 pr-2 space-y-0.5 min-w-0">
+                          <div className="text-sm font-bold text-slate-100 truncate" title={teams.homeYbty}>{teams.homeYbty}</div>
+                          <div className="text-xs font-semibold text-purple-300 truncate" title={teams.homeLeisu}>{teams.homeLeisu}</div>
                         </div>
 
-                        <div className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-center min-w-[90px] shrink-0">
-                          <div className="text-xl font-mono font-bold text-emerald-400">
+                        <div className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-center min-w-[80px] shrink-0 mx-1">
+                          <div className="text-lg font-mono font-bold text-emerald-400">
                             {m.score ? `${m.score.home} - ${m.score.away}` : 'VS'}
                           </div>
-                          <div className="text-[10px] text-slate-400 tracking-wider">
-                            {isLive ? '当前实时比分' : '赛前盘口'}
+                          <div className="text-[9px] text-slate-400 tracking-wider">
+                            {isLive ? (m.minute ? `${m.minute}' 滚球` : '滚球中') : '赛前盘口'}
                           </div>
                         </div>
 
-                        <div className="text-left flex-1 pl-3 space-y-0.5">
-                          <div className="text-sm font-bold text-slate-100">{teams.awayYbty}</div>
-                          <div className="text-xs font-semibold text-purple-300">{teams.awayLeisu}</div>
+                        <div className="text-left flex-1 pl-2 space-y-0.5 min-w-0">
+                          <div className="text-sm font-bold text-slate-100 truncate" title={teams.awayYbty}>{teams.awayYbty}</div>
+                          <div className="text-xs font-semibold text-purple-300 truncate" title={teams.awayLeisu}>{teams.awayLeisu}</div>
                         </div>
                       </div>
                     );
                   })()}
 
-                  {/* Betting Target Card */}
-                  <div className="bg-emerald-950/30 border border-emerald-800/50 p-3.5 rounded-lg space-y-1.5 text-xs">
+                  {/* Col 2: 原系统初筛建议 */}
+                  <div className="bg-emerald-950/30 border border-emerald-800/50 p-3 rounded-lg flex flex-col justify-between space-y-1.5 text-xs">
                     <div className="text-slate-400 text-[11px] flex items-center justify-between">
-                      <span>{hasPrimaryRecommendation ? '专业建议玩法与盘口 (Betting Market):' : '当前决策状态:'}</span>
+                      <span className="font-semibold text-emerald-300">原系统初筛建议:</span>
                       {(() => {
-                        if (!hasPrimaryRecommendation) return null;
+                        if (!hasPrimaryRecommendation) return <span className="text-[9px] text-slate-500">未形成</span>;
                         const numLine = parseQuarterLine(m.recommendation!.line!);
                         return Number.isFinite(numLine) && isQuarterLine(numLine) ? (
                           <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                            四分之一盘口
+                            1/4盘
                           </span>
                         ) : null;
                       })()}
                     </div>
-                    <div className="text-sm font-bold text-emerald-300 flex items-center justify-between">
-                      <span>{hasPrimaryRecommendation ? m.recommendation!.market : (m.status === 'RESEARCH' ? '等待AI深挖形成正式主选' : '本场暂无正式主选')}</span>
-                      <span className="text-emerald-400 font-mono text-base">
-                        {hasPrimaryRecommendation ? formatAsianLine(m.recommendation!.line!) : '--'}
-                      </span>
-                    </div>
+                    {(() => {
+                      const sysBet = formatBetOption(
+                        m.recommendation?.market,
+                        (m.recommendation as any)?.direction || m.recommendation?.market,
+                        m.recommendation?.line,
+                        m.ybty_home,
+                        m.ybty_away
+                      );
+                      return (
+                        <div className="text-sm font-bold text-emerald-300 flex items-center justify-between">
+                          <span className="truncate mr-1" title={sysBet.fullSummary}>
+                            {hasPrimaryRecommendation ? (sysBet.sideLabel ? `${sysBet.marketName} · ${sysBet.sideLabel}` : sysBet.marketName) : (m.status === 'RESEARCH' ? '等待AI深挖' : '无正式主选')}
+                          </span>
+                          <span className="text-emerald-400 font-mono text-sm shrink-0">
+                            {hasPrimaryRecommendation ? sysBet.lineStr || '--' : '--'}
+                          </span>
+                        </div>
+                      );
+                    })()}
 
                     {/* Quarter Line Split Info */}
                     {(() => {
@@ -1818,10 +1855,10 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                       if (Number.isFinite(numLine) && isQuarterLine(numLine)) {
                         const { lineA, lineB } = getQuarterSplits(numLine);
                         return (
-                          <div className="bg-slate-950/80 p-1.5 rounded border border-indigo-500/30 text-[10px] font-mono text-indigo-200 flex items-center justify-between">
-                            <span>拆分双注 (Split):</span>
+                          <div className="bg-slate-950/80 p-1 rounded border border-indigo-500/30 text-[9px] font-mono text-indigo-200 flex items-center justify-between">
+                            <span>拆分:</span>
                             <span className="font-bold">
-                              [{lineA > 0 ? '+' : ''}{lineA} (50%)] + [{lineB > 0 ? '+' : ''}{lineB} (50%)]
+                              [{lineA > 0 ? '+' : ''}{lineA}] + [{lineB > 0 ? '+' : ''}{lineB}]
                             </span>
                           </div>
                         );
@@ -1829,103 +1866,252 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                       return null;
                     })()}
 
-                    <div className="text-[11px] text-slate-300 flex justify-between pt-1 border-t border-emerald-800/40">
+                    <div className="text-[10px] text-slate-300 flex justify-between pt-1 border-t border-emerald-800/40">
                       <span>
-                        {hasPrimaryRecommendation ? <>参考赔率: <strong className="text-amber-300 font-mono">@{m.recommendation!.odds}</strong></> : <>参考赔率: <strong className="text-slate-500">未形成</strong></>}
+                        {hasPrimaryRecommendation ? <>赔率: <strong className="text-amber-300 font-mono">@{m.recommendation!.odds}</strong></> : <>赔率: <strong className="text-slate-500">--</strong></>}
                       </span>
-                      <span>模型得分: <strong className="text-emerald-400 font-mono">{Number(m.model_score || 0) > 0 ? m.model_score : '未评分'}</strong></span>
+                      <span>模型分: <strong className="text-emerald-400 font-mono">{Number(m.model_score || 0) > 0 ? m.model_score : '--'}</strong></span>
                     </div>
                   </div>
 
-                  {false && <div className="bg-sky-950/30 border border-sky-800/50 p-3.5 rounded-lg space-y-1.5 text-xs">
+                  {/* Col 3: AI 深度量化评估 */}
+                  <div className="bg-sky-950/30 border border-sky-800/50 p-3 rounded-lg flex flex-col justify-between space-y-1.5 text-xs">
                     <div className="flex items-center justify-between text-[11px] text-slate-400">
-                      <span>AI 深度评估建议:</span>
-                      {latestAiEvaluation && <span className="rounded border border-sky-700/50 bg-sky-950 px-1.5 py-0.5 text-[9px] text-sky-300">{latestAiEvaluation.grade || 'C'}级</span>}
+                      <span className="font-semibold text-sky-300 flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5 text-sky-400" /> AI 深度主选建议:
+                      </span>
+                      {latestAiEvaluation ? (
+                        <span className="rounded border border-sky-700/50 bg-sky-950 px-1.5 py-0.2 text-[9px] font-bold text-sky-300">
+                          {latestAiEvaluation.grade || 'C'}级评估
+                        </span>
+                      ) : (
+                        <span className="rounded border border-slate-700 bg-slate-900 px-1.5 py-0.2 text-[9px] text-slate-500">
+                          未评估
+                        </span>
+                      )}
                     </div>
-                    <div className="flex items-center justify-between text-sm font-bold text-sky-300">
-                      <span>{hasAiRecommendation ? aiRecommendation.market : latestAiEvaluation ? 'AI 本场无正式主选' : '尚未保存 AI 评估'}</span>
-                      <span className="font-mono text-base text-sky-400">{hasAiRecommendation ? formatAsianLine(aiRecommendation.line) : '--'}</span>
+                    {(() => {
+                      const aiBet = formatBetOption(
+                        aiRecommendation?.category || aiRecommendation?.market,
+                        aiRecommendation?.direction,
+                        aiRecommendation?.line,
+                        m.ybty_home,
+                        m.ybty_away
+                      );
+                      return (
+                        <div className="flex items-center justify-between text-sm font-bold text-sky-300">
+                          <span className="truncate mr-1" title={aiBet.fullSummary}>
+                            {hasAiRecommendation ? (aiBet.sideLabel ? `${aiBet.marketName} · ${aiBet.sideLabel}` : aiBet.marketName) : latestAiEvaluation ? '本场无合格主选' : '点击右上角深挖'}
+                          </span>
+                          <span className="font-mono text-sm text-sky-400 shrink-0">
+                            {hasAiRecommendation ? aiBet.lineStr || '--' : '--'}
+                          </span>
+                        </div>
+                      );
+                    })()}
+                    <div className="flex justify-between border-t border-sky-800/40 pt-1 text-[10px] text-slate-300">
+                      <span>赔率: <strong className={hasAiRecommendation ? 'font-mono text-amber-300' : 'text-slate-500'}>{hasAiRecommendation ? `@${aiRecommendation.odds}` : '--'}</strong></span>
+                      <span>胜率: <strong className="font-mono text-sky-300">{hasAiRecommendation && Number.isFinite(Number(aiRecommendedAssessment?.probability)) ? `${aiRecommendedAssessment.probability}%` : '--'}</strong></span>
+                      {hasAiRecommendation && (latestAiEvaluation?.value_edge || aiRecommendation.value_edge) && (
+                        <span>EV: <strong className="font-mono text-emerald-400">+{latestAiEvaluation?.value_edge || aiRecommendation.value_edge}%</strong></span>
+                      )}
                     </div>
-                    <div className="flex justify-between border-t border-sky-800/40 pt-1 text-[11px] text-slate-300">
-                      <span>参考赔率: <strong className={hasAiRecommendation ? 'font-mono text-amber-300' : 'text-slate-500'}>{hasAiRecommendation ? `@${aiRecommendation.odds}` : '未形成'}</strong></span>
-                      <span>AI概率: <strong className="font-mono text-sky-300">{hasAiRecommendation && Number.isFinite(Number(aiRecommendedAssessment?.probability)) ? `${aiRecommendedAssessment.probability}%` : '--'}</strong></span>
-                    </div>
-                    {latestAiEvaluation?.summary && <div className="line-clamp-2 text-[10px] leading-relaxed text-slate-400" title={displayText(latestAiEvaluation.summary)}>{displayText(latestAiEvaluation.summary)}</div>}
-                    {latestAiEvaluation?.saved_at && <div className="text-[9px] text-slate-600">评估保存时间：{new Date(latestAiEvaluation.saved_at).toLocaleString('zh-CN')}</div>}
-                  </div>}
+                    {latestAiEvaluation?.summary && (
+                      <div className="truncate text-[9px] text-slate-400" title={displayText(latestAiEvaluation.summary)}>
+                        {displayText(latestAiEvaluation.summary)}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {false && Array.isArray(latestAiEvaluation?.market_assessments) && latestAiEvaluation.market_assessments.length > 0 && (
-                  <div className="mx-4 mb-4 rounded-xl border border-sky-800/50 bg-sky-950/10 p-3">
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <div className="text-xs font-bold text-sky-300">AI 全玩法评估（{latestAiEvaluation.market_assessments.length} 项）</div>
-                        <div className="mt-1 text-[10px] text-slate-500">正式推荐、建议观察、模型预测与不建议投注分别展示；非正式项不会自动写入正式台账。</div>
+                {/* DUAL CONSENSUS SYNTHESIS & BEST BETTING PLAN PANEL */}
+                {(() => {
+                  const consensus = analyzeDualConsensus(m, latestAiEvaluation);
+                  const is12MarketsOpen = expanded12MarketsMatch === m.match;
+
+                  return (
+                    <div className="mx-4 mb-4 rounded-xl border border-slate-800 bg-slate-950/80 p-3.5 space-y-3 shadow-inner">
+                      {/* Consensus Header */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2.5 py-1 rounded-md border text-xs font-extrabold flex items-center gap-1.5 ${consensus.badgeClass}`}>
+                            {consensus.tier === 'DUAL_STRONG_CONSENSUS' && <Flame className="w-3.5 h-3.5 text-emerald-300" />}
+                            {consensus.tier === 'AI_VALUE_UPGRADE' && <Sparkles className="w-3.5 h-3.5 text-sky-300" />}
+                            {consensus.tier === 'DIVERGENCE_AVOID' && <AlertTriangle className="w-3.5 h-3.5 text-amber-300" />}
+                            {consensus.tier === 'HIGH_RISK_AVOID' && <ShieldX className="w-3.5 h-3.5 text-rose-300" />}
+                            <span>{consensus.badgeLabel}</span>
+                          </span>
+                          <span className="text-xs font-bold text-slate-200">{consensus.title}</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {consensus.isBetWorthy ? (
+                            <span className="bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400" /> 经研判：值得投注
+                            </span>
+                          ) : consensus.isHighRisk ? (
+                            <span className="bg-rose-950/70 border border-rose-500/50 text-rose-300 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
+                              <XCircle className="w-3 h-3 text-rose-400" /> 经研判：高风险规避
+                            </span>
+                          ) : (
+                            <span className="bg-slate-900 border border-slate-700 text-slate-400 text-[10px] px-2 py-0.5 rounded">
+                              观望不入账
+                            </span>
+                          )}
+
+                          {Array.isArray(latestAiEvaluation?.market_assessments) && latestAiEvaluation.market_assessments.length > 0 && (
+                            <button
+                              onClick={() => setExpanded12MarketsMatch(is12MarketsOpen ? null : m.match)}
+                              className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded text-[11px] font-medium flex items-center gap-1 transition-colors"
+                            >
+                              <span>12项全玩法对照 ({latestAiEvaluation.market_assessments.length})</span>
+                              {is12MarketsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <span className="rounded border border-sky-800 bg-sky-950 px-2 py-1 text-[10px] text-sky-400">最新已保存评估</span>
-                    </div>
-                    <div className="space-y-3">
-                      {latestAiEvaluation.market_assessments.map((assessment: any, assessmentIndex: number) => {
-                        const status = aiAssessmentStatus(String(assessment.status || ''));
-                        const hasOdds = Number.isFinite(Number(assessment.odds)) && Number(assessment.odds) > 1;
-                        const hasProbability = Number.isFinite(Number(assessment.probability));
-                        const assessmentLine = String(assessment.line ?? '').trim();
-                        const directionText = String(assessment.direction || '--');
-                        const displayedDirection = assessmentLine && !directionText.includes(assessmentLine)
-                          ? `${directionText} ${assessmentLine}`
-                          : directionText;
-                        const systemAssessment = systemAssessments[String(assessment.category || '')] || null;
-                        const systemLine = String(systemAssessment?.line ?? '').trim();
-                        const systemDirection = String(systemAssessment?.direction || '无数据');
-                        const displayedSystemDirection = systemLine && !systemDirection.includes(systemLine)
-                          ? `${systemDirection} ${systemLine}`
-                          : systemDirection;
-                        const systemHasOdds = Number.isFinite(Number(systemAssessment?.odds)) && Number(systemAssessment.odds) > 1;
-                        const systemHasProbability = Number.isFinite(Number(systemAssessment?.probability));
-                        return (
-                          <div key={`${assessment.category}-${assessmentIndex}`} className="overflow-hidden rounded-lg border border-slate-700 bg-slate-950/70">
-                            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900/90 px-3 py-2">
-                              <strong className="text-xs text-slate-100">{assessment.category || assessment.market || '未命名玩法'}</strong>
-                              <span className="text-[9px] text-slate-500">原系统与 AI 一对一比较</span>
+
+                      {/* Best Proposed Bet Card if Available */}
+                      {consensus.bestProposal && (
+                        <div className="p-3 rounded-lg bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900/90 border border-emerald-500/40 space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <span className="text-emerald-300 font-bold flex items-center gap-1.5">
+                              <Target className="w-4 h-4 text-emerald-400" /> 【综合研判最佳投注方案】
+                            </span>
+                            <div className="flex items-center gap-2">
+                              {consensus.bestProposal.valueEdgePct !== undefined && consensus.bestProposal.valueEdgePct !== null && (
+                                <span className="bg-emerald-900/60 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold px-2 py-0.5 rounded">
+                                  期望边际: +{consensus.bestProposal.valueEdgePct}% EV
+                                </span>
+                              )}
+                              <span className="bg-indigo-950/60 text-indigo-300 border border-indigo-500/40 text-[10px] font-bold px-2 py-0.5 rounded">
+                                建议仓位: {consensus.bestProposal.recommendedStake}
+                              </span>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2">
-                              <div className="border-b border-slate-800 p-3 text-xs md:border-b-0 md:border-r">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="font-bold text-emerald-300">原系统建议</span>
-                                  <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[9px] text-emerald-400">透明模型/真实盘口</span>
-                                </div>
-                                <div className="mt-2 flex items-start justify-between gap-3">
-                                  <div className="font-bold text-slate-100">{displayedSystemDirection}</div>
-                                  <div className="shrink-0 font-mono font-bold text-amber-300">{systemHasOdds ? `@${systemAssessment.odds}` : '无真实赔率'}</div>
-                                </div>
-                                <div className="mt-1 text-[11px] text-slate-300">概率：<strong>{systemHasProbability ? `${systemAssessment.probability}%` : '--'}</strong></div>
-                                <div className="mt-2 border-t border-slate-800 pt-2 text-[10px] leading-relaxed text-slate-400">{systemAssessment?.reason || '原系统没有该玩法的可用数据。'}</div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 text-xs">
+                            <div>
+                              <div className="text-[10px] text-slate-400">推荐核心玩法</div>
+                              <div className="font-bold text-slate-100 mt-0.5">
+                                {consensus.bestProposal.market} {consensus.bestProposal.direction && consensus.bestProposal.direction !== consensus.bestProposal.market ? `· ${consensus.bestProposal.direction}` : ''}
                               </div>
-                              <div className={`p-3 text-xs ${status.className}`}>
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="font-bold">AI 评估建议</span>
-                                  <span className="rounded bg-black/20 px-1.5 py-0.5 text-[9px] font-bold">{assessment.status === 'prediction' ? status.label : `${status.label} · ${assessment.grade || 'NO_BET'}`}</span>
-                                </div>
-                                <div className="mt-2 flex items-start justify-between gap-3">
-                                  <div className="font-bold text-current">{displayedDirection}</div>
-                                  <div className="shrink-0 font-mono font-bold text-amber-300">{hasOdds ? `@${assessment.odds}` : '无真实赔率'}</div>
-                                </div>
-                                <div className="mt-1 text-[11px] text-slate-300">
-                                  概率：<strong>{hasProbability ? `${assessment.probability}%` : '--'}</strong>
-                                  {assessment.probability_scope ? <span className="text-slate-500"> · {assessment.probability_scope}</span> : null}
-                                </div>
-                                {Array.isArray(assessment.alternatives) && assessment.alternatives.length > 0 && (
-                                  <div className="mt-1 text-[10px] text-slate-500">备选：{assessment.alternatives.map((item: any) => `${item.direction} ${item.probability}%`).join('；')}</div>
-                                )}
-                                <div className="mt-2 border-t border-white/10 pt-2 text-[10px] leading-relaxed text-slate-400">{assessment.reason || '未提供评估依据'}</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-slate-400">锁定盘口与赔率</div>
+                              <div className="font-mono font-bold text-emerald-400 mt-0.5">
+                                {consensus.bestProposal.line} <span className="text-amber-300 font-bold">@{consensus.bestProposal.odds}</span>
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-slate-400">操盘实战指引</div>
+                              <div className="text-[11px] text-slate-300 mt-0.5 truncate" title={consensus.bestProposal.actionGuide}>
+                                {consensus.bestProposal.actionGuide || '顺势建仓，严控止损'}
                               </div>
                             </div>
                           </div>
-                        );
-                      })}
+                        </div>
+                      )}
+
+                      {/* Summary & Dual Verification Checklist */}
+                      <div className="space-y-2 text-xs">
+                        <div className="text-slate-300 text-[11px] leading-relaxed bg-slate-900/70 p-2.5 rounded-lg border border-slate-800/80">
+                          <strong className="text-slate-200">综合研判评述：</strong>{consensus.summary}
+                        </div>
+
+                        {/* Risk Flags or Consensus Highlights */}
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                          {consensus.riskFlags.map((risk, rIdx) => (
+                            <span key={rIdx} className="bg-rose-950/70 text-rose-300 border border-rose-800/60 px-2 py-0.5 rounded flex items-center gap-1 font-medium">
+                              <ShieldX className="w-3 h-3 text-rose-400" /> {risk}
+                            </span>
+                          ))}
+                          {consensus.consensusReasons.map((reason, cIdx) => (
+                            <span key={cIdx} className="bg-emerald-950/60 text-emerald-300 border border-emerald-800/50 px-2 py-0.5 rounded flex items-center gap-1 font-medium">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400" /> {reason}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Collapsible 12-Market Comparison Panel */}
+                      {is12MarketsOpen && Array.isArray(latestAiEvaluation?.market_assessments) && latestAiEvaluation.market_assessments.length > 0 && (
+                        <div className="pt-3 border-t border-slate-800 space-y-2.5 animate-fade-in">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-sky-300 flex items-center gap-1.5">
+                              <Scale className="w-4 h-4 text-sky-400" /> 原系统 vs AI 12项全玩法逐项核对
+                            </span>
+                            <span className="text-[10px] text-slate-500">
+                              对比系统模型与 AI 深度剥离抽水后的期望概率
+                            </span>
+                          </div>
+
+                          <div className="space-y-2">
+                            {latestAiEvaluation.market_assessments.map((assessment: any, assessmentIndex: number) => {
+                              const status = aiAssessmentStatus(String(assessment.status || ''));
+                              const hasOdds = Number.isFinite(Number(assessment.odds)) && Number(assessment.odds) > 1;
+                              const hasProbability = Number.isFinite(Number(assessment.probability));
+                              const assessmentLine = String(assessment.line ?? '').trim();
+                              const directionText = String(assessment.direction || '--');
+                              const displayedDirection = assessmentLine && !directionText.includes(assessmentLine)
+                                ? `${directionText} ${assessmentLine}`
+                                : directionText;
+                              const systemAssessment = systemAssessments[String(assessment.category || '')] || null;
+                              const systemLine = String(systemAssessment?.line ?? '').trim();
+                              const systemDirection = String(systemAssessment?.direction || '无数据');
+                              const displayedSystemDirection = systemLine && !systemDirection.includes(systemLine)
+                                ? `${systemDirection} ${systemLine}`
+                                : systemDirection;
+                              const systemHasOdds = Number.isFinite(Number(systemAssessment?.odds)) && Number(systemAssessment.odds) > 1;
+                              const systemHasProbability = Number.isFinite(Number(systemAssessment?.probability));
+
+                              return (
+                                <div key={`${assessment.category}-${assessmentIndex}`} className="overflow-hidden rounded-lg border border-slate-700 bg-slate-900/90">
+                                  <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/80 px-3 py-1.5">
+                                    <strong className="text-xs text-slate-200">{formatMarketLabel(assessment.category || assessment.market)}</strong>
+                                    <span className="text-[9px] text-slate-500">双重研判对比</span>
+                                  </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-2">
+                                    <div className="border-b border-slate-800 p-2.5 text-xs md:border-b-0 md:border-r">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="font-bold text-emerald-300">原系统初筛</span>
+                                        <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[9px] text-emerald-400">透明模型/真实盘口</span>
+                                      </div>
+                                      <div className="mt-1.5 flex items-start justify-between gap-2">
+                                        <div className="font-bold text-slate-200">{displayedSystemDirection}</div>
+                                        <div className="shrink-0 font-mono font-bold text-amber-300">{systemHasOdds ? `@${systemAssessment.odds}` : '无真实赔率'}</div>
+                                      </div>
+                                      <div className="mt-1 text-[11px] text-slate-400">概率：<strong className="text-slate-200">{systemHasProbability ? `${systemAssessment.probability}%` : '--'}</strong></div>
+                                      <div className="mt-1.5 border-t border-slate-800 pt-1.5 text-[10px] leading-relaxed text-slate-400">{systemAssessment?.reason || '原系统没有该玩法的可用数据。'}</div>
+                                    </div>
+                                    <div className={`p-2.5 text-xs ${status.className}`}>
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="font-bold">AI 深度量化</span>
+                                        <span className="rounded bg-black/20 px-1.5 py-0.5 text-[9px] font-bold">{assessment.status === 'prediction' ? status.label : `${status.label} · ${assessment.grade || 'NO_BET'}`}</span>
+                                      </div>
+                                      <div className="mt-1.5 flex items-start justify-between gap-2">
+                                        <div className="font-bold text-current">{displayedDirection}</div>
+                                        <div className="shrink-0 font-mono font-bold text-amber-300">{hasOdds ? `@${assessment.odds}` : '无真实赔率'}</div>
+                                      </div>
+                                      <div className="mt-1 text-[11px] text-slate-300">
+                                        概率：<strong>{hasProbability ? `${assessment.probability}%` : '--'}</strong>
+                                        {assessment.probability_scope ? <span className="text-slate-500"> · {assessment.probability_scope}</span> : null}
+                                      </div>
+                                      {Array.isArray(assessment.alternatives) && assessment.alternatives.length > 0 && (
+                                        <div className="mt-1 text-[10px] text-slate-500">备选：{assessment.alternatives.map((item: any) => `${item.direction} ${item.probability}%`).join('；')}</div>
+                                      )}
+                                      <div className="mt-1.5 border-t border-white/10 pt-1.5 text-[10px] leading-relaxed text-slate-400">{assessment.reason || '未提供评估依据'}</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 <>
                 <div className="mx-4 mb-2 rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-200">

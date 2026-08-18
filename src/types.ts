@@ -51,6 +51,13 @@ export interface LineupData {
   };
 }
 
+export interface BankrollGuidance {
+  recommended_stake_pct: string;
+  fractional_kelly_pct: number;
+  stake_sizing_tier: 'CORE_HIGH' | 'CORE_STANDARD' | 'SPECULATIVE_SMALL' | 'NO_STAKE';
+  guidance_text: string;
+}
+
 export interface DecisionItem {
   match: string;
   league?: string;
@@ -298,6 +305,7 @@ export interface AIAnalysisResponse {
     action_path: string; // 具体操盘步骤与加注/止损时机
     trigger_conditions?: string; // 触发或对冲条件
   };
+  bankroll_guidance?: BankrollGuidance;
   game_momentum_phase?: string; // e.g. '0-15开局试探' | '15-45半场攻坚' | '45-60战术重组' | '75-90+终局反扑'
   score_verified: boolean;
   score_source: string;
@@ -316,6 +324,7 @@ export interface AIAnalysisResponse {
     grade: 'A' | 'B' | 'C';
     estimated_total_odds: number;
     reason: string;
+    bankroll_guidance?: BankrollGuidance;
     legs: Array<{
       match: string;
       ybty_home?: string;

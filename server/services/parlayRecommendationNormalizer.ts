@@ -1,4 +1,5 @@
 import { validateParlayLegAgainstCandidate } from './verifiedMarketAssessment';
+import { calculateBankrollGuidance } from './quantitativeFeatures';
 
 const cleanTeam = (str: any): string => {
   if (typeof str !== 'string') return '';
@@ -34,7 +35,22 @@ export function normalizeParlayRecommendations(result: any, sanitizeLeg: (leg: a
         };
       }) : [];
       const invalid = legs.filter((leg: any) => leg.ybty_market_verified !== true);
-      return { ...ticket, legs, verification_passed: invalid.length === 0, grade: invalid.length ? 'C' : ticket.grade, validation_errors: invalid.map((leg: any) => `${leg.match}: ${leg.validation_reason || leg.verification_error}`) };
+      const ticketGrade = invalid.length ? 'C' : (ticket.grade || 'B');
+      const bankroll = calculateBankrollGuidance({
+        grade: ticketGrade,
+        isParlay: true,
+        legCount: legs.length,
+      });
+
+      return {
+        ...ticket,
+        legs,
+        verification_passed: invalid.length === 0,
+        grade: ticketGrade,
+        bankroll_guidance: bankroll,
+        validation_errors: invalid.map((leg: any) => `${leg.match}: ${leg.validation_reason || leg.verification_error}`),
+      };
     }),
   };
 }
+

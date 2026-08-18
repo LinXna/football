@@ -90,9 +90,39 @@ function historicalSummary(item: DecisionItem): { h2h: string; recent: string } 
       return Number.isFinite(home) && Number.isFinite(away) ? [home + away] : [];
     });
     const h2hAverage = h2hGoals.length ? h2hGoals.reduce((sum: number, value: number) => sum + value, 0) / h2hGoals.length : null;
+
+    // Time decay calculation
+    const currentYear = new Date().getFullYear();
+    let recent1YearCount = 0;
+    let staleCount = 0;
+    interfaceH2h.forEach((row: any) => {
+      const rawDate = row?.match_date || row?.date || row?.match_time || row?.time;
+      let year = 0;
+      if (typeof rawDate === 'string') {
+        const m = rawDate.match(/(\d{4})/);
+        if (m) year = parseInt(m[1], 10);
+      } else if (typeof rawDate === 'number') {
+        const ts = rawDate > 1e11 ? rawDate : rawDate * 1000;
+        year = new Date(ts).getFullYear();
+      }
+      if (year > 0) {
+        if (currentYear - year <= 1) recent1YearCount++;
+        else if (currentYear - year >= 3) staleCount++;
+      }
+    });
+
+    let decayNote = '';
+    if (interfaceH2h.length > 0) {
+      if (recent1YearCount > 0) {
+        decayNote = ` (近1年${recent1YearCount}场/高权重)`;
+      } else if (staleCount === interfaceH2h.length) {
+        decayNote = ` (全部发生于2-3年前/阵容更迭·时效衰减)`;
+      }
+    }
+
     return {
-      h2h: h2hAverage == null ? '历史交锋：暂无可计算样本' : `历史交锋：${h2hGoals.length}场，平均总进球${h2hAverage.toFixed(2)}`,
-      recent: `近期战绩：主队${homeRecent.length}场${homeAverage == null ? '' : `、平均总进球${homeAverage.toFixed(2)}`}；客队${awayRecent.length}场${awayAverage == null ? '' : `、平均总进球${awayAverage.toFixed(2)}`}。仅作描述，不直接加减预测分。`,
+      h2h: h2hAverage == null ? '历史交锋：暂无可计算样本' : `历史交锋：${h2hGoals.length}场${decayNote}，场均进球${h2hAverage.toFixed(2)}`,
+      recent: `近期战绩：主队${homeRecent.length}场${homeAverage == null ? '' : `(均进${homeAverage.toFixed(2)})`}；客队${awayRecent.length}场${awayAverage == null ? '' : `(均进${awayAverage.toFixed(2)})`}。依据时效衰减模型，优先参考近6场与即时首发。`,
     };
   }
   if (!historical || historical.available !== true) {

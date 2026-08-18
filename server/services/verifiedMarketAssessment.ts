@@ -1,3 +1,5 @@
+import { normalizeYbtyMarketTypes } from './marketTypeNormalizer';
+
 type VerifiedOption = { option_id?: string; side?: string | null; line?: unknown; selection?: unknown; odds?: unknown; suspended?: boolean };
 type VerifiedMarket = { market?: string; market_type_verified?: boolean; options?: VerifiedOption[] };
 
@@ -174,4 +176,3 @@ export function validateParlayLegAgainstCandidate(leg: any, candidate: any): any
     ? { ...leg, line: category.includes('让球') ? `${direction === '客队' ? away : home} ${validated.line}`.trim() : category.includes('大小球') ? `${direction} ${validated.line}`.trim() : direction, odds: validated.odds, ybty_market_verified: true, odds_source: 'ybty_verified' }
     : { ...leg, ybty_market_verified: false, verification_error: validated.verification_error, validation_reason: validated.reason };
 }
-import { normalizeYbtyMarketTypes } from './marketTypeNormalizer';

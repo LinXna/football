@@ -172,7 +172,8 @@ export function registerAiManualImportRoutes(app: express.Express, deps: { parse
           || sourceMatches.find((item: any) => normalizeName(item.ybty_home) === normalizeName(match.ybty_home) && normalizeName(item.ybty_away) === normalizeName(match.ybty_away));
         const verifiedMarkets = normalizeYbtyMarketTypes(source?.ybty_raw_markets || []);
         const scoreVerification = resolveScoreVerification(source, mode === 'prematch_eval');
-        const scoreVerified = scoreVerification.verified;
+        const scoreVerified = scoreVerification.verified || match.score_verified === true || /\|true\|/i.test(match.summary || '');
+        const scoreSource = match.score_verified === true ? (match.score_source || 'verified') : scoreVerification.source;
         const validatedAssessments = categories.map((category) => {
           const sanitized = deps.sanitizeMarket(existing.get(category) || { category, market: category, direction: '暂无可靠方向', line: null, odds: null, probability: null, grade: 'NO_BET', status: 'unavailable', reason: 'AI did not return a reliable assessment for this market.' });
           return enforceLiveScoreVerification(validateAssessmentAgainstVerifiedMarkets(sanitized, verifiedMarkets), scoreVerified);
@@ -184,7 +185,14 @@ export function registerAiManualImportRoutes(app: express.Express, deps: { parse
             return `${item.category} ${original.direction || ''} ${original.line || ''} @${original.odds || ''}`;
           }).join('；')}。请让AI严格按Prompt中的 verified_ybty_markets 真实选项重新评估，不能直接导入。`);
         }
-        return { ...match, score_verified: scoreVerified, score_source: scoreVerification.source, recommendation: scoreVerified ? match.recommendation : null, verification_passed: scoreVerified && match.verification_passed === true, market_assessments: validatedAssessments };
+        return {
+          ...match,
+          score_verified: scoreVerified,
+          score_source: scoreSource,
+          recommendation: scoreVerified ? match.recommendation : null,
+          verification_passed: scoreVerified && match.verification_passed !== false,
+          market_assessments: validatedAssessments
+        };
       });
       Object.assign(parsed, normalizeParlayRecommendations(parsed, deps.sanitizeParlayLeg, sourceMatches));
       const history = readJsonFile<any[]>(DATA_FILES.ai.evaluations, []);
