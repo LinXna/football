@@ -1155,8 +1155,10 @@ ${JSON.stringify(historicalFeedback)}
     // With slim JSON payload (~1KB per match), export up to 15 matches in a single unified prompt to prevent truncation and segment splitting.
     const MAX_PROMPT_TOKENS = Number(process.env.MAX_PROMPT_TOKENS) || 300_000;
     const chunks = chunkPromptItems(evaluationData, 15, MAX_PROMPT_TOKENS);
-    const prompts = chunks.map((chunkData, index) => {
-      const batchHeader = chunks.length > 1 ? `Batch ${index + 1}/${chunks.length} – ${chunkData.length} matches` : `Total ${chunkData.length} matches`;
+    
+    // 1. Standard Prompt Builder (Web Trader Strategy Version - unchanged)
+    const buildStandardPrompt = (chunkData: any[], index: number, totalChunks: number) => {
+      const batchHeader = totalChunks > 1 ? `Batch ${index + 1}/${totalChunks} – ${chunkData.length} matches` : `Total ${chunkData.length} matches`;
       return `Please evaluate the following matches (${batchHeader}) with rigorous football risk controls.
 Return ONLY a single valid JSON object (no markdown, no conversational commentary).
 
@@ -1198,15 +1200,12 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
    - Pick the single best/highest-value option among the 5 real markets above (grade="A" or "B").
    - If none of the 5 markets qualify for A/B recommendation, set recommendation to null (or grade="NO_BET").
 
-5. Non-bettable Predictions (predictions object):
-   - Fill in all 7 prediction fields: correct_score (波胆), btts (双方进球: 是/否), odd_even (单双: 单/双), home_goals (主队进球: X球), away_goals (客队进球: X球), total_goals (总进球: X球), timing (进球时段).
-
-6. Live Score Verification:
+5. Live Score Verification:
    - If score_verified is false, DO NOT give any A/B grade real market recommendations. All 5 real markets must be status="avoid" / grade="NO_BET".
 
-7. Completeness Constraint:
+6. Completeness Constraint:
    - CRITICAL: You MUST output all ${chunkData.length} matches in the "matches" array.
-   - For every match, market_assessments must include all 5 real markets, and predictions must include all 7 fields.
+   - For every match, market_assessments must include all 5 core real markets.
 
 [Output JSON Schema Template]
 {
@@ -1293,27 +1292,164 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
           "reason": "主胜赔率具备正向价值边际",
           "risk": "平局丢分"
         }
-      ],
-      "predictions": {
-        "correct_score": "2-1",
-        "btts": "是",
-        "odd_even": "单",
-        "home_goals": "2球",
-        "away_goals": "1球",
-        "total_goals": "3球",
-        "timing": "61-75分钟"
-      }
+      ]
     }
   ]
 }
 
 Match data list (${chunkData.length} matches):
 ${JSON.stringify(chunkData, null, 2)}`;
-    });
+    };
+
+    // 2. Objective Pure Quantitative Prompt Builder (Combining professional football data & quantitative betting strategies without subjective narrative bias)
+    const buildObjectivePrompt = (chunkData: any[], index: number, totalChunks: number) => {
+      const batchHeader = totalChunks > 1 ? `Batch ${index + 1}/${totalChunks} – ${chunkData.length} matches` : `Total ${chunkData.length} matches`;
+      return `Please evaluate the following matches (${batchHeader}) objectively by rigorously combining professional football match data analytics with professional sports betting quantitative strategies.
+Return ONLY a single valid JSON object (no markdown, no conversational commentary).
+
+[Professional Match Data & Quantitative Betting Strategy Principles]
+1. Professional Match Data Synthesis (综合专业比赛数据研判):
+   - Real-time/Pre-match Technical Statistics (live_statistics / detail_context): Evaluate shots, shots on target, dangerous attacks, possession rate, corners, and xG efficiency.
+   - Historical Trends & Form (recent_trends / standings): Analyze head-to-head records, goal scoring/conceding distributions, home/away performance splits, and tournament motivation.
+   - Lineups & Crucial Incidents (lineups / incidents): Factor in confirmed starter quality, missing key players, red/yellow card impacts, and tactical substitutions.
+   - Benchmark Reference Odds (reference_odds): Cross-examine market movement trends and Asian handicap adjustments from reliable odds providers.
+
+2. Professional Betting Quantitative Strategy & Edge (专业量化投注策略与方案):
+   - Positive Expected Value (EV / Value Edge): For any market, calculate implied_probability = 100 / odds, and value_edge = probability - implied_probability. Only consider recommendations when real probability demonstrates a robust positive edge (value_edge > 0).
+   - Match-Timeline Dynamic Pricing (滚球时间轴与进球率衰减): Factor in current elapsed minutes, current live score, score difference, and remaining goal expectation per unit of time.
+   - Handicap-to-Goal Expectation Alignment (让球深浅与净胜期望匹配): Ensure handicap lines strictly correspond to realistic projected goal margins backed by actual data, avoiding unwarranted deep handicap traps.
+
+[Evaluation and Risk Control Protocol]
+1. Mandatory 5 Real Betting Markets (Each match's market_assessments MUST evaluate ALL 5 core markets in this exact order):
+   1. 全场大小球 (full_total)
+   2. 半场大小球 (half_total: If this match has no half_total options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
+   3. 全场让球 (full_spread)
+   4. 半场让球 (half_spread: If this match has no half_spread options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
+   5. 全场独赢1X2 (full_h2h: If this match has no full_h2h options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
+   
+   For each available market:
+   - ONLY select valid options from this match's verified_ybty_markets! Copy option_id verbatim to market_option_id.
+   - Calculate implied_probability = 100 / odds, value_edge = probability - implied_probability.
+   - Formal recommendation (status="recommend", grade="A"|"B"): only when value_edge > 0 with quantitative and technical match data backing.
+   - Watch (status="watch", grade="C"): small value_edge or higher uncertainty.
+   - Avoid (status="avoid", grade="NO_BET"): value_edge <= 0 or lacking margin of safety.
+
+2. Best Overall Recommendation (recommendation field):
+   - Pick the single best/highest-value option among the 5 real markets above (grade="A" or "B").
+   - If none of the 5 markets qualify for A/B recommendation, set recommendation to null (or grade="NO_BET").
+
+3. Live Score Verification (Score Verification Gate):
+   - If score_verified is false, DO NOT give any A/B grade real market recommendations. All 5 real markets must be status="avoid" / grade="NO_BET".
+
+4. Completeness Constraint:
+   - CRITICAL: You MUST output all ${chunkData.length} matches in the "matches" array. Never omit, merge, or truncate any match.
+   - For every match, market_assessments must include all 5 core real markets.
+
+[Output JSON Schema Template]
+{
+  "schema_version": "football_market_audit_v2",
+  "summary": "matches:${chunkData.length}|recommend:N|watch:N|avoid:N",
+  "matches": [
+    {
+      "match": "Original match name",
+      "ybty_home": "YBTY home team",
+      "ybty_away": "YBTY away team",
+      "summary": "minute|score|score_verified|conclusion",
+      "score_verified": true,
+      "score_source": "ybty_verified",
+      "verification_passed": true,
+      "recommendation": {
+        "category": "全场让球",
+        "market": "full_spread",
+        "market_option_id": "full_spread__m1__o1",
+        "direction": "主队",
+        "line": "-0.5",
+        "odds": 1.95,
+        "probability": 62.0,
+        "value_edge": 10.7,
+        "grade": "B"
+      },
+      "market_assessments": [
+        {
+          "category": "全场大小球",
+          "market_option_id": "full_total__m1__o1",
+          "direction": "大 2.5",
+          "line": "2.5",
+          "odds": 1.98,
+          "probability": 60.0,
+          "grade": "B",
+          "status": "recommend",
+          "reason": "攻防转换与量化数据支持",
+          "risk": "防守反击风险"
+        },
+        {
+          "category": "半场大小球",
+          "market_option_id": "half_total__m1__o2",
+          "direction": "小 1.0",
+          "line": "1.0",
+          "odds": 1.85,
+          "probability": 55.0,
+          "grade": "C",
+          "status": "watch",
+          "reason": "半场防守数据较为严密",
+          "risk": "偶发失误"
+        },
+        {
+          "category": "全场让球",
+          "market_option_id": "full_spread__m1__o1",
+          "direction": "主队 -0.5",
+          "line": "-0.5",
+          "odds": 1.95,
+          "probability": 62.0,
+          "grade": "B",
+          "status": "recommend",
+          "reason": "量化压迫与攻守转化占优",
+          "risk": "客队反击威胁"
+        },
+        {
+          "category": "半场让球",
+          "market_option_id": "half_spread__m1__o1",
+          "direction": "主队 -0/0.5",
+          "line": "-0/0.5",
+          "odds": 2.03,
+          "probability": 49.2,
+          "grade": "NO_BET",
+          "status": "avoid",
+          "reason": "半场时间有限，让步缺乏足够安全边际",
+          "risk": "半场平局"
+        },
+        {
+          "category": "全场独赢1X2",
+          "market_option_id": "full_h2h__1",
+          "direction": "主胜",
+          "line": null,
+          "odds": 1.90,
+          "probability": 55.0,
+          "grade": "B",
+          "status": "recommend",
+          "reason": "主胜赔率具备正向价值边际",
+          "risk": "平局丢分"
+        }
+      ]
+    }
+  ]
+}
+
+Match data list (${chunkData.length} matches):
+${JSON.stringify(chunkData, null, 2)}`;
+    };
+
+    const standardPrompts = chunks.map((chunkData, index) => buildStandardPrompt(chunkData, index, chunks.length));
+    const objectivePrompts = chunks.map((chunkData, index) => buildObjectivePrompt(chunkData, index, chunks.length));
+    const promptStyle = body?.prompt_style || 'standard';
+    const prompts = promptStyle === 'objective' ? objectivePrompts : standardPrompts;
 
     return {
       mode,
       prompts,
+      standard_prompts: standardPrompts,
+      objective_prompts: objectivePrompts,
+      prompt_style: promptStyle,
       match_count: evaluationData.length,
       evaluationData,
     };
@@ -1339,15 +1475,15 @@ ${JSON.stringify(chunkData, null, 2)}`;
 Mode: ${modeLabel}
 
 [Rules and Constraints]
-1. Each match must include exactly 12 market assessments in strict order:
-   1.full_total 2.half_total 3.full_spread 4.half_spread 5.full_h2h 6.full_correct_score 7.both_to_score 8.total_goals_odd_even 9.home_goals 10.away_goals 11.total_goals 12.goal_time_window
-2. Real betting markets (full/half total, spread, h2h) must use a real option from this match's verified_ybty_markets, copy option_id verbatim to market_option_id, and set odds_source="ybty_verified". Non-bettable prediction markets use market="prediction" and option_id=null.
+1. Each match must include exactly 5 real market assessments in strict order:
+   1.full_total 2.half_total 3.full_spread 4.half_spread 5.full_h2h
+2. Real betting markets (full/half total, spread, h2h) must use a real option from this match's verified_ybty_markets, copy option_id verbatim to market_option_id, and set odds_source="ybty_verified".
 3. probability is expressed as 0-100 percent. Only allow status="watch" or "recommend" when value_edge = probability - (100/odds) > 0 and evidence is sufficient.
 4. If live and score_verified=false: all 5 real markets must be status="avoid", grade="NO_BET", recommendation=null, verification_passed=false.
 5. CRITICAL: The output matches array must contain exactly ${chunkData.length} objects — one per match. Never omit, merge, or use placeholder objects for any match.
 
 [Output JSON Schema — output only this, nothing else]
-{"schema_version":"football_market_audit_v2","summary":"matches:${chunkData.length}|recommend:N|watch:N|avoid:N","matches":[{"match":"original match name","ybty_home":"YBTY home","ybty_away":"YBTY away","summary":"minute|score|score_verified|final instruction","score_verified":false,"score_source":"source","verification_passed":false,"recommendation":null,"market_assessments":[{"category":"one of the 12 categories","market":"real market key or prediction","market_option_id":null,"direction":null,"line":null,"odds":null,"odds_source":null,"probability":null,"probability_scope":"simplified settlement scope","implied_probability":null,"value_edge":null,"grade":"A|B|C|NO_BET","status":"recommend|watch|prediction|avoid|unavailable","reason":"core data|status tag","evidence_refs":["input field path"],"risk":"risk tag"}]}]}
+{"schema_version":"football_market_audit_v2","summary":"matches:${chunkData.length}|recommend:N|watch:N|avoid:N","matches":[{"match":"original match name","ybty_home":"YBTY home","ybty_away":"YBTY away","summary":"minute|score|score_verified|final instruction","score_verified":false,"score_source":"source","verification_passed":false,"recommendation":null,"market_assessments":[{"category":"one of the 5 categories","market":"real market key","market_option_id":null,"direction":null,"line":null,"odds":null,"odds_source":null,"probability":null,"probability_scope":"simplified settlement scope","implied_probability":null,"value_edge":null,"grade":"A|B|C|NO_BET","status":"recommend|watch|avoid|unavailable","reason":"core data|status tag","evidence_refs":["input field path"],"risk":"risk tag"}]}]}
 
 Match data list (${chunkData.length} matches):
 ${JSON.stringify(chunkData)}`;

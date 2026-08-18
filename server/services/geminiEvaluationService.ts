@@ -136,7 +136,7 @@ export function createGeminiEvaluationHandler(deps: {
         if (result.matches) allMatchesResults.push(...result.matches);
       }
 
-      const requiredCategoriesV2 = ['全场大小球', '半场大小球', '全场让球', '半场让球', '全场独赢1X2', '波胆', '双方是否进球', '总进球单双', '主队进球数', '客队进球数', '总进球数', '进球时间段'];
+      const requiredCategoriesV2 = ['全场大小球', '半场大小球', '全场让球', '半场让球', '全场独赢1X2'];
       const processedMatches = allMatchesResults.map((rawMatch: any, idx: number) => {
         const matchResult = normalizeMatchPredictionsAndAssessments(rawMatch);
         const assessments = Array.isArray(matchResult.market_assessments) ? matchResult.market_assessments : [];

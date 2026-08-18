@@ -82,6 +82,9 @@ export function registerAiPromptExportRoutes(app: express.Express, buildPromptDa
       res.json({
         success: true,
         mode: promptData.mode,
+        prompt_style: promptData.prompt_style || 'standard',
+        standard_prompts: promptData.standard_prompts || [],
+        objective_prompts: promptData.objective_prompts || [],
         match_count: promptData.match_count,
         prompt_count: promptData.prompts.length,
         prompts: deliveryPrompts,
@@ -98,7 +101,7 @@ export function registerAiPromptExportRoutes(app: express.Express, buildPromptDa
 }
 
 export function registerAiManualImportRoutes(app: express.Express, deps: { parse(text: string): any; sanitizeMarket(item: any): any; sanitizeParlayLeg(item: any): any }): void {
-  const categories = ['全场大小球', '半场大小球', '全场让球', '半场让球', '全场独赢1X2', '波胆', '双方是否进球', '总进球单双', '主队进球数', '客队进球数', '总进球数', '进球时间段'];
+  const categories = ['全场大小球', '半场大小球', '全场让球', '半场让球', '全场独赢1X2'];
   app.post('/api/ai/import-evaluation', (req, res) => {
     try {
       // `expected_match_count` is optional – supplied by the front-end when it has the count from the export step.
@@ -119,7 +122,7 @@ export function registerAiManualImportRoutes(app: express.Express, deps: { parse
       if (!isParlayMode && Number.isInteger(expectedCount) && expectedCount > 1 && Array.isArray(parsed.matches)) {
         const incomplete = parsed.matches.filter((match: any) => !Array.isArray(match.market_assessments) || match.market_assessments.length < categories.length);
         if (incomplete.length > 0) {
-          throw new Error(`AI返回存在占位比赛：${incomplete.length} 场未包含完整12类玩法（${incomplete.slice(0, 3).map((item: any) => item.match).join('、')}${incomplete.length > 3 ? '等' : ''}）。请在同一AI会话要求补全后再导入。`);
+          throw new Error(`AI返回存在占位比赛：${incomplete.length} 场未包含完整5类核心玩法（${incomplete.slice(0, 3).map((item: any) => item.match).join('、')}${incomplete.length > 3 ? '等' : ''}）。请在同一AI会话要求补全后再导入。`);
         }
       }
       parsed.ai_provider = 'gemini_manual_web_import';

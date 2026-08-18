@@ -119,6 +119,9 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
   // Export Prompt and Manual Web Gemini Import states
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
+  const [exportPromptStyle, setExportPromptStyle] = useState<'standard' | 'objective'>('standard');
+  const [exportedStandardPrompts, setExportedStandardPrompts] = useState<string[]>([]);
+  const [exportedObjectivePrompts, setExportedObjectivePrompts] = useState<string[]>([]);
   const [exportedPrompt, setExportedPrompt] = useState<string>('');
   const [exportedCombinedPrompt, setExportedCombinedPrompt] = useState<string>('');
   const [exportedPrompts, setExportedPrompts] = useState<string[]>([]);
@@ -456,9 +459,33 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
     }
   };
 
-  const handleExportPrompt = async () => {
-    const requestedParlays = buildValidParlayRequests(parlayRequests, parlaySelected.length);
+  const switchExportPromptStyle = (style: 'standard' | 'objective') => {
+    setExportPromptStyle(style);
+    const sourcePrompts = style === 'objective' ? exportedObjectivePrompts : exportedStandardPrompts;
+    if (sourcePrompts && sourcePrompts.length > 0) {
+      const segmentCount = sourcePrompts.length;
+      const matchManifest = exportInfo?.match_count ? `[${exportInfo.match_count} 场比赛]` : '';
+      const deliveryPrompts = mode === 'parlay_check' || segmentCount <= 1
+        ? sourcePrompts
+        : sourcePrompts.map((prompt: string, index: number) => index < segmentCount - 1
+          ? `[Segment Evaluation ${index + 1}/${segmentCount}]\nPlease evaluate this segment fully and output the complete JSON for this segment. Do not respond with "Received". After output, retain this structured result in the conversation for the next segment; the final merge should use these smaller JSON results without re-reading the original long data.\n\n${prompt}\n\n[End of Segment Control · Highest Priority] Now output the full JSON for all matches in this segment, each must include the 12 market assessments. Verify markets against the YBTY whitelist provided above; do not output any line or odds outside the whitelist.`
+          : `[Segment Evaluation ${index + 1}/${segmentCount} · Final Segment]\nFirst fully evaluate this segment; then merge the previously output JSON results from segments 1 to ${index} with the current segment results directly.\n\n${prompt}\n\n[Final Merge Control · Highest Priority]\nDo not re-summarize or use placeholder objects for prior results; retain the exact 12 market assessments for each prior match, then add the current segment results. The final output must contain exactly ${exportInfo?.match_count || 1} matches objects. Output a single valid merged JSON.`);
+      const combined = segmentCount > 1
+        ? `[Segment Reading Instruction]\nThe following ${segmentCount} data segments belong to the same evaluation task. Please read them in order from segment 1 to ${segmentCount}; do not answer prematurely when you see "Next data segment". After reading everything, return only one merged final JSON. Matches must cover all matches from all segments; do not return separate JSONs for each segment.\n\n${sourcePrompts.map((prompt: string, index: number) => `==================== [ Data Segment ${index + 1}/${segmentCount} Start ] ====================\n${prompt}\n==================== [ Data Segment ${index + 1}/${segmentCount} End ] ====================`).join('\n\n==================== [ Next data segment, please continue reading, do not answer ] ====================\n\n')}\n\n[All Data Segments End] Now perform a unified analysis and output only one merged JSON.`
+        : sourcePrompts[0] || '';
+      setExportedPrompts(deliveryPrompts);
+      setExportedCombinedPrompt(combined);
+      setActiveExportPromptIndex(segmentCount > 1 ? -1 : 0);
+      setExportedPrompt(combined);
+      setCopiedPrompt(false);
+    } else {
+      void handleExportPrompt(style);
+    }
+  };
 
+  const handleExportPrompt = async (targetStyle?: 'standard' | 'objective') => {
+    const activeStyle = targetStyle || exportPromptStyle;
+    const requestedParlays = buildValidParlayRequests(parlayRequests, parlaySelected.length);
     if (mode === 'parlay_check' && (parlaySelected.length < 2 || requestedParlays.length === 0)) {
       setErrorMsg('请至少选择两场比赛，并选择至少一种串关长度和生成数量。');
       return;
@@ -482,6 +509,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
           score: { home: scoreHome, away: scoreAway },
           odds_info: oddsInfo,
           mode,
+          prompt_style: activeStyle,
           selected_match_refs: mode === 'parlay_check' ? parlaySelected.map((item) => ({
             match: item.match,
             ybty_home: item.ybty_home,
@@ -520,6 +548,10 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
 
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || '导出 Prompt 失败');
+
+      setExportPromptStyle(data.prompt_style || activeStyle);
+      setExportedStandardPrompts(data.standard_prompts || []);
+      setExportedObjectivePrompts(data.objective_prompts || []);
 
       const promptSegments = Array.isArray(data.prompts) ? data.prompts : [];
       setExportedPrompts(promptSegments);
@@ -1063,7 +1095,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
             </button>
 
             <button
-              onClick={handleExportPrompt}
+              onClick={() => void handleExportPrompt()}
               disabled={exportLoading || (evaluationScope === 'batch' ? batchSelected.length === 0 : (!ybtyHome || !ybtyAway))}
               className="py-2.5 bg-slate-800 hover:bg-slate-700 border border-amber-500/40 text-amber-300 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-md"
             >
@@ -1091,19 +1123,56 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-base font-bold text-amber-300 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-amber-400" />
-                导出 Prompt（无需 Key 额度，供网页版 Gemini 使用）
+                导出 Prompt（无需 API Key 额度，供网页版 Gemini 使用）
               </h3>
               <button onClick={() => setExportModalOpen(false)} className="text-slate-400 hover:text-white text-lg font-bold">✕</button>
             </div>
 
-            <div className="bg-amber-950/30 border border-amber-800/40 rounded-xl p-3.5 text-xs text-amber-200/90 space-y-1.5">
-              <div className="font-bold flex items-center gap-1.5 text-amber-300">
-                <Info className="w-4 h-4 shrink-0" /> 使用说明：
-              </div>
-              <p>1. 点击下方【一键复制 Prompt】（已包含 {exportInfo?.match_count || 1} 场比赛的盘口数据、伤停信息与完整分析规则）。</p>
-              <p>2. 打开 <a href="https://gemini.google.com" target="_blank" rel="noreferrer" className="underline text-sky-400 hover:text-sky-300 font-bold inline-flex items-center gap-0.5">Google Gemini 网页版 <ExternalLink className="w-3 h-3" /></a> 并粘贴发送给 Gemini。</p>
-              <p>3. 复制 Gemini 网页版返回的输出，点击主界面【导入网页版 Gemini 评估】按钮粘贴导入！</p>
+            {/* Prompt Mode Switcher Tabs */}
+            <div className="flex items-center gap-2 p-1 bg-slate-900 border border-slate-800 rounded-xl">
+              <button
+                type="button"
+                onClick={() => switchExportPromptStyle('standard')}
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                  exportPromptStyle === 'standard'
+                    ? 'bg-amber-500 text-slate-950 shadow-md'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <span>🎯 标准操盘手模式（原网页版）</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => switchExportPromptStyle('objective')}
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                  exportPromptStyle === 'objective'
+                    ? 'bg-sky-500 text-slate-950 shadow-md'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <span>⚡ 客观纯量化模式（无主观策略 · 5大硬性盘口）</span>
+              </button>
             </div>
+
+            {exportPromptStyle === 'objective' ? (
+              <div className="bg-sky-950/40 border border-sky-800/50 rounded-xl p-3.5 text-xs text-sky-200/90 space-y-1.5">
+                <div className="font-bold flex items-center gap-1.5 text-sky-300">
+                  <Sparkles className="w-4 h-4 shrink-0 text-sky-400" /> 客观纯量化模式规范：
+                </div>
+                <p>1. <strong>无主观偏见</strong>：剔除所有策略引导与主观倾向，纯粹按真实数据与数学期望值评估。</p>
+                <p>2. <strong>5大强制实战盘口</strong>：强制覆盖全场/半场大小球、全场/半场让球、全场独赢1X2，原样复制 option_id。</p>
+                <p>3. <strong>最佳主选提炼 & 门禁</strong>：单场提炼1项A/B级最优，未核验比分强制降级为 NO_BET / avoid，且必须输出完整 {exportInfo?.match_count || 1} 场 JSON。</p>
+              </div>
+            ) : (
+              <div className="bg-amber-950/30 border border-amber-800/40 rounded-xl p-3.5 text-xs text-amber-200/90 space-y-1.5">
+                <div className="font-bold flex items-center gap-1.5 text-amber-300">
+                  <Info className="w-4 h-4 shrink-0" /> 标准模式使用说明：
+                </div>
+                <p>1. 点击下方【一键复制 Prompt】（已包含 {exportInfo?.match_count || 1} 场比赛盘口、职业操盘手策略与完整分析规则）。</p>
+                <p>2. 打开 <a href="https://gemini.google.com" target="_blank" rel="noreferrer" className="underline text-sky-400 hover:text-sky-300 font-bold inline-flex items-center gap-0.5">Google Gemini 网页版 <ExternalLink className="w-3 h-3" /></a> 并粘贴发送给 Gemini。</p>
+                <p>3. 复制 Gemini 网页版返回的输出，点击主界面【导入网页版 Gemini 评估】按钮粘贴导入！</p>
+              </div>
+            )}
 
             <div className="flex-1 min-h-[280px] relative">
               <textarea
@@ -1116,7 +1185,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
 
             <div className="flex items-center justify-between pt-2">
               <span className="text-xs text-slate-400">
-                {activeExportPromptIndex < 0 ? `一次复制全部 ${exportInfo?.match_count || 1} 场` : exportInfo?.prompt_count && exportInfo.prompt_count > 1 ? `备用分段：当前第 ${activeExportPromptIndex + 1}/${exportInfo.prompt_count} 段` : '全量 Prompt 数据已就绪'}
+                {activeExportPromptIndex < 0 ? `一次复制全部 ${exportInfo?.match_count || 1} 场 (${exportPromptStyle === 'objective' ? '客观纯量化' : '标准模式'})` : exportInfo?.prompt_count && exportInfo.prompt_count > 1 ? `备用分段：当前第 ${activeExportPromptIndex + 1}/${exportInfo.prompt_count} 段` : `全量 Prompt 数据已就绪 (${exportPromptStyle === 'objective' ? '客观纯量化' : '标准模式'})`}
               </span>
               <div className="flex gap-2">
                 {exportedPrompts.length > 1 && activeExportPromptIndex >= 0 && <button onClick={showCombinedExportPrompt} className="px-3 py-2 rounded-lg bg-emerald-700 text-white text-xs">一次复制全部</button>}
@@ -1126,7 +1195,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                 <button onClick={() => setExportModalOpen(false)} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs font-medium hover:bg-slate-700">
                   关闭
                 </button>
-                <button onClick={handleCopyPrompt} className="px-5 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg">
+                <button onClick={handleCopyPrompt} className={`px-5 py-2 rounded-lg text-white text-xs font-bold flex items-center gap-1.5 shadow-lg ${exportPromptStyle === 'objective' ? 'bg-sky-600 hover:bg-sky-500' : 'bg-amber-600 hover:bg-amber-500'}`}>
                   {copiedPrompt ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
                   {copiedPrompt ? '✅ 已复制！' : activeExportPromptIndex < 0 ? '一键复制全部 Prompt' : exportedPrompts.length > 1 ? `复制第 ${activeExportPromptIndex + 1} 段` : '一键复制 Prompt'}
                 </button>

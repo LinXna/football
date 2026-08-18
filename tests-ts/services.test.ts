@@ -503,7 +503,7 @@ test('buildAttackPressureSummary combines possession, shots, danger attacks, cor
   assert.equal(summary, '控球: 60% vs 40%, 射门: 8-2, 射正: 4-1, 危险进攻: 35-12, 角球: 5-1, 黄牌: 1-2');
 });
 
-test('normalizeMatchPredictionsAndAssessments expands compact predictions into 12 categories', () => {
+test('normalizeMatchPredictionsAndAssessments keeps only 5 core real betting markets and filters predictions', () => {
   const compactMatch = {
     match: 'Team A vs Team B',
     ybty_home: 'Team A',
@@ -519,6 +519,11 @@ test('normalizeMatchPredictionsAndAssessments expands compact predictions into 1
         grade: 'B',
         status: 'recommend',
       },
+      {
+        category: '波胆',
+        direction: '2-1',
+        status: 'prediction',
+      },
     ],
     predictions: {
       correct_score: '2-1',
@@ -531,14 +536,11 @@ test('normalizeMatchPredictionsAndAssessments expands compact predictions into 1
     },
   };
   const normalized = normalizeMatchPredictionsAndAssessments(compactMatch);
-  assert.equal(normalized.market_assessments.length, 12); // 5 bettable real markets + 7 expanded predictions
+  assert.equal(normalized.market_assessments.length, 5); // 5 core bettable real markets only
   const scorePred = normalized.market_assessments.find((a: any) => a.category === '波胆');
-  assert.equal(scorePred?.direction, '2-1');
-  assert.equal(scorePred?.status, 'prediction');
+  assert.equal(scorePred, undefined); // Prediction filtered out
   const bttsPred = normalized.market_assessments.find((a: any) => a.category === '双方是否进球');
-  assert.equal(bttsPred?.direction, '是');
-  const timingPred = normalized.market_assessments.find((a: any) => a.category === '进球时间段');
-  assert.equal(timingPred?.direction, '61-75分钟');
+  assert.equal(bttsPred, undefined);
 
   // Verify that unavailable bettable markets pass validation without invented errors
   const verifiedMarkets = [

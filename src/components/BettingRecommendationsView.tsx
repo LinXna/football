@@ -1964,7 +1964,7 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                               onClick={() => setExpanded12MarketsMatch(is12MarketsOpen ? null : m.match)}
                               className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded text-[11px] font-medium flex items-center gap-1 transition-colors"
                             >
-                              <span>12项全玩法对照 ({latestAiEvaluation.market_assessments.length})</span>
+                              <span>核心玩法对照 ({latestAiEvaluation.market_assessments.length})</span>
                               {is12MarketsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                             </button>
                           )}
@@ -2034,12 +2034,12 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                         </div>
                       </div>
 
-                      {/* Collapsible 12-Market Comparison Panel */}
+                      {/* Collapsible Market Comparison Panel */}
                       {is12MarketsOpen && Array.isArray(latestAiEvaluation?.market_assessments) && latestAiEvaluation.market_assessments.length > 0 && (
                         <div className="pt-3 border-t border-slate-800 space-y-2.5 animate-fade-in">
                           <div className="flex items-center justify-between text-xs">
                             <span className="font-bold text-sky-300 flex items-center gap-1.5">
-                              <Scale className="w-4 h-4 text-sky-400" /> 原系统 vs AI 12项全玩法逐项核对
+                              <Scale className="w-4 h-4 text-sky-400" /> 原系统 vs AI 核心玩法逐项核对
                             </span>
                             <span className="text-[10px] text-slate-500">
                               对比系统模型与 AI 深度剥离抽水后的期望概率
