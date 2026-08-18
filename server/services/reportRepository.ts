@@ -7,6 +7,9 @@ export function findLatestFile(prefix: string, extension: string, fallbackPath: 
   const fallback = resolveProjectPath(fallbackPath);
   const directory = path.dirname(fallback);
   try {
+    if (!fs.existsSync(directory)) {
+      return fallback;
+    }
     const candidates = fs.readdirSync(directory, { withFileTypes: true })
       .filter((entry) => entry.isFile() && entry.name.startsWith(prefix) && entry.name.endsWith(extension))
       .map((entry) => {

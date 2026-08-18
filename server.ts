@@ -39,6 +39,10 @@ const app = express();
 const { host: HOST, port: PORT, environment: ENVIRONMENT, geminiModel: GEMINI_MODEL } = APP_CONFIG;
 const recommendationIdentity = createRecommendationIdentity(cleanTeamName);
 
+const outputDir = resolveProjectPath('output');
+if (!fs.existsSync(outputDir)) {
+  fs.mkdirSync(outputDir, { recursive: true });
+}
 
 app.use(express.json({ limit: '25mb' }));
 
@@ -986,7 +990,10 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
 
 ---【专业足球投资组合与联合概率风控模型】---
 1. 独立正期望值原则 (Independent Positive EV)：每条进入串关的腿必须具备扎实的正向价值边际（真实研判概率 > 盘口隐含胜率 100/赔率），杜绝为了凑腿而盲目拼凑缺乏数据支持的鸡肋盘口。
-2. 动态相关性与反脆弱审查 (Correlation Risk & Antifragility)：严禁把处于同一强相关环境（如同一轮杯赛大轮换、同一保级生死战相关链条、同类型脆弱剧本）的比赛同质化堆砌在同一张串关中，防止单点系统性误判击穿所有组合。
+2. 动态相关性与反脆弱审查 (Correlation Risk & Antifragility)：
+   - 科学评估相关性风险级别（低/中/高），严禁因“同属一个联赛”或“同时间开赛”而机械一刀切丢弃比赛；
+   - 常规联赛普通轮次中，各场比赛由不同主帅、不同球队阵容独立竞技，属于【低相关性/独立事件】。只要各单场研究独立达标且具备正期望值 (+EV)，必须正常允许组入串关；
+   - 仅对【真正的高相关性系统性风险】进行风险降权与分散（例如：同轮次杯赛未知集体大轮换、同类型极端脆弱剧本如全部纯超低赔穿深盘、收官轮连环保级默契球），通过多维度玩法（如让球+大小球）实现健康的资产分散。
 3. 多玩法结构搭配与互补：鼓励在串关中综合搭配 5 大核心盘口（如全场让球 + 半场大小球、全场大小球 + 独赢），实现节奏与风险维度的结构互补。
 4. 比分真实性门禁 (Score Verification Gate)：滚球比赛若即时比分未经可靠核验（score_verified: false），一票否决，严禁作为高确定性依据组入正式高信心串关。
 
