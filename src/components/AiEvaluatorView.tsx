@@ -1514,20 +1514,55 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
               <div className="border-b border-slate-800 pb-2.5 text-sm font-bold text-indigo-200">已生成 {result.parlay_recommendations.length} 组串关</div>
               <div className="space-y-3">
                 {result.parlay_recommendations.map((ticket) => (
-                  <div key={`${ticket.size}-${ticket.ticket_index}`} className="rounded-lg border border-slate-700 bg-slate-900/90 p-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-indigo-300">{ticket.size} 串 1 · 第 {ticket.ticket_index} 组 · {ticket.grade}级</span>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono font-bold text-amber-300">总赔率 @{Number(ticket.estimated_total_odds).toFixed(2)}</span>
+                  <div key={`${ticket.size}-${ticket.ticket_index}`} className="rounded-lg border border-slate-700 bg-slate-900/90 p-3 space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs border-b border-slate-800 pb-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-indigo-300">{ticket.size} 串 1 · 第 {ticket.ticket_index} 组</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${ticket.grade === 'A' ? 'bg-emerald-950/80 border border-emerald-700 text-emerald-300' : 'bg-sky-950/80 border border-sky-700 text-sky-300'}`}>{ticket.grade}级组合</span>
+                        {ticket.sharpe_assessment && (
+                          <span className="px-1.5 py-0.5 rounded bg-indigo-950/80 border border-indigo-700 text-indigo-300 text-[10px] font-bold">
+                            {ticket.sharpe_assessment === 'HIGH_EDGE_CORE' ? '💎 核心价值组合' : ticket.sharpe_assessment === 'BALANCED_GROWTH' ? '📈 稳健增长组合' : '🎯 价值博弈单'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-amber-300 bg-amber-950/40 border border-amber-800/40 px-2 py-0.5 rounded">总赔率 @{Number(ticket.estimated_total_odds).toFixed(2)}</span>
                         <button
                           onClick={() => void handleSaveParlayTicket(ticket)}
                           disabled={savedParlayTickets.has(`${ticket.size}-${ticket.ticket_index}`) || (ticket as any).verification_passed !== true}
-                          className="rounded bg-emerald-600 px-2.5 py-1 font-bold text-white hover:bg-emerald-500 disabled:bg-emerald-950 disabled:text-emerald-400"
+                          className="rounded bg-emerald-600 px-2.5 py-1 font-bold text-white hover:bg-emerald-500 disabled:bg-emerald-950 disabled:text-emerald-400 text-xs"
                         >
                           {savedParlayTickets.has(`${ticket.size}-${ticket.ticket_index}`) ? '已保存到投注台账' : '保存此串关'}
                         </button>
                       </div>
                     </div>
+
+                    {/* Quantitative Edge & Kelly Bar */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-950/80 border border-slate-800 rounded p-2 text-xs">
+                      <div>
+                        <div className="text-[10px] text-slate-500">联合理论胜率</div>
+                        <div className="font-mono font-bold text-sky-300">{ticket.joint_probability ?? '--'}%</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-500">整单价值边际 (EV)</div>
+                        <div className={`font-mono font-bold ${(ticket.combined_ev_pct ?? 0) > 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                          {(ticket.combined_ev_pct ?? 0) > 0 ? `+${ticket.combined_ev_pct}%` : `${ticket.combined_ev_pct ?? '--'}%`}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-500">1/4 凯利建议注码</div>
+                        <div className="font-mono font-bold text-indigo-300">{ticket.kelly_fraction_pct ? `${ticket.kelly_fraction_pct}%` : (ticket.bankroll_guidance?.recommended_stake_pct || '0.8%')}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-500">反脆弱独立性</div>
+                        <div className="font-mono font-bold text-emerald-400 flex items-center gap-1">
+                          <span>{ticket.correlation_audit?.independence_score ?? 90}/100</span>
+                          <span className="text-[10px] text-emerald-500 font-normal">({ticket.correlation_audit?.correlation_risk_check === 'passed' ? '已过审' : '提醒'})</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Legs Grid */}
                     <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
                       {ticket.legs.map((leg, index) => {
                         const mName = formatMarketName(leg.market);
@@ -1548,7 +1583,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                               )}
                             </div>
                             <div className="text-emerald-300 font-semibold">{mName} {lText} <span className="text-amber-300 font-mono font-bold">@{leg.odds}</span></div>
-                            <div className="text-slate-400 text-[11px]">AI概率 {leg.probability}% · <span className={leg.grade === 'A' ? 'text-emerald-400 font-bold' : leg.grade === 'B' ? 'text-sky-400 font-bold' : 'text-amber-400'}>{leg.grade}级</span></div>
+                            <div className="text-slate-400 text-[11px]">AI研判胜率 {leg.probability}% · <span className={leg.grade === 'A' ? 'text-emerald-400 font-bold' : leg.grade === 'B' ? 'text-sky-400 font-bold' : 'text-amber-400'}>{leg.grade}级</span></div>
                             {leg.pro_strategy && (
                               <div className="text-[10px] text-indigo-300 bg-indigo-950/40 border border-indigo-800/40 rounded px-1.5 py-0.5 mt-1">
                                 🎯 操盘思维：{leg.pro_strategy}
@@ -1558,16 +1593,28 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                         );
                       })}
                     </div>
+
+                    {/* Correlation & Synergy Audit */}
+                    {ticket.correlation_audit && (
+                      <div className="rounded border border-indigo-900/40 bg-indigo-950/20 px-3 py-2 text-xs space-y-1">
+                        <div className="flex items-center justify-between text-indigo-300 font-semibold text-[11px]">
+                          <span>🛡️ 相关性与剧本独立性审查：{ticket.correlation_audit.tactical_synergy}</span>
+                          <span className="text-slate-400 font-mono text-[10px]">评分: {ticket.correlation_audit.independence_score}分</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400">{ticket.correlation_audit.notes}</div>
+                      </div>
+                    )}
+
                     {ticket.bankroll_guidance && (
-                      <div className="mt-2 rounded border border-emerald-500/30 bg-emerald-950/20 px-3 py-2 text-xs flex flex-wrap items-center justify-between gap-2 text-emerald-300">
+                      <div className="rounded border border-emerald-500/30 bg-emerald-950/20 px-3 py-2 text-xs flex flex-wrap items-center justify-between gap-2 text-emerald-300">
                         <div className="flex items-center gap-1.5 font-semibold">
                           <Trophy className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>💰 串关仓位建议：{ticket.bankroll_guidance.recommended_stake_pct}</span>
+                          <span>💰 凯利资金建议：{ticket.bankroll_guidance.recommended_stake_pct}</span>
                         </div>
                         <span className="text-[11px] text-slate-400">{ticket.bankroll_guidance.guidance_text}</span>
                       </div>
                     )}
-                    <div className="mt-2 text-xs text-slate-400">{ticket.reason}</div>
+                    <div className="text-xs text-slate-400 bg-slate-950/40 p-2 rounded border border-slate-800/60">{ticket.reason}</div>
                   </div>
                 ))}
               </div>

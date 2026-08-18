@@ -371,6 +371,7 @@ export function calculateBankrollGuidance(params: {
   max_stake_pct: number;
   stake_sizing_tier: 'CORE_FOCUS' | 'STANDARD_PLAY' | 'LIGHT_PARLAY' | 'NO_STAKE';
   guidance_text: string;
+  fractional_kelly_pct?: number;
 } {
   const { grade, isParlay = false, legCount = 1, valueEdge = null } = params;
 

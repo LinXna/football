@@ -966,23 +966,41 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
       + `==================== [ 串关候选数据段 ${index + 1}/${parlayDataChunks.length} 结束；${index + 1 < parlayDataChunks.length ? '请继续读取下一段，不要提前生成串关' : '已读完全部候选，可统一生成串关'} ] ====================`
     )).join('\n\n');
 
-    const prompt = `你是顶尖、严肃且专业的足球投注评估与精选推荐 AI，严格遵循项目的足球分析与硬性风控协议：
+    const prompt = `你是兼具【专业足球比赛数据分析员】与【职业足球投资操盘手/专业投注专家】双重视角的顶尖 AI，必须严格以深度的足球技战术数据分析和严密的量化博弈风控进行研判：
 
----【核心结算与盘口规则】---
-1. 全场大小球 (Full Time Over/Under)：只看完场终场时的双方总进球数 vs 盘口！
-2. 滚球让球盘 (Live Asian Handicap / 后续时段让球)：结算基准从下注瞬间归零 (0:0) 重新计算！
-3. 四分之一盘口：拆分为赢半、输半、走盘，禁止粗暴判全赢或全输。
+---【双重视角核心研判准则】---
+1. ⚽【专业足球比赛数据分析员视角】(Senior Football Match Data Analyst Perspective)：
+   - 深度解析各场比赛的即时/赛前技术统计（射正、危险进攻转化率 dangerous_attack_to_shot_ratio、三区压迫倾角 field_tilt_share、控球与攻防动能）；
+   - 结合首发阵容质量、核心伤停、红黄牌及换人战术影响、主客场分化与杯赛/联赛战意，客观推演比赛走势与阶段发力期（开局试探、半场攻坚、下半场调整、终局反扑）。
+2. 💰【足球比赛专业投注人士视角】(Professional Football Bettor & Quantitative Syndicator Perspective)：
+   - 剔除机构抽水（Overround），基于真实概率分布进行公允定价，锁定具备正期望值（Value Edge = 真实概率 - 盘口隐含概率 > 0）的优质盘口；
+   - 严格遵循联合胜率（Joint Probability = ∏ P_i）、整单综合 EV、1/4 凯利公式注码风控、亚盘四分之一盘口精确期望，并执行严格的反脆弱与剧本相关性审计，严防同质化爆仓。
 
----【串关风控规则】---
-1. 同一比赛可以在不同串关中采用不同玩法，但每个玩法必须分别达到B级以上。
-2. 普通B级同一方向最多进入1组正式串关；A级且模型评分≥85的同一方向最多2组。
-3. 跨串重复使用同一场比赛必须进行独立性审查，避免相关性风险击穿全部组合。
+---【5大核心玩法专业量化定价与结算模型】---
+1. 全场大小球 (Full-Time Total Goals)：以全场90分钟双方总进球数为结算基准，结合双方攻防xG、总进球概率分布与盘口对比。
+2. 半场大小球 (First-Half Total Goals)：以半场45分钟双方总进球数为基准。适合捕捉开局快节奏对攻、抢攻期或试探性慢热，规避下半场垃圾时间风险。
+3. 全场让球 (Full-Time Asian Handicap)：赛前以全场最终净胜球结算；滚球让球必须从当前下单瞬间 (0:0) 重新起算剩余时段净胜球。
+4. 半场让球 (First-Half Asian Handicap)：以上半场45分钟净胜球结算。适合捕捉强队半场抢开局压迫、早盘强弱分化明显的比赛。
+5. 全场独赢 1X2 (Full-Time 1X2)：结合双方真实胜平负概率与机构欧赔抽水率对比，寻找具备显著正期望值 (EV > 0) 的高性价比选项。
+6. 亚盘四分之一盘口精确期望：-0.25/+0.25、-0.75/+0.75、2/2.5、2.5/3 等盘口，必须拆解为赢半、输半、走盘计算综合数学期望，杜绝粗暴二元化全赢全输推算。
 
----【职业辛迪加投注操盘策略（Pro-Bettor Execution Strategies）】---
+---【专业足球投资组合与联合概率风控模型】---
+1. 独立正期望值原则 (Independent Positive EV)：每条进入串关的腿必须具备扎实的正向价值边际（真实研判概率 > 盘口隐含胜率 100/赔率），杜绝为了凑腿而盲目拼凑缺乏数据支持的鸡肋盘口。
+2. 动态相关性与反脆弱审查 (Correlation Risk & Antifragility)：严禁把处于同一强相关环境（如同一轮杯赛大轮换、同一保级生死战相关链条、同类型脆弱剧本）的比赛同质化堆砌在同一张串关中，防止单点系统性误判击穿所有组合。
+3. 多玩法结构搭配与互补：鼓励在串关中综合搭配 5 大核心盘口（如全场让球 + 半场大小球、全场大小球 + 独赢），实现节奏与风险维度的结构互补。
+4. 比分真实性门禁 (Score Verification Gate)：滚球比赛若即时比分未经可靠核验（score_verified: false），一票否决，严禁作为高确定性依据组入正式高信心串关。
+
+---【职业辛迪加多玩法组合策略（全面覆盖 5 大核心盘口）】---
 在选择串关腿或单场方向时，必须应用职业操盘思维：
-- 策略 A：半场测试 + 下半场动态追加（Probe & Scale-in）—— 适合破门预期高但赛前盘口过深的场次。
-- 策略 B：让球盘与大小球联动对冲（Handicap + Total Goals Correlation）—— 领先/落后战术演变下的盘口联动。
-- 策略 C：终局波动与绝杀捕捉（Late Goal Squeeze）—— 75+分钟分差为0或1球时的攻防失衡高赔收割。
+- 策略 A：半场抢先机与节奏捕捉 (First-Half Momentum & Spread/Total) —— 针对半场攻防倾角极大、早盘破门预期高或半场让球优势明显的场次，利用半场盘口提前锁定优势。
+- 策略 B：半场测试 + 下半场动态追加 (Probe & Scale-in) —— 适合上半场试探、下半场进球爆发与盘口走深的场次。
+- 策略 C：让球盘与大小球联动对冲 (Handicap + Total Goals Correlation) —— 领先/落后战术演变下的盘口联动（如：强队赢球穿盘 + 全场大球 协同）。
+- 策略 D：终局波动与防守崩塌捕捉 (Late Goal Squeeze) —— 75+分钟分差为0或1球时的攻防失衡高赔收割。
+- 策略 E：弱队受让与逆风防守韧性 (Resilient Underdog Spread) —— 针对强队虚高诱深盘时的受让防冷组合。
+
+---【解除单一玩法锁死与强制实时数据深度动态复验（极其重要）】---
+1. 严禁单一玩法锁死：每场比赛的 system_recommendation 与 ai_recommendation 仅作为历史初评参考，严禁被单一玩法锚定！你必须全面检视该场比赛 verified_ybty_markets 中的 5 大核心真实盘口列表，根据多场串联的最佳协同效应挑选最稳健、最具正期望值的盘口。
+2. 实时数据二次动态复验：你必须结合该场比赛最新的实时技术统计（即时比分、射门、射正、危险进攻、控球率、红黄牌、换人）以及赛前首发和交锋走势进行二次动态推演。若实时攻势衰退或出现红牌等剧变，必须果断推翻历史单场建议，选取当前数据最支持的盘口或予以淘汰。
 
 请求模式: parlay_check
 ${verifiedOptionRule}
@@ -998,8 +1016,9 @@ ${JSON.stringify(historicalFeedback)}
 1. market 必须填写中文标准玩法名称，例如 "全场大小球", "全场让球", "全场独赢1X2", "半场大小球", "半场让球"。严禁输出 full_total, full_spread, full_h2h 等英文键名！
 2. line 必须明确注明的投注方向与盘口值（大小球带大/小，让球盘带球队名与盘口，独赢盘写主胜/客胜/平局）。
 3. 每条腿必须附带当时比分 (score: {home, away}) 与分钟 (minute)，以及操盘策略建议 (pro_strategy)。
+4. 整单量化指标计算：必须计算 joint_probability（联合胜率 %）、combined_ev_pct（整单预期价值边际 %）、kelly_fraction_pct（1/4 凯利建议注码 %）和 correlation_audit（反脆弱独立性审计）。
 
-请从每场的 system_recommendation、ai_market_assessments 与 YBTY 真实盘口中选择胜率较高且赔率合理的方向，按要求生成串关。输出严格的 JSON 结构：
+请从每场比赛的 5 大真实盘口（verified_ybty_markets）与多维数据中，结合单场初评参考，动态选择胜率扎实且赔率合理的最佳方向，按要求生成串关。输出严格的 JSON 结构：
 {
   "summary": "本次多规格串关生成总结",
   "grade": "A | B | C",
@@ -1020,7 +1039,42 @@ ${JSON.stringify(historicalFeedback)}
     "allow_max_parlay_tickets": 1,
     "reasons": ["分析说明"]
   },
-  "parlay_recommendations": [{"size": 3, "ticket_index": 1, "grade": "A|B|C", "estimated_total_odds": 5.67, "reason": "选单理由", "legs": [{"match":"比赛名","ybty_home":"主队","ybty_away":"客队","minute":45,"score":{"home":0,"away":0},"market":"真实玩法","line":"真实盘口","odds":1.88,"odds_source":"ybty_verified","probability":65,"grade":"A|B|C","pro_strategy":"策略A：半场确认攻势后追加全场大球","reference_odds_usage":"雷速赔率轨迹如何辅助判断"}]}]
+  "parlay_recommendations": [
+    {
+      "size": 2,
+      "ticket_index": 1,
+      "grade": "A|B|C",
+      "estimated_total_odds": 3.65,
+      "joint_probability": 36.5,
+      "combined_ev_pct": 33.2,
+      "kelly_fraction_pct": 1.15,
+      "sharpe_assessment": "HIGH_EDGE_CORE",
+      "correlation_audit": {
+        "independence_score": 90,
+        "tactical_synergy": "半场压迫抢先机与全场大球形成节奏联动",
+        "correlation_risk_check": "passed",
+        "notes": "两场比赛分属不同联赛，战术剧本无冲突，不存在同质化轮换爆仓风险"
+      },
+      "reason": "选单理由与正期望值论证",
+      "legs": [
+        {
+          "match": "比赛名",
+          "ybty_home": "主队",
+          "ybty_away": "客队",
+          "minute": 45,
+          "score": { "home": 0, "away": 0 },
+          "market": "全场让球",
+          "line": "主队 -0.5",
+          "odds": 1.88,
+          "odds_source": "ybty_verified",
+          "probability": 65,
+          "grade": "A|B|C",
+          "pro_strategy": "策略A：半场确认攻势后追加全场大球",
+          "reference_odds_usage": "雷速赔率轨迹如何辅助判断"
+        }
+      ]
+    }
+  ]
 }`;
 
     const parlayPrompts = isExportPrompt && parlayDataChunks.length > 1
@@ -1156,10 +1210,14 @@ ${JSON.stringify(historicalFeedback)}
     const MAX_PROMPT_TOKENS = Number(process.env.MAX_PROMPT_TOKENS) || 300_000;
     const chunks = chunkPromptItems(evaluationData, 15, MAX_PROMPT_TOKENS);
     
-    // 1. Standard Prompt Builder (Web Trader Strategy Version - unchanged)
+    // 1. Standard Prompt Builder (Web Trader Strategy Version)
     const buildStandardPrompt = (chunkData: any[], index: number, totalChunks: number) => {
       const batchHeader = totalChunks > 1 ? `Batch ${index + 1}/${totalChunks} – ${chunkData.length} matches` : `Total ${chunkData.length} matches`;
-      return `Please evaluate the following matches (${batchHeader}) with rigorous football risk controls.
+      return `You are an elite Senior Football Quantitative Data Analyst and Professional Football Betting Syndicator.
+You MUST evaluate the following matches (${batchHeader}) with rigorous football risk controls, strictly combining:
+1) [Senior Football Match Data Analyst Perspective · 专业足球数据分析员视角]: Deep-dive into technical match data (shots, shots on target, dangerous attack conversion ratio, field tilt share, xG creation efficiency, confirmed starter strength vs absences, fatigue & game phase momentum).
+2) [Professional Sports Bettor & Syndicator Perspective · 足球比赛专业投注人士视角]: Calculate market overround & fair true probability, strictly verify Positive Expected Value (Value Edge = True Prob - Implied Prob > 0), match handicap depths to realistic projected goal differences, dynamically price in-play time-decay goal expectancies, and enforce institutional bankroll risk control.
+
 Return ONLY a single valid JSON object (no markdown, no conversational commentary).
 
 [Evaluation and Risk Control Protocol]
@@ -1304,7 +1362,11 @@ ${JSON.stringify(chunkData, null, 2)}`;
     // 2. Objective Pure Quantitative Prompt Builder (Combining professional football data & quantitative betting strategies without subjective narrative bias)
     const buildObjectivePrompt = (chunkData: any[], index: number, totalChunks: number) => {
       const batchHeader = totalChunks > 1 ? `Batch ${index + 1}/${totalChunks} – ${chunkData.length} matches` : `Total ${chunkData.length} matches`;
-      return `Please evaluate the following matches (${batchHeader}) objectively by rigorously combining professional football match data analytics with professional sports betting quantitative strategies.
+      return `You are an elite Senior Football Quantitative Data Analyst and Professional Football Betting Syndicator.
+You MUST evaluate the following matches (${batchHeader}) objectively by synthesizing professional football match data analytics with professional sports betting quantitative models:
+1) [Senior Football Match Data Analyst Perspective · 专业足球数据分析员视角]: Synthesize real-time & pre-match technical statistics, xG creation efficiency, head-to-head patterns, home/away splits, lineup transparency, and match incidents without subjective narrative bias.
+2) [Professional Sports Bettor & Syndicator Perspective · 足球比赛专业投注人士视角]: Strictly calculate market overround and identify positive expected value (Value Edge / +EV), dynamic timeline goal expectancy decay, handicap-to-goal margin alignment, and bankroll protection.
+
 Return ONLY a single valid JSON object (no markdown, no conversational commentary).
 
 [Professional Match Data & Quantitative Betting Strategy Principles]
@@ -1471,7 +1533,8 @@ ${JSON.stringify(chunkData, null, 2)}`;
     const modeLabel = mode === 'prematch_eval'
       ? 'Pre-match evaluation (no score verification required)'
       : 'Live evaluation (score_verified must be checked)';
-    return `Follow the [Football Market Audit Protocol v2] strictly. Evaluate ALL ${chunkData.length} matches in ${batchLabel}. Return ONLY a single valid JSON object — no natural language, no Markdown fences.
+    return `You are an elite Senior Football Quantitative Data Analyst and Professional Football Betting Syndicator.
+Follow the [Football Market Audit Protocol v2] strictly. Evaluate ALL ${chunkData.length} matches in ${batchLabel} strictly combining technical match analytics with quantitative betting strategy (+EV, overround deduction, bankroll protection). Return ONLY a single valid JSON object — no natural language, no Markdown fences.
 Mode: ${modeLabel}
 
 [Rules and Constraints]

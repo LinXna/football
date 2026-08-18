@@ -323,6 +323,16 @@ export interface AIAnalysisResponse {
     ticket_index: number;
     grade: 'A' | 'B' | 'C';
     estimated_total_odds: number;
+    joint_probability?: number; // 联合胜率 % (P1 * P2 * ...)
+    combined_ev_pct?: number; // 整单预期价值边际 % (EV > 0)
+    kelly_fraction_pct?: number; // 1/4 凯利建议注码 %
+    sharpe_assessment?: 'HIGH_EDGE_CORE' | 'BALANCED_GROWTH' | 'SPECULATIVE_VALUE';
+    correlation_audit?: {
+      independence_score: number; // 1-100
+      tactical_synergy: string;
+      correlation_risk_check: 'passed' | 'warning';
+      notes: string;
+    };
     reason: string;
     bankroll_guidance?: BankrollGuidance;
     legs: Array<{
@@ -337,6 +347,9 @@ export interface AIAnalysisResponse {
       probability: number;
       grade: 'A' | 'B' | 'C';
       pro_strategy?: string;
+      odds_source?: string;
+      reference_odds_usage?: string;
+      ybty_market_verified?: boolean;
     }>;
   }>;
 }
