@@ -1051,9 +1051,10 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                   <option value="">-- 选择实时/赛前比赛 --</option>
                   {evaluationMatches.map((m, idx) => {
                     const t = getTeamDisplay(m);
+                    const boundId = m.match_id || m.leisu_match_id || t.matchId;
                     return (
                       <option key={m.match + idx} value={m.match}>
-                        [{getLeagueName(m)}] [{m.grade || 'C'}级] {t.homeYbty} vs {t.awayYbty} ({m.minute ? `${m.minute}'` : '赛前'})
+                        [{getLeagueName(m)}]{boundId ? ` [ID:${boundId}]` : ''} [{m.grade || 'C'}级] {t.homeYbty} vs {t.awayYbty} ({m.minute ? `${m.minute}'` : '赛前'})
                       </option>
                     );
                   })}
@@ -1364,6 +1365,11 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
                     <div className="flex items-center gap-2.5">
                       <strong className="text-sm text-slate-100">{matchResult.match || `${matchResult.ybty_home} vs ${matchResult.ybty_away}`}</strong>
+                      {(matchResult.match_id || (matchResult as any).leisu_match_id) && (
+                        <span className="px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-800/60 text-cyan-300 font-mono font-bold text-xs">
+                          ID: {matchResult.match_id || (matchResult as any).leisu_match_id}
+                        </span>
+                      )}
                       {matchResult.score != null && (
                         <span className="px-2 py-0.5 rounded bg-amber-950/60 border border-amber-800/60 text-amber-300 font-mono font-bold text-xs">
                           {scoreDisplay(matchResult.score)}

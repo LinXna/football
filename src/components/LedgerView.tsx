@@ -1000,6 +1000,7 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
                       <td className="p-3 font-semibold text-slate-100">
                         {(() => {
                           const teams = getTeamDisplay(item);
+                          const boundId = item.match_id || item.leisu_match_id || teams.matchId;
                           return (
                             <div className="space-y-0.5">
                               <div className="flex items-center gap-1 mb-0.5">
@@ -1007,6 +1008,11 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
                                   <Trophy className="w-3 h-3 text-purple-400 shrink-0" />
                                   {getLeagueName(item)}
                                 </span>
+                                {boundId && (
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-800/60">
+                                    ID:{boundId}
+                                  </span>
+                                )}
                               </div>
                               <div className="text-xs font-bold text-slate-100">{teams.homeYbty} vs {teams.awayYbty}</div>
                               <div className="text-[11px] font-semibold text-purple-300">{teams.homeLeisu} vs {teams.awayLeisu}</div>
@@ -1029,10 +1035,18 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
                             <div className="space-y-1 bg-slate-950/80 p-2 rounded-lg border border-amber-500/20 text-[11px]">
                               {item.parlaySettlement.evaluatedLegs.map((leg) => {
                                 const legTeams = getTeamDisplay(leg);
+                                const legBoundId = leg.match_id || leg.leisu_match_id || legTeams.matchId;
                                 return (
                                   <div key={leg.leg_index} className="border-b border-slate-800/60 pb-1 last:border-0 last:pb-0 space-y-0.5">
                                     <div className="flex items-center justify-between font-bold text-slate-200 text-[11px]">
-                                      <span>腿{leg.leg_index}: [{legTeams.homeYbty} vs {legTeams.awayYbty}]</span>
+                                      <span className="flex items-center gap-1">
+                                        <span>腿{leg.leg_index}: [{legTeams.homeYbty} vs {legTeams.awayYbty}]</span>
+                                        {legBoundId && (
+                                          <span className="px-1 py-0.1 rounded text-[8px] font-mono bg-cyan-950 text-cyan-300 border border-cyan-800/50">
+                                            ID:{legBoundId}
+                                          </span>
+                                        )}
+                                      </span>
                                       <span className={`px-1.5 py-0.2 rounded text-[9px] ${leg.settlement.badgeColor}`}>
                                         {leg.settlement.outcomeLabel}
                                       </span>

@@ -90,6 +90,21 @@ export function createBatchSupplementHandler(normalizeTeamName: (name: string) =
         }
       }
 
+      const rawMatchId =
+        item.match_id ||
+        item.leisu_match_id ||
+        item.id ||
+        item.matched_leisu?.match_id ||
+        item.matched_leisu_id ||
+        item.candidate?.match_id ||
+        item.candidate?.id ||
+        item.details?.match_id ||
+        item.detail_context?.formal?.static_match?.id ||
+        item.detail_context?.formal?.live_match?.match_id ||
+        item.reference_odds?.match_id ||
+        '';
+      const boundMatchId = rawMatchId ? String(rawMatchId).trim() : undefined;
+
       const calculatedBeijingTime = calculateBatchBeijingTime({
         ...item,
         start_time: item.countdown || item.commence_time || item.start_time || item.ybty_start_time || item.clock_status,
@@ -130,6 +145,8 @@ export function createBatchSupplementHandler(normalizeTeamName: (name: string) =
 
             liveDecisions[idx] = {
               ...d,
+              match_id: boundMatchId || d.match_id || d.leisu_match_id || undefined,
+              leisu_match_id: boundMatchId || d.leisu_match_id || d.match_id || undefined,
               league: resolvedLeague,
               ybty_league: item.ybty_league || importedLeague || d.ybty_league || resolvedLeague,
               leisu_league: item.leisu_league || item.leisu_raw?.league || d.leisu_league || '',
@@ -187,6 +204,8 @@ export function createBatchSupplementHandler(normalizeTeamName: (name: string) =
 
             prematchDecisions[idx] = {
               ...d,
+              match_id: boundMatchId || d.match_id || d.leisu_match_id || undefined,
+              leisu_match_id: boundMatchId || d.leisu_match_id || d.match_id || undefined,
               league: resolvedLeague,
               ybty_league: item.ybty_league || importedLeague || d.ybty_league || resolvedLeague,
               leisu_league: item.leisu_league || item.leisu_raw?.league || d.leisu_league || '',
@@ -224,6 +243,31 @@ export function createBatchSupplementHandler(normalizeTeamName: (name: string) =
             prematchUpdatedCount++;
           }
         });
+
+        // If match entered live stage and exists in prematch but not in liveDecisions, promote it to liveDecisions
+        if (isLive && !matchedInLive && matchedInPrematch) {
+          const sourcePrematch = prematchDecisions.find((d: any) => {
+            const homeMatches = matchTeamNames(d.ybty_home || d.match?.split(' vs ')[0] || '', homeTeam);
+            const awayMatches = matchTeamNames(d.ybty_away || d.match?.split(' vs ')[1] || '', awayTeam);
+            const nameMatches = d.match && matchName && d.match === matchName;
+            return nameMatches || (homeMatches && awayMatches);
+          });
+          if (sourcePrematch) {
+            const promotedRecord = {
+              ...sourcePrematch,
+              match_id: boundMatchId || sourcePrematch.match_id || sourcePrematch.leisu_match_id || undefined,
+              leisu_match_id: boundMatchId || sourcePrematch.leisu_match_id || sourcePrematch.match_id || undefined,
+              minute: item.minute || sourcePrematch.minute || 1,
+              score: importedScore || sourcePrematch.score || { home: 0, away: 0 },
+              score_verified: item.score_verified === true,
+              score_source: item.score_source || 'live_promoted_from_prematch',
+              evidence: Array.from(new Set([...(sourcePrematch.evidence || []), `[赛前数据继承] 比赛开赛进入滚球，已自动同步赛前分析库历史情报`])),
+            };
+            liveDecisions.push(promotedRecord);
+            liveUpdatedCount++;
+            matchedInLive = true;
+          }
+        }
       }
 
       // If item was not matched or in overwrite mode, append new Decision record
@@ -236,6 +280,8 @@ export function createBatchSupplementHandler(normalizeTeamName: (name: string) =
 
         const newRecord = {
           match: matchName,
+          match_id: boundMatchId || undefined,
+          leisu_match_id: boundMatchId || undefined,
           ybty_home: homeTeam || (matchName.includes(' vs ') ? matchName.split(' vs ')[0] : matchName),
           ybty_away: awayTeam || (matchName.includes(' vs ') ? matchName.split(' vs ')[1] : ''),
           league: importedLeague || '',

@@ -469,9 +469,25 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
     };
   }).filter(Boolean);
 
+  const rawMatchId = String(
+    item?.match_id ||
+    item?.leisu_match_id ||
+    item?.id ||
+    item?.matched_leisu?.match_id ||
+    item?.matched_leisu_id ||
+    item?.candidate?.match_id ||
+    item?.candidate?.id ||
+    item?.detail_context?.formal?.static_match?.id ||
+    item?.detail_context?.formal?.live_match?.match_id ||
+    ''
+  ).trim();
+  const matchId = rawMatchId || undefined;
+
   const rawPayload = {
     match_info: {
       match: item?.match || `${homeTeam} vs ${awayTeam}`,
+      match_id: matchId,
+      leisu_match_id: matchId,
       league,
       ybty_home: homeTeam,
       ybty_away: awayTeam,

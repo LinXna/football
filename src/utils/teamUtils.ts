@@ -142,6 +142,8 @@ export interface UnifiedTeamDisplay {
   matchName: string;
   leisuMatchName: string;
   hasLeisuMatched: boolean;
+  matchId?: string | number;
+  matchDisplayName: string;
 }
 
 export function getUnifiedTeamDisplay(item: any): UnifiedTeamDisplay {
@@ -160,6 +162,8 @@ export function getUnifiedTeamDisplay(item: any): UnifiedTeamDisplay {
       matchName: '主队 vs 客队',
       leisuMatchName: '主队 vs 客队',
       hasLeisuMatched: false,
+      matchId: undefined,
+      matchDisplayName: '主队 vs 客队',
     };
   }
 
@@ -231,6 +235,25 @@ export function getUnifiedTeamDisplay(item: any): UnifiedTeamDisplay {
 
   const hasLeisuMatched = true; // 默认全面对齐，展示完整两端标识
 
+  // 4. 提取比赛 ID (支持各类数据源中的 match_id, leisu_match_id, id 等)
+  const rawId =
+    item.match_id ||
+    item.leisu_match_id ||
+    item.id ||
+    item.matched_leisu?.match_id ||
+    item.matched_leisu_id ||
+    item.candidate?.match_id ||
+    item.candidate?.id ||
+    item.details?.match_id ||
+    item.detail_context?.formal?.static_match?.id ||
+    item.detail_context?.formal?.live_match?.match_id ||
+    item.reference_odds?.match_id ||
+    '';
+  const matchId = rawId ? String(rawId).trim() : undefined;
+  const matchDisplayName = matchId
+    ? `${ybtyHome} vs ${ybtyAway} [ID: ${matchId}]`
+    : `${ybtyHome} vs ${ybtyAway}`;
+
   return {
     ybtyHome,
     ybtyAway,
@@ -248,5 +271,7 @@ export function getUnifiedTeamDisplay(item: any): UnifiedTeamDisplay {
     matchName: `${ybtyHome} vs ${ybtyAway}`,
     leisuMatchName: `${finalLeisuHome} vs ${finalLeisuAway}`,
     hasLeisuMatched: true,
+    matchId,
+    matchDisplayName,
   };
 }

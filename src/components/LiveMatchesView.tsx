@@ -428,6 +428,12 @@ export const LiveMatchesView: React.FC<Props> = ({
                       <Trophy className="w-3.5 h-3.5 text-purple-400" /> {getLeagueName(m)}
                     </span>
 
+                    {(m.match_id || m.leisu_match_id) && (
+                      <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-800/60" title="赛事唯一物理 ID">
+                        ID: {m.match_id || m.leisu_match_id}
+                      </span>
+                    )}
+
                     <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-800 text-slate-300">
                       {m.grade || 'C'}级候选
                     </span>

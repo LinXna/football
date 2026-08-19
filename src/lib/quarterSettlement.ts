@@ -600,6 +600,8 @@ export function evaluateQuarterSettlement(params: SettlementParams): SettlementD
 export interface EvaluatedParlayLeg {
   leg_index: number;
   match: string;
+  match_id?: string | number;
+  leisu_match_id?: string | number;
   ybty_home: string;
   ybty_away: string;
   market: string;
@@ -700,6 +702,8 @@ export function evaluateParlaySettlement(
     return {
       leg_index: leg.leg_index ?? idx + 1,
       match: leg.match,
+      match_id: (leg as any).match_id || (leg as any).leisu_match_id || undefined,
+      leisu_match_id: (leg as any).leisu_match_id || (leg as any).match_id || undefined,
       ybty_home: leg.ybty_home || leg.match.split(' vs ')[0] || '',
       ybty_away: leg.ybty_away || leg.match.split(' vs ')[1] || '',
       market: leg.market,

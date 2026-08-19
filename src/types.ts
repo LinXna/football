@@ -60,6 +60,8 @@ export interface BankrollGuidance {
 
 export interface DecisionItem {
   match: string;
+  match_id?: string | number;
+  leisu_match_id?: string | number;
   league?: string;
   ybty_league?: string;
   leisu_league?: string;
@@ -134,6 +136,8 @@ export interface DecisionsPayload {
 export interface ParlayLeg {
   leg_index: number;
   match: string;
+  match_id?: string | number;
+  leisu_match_id?: string | number;
   ybty_home: string;
   ybty_away: string;
   market: string;
@@ -154,6 +158,8 @@ export interface ParlayLeg {
 
 export interface LedgerItem {
   id: string;
+  match_id?: string | number;
+  leisu_match_id?: string | number;
   created_at: string;
   match: string;
   league?: string;
@@ -288,11 +294,15 @@ export function getTeamDisplay(item: any) {
     matchName: unified.matchName,
     leisuMatchName: unified.leisuMatchName,
     hasLeisu: unified.hasLeisuMatched,
+    matchId: unified.matchId,
+    matchDisplayName: unified.matchDisplayName,
   };
 }
 
 export interface AIAnalysisResponse {
   match?: string;
+  match_id?: string | number;
+  leisu_match_id?: string | number;
   ybty_home?: string;
   ybty_away?: string;
   minute?: number;
