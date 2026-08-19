@@ -16,16 +16,31 @@ export function registerPipelineRoutes(app: express.Express, deps: PipelineDepen
     const candidates = readJsonFile<any>(DATA_FILES.live.candidates, { candidates: [] });
     const ybtyLatest = readJsonFile<any>(DATA_FILES.live.ybtySnapshot, { matches: [] });
     const rawMarketByMatch = new Map<string, unknown[]>();
+    const leagueByMatch = new Map<string, string>();
     for (const match of Array.isArray(ybtyLatest.matches) ? ybtyLatest.matches : []) {
+      const id = `${deps.cleanTeamName(match.home)}|${deps.cleanTeamName(match.away)}`;
       rawMarketByMatch.set(
-        `${deps.cleanTeamName(match.home)}|${deps.cleanTeamName(match.away)}`,
+        id,
         deps.normalizeYbtyMarketTypes(match.markets),
       );
+      const l = match.league || match.league_title || match.tournament;
+      if (l) leagueByMatch.set(id, String(l).trim());
     }
-    const visibleDecisions = (Array.isArray(decisions.decisions) ? decisions.decisions : []).map((item: any) => deps.hideInvalidRecommendation({
-      ...item,
-      ybty_raw_markets: rawMarketByMatch.get(deps.matchIdentity(item)) || deps.normalizeYbtyMarketTypes(item.ybty_raw_markets),
-    }));
+    for (const cand of Array.isArray(candidates.candidates) ? candidates.candidates : []) {
+      const id = `${deps.cleanTeamName(cand.match?.home || cand.market_source?.home)}|${deps.cleanTeamName(cand.match?.away || cand.market_source?.away)}`;
+      const l = cand.match?.league || cand.market_source?.league || cand.detail_context?.tournament;
+      if (l && !leagueByMatch.has(id)) leagueByMatch.set(id, String(l).trim());
+    }
+    const visibleDecisions = (Array.isArray(decisions.decisions) ? decisions.decisions : []).map((item: any) => {
+      const id = deps.matchIdentity(item);
+      const fallbackLeague = leagueByMatch.get(id);
+      return deps.hideInvalidRecommendation({
+        ...item,
+        league: item.league || fallbackLeague,
+        ybty_league: item.ybty_league || fallbackLeague,
+        ybty_raw_markets: rawMarketByMatch.get(id) || deps.normalizeYbtyMarketTypes(item.ybty_raw_markets),
+      });
+    });
 
     res.json({
       status,
@@ -45,13 +60,27 @@ export function registerPipelineRoutes(app: express.Express, deps: PipelineDepen
     const formalDecisions = Array.isArray(decisions.decisions) ? decisions.decisions : [];
     const researchQueue = Array.isArray(decisions.research_queue) ? decisions.research_queue : [];
     const formalMatches = new Set(formalDecisions.map((item: any) => String(item?.match || '')));
+
+    const leagueByMatch = new Map<string, string>();
+    for (const cand of Array.isArray(candidates.candidates) ? candidates.candidates : []) {
+      const id = `${deps.cleanTeamName(cand.match?.home || cand.market_source?.home)}|${deps.cleanTeamName(cand.match?.away || cand.market_source?.away)}`;
+      const l = cand.match?.league || cand.market_source?.league || cand.detail_context?.tournament;
+      if (l && !leagueByMatch.has(id)) leagueByMatch.set(id, String(l).trim());
+    }
+
     const visibleDecisions = [
       ...formalDecisions,
       ...researchQueue.filter((item: any) => !formalMatches.has(String(item?.match || ''))),
-    ].map((item: any) => deps.hideInvalidRecommendation({
-      ...item,
-      ybty_raw_markets: deps.normalizeYbtyMarketTypes(item.ybty_raw_markets),
-    }));
+    ].map((item: any) => {
+      const id = deps.matchIdentity(item);
+      const fallbackLeague = leagueByMatch.get(id);
+      return deps.hideInvalidRecommendation({
+        ...item,
+        league: item.league || fallbackLeague,
+        ybty_league: item.ybty_league || fallbackLeague,
+        ybty_raw_markets: deps.normalizeYbtyMarketTypes(item.ybty_raw_markets),
+      });
+    });
 
     res.json({
       status,

@@ -35,6 +35,7 @@ export const DataSupplementModal: React.FC<Props> = ({
   // Form State initialized from match
   const [ybtyHome, setYbtyHome] = useState(match.ybty_home || match.match.split('vs')[0]?.trim() || '');
   const [ybtyAway, setYbtyAway] = useState(match.ybty_away || match.match.split('vs')[1]?.trim() || '');
+  const [league, setLeague] = useState<string>(match.league || (match as any).tournament || (match as any).league_name || '');
   const [scoreHome, setScoreHome] = useState<number>(match.score?.home ?? 0);
   const [scoreAway, setScoreAway] = useState<number>(match.score?.away ?? 0);
   const [scoreVerified, setScoreVerified] = useState<boolean>(match.score_verified === true);
@@ -166,6 +167,7 @@ export const DataSupplementModal: React.FC<Props> = ({
   const handleSave = () => {
     const updated: DecisionItem = {
       ...match,
+      league: league.trim() || match.league || undefined,
       ybty_home: ybtyHome,
       ybty_away: ybtyAway,
       score: { home: Number(scoreHome), away: Number(scoreAway) },
@@ -317,15 +319,28 @@ export const DataSupplementModal: React.FC<Props> = ({
               </div>
             </div>
 
-            <div>
-              <label className="block text-slate-400 mb-1">开赛时间 (北京时间 / 雷速补充时间)</label>
-              <input
-                type="text"
-                value={startTimeBeijing}
-                onChange={(e) => setStartTimeBeijing(e.target.value)}
-                placeholder="例如: 2026-08-05 03:00 (雷速补充)"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-200"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1">所属赛事 / 联赛名称</label>
+                <input
+                  type="text"
+                  value={league}
+                  onChange={(e) => setLeague(e.target.value)}
+                  placeholder="例如: 日联杯, 中美洲杯, 西协丙 等"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1">开赛时间 (北京时间 / 雷速补充时间)</label>
+                <input
+                  type="text"
+                  value={startTimeBeijing}
+                  onChange={(e) => setStartTimeBeijing(e.target.value)}
+                  placeholder="例如: 2026-08-05 03:00 (雷速补充)"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-200"
+                />
+              </div>
             </div>
 
             {/* Quick Time Calculator from "X mins to start" + Export Time */}

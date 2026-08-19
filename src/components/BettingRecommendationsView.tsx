@@ -1861,24 +1861,37 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                   {(() => {
                     const teams = getTeamDisplay(m);
                     return (
-                      <div className="flex items-center justify-between bg-slate-950/70 p-3 rounded-lg border border-slate-800">
-                        <div className="text-right flex-1 pr-2 space-y-0.5 min-w-0">
-                          <div className="text-sm font-bold text-slate-100 truncate" title={teams.homeYbty}>{teams.homeYbty}</div>
-                          <div className="text-xs font-semibold text-purple-300 truncate" title={teams.homeLeisu}>{teams.homeLeisu}</div>
+                      <div className="flex flex-col justify-between bg-slate-950/70 p-3 rounded-lg border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between border-b border-slate-800/70 pb-1.5 text-xs">
+                          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-950/90 text-purple-300 border border-purple-800/60 flex items-center gap-1" title="赛事联赛名称">
+                            <Trophy className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                            {getLeagueName(m)}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-slate-500" />
+                            {isLive ? `${m.minute ?? 0}' 滚球` : (m.ybty_start_time_beijing || m.provider_start_time || '待定')}
+                          </span>
                         </div>
 
-                        <div className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-center min-w-[80px] shrink-0 mx-1">
-                          <div className="text-lg font-mono font-bold text-emerald-400">
-                            {m.score ? `${m.score.home} - ${m.score.away}` : 'VS'}
+                        <div className="flex items-center justify-between">
+                          <div className="text-right flex-1 pr-2 space-y-0.5 min-w-0">
+                            <div className="text-sm font-bold text-slate-100 truncate" title={teams.homeYbty}>{teams.homeYbty}</div>
+                            <div className="text-xs font-semibold text-purple-300 truncate" title={teams.homeLeisu}>{teams.homeLeisu}</div>
                           </div>
-                          <div className="text-[9px] text-slate-400 tracking-wider">
-                            {isLive ? (m.minute ? `${m.minute}' 滚球` : '滚球中') : '赛前盘口'}
-                          </div>
-                        </div>
 
-                        <div className="text-left flex-1 pl-2 space-y-0.5 min-w-0">
-                          <div className="text-sm font-bold text-slate-100 truncate" title={teams.awayYbty}>{teams.awayYbty}</div>
-                          <div className="text-xs font-semibold text-purple-300 truncate" title={teams.awayLeisu}>{teams.awayLeisu}</div>
+                          <div className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-center min-w-[80px] shrink-0 mx-1">
+                            <div className="text-lg font-mono font-bold text-emerald-400">
+                              {m.score ? `${m.score.home} - ${m.score.away}` : 'VS'}
+                            </div>
+                            <div className="text-[9px] text-slate-400 tracking-wider">
+                              {isLive ? (m.minute ? `${m.minute}' 滚球` : '滚球中') : '赛前盘口'}
+                            </div>
+                          </div>
+
+                          <div className="text-left flex-1 pl-2 space-y-0.5 min-w-0">
+                            <div className="text-sm font-bold text-slate-100 truncate" title={teams.awayYbty}>{teams.awayYbty}</div>
+                            <div className="text-xs font-semibold text-purple-300 truncate" title={teams.awayLeisu}>{teams.awayLeisu}</div>
+                          </div>
                         </div>
                       </div>
                     );

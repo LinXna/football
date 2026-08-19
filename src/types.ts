@@ -217,50 +217,56 @@ export interface AIAnalysisRequest {
 
 export function getLeagueName(item: any): string {
   const leagueText = (value: unknown): string => {
-    if (typeof value === 'string') return value;
-    if (value && typeof value === 'object') {
+    if (!value) return '';
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed && trimmed !== 'undefined' && trimmed !== 'null' && trimmed !== '赛事' && trimmed !== '常规联赛' && trimmed !== '常规赛事') {
+        return trimmed;
+      }
+    }
+    if (typeof value === 'object') {
       const record = value as Record<string, unknown>;
-      return String(record.name ?? record.name_zh ?? record.shortName ?? record.label ?? '');
+      const cand = String(record.name_zh ?? record.name ?? record.shortName ?? record.label ?? record.title ?? '').trim();
+      if (cand && cand !== 'undefined' && cand !== 'null') return cand;
     }
     return '';
   };
-  if (!item) return '常规联赛';
-  for (const value of [item.league, item.ybty_league, item.leisu_league, item.tournament, item.league_name]) {
+  if (!item) return '常规赛事';
+
+  // 1. Direct and nested field checks from real data exports
+  for (const value of [
+    item.league,
+    item.ybty_league,
+    item.leisu_league,
+    item.tournament,
+    item.league_name,
+    item.competition,
+    item.event_name,
+    item.detail_context?.league,
+    item.detail_context?.tournament,
+    item.detail_context?.event_name,
+    item.detail_context?.formal?.live_match?.league?.name_zh,
+    item.detail_context?.formal?.live_match?.league?.name,
+    item.detail_context?.formal?.live_match?.tournament,
+    item.reference_odds?.league,
+    item.reference_market?.league,
+  ]) {
     const text = leagueText(value);
     if (text) return text;
   }
 
-  const matchStr = item.match || item.match_name || '';
-  if (matchStr.startsWith('[')) {
-    const endBracket = matchStr.indexOf(']');
-    if (endBracket > 1) {
-      return matchStr.substring(1, endBracket);
+  // 2. Bracket extraction: e.g. [西协丙], 【日皇杯】, (澳足总)
+  const matchStr = String(item.match || item.match_name || item.leisu_match || item.ybty_match || '');
+  const bracketMatch = matchStr.match(/[\[【\(]([^\]】\)]+)[\]】\)]/);
+  if (bracketMatch && bracketMatch[1] && bracketMatch[1].trim().length >= 2) {
+    const bracketContent = bracketMatch[1].trim();
+    if (!bracketContent.includes('AI') && !bracketContent.includes('主') && !bracketContent.includes('客')) {
+      return bracketContent;
     }
   }
 
-  const home = item.ybty_home || (matchStr ? matchStr.split(' vs ')[0] : '') || '';
-  const away = item.ybty_away || (matchStr ? matchStr.split(' vs ')[1] : '') || '';
-
-  if (home.includes('萨普里萨') || away.includes('萨普里萨') || home.includes('埃雷迪亚诺') || away.includes('埃雷迪亚诺') || home.includes('阿利安萨') || away.includes('阿利安萨')) {
-    return '中美洲杯';
-  }
-  if (home.includes('托卢卡') || away.includes('托卢卡') || home.includes('墨西哥') || away.includes('墨西哥')) {
-    return '中北美杯 / 墨U20';
-  }
-  if (home.includes('丹佛') || away.includes('丹佛') || home.includes('女足') || away.includes('女足')) {
-    return '美女子联';
-  }
-  if (home.includes('联盟FC') || away.includes('联盟FC')) {
-    return '中美洲杯';
-  }
-  if (home.includes('蔚山') || away.includes('蔚山') || home.includes('全北') || away.includes('全北')) {
-    return '韩K联';
-  }
-  if (home.includes('阿森纳') || away.includes('阿森纳') || home.includes('切尔西') || away.includes('曼城')) {
-    return '英超联赛';
-  }
-
-  return '国际赛事';
+  // 3. Fallback when raw export has no explicit league column
+  return '常规赛事';
 }
 
 import { getUnifiedTeamDisplay } from './utils/teamUtils';

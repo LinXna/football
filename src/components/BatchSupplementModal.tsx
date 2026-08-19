@@ -175,6 +175,7 @@ export const BatchSupplementModal: React.FC<Props> = ({
 
           return {
             ...m,
+            league: found.league || found.tournament || found.competition || found.league_name || m.league,
             score: { home: hScore, away: aScore },
             score_verified: true,
             score_source: 'batch_json_import',

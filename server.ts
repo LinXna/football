@@ -902,6 +902,9 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
       return {
         ...source,
         ...stored,
+        league: stored.league || source.league || source.match?.league || source.market_source?.league || ybty?.league || '',
+        ybty_league: stored.ybty_league || source.ybty_league || source.market_source?.league || ybty?.league || '',
+        leisu_league: stored.leisu_league || source.leisu_league || source.match?.league || '',
         live_statistics: stored.live_statistics || source.live_statistics || null,
         reference_odds: stored.reference_odds || source.reference_odds || null,
         recent_trends: stored.recent_trends || source.recent_trends || null,
@@ -1153,6 +1156,9 @@ ${JSON.stringify(historicalFeedback)}
         || sameTeams(entry?.candidate?.home, entry?.candidate?.away, found.ybty_home, found.ybty_away)
         || sameTeams(entry?.ybty_home, entry?.ybty_away, found.ybty_home, found.ybty_away));
       const candidateDetails = candidateWrapper ? {
+        league: candidateWrapper.match?.league || candidateWrapper.market_source?.league || candidateWrapper.detail_context?.tournament || undefined,
+        ybty_league: candidateWrapper.market_source?.league || undefined,
+        leisu_league: candidateWrapper.match?.league || undefined,
         live_statistics: candidateWrapper.live_statistics,
         reference_odds: candidateWrapper.reference_odds,
         recent_trends: candidateWrapper.recent_trends,
@@ -1168,6 +1174,8 @@ ${JSON.stringify(historicalFeedback)}
       const rawLeisu = (Array.isArray(leisuSnapshot.events) ? leisuSnapshot.events : []).find((entry: any) =>
         sameTeams(entry?.homeTeam?.name || entry?.home, entry?.awayTeam?.name || entry?.away, found.leisu_home, found.leisu_away));
       const rawDetails = rawLeisu ? {
+        league: rawLeisu.tournament?.name || rawLeisu.league || undefined,
+        leisu_league: rawLeisu.tournament?.name || rawLeisu.league || undefined,
         live_statistics: rawLeisu._statistics || rawLeisu.live_statistics,
         incidents: rawLeisu._incidents || rawLeisu.incidents,
         weather: rawLeisu._weather || rawLeisu.weather,

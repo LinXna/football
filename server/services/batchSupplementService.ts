@@ -124,8 +124,15 @@ export function createBatchSupplementHandler(normalizeTeamName: (name: string) =
 
             if (importedScore) { hScore = importedScore.home; aScore = importedScore.away; }
 
+            const importedLeague = item.league || item.league_name || item.league_title || item.tournament || item.detail_context?.tournament || item.detail_context?.league_name || '';
+            const existingLeague = d.league || d.ybty_league || d.leisu_league || '';
+            const resolvedLeague = importedLeague || existingLeague || '';
+
             liveDecisions[idx] = {
               ...d,
+              league: resolvedLeague,
+              ybty_league: item.ybty_league || importedLeague || d.ybty_league || resolvedLeague,
+              leisu_league: item.leisu_league || item.leisu_raw?.league || d.leisu_league || '',
               ybty_raw_markets: normalizeYbtyMarketTypes(item.ybty_raw_markets || item.markets || d.ybty_raw_markets),
               live_statistics: item.live_statistics || d.live_statistics || null,
               reference_odds: item.reference_odds || d.reference_odds || null,
@@ -174,8 +181,15 @@ export function createBatchSupplementHandler(normalizeTeamName: (name: string) =
 
             if (importedScore) { hScore = importedScore.home; aScore = importedScore.away; }
 
+            const importedLeague = item.league || item.league_name || item.league_title || item.tournament || item.detail_context?.tournament || item.detail_context?.league_name || '';
+            const existingLeague = d.league || d.ybty_league || d.leisu_league || '';
+            const resolvedLeague = importedLeague || existingLeague || '';
+
             prematchDecisions[idx] = {
               ...d,
+              league: resolvedLeague,
+              ybty_league: item.ybty_league || importedLeague || d.ybty_league || resolvedLeague,
+              leisu_league: item.leisu_league || item.leisu_raw?.league || d.leisu_league || '',
               ybty_raw_markets: normalizeYbtyMarketTypes(item.ybty_raw_markets || item.markets || d.ybty_raw_markets),
               live_statistics: item.live_statistics || d.live_statistics || null,
               reference_odds: item.reference_odds || d.reference_odds || null,
@@ -218,10 +232,15 @@ export function createBatchSupplementHandler(normalizeTeamName: (name: string) =
         let aScore = 0;
         if (importedScore) { hScore = importedScore.home; aScore = importedScore.away; }
 
+        const importedLeague = item.league || item.league_name || item.league_title || item.tournament || item.detail_context?.tournament || item.detail_context?.league_name || '';
+
         const newRecord = {
           match: matchName,
           ybty_home: homeTeam || (matchName.includes(' vs ') ? matchName.split(' vs ')[0] : matchName),
           ybty_away: awayTeam || (matchName.includes(' vs ') ? matchName.split(' vs ')[1] : ''),
+          league: importedLeague || '',
+          ybty_league: item.ybty_league || importedLeague || '',
+          leisu_league: item.leisu_league || item.leisu_raw?.league || '',
           leisu_home: leisuHome || '',
           leisu_away: leisuAway || '',
           status: 'RESEARCH',

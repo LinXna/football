@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { DecisionItem, AIAnalysisResponse, getLeagueName, getTeamDisplay } from '../types';
+import { generateExtendedAnalysis } from '../lib/extendedRecommendation';
 import { 
   Sparkles, 
   ShieldCheck, 
@@ -8,20 +9,47 @@ import {
   CheckCircle2, 
   XCircle, 
   Loader2, 
-  BookOpen,
-  Info,
-  Send,
-  Trophy,
-  Copy,
-  Upload,
-  FileText,
-  ExternalLink,
-  Check,
-  Trash2
+  BookOpen, 
+  Info, 
+  Send, 
+  Trophy, 
+  Copy, 
+  Upload, 
+  FileText, 
+  ExternalLink, 
+  Check, 
+  Trash2,
+  Cpu,
+  CheckSquare,
+  Square,
+  Flame,
+  PlusCircle,
+  Shuffle,
+  Clock
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { displayText } from '../lib/displayValue';
 import { buildValidParlayRequests } from '../lib/parlayRequests';
+
+export interface CustomSelectedLeg {
+  id: string;
+  match: string;
+  ybty_home: string;
+  ybty_away: string;
+  source: 'machine' | 'ai';
+  market: string;
+  line: string | number;
+  odds: number;
+  grade?: string;
+  probability?: number;
+  score?: any;
+  minute?: number;
+  score_verified?: boolean;
+  score_source?: string;
+  start_time_beijing?: string | null;
+  pro_strategy?: string;
+  reason?: string;
+}
 
 interface Props {
   selectedMatch: DecisionItem | null;
@@ -137,6 +165,16 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
 
   const [showClearHistoryConfirmModal, setShowClearHistoryConfirmModal] = useState(false);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
+
+  // Hover Popover State for Machine 5 vs AI 5
+  const [hoveredLeg, setHoveredLeg] = useState<{
+    leg: any;
+    matchItem?: DecisionItem;
+    ticket: NonNullable<AIAnalysisResponse['parlay_recommendations']>[number];
+    legIndex: number;
+    anchorRect?: { top: number; left: number; right: number; bottom: number; width: number; height: number };
+  } | null>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const evaluationMatches = mode === 'live_eval' ? liveMatches : prematchMatches;
   const parlayEligibleMatches = allMatches.filter((match, index, source) =>
@@ -458,6 +496,8 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
       setSaveMessage(`AI投注建议写入失败：${err.message || '未知错误'}`);
     }
   };
+
+
 
   const switchExportPromptStyle = (style: 'standard' | 'objective') => {
     setExportPromptStyle(style);
@@ -1580,28 +1620,84 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                       {ticket.legs.map((leg, index) => {
                         const mName = formatMarketName(leg.market);
                         const lText = formatLineText(leg.market, leg.line, leg.ybty_home, leg.ybty_away);
+                        const matchItem = allMatches.find(
+                          (m) =>
+                            m.match === leg.match ||
+                            (m.ybty_home && leg.ybty_home && m.ybty_home === leg.ybty_home && m.ybty_away === leg.ybty_away) ||
+                            (m.match && leg.match && (m.match.includes(leg.match) || leg.match.includes(m.match))) ||
+                            (m.ybty_home && leg.ybty_home && (m.ybty_home.includes(leg.ybty_home) || leg.ybty_home.includes(m.ybty_home)))
+                        );
                         return (
-                          <div key={`${leg.match}-${index}`} className="rounded border border-slate-800 bg-slate-950 p-2.5 text-xs space-y-1.5">
-                            <div className="flex items-center justify-between gap-1">
-                              <div className="font-bold text-slate-200">腿 #{index + 1} · {leg.ybty_home || leg.match} vs {leg.ybty_away || ''}</div>
-                              {leg.score && (
-                                <span className="px-1.5 py-0.5 rounded bg-amber-950/60 border border-amber-800/50 text-amber-300 font-mono font-bold text-[10px]">
-                                  {typeof leg.score === 'object' ? `${leg.score.home}-${leg.score.away}` : leg.score}
-                                </span>
-                              )}
-                              {leg.minute !== undefined && Number(leg.minute) > 0 && (
-                                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono text-[10px]">
-                                  {leg.minute}'
-                                </span>
+                          <div
+                            key={`${leg.match}-${index}`}
+                            onMouseEnter={(e) => {
+                              if (hoverTimeoutRef.current) {
+                                clearTimeout(hoverTimeoutRef.current);
+                              }
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setHoveredLeg({
+                                leg,
+                                matchItem,
+                                ticket,
+                                legIndex: index + 1,
+                                anchorRect: {
+                                  top: rect.top,
+                                  left: rect.left,
+                                  right: rect.right,
+                                  bottom: rect.bottom,
+                                  width: rect.width,
+                                  height: rect.height,
+                                },
+                              });
+                            }}
+                            onMouseLeave={() => {
+                              hoverTimeoutRef.current = setTimeout(() => {
+                                setHoveredLeg(null);
+                              }, 120);
+                            }}
+                            className="rounded-lg border border-slate-800 bg-slate-950 p-2.5 text-xs space-y-1.5 flex flex-col justify-between hover:border-indigo-500/80 hover:bg-slate-900/90 transition-all cursor-pointer group/leg shadow-sm"
+                          >
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-1 flex-wrap">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-purple-950/80 text-purple-300 border border-purple-800/60 flex items-center gap-0.5" title="赛事联赛名称">
+                                    <Trophy className="w-3 h-3 text-purple-400 shrink-0" />
+                                    {getLeagueName(matchItem || leg)}
+                                  </span>
+                                  <span className="font-bold text-slate-200">腿 #{index + 1} · {leg.ybty_home || leg.match} vs {leg.ybty_away || ''}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  {leg.score && (
+                                    <span className="px-1.5 py-0.5 rounded bg-amber-950/60 border border-amber-800/50 text-amber-300 font-mono font-bold text-[10px]">
+                                      {typeof leg.score === 'object' ? `${leg.score.home}-${leg.score.away}` : leg.score}
+                                    </span>
+                                  )}
+                                  {leg.minute !== undefined && Number(leg.minute) > 0 && (
+                                    <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono text-[10px]">
+                                      {leg.minute}'
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-emerald-300 font-semibold">{mName} {lText} <span className="text-amber-300 font-mono font-bold">@{leg.odds}</span></div>
+                              <div className="text-slate-400 text-[11px]">AI研判胜率 {leg.probability}% · <span className={leg.grade === 'A' ? 'text-emerald-400 font-bold' : leg.grade === 'B' ? 'text-sky-400 font-bold' : 'text-amber-400'}>{leg.grade}级</span></div>
+                              {leg.pro_strategy && (
+                                <div className="text-[10px] text-indigo-300 bg-indigo-950/40 border border-indigo-800/40 rounded px-1.5 py-0.5 mt-1">
+                                  🎯 操盘思维：{leg.pro_strategy}
+                                </div>
                               )}
                             </div>
-                            <div className="text-emerald-300 font-semibold">{mName} {lText} <span className="text-amber-300 font-mono font-bold">@{leg.odds}</span></div>
-                            <div className="text-slate-400 text-[11px]">AI研判胜率 {leg.probability}% · <span className={leg.grade === 'A' ? 'text-emerald-400 font-bold' : leg.grade === 'B' ? 'text-sky-400 font-bold' : 'text-amber-400'}>{leg.grade}级</span></div>
-                            {leg.pro_strategy && (
-                              <div className="text-[10px] text-indigo-300 bg-indigo-950/40 border border-indigo-800/40 rounded px-1.5 py-0.5 mt-1">
-                                🎯 操盘思维：{leg.pro_strategy}
-                              </div>
-                            )}
+
+                            {/* Hover Indicator Strip */}
+                            <div className="mt-2 flex items-center justify-between gap-1.5 rounded-md bg-indigo-950/60 group-hover/leg:bg-indigo-900/80 border border-indigo-800/40 group-hover/leg:border-indigo-600/70 px-2.5 py-1.5 text-xs text-indigo-300 group-hover/leg:text-indigo-100 transition-all">
+                              <span className="flex items-center gap-1.5 font-medium">
+                                <Sparkles className="w-3.5 h-3.5 text-indigo-400 group-hover/leg:text-indigo-300" />
+                                <span>机选核心5项 vs AI核心5项</span>
+                              </span>
+                              <span className="text-[10px] text-indigo-400 group-hover/leg:text-indigo-200 bg-indigo-900/60 px-1.5 py-0.5 rounded font-mono">
+                                鼠标悬停浮出
+                              </span>
+                            </div>
                           </div>
                         );
                       })}
@@ -1634,6 +1730,359 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
               <div className="text-[11px] text-slate-500">保存位置：投注建议中心 → 推荐台账 → 回测候选。完整生成结果可使用上方“保存完整评估快照”，并在本页“已保存的 AI 评估历史”查看。</div>
             </div>
           )}
+
+          {/* Floating Hover Popover for Machine 5 vs AI 5 */}
+          {hoveredLeg && hoveredLeg.anchorRect && (() => {
+            const rect = hoveredLeg.anchorRect;
+            const popoverWidth = typeof window !== 'undefined' ? Math.min(660, window.innerWidth - 32) : 660;
+            const popoverHeight = 400;
+            
+            // Try placing below the card
+            let top = rect.bottom + 8;
+            // If it goes past bottom of viewport, place above
+            if (typeof window !== 'undefined' && top + popoverHeight > window.innerHeight - 16) {
+              top = Math.max(16, rect.top - popoverHeight - 8);
+            }
+            
+            // Center horizontally relative to card or clamp within screen bounds
+            let left = rect.left + (rect.width / 2) - (popoverWidth / 2);
+            if (left < 16) left = 16;
+            if (typeof window !== 'undefined' && left + popoverWidth > window.innerWidth - 16) {
+              left = window.innerWidth - popoverWidth - 16;
+            }
+
+            return (
+              <div
+                style={{ top: `${top}px`, left: `${left}px`, width: `${popoverWidth}px` }}
+                className="fixed z-50 rounded-2xl border border-indigo-500/80 bg-slate-900/98 backdrop-blur-md p-3.5 sm:p-4 shadow-2xl space-y-2.5 max-h-[85vh] overflow-y-auto pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-150"
+                onMouseEnter={() => {
+                  if (hoverTimeoutRef.current) {
+                    clearTimeout(hoverTimeoutRef.current);
+                  }
+                }}
+                onMouseLeave={() => {
+                  hoverTimeoutRef.current = setTimeout(() => {
+                    setHoveredLeg(null);
+                  }, 120);
+                }}
+              >
+                {/* Header (Compact: 开赛时间在赛事旁，比分、赛前/滚球状态与球队名在同一行) */}
+                <div className="border-b border-slate-800 pb-2 space-y-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded bg-indigo-950/90 border border-indigo-700 px-2 py-0.5 text-[11px] font-bold text-indigo-300">
+                        {hoveredLeg.ticket.size} 串 1 · 第 {hoveredLeg.ticket.ticket_index} 组 · 腿 #{hoveredLeg.legIndex}
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-xs font-bold bg-purple-950/90 text-purple-300 border border-purple-800/80 flex items-center gap-1 shadow-sm">
+                        <Trophy className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                        {getLeagueName(hoveredLeg.matchItem || hoveredLeg.leg)}
+                      </span>
+                    </div>
+                    <span className="text-slate-300 font-mono text-xs flex items-center gap-1 bg-slate-950/80 px-2 py-0.5 rounded border border-slate-800">
+                      <Clock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      {hoveredLeg.matchItem?.ybty_start_time_beijing || hoveredLeg.matchItem?.provider_start_time || hoveredLeg.matchItem?.commence_time || '即时/待定'} (北京时间)
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 text-sm sm:text-base font-bold text-slate-100">
+                    <span className="text-slate-100">{hoveredLeg.leg.ybty_home || hoveredLeg.matchItem?.ybty_home || hoveredLeg.leg.match}</span>
+                    <span className="text-slate-500 text-xs font-normal">VS</span>
+                    <span className="text-slate-100">{hoveredLeg.leg.ybty_away || hoveredLeg.matchItem?.ybty_away || ''}</span>
+                    <span className="px-2 py-0.5 rounded bg-amber-950/80 border border-amber-700/60 text-amber-300 font-mono font-bold text-xs flex items-center gap-1">
+                      <span>⚽ {typeof hoveredLeg.leg.score === 'object' ? `${hoveredLeg.leg.score.home}-${hoveredLeg.leg.score.away}` : hoveredLeg.leg.score || (typeof hoveredLeg.matchItem?.score === 'object' ? `${hoveredLeg.matchItem.score.home}-${hoveredLeg.matchItem.score.away}` : hoveredLeg.matchItem?.score || '0-0')}</span>
+                      <span className="text-[10px] font-normal text-amber-400">
+                        {hoveredLeg.leg.minute !== undefined && Number(hoveredLeg.leg.minute) > 0 ? `(${hoveredLeg.leg.minute}')` : '(赛前)'}
+                      </span>
+                    </span>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${hoveredLeg.leg.score_verified ? 'bg-emerald-950/80 border border-emerald-700 text-emerald-300' : 'bg-slate-800 text-slate-400'}`}>
+                      {hoveredLeg.leg.score_verified ? '✅ 已核验' : '⚠️ 待核验'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2-Column Comparison: 机选核心投注 5 项 vs AI 核心投注 5 项 (大小球、让球、独赢) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 sm:gap-3">
+                  {/* Left: 🤖 机选核心投注 5 项 */}
+                  {(() => {
+                    const matchItem = hoveredLeg.matchItem;
+                    const ext = matchItem ? generateExtendedAnalysis(matchItem) : null;
+                    const machineRecMarket = String(matchItem?.recommendation?.market || '');
+
+                    const machine5Markets = [
+                      {
+                        key: 'full_total',
+                        label: '① 全场大小球',
+                        direction: ext?.overUnder?.fullTime?.value || '暂无盘口',
+                        odds: ext?.overUnder?.fullTime?.odds ? `@${ext.overUnder.fullTime.odds}` : '--',
+                        prob: ext?.overUnder?.fullTime?.confidence ? `${ext.overUnder.fullTime.confidence}%` : '--',
+                        isPrimary: /full_total|全场大小球/i.test(machineRecMarket),
+                      },
+                      {
+                        key: 'half_total',
+                        label: '② 半场大小球',
+                        direction: ext?.overUnder?.halfTime?.value || '暂无盘口',
+                        odds: ext?.overUnder?.halfTime?.odds ? `@${ext.overUnder.halfTime.odds}` : '--',
+                        prob: ext?.overUnder?.halfTime?.confidence ? `${ext.overUnder.halfTime.confidence}%` : '--',
+                        isPrimary: /half_total|半场大小球/i.test(machineRecMarket),
+                      },
+                      {
+                        key: 'full_spread',
+                        label: '③ 全场让球',
+                        direction: ext?.handicap?.fullTime?.team ? `${ext.handicap.fullTime.team} ${ext.handicap.fullTime.value}` : '暂无盘口',
+                        odds: ext?.handicap?.fullTime?.odds ? `@${ext.handicap.fullTime.odds}` : '--',
+                        prob: ext?.handicap?.fullTime?.confidence ? `${ext.handicap.fullTime.confidence}%` : '--',
+                        isPrimary: /full_spread|全场让球/i.test(machineRecMarket),
+                      },
+                      {
+                        key: 'half_spread',
+                        label: '④ 半场让球',
+                        direction: ext?.handicap?.halfTime?.team ? `${ext.handicap.halfTime.team} ${ext.handicap.halfTime.value}` : '暂无盘口',
+                        odds: ext?.handicap?.halfTime?.odds ? `@${ext.handicap.halfTime.odds}` : '--',
+                        prob: ext?.handicap?.halfTime?.confidence ? `${ext.handicap.halfTime.confidence}%` : '--',
+                        isPrimary: /half_spread|半场让球/i.test(machineRecMarket),
+                      },
+                      {
+                        key: 'full_h2h',
+                        label: '⑤ 全场独赢1X2',
+                        direction: ext?.match1X2?.value || '暂无盘口',
+                        odds: ext?.match1X2?.odds ? `@${ext.match1X2.odds}` : '--',
+                        prob: ext?.match1X2?.probability ? `${ext.match1X2.probability}%` : '--',
+                        isPrimary: /full_h2h|独赢|1x2/i.test(machineRecMarket),
+                      },
+                    ];
+
+                    return (
+                      <div className="rounded-xl border border-sky-800/60 bg-sky-950/20 p-2.5 sm:p-3 space-y-2">
+                        <div className="flex items-center justify-between border-b border-sky-900/60 pb-1">
+                          <div className="flex items-center gap-1.5">
+                            <div className="p-1 rounded bg-sky-900/80 text-sky-300">
+                              <Cpu className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="font-bold text-xs sm:text-sm text-sky-200">🤖 机选核心投注 5 项</span>
+                          </div>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${matchItem?.grade === 'A' ? 'bg-emerald-950 border border-emerald-700 text-emerald-300' : matchItem?.grade === 'B' ? 'bg-sky-950 border border-sky-700 text-sky-300' : 'bg-slate-800 text-slate-400'}`}>
+                            {matchItem?.grade ? `${matchItem.grade}级初筛` : '观察'}
+                          </span>
+                        </div>
+
+                        <div className="space-y-1.5 text-xs">
+                          {machine5Markets.map((m) => (
+                            <div
+                              key={m.key}
+                              className={`rounded-lg p-1.5 flex items-center justify-between border transition-all ${
+                                m.isPrimary
+                                  ? 'bg-sky-950/90 border-sky-500/80 ring-1 ring-sky-500/30'
+                                  : 'bg-slate-950/80 border-sky-900/40'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-[11px] text-sky-400 font-semibold shrink-0">{m.label}</span>
+                                {m.isPrimary && (
+                                  <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0">
+                                    ★ 主选
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 font-mono text-[11px] shrink-0">
+                                <span className="text-slate-200 font-bold max-w-[130px] truncate" title={m.direction}>
+                                  {m.direction}
+                                </span>
+                                <span className="text-amber-300 font-bold">{m.odds}</span>
+                                <span className="text-sky-300/80 text-[10px]">{m.prob}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Right: ✨ AI 核心投注 5 项 */}
+                  {(() => {
+                    const leg = hoveredLeg.leg;
+                    const ticket = hoveredLeg.ticket;
+                    const matchItem = hoveredLeg.matchItem;
+                    const targetHome = leg.ybty_home || matchItem?.ybty_home || '';
+                    const targetAway = leg.ybty_away || matchItem?.ybty_away || '';
+                    const targetMatch = leg.match || matchItem?.match || '';
+
+                    const isSameMatch = (m: any) => {
+                      if (!m) return false;
+                      if (m.match && targetMatch && (m.match === targetMatch || m.match.includes(targetMatch) || targetMatch.includes(m.match))) return true;
+                      if (m.ybty_home && targetHome && m.ybty_home === targetHome && m.ybty_away === targetAway) return true;
+                      return false;
+                    };
+
+                    let matchedAi: any = null;
+                    if (Array.isArray(evaluationResult?.matches)) {
+                      matchedAi = evaluationResult.matches.find(isSameMatch);
+                    }
+                    if (!matchedAi) {
+                      for (const hist of evaluationHistory) {
+                        const arr = Array.isArray(hist?.result?.matches) ? hist.result.matches : [hist?.result];
+                        matchedAi = arr.find(isSameMatch);
+                        if (matchedAi) break;
+                      }
+                    }
+
+                    const findAiAssessment = (catKey: string, mktKey: string) => {
+                      if (!matchedAi?.market_assessments || !Array.isArray(matchedAi.market_assessments)) return null;
+                      return matchedAi.market_assessments.find((item: any) =>
+                        String(item?.category || '').includes(catKey) ||
+                        String(item?.market || '') === mktKey
+                      );
+                    };
+
+                    const legMarket = String(leg.market || '');
+
+                    const ai5Markets = [
+                      {
+                        key: 'full_total',
+                        label: '① 全场大小球',
+                        assessment: findAiAssessment('全场大小球', 'full_total'),
+                        isLegPick: /全场大小球|full_total/i.test(legMarket),
+                      },
+                      {
+                        key: 'half_total',
+                        label: '② 半场大小球',
+                        assessment: findAiAssessment('半场大小球', 'half_total'),
+                        isLegPick: /半场大小球|half_total/i.test(legMarket),
+                      },
+                      {
+                        key: 'full_spread',
+                        label: '③ 全场让球',
+                        assessment: findAiAssessment('全场让球', 'full_spread'),
+                        isLegPick: /全场让球|full_spread/i.test(legMarket),
+                      },
+                      {
+                        key: 'half_spread',
+                        label: '④ 半场让球',
+                        assessment: findAiAssessment('半场让球', 'half_spread'),
+                        isLegPick: /半场让球|half_spread/i.test(legMarket),
+                      },
+                      {
+                        key: 'full_h2h',
+                        label: '⑤ 全场独赢1X2',
+                        assessment: findAiAssessment('独赢', 'full_h2h'),
+                        isLegPick: /独赢|1x2|full_h2h|h2h/i.test(legMarket),
+                      },
+                    ];
+
+                    return (
+                      <div className="rounded-xl border border-indigo-800/60 bg-indigo-950/20 p-2.5 sm:p-3 space-y-2">
+                        <div className="flex items-center justify-between border-b border-indigo-900/60 pb-1">
+                          <div className="flex items-center gap-1.5">
+                            <div className="p-1 rounded bg-indigo-900/80 text-indigo-300">
+                              <Sparkles className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="font-bold text-xs sm:text-sm text-indigo-200">✨ AI 核心投注 5 项</span>
+                          </div>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${leg.grade === 'A' ? 'bg-emerald-950 border border-emerald-700 text-emerald-300' : 'bg-sky-950 border border-sky-700 text-sky-300'}`}>
+                            {leg.grade}级研判
+                          </span>
+                        </div>
+
+                        <div className="space-y-1.5 text-xs">
+                          {ai5Markets.map((m) => {
+                            const ass = m.assessment;
+                            let dirText = '--';
+                            let oddsText = '--';
+                            let probText = '--';
+                            let badgeText = '';
+                            let badgeClass = 'bg-slate-800 text-slate-400';
+
+                            if (ass) {
+                              const lineStr = String(ass.line ?? '').trim();
+                              const rawDir = String(ass.direction || '--');
+                              dirText = lineStr && !rawDir.includes(lineStr) ? `${rawDir} ${lineStr}` : rawDir;
+                              oddsText = Number(ass.odds) > 1 ? `@${ass.odds}` : (ass.status === 'unavailable' ? '封盘/未开' : '--');
+                              probText = ass.probability ? `${ass.probability}%` : '--';
+                              if (ass.status === 'recommend') {
+                                badgeText = `推荐·${ass.grade || 'B'}`;
+                                badgeClass = 'bg-emerald-950 border border-emerald-700 text-emerald-300';
+                              } else if (ass.status === 'watch') {
+                                badgeText = `观察·${ass.grade || 'C'}`;
+                                badgeClass = 'bg-sky-950 border border-sky-700 text-sky-300';
+                              } else if (ass.status === 'avoid') {
+                                badgeText = '回避';
+                                badgeClass = 'bg-rose-950/80 border border-rose-800 text-rose-300';
+                              } else if (ass.status === 'unavailable') {
+                                badgeText = '未提供';
+                                badgeClass = 'bg-slate-800 text-slate-400';
+                              }
+                            } else if (m.isLegPick) {
+                              const mName = formatMarketName(leg.market);
+                              const lText = formatLineText(leg.market, leg.line, leg.ybty_home, leg.ybty_away);
+                              dirText = `${mName} ${lText}`.trim();
+                              oddsText = `@${leg.odds}`;
+                              probText = `${leg.probability}%`;
+                              badgeText = `${leg.grade}级选单`;
+                              badgeClass = 'bg-emerald-950 border border-emerald-700 text-emerald-300';
+                            } else {
+                              dirText = '盘口未提供 / 待研判';
+                              oddsText = '--';
+                              probText = '--';
+                              badgeText = '待研判';
+                              badgeClass = 'bg-slate-900 text-slate-500';
+                            }
+
+                            return (
+                              <div
+                                key={m.key}
+                                className={`rounded-lg p-1.5 flex items-center justify-between border transition-all ${
+                                  m.isLegPick
+                                    ? 'bg-indigo-950/90 border-indigo-500/80 ring-1 ring-indigo-500/30'
+                                    : 'bg-slate-950/80 border-indigo-900/40'
+                                }`}
+                              >
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="text-[11px] text-indigo-400 font-semibold shrink-0">{m.label}</span>
+                                  {m.isLegPick && (
+                                    <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shrink-0">
+                                      ★ 串关选腿
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5 font-mono text-[11px] shrink-0">
+                                  <span className="text-slate-200 font-bold max-w-[120px] truncate" title={dirText}>
+                                    {dirText}
+                                  </span>
+                                  <span className="text-amber-300 font-bold">{oddsText}</span>
+                                  <span className="text-sky-300/80 text-[10px]">{probText}</span>
+                                  {badgeText && (
+                                    <span className={`px-1 py-0.2 rounded text-[9px] font-bold border ${badgeClass}`}>
+                                      {badgeText}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Bottom Row: 操盘策略与反脆弱研判依据 */}
+                <div className="rounded-xl border border-slate-800 bg-slate-950/90 p-2.5 space-y-1.5 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-1">
+                    <span className="text-indigo-300 font-bold flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                      本腿操盘策略：
+                      <span className="text-slate-200 font-normal">
+                        {hoveredLeg.leg.pro_strategy || `${hoveredLeg.leg.grade}级风控 / 正期望值(+EV)驱动`}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="text-slate-300 text-[11px] leading-relaxed">
+                    <strong className="text-slate-400">研判依据：</strong>
+                    {hoveredLeg.leg.reason || hoveredLeg.ticket.reason || '主力首发与核心数据支持，跨场次剧本独立过审。'}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
           </>
           )}
         </div>
