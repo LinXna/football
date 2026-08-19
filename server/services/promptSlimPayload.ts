@@ -400,6 +400,14 @@ function slimLineupDetails(lineupInput: any): any {
 
 export function stripNullsAndEmpty(obj: any): any {
   if (obj === null || obj === undefined) return undefined;
+  if (typeof obj === 'number') {
+    if (!Number.isFinite(obj)) return undefined;
+    // Round floating point numbers to max 3 decimal places to reduce token consumption
+    if (!Number.isInteger(obj)) {
+      return Number(obj.toFixed(3));
+    }
+    return obj;
+  }
   if (Array.isArray(obj)) {
     const cleaned = obj.map(stripNullsAndEmpty).filter((item) => item !== undefined);
     return cleaned.length > 0 ? cleaned : undefined;

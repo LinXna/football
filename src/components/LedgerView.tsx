@@ -22,7 +22,8 @@ import {
   Trophy,
   Trash2,
   AlertTriangle,
-  Archive
+  Archive,
+  Sparkles
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { evaluateQuarterSettlement, evaluateParlaySettlement, isQuarterLine, parseQuarterLine, SettlementDetail, ParlaySettlementDetail } from '../lib/quarterSettlement';
@@ -159,6 +160,7 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
   const [archiveClearCurrent, setArchiveClearCurrent] = useState<boolean>(true);
   const [isArchiving, setIsArchiving] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [isAutoSettling, setIsAutoSettling] = useState<boolean>(false);
   const [archives, setArchives] = useState<any[]>([]);
   const [currentLedger, setCurrentLedger] = useState<LedgerItem[]>(initialLedger);
   const [ledgerViewMode, setLedgerViewMode] = useState<'current' | 'merged' | string>('current');
@@ -615,6 +617,125 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
     }
   };
 
+  // Batch Auto-Settle All Pending Records using Pipeline and Matches Snapshots
+  const handleBatchAutoSettle = async () => {
+    if (ledger.length === 0 || ledgerViewMode !== 'current') return;
+    setIsAutoSettling(true);
+    try {
+      const [liveRes, prematchRes] = await Promise.all([
+        fetch('/api/live').then((r) => (r.ok ? r.json() : { decisions: [] })).catch(() => ({ decisions: [] })),
+        fetch('/api/prematch').then((r) => (r.ok ? r.json() : { decisions: [] })).catch(() => ({ decisions: [] })),
+      ]);
+
+      const candidateMatches = [
+        ...(Array.isArray(liveRes.decisions) ? liveRes.decisions : []),
+        ...(Array.isArray(prematchRes.decisions) ? prematchRes.decisions : []),
+      ];
+
+      const pendingItems = ledger.filter((item) => {
+        const isParlay = item.is_parlay || (item.parlay_legs && item.parlay_legs.length > 0);
+        if (isParlay) {
+          return item.parlay_legs?.some((leg: any) => !leg.final_score);
+        }
+        return !item.review?.final_score;
+      });
+
+      if (pendingItems.length === 0) {
+        setSyncToast('当前台账所有条目均已完成完场比分核销，无待核销条目。');
+        setTimeout(() => setSyncToast(null), 3000);
+        setIsAutoSettling(false);
+        return;
+      }
+
+      const supplementItems: Array<{
+        match: string;
+        ybty_home: string;
+        ybty_away: string;
+        final_score: { home: number; away: number };
+        ht_score?: { home: number; away: number };
+        score_verified: boolean;
+        score_source: string;
+      }> = [];
+
+      for (const item of pendingItems) {
+        const checkMatch = (h: string, a: string, rawMatch?: string) => {
+          const normH = String(h || '').toLowerCase().replace(/[\s\-_·\.()（）\[\]]/g, '');
+          const normA = String(a || '').toLowerCase().replace(/[\s\-_·\.()（）\[\]]/g, '');
+          return candidateMatches.find((cand) => {
+            const candScore = cand.score || cand.final_score;
+            if (!candScore || (candScore.home === undefined && candScore.away === undefined)) return false;
+            const candH = String(cand.ybty_home || cand.home || '').toLowerCase().replace(/[\s\-_·\.()（）\[\]]/g, '');
+            const candA = String(cand.ybty_away || cand.away || '').toLowerCase().replace(/[\s\-_·\.()（）\[\]]/g, '');
+            if (normH && normA && candH && candA && normH === candH && normA === candA) return true;
+            if (rawMatch && cand.match && (cand.match === rawMatch || cand.match.includes(rawMatch))) return true;
+            return false;
+          });
+        };
+
+        if (item.parlay_legs && item.parlay_legs.length > 0) {
+          for (const leg of item.parlay_legs) {
+            if (leg.final_score) continue;
+            const found = checkMatch(leg.ybty_home || '', leg.ybty_away || '', leg.match);
+            if (found && (found.score || found.final_score)) {
+              const sc = found.score || found.final_score;
+              supplementItems.push({
+                match: leg.match || `${leg.ybty_home || ''} vs ${leg.ybty_away || ''}`,
+                ybty_home: leg.ybty_home || '',
+                ybty_away: leg.ybty_away || '',
+                final_score: { home: Number(sc.home ?? 0), away: Number(sc.away ?? 0) },
+                ht_score: found.ht_score ? { home: Number(found.ht_score.home ?? 0), away: Number(found.ht_score.away ?? 0) } : undefined,
+                score_verified: true,
+                score_source: 'auto_settle_pipeline_sync',
+              });
+            }
+          }
+        } else {
+          const found = checkMatch(item.ybty_home || '', item.ybty_away || '', item.match);
+          if (found && (found.score || found.final_score)) {
+            const sc = found.score || found.final_score;
+            supplementItems.push({
+              match: item.match,
+              ybty_home: item.ybty_home || '',
+              ybty_away: item.ybty_away || '',
+              final_score: { home: Number(sc.home ?? 0), away: Number(sc.away ?? 0) },
+              ht_score: found.ht_score ? { home: Number(found.ht_score.home ?? 0), away: Number(found.ht_score.away ?? 0) } : undefined,
+              score_verified: true,
+              score_source: 'auto_settle_pipeline_sync',
+            });
+          }
+        }
+      }
+
+      if (supplementItems.length === 0) {
+        setSyncToast('在即时/完场快照库中暂未发现可匹配的未核销比赛比分。');
+        setTimeout(() => setSyncToast(null), 3500);
+        setIsAutoSettling(false);
+        return;
+      }
+
+      const res = await fetch('/api/batch-supplement-scores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: supplementItems }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (Array.isArray(data.ledger)) {
+          setLedger(data.ledger);
+        }
+        setSyncToast(`⚡ 自动批量结算完成：已自动核验并结算 ${data.updatedLedgerCount || supplementItems.length} 条台账推荐与串关记录！`);
+      } else {
+        setSyncToast(`自动结算异常：${data.error || `HTTP ${res.status}`}`);
+      }
+      setTimeout(() => setSyncToast(null), 4500);
+    } catch (err: any) {
+      console.error('Batch auto settle error', err);
+      setSyncToast(`自动结算失败: ${err.message || '网络或数据错误'}`);
+    } finally {
+      setIsAutoSettling(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header Quarter-Handicap Financial Statistics */}
@@ -881,8 +1002,22 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
                 <option value="invalid_data">无效数据 (Invalid Data)</option>
               </select>
 
-              {/* Action Buttons for Delete & Clear */}
+              {/* Action Buttons for Auto-settle, Delete & Clear */}
               <div className="flex items-center gap-2 ml-auto">
+                <button
+                  onClick={handleBatchAutoSettle}
+                  disabled={isAutoSettling || ledger.length === 0 || ledgerViewMode !== 'current'}
+                  className={`px-3 py-1 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all ${
+                    !isAutoSettling && ledger.length > 0 && ledgerViewMode === 'current'
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md shadow-emerald-950/40 border border-emerald-500/40'
+                      : 'bg-slate-950 text-slate-600 border border-slate-800 cursor-not-allowed opacity-60'
+                  }`}
+                  title="自动检索即时与非滚球完场快照库，对所有 Pending 状态条目进行智能比分匹配与批量自动结算"
+                >
+                  <Sparkles className={`w-3.5 h-3.5 ${isAutoSettling ? 'animate-spin text-teal-300' : 'text-emerald-300'}`} />
+                  {isAutoSettling ? '正在核销结算中...' : '自动核销已完场赛事'}
+                </button>
+
                 <button
                   onClick={() => setShowDeleteSelectedModal(true)}
                   disabled={selectedIds.length === 0}

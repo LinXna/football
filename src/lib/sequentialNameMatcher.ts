@@ -17,16 +17,21 @@ export function extractTeamSuffixes(name: string): SuffixInfo {
   let str = String(name).trim();
 
   let gender: 'female' | 'regular' = 'regular';
-  if (/\(女\)|（女）|\[女\]|女足|Women|women|\bW\b/i.test(str)) {
+  if (/\(女\)|（女）|\[女\]|女足|女子|Women|women|ladies|wfc|\bW\b/i.test(str)) {
     gender = 'female';
   }
 
   let ageCategory: string | null = null;
   const ageMatch = str.match(/(?:23岁以下|u-?23|\(u23\)|（u23）|u23岁以下)/i) ? 'u23'
+    : str.match(/(?:22岁以下|u-?22|\(u22\)|（u22）|u22岁以下)/i) ? 'u22'
     : str.match(/(?:21岁以下|u-?21|\(u21\)|（u21）|u21岁以下)/i) ? 'u21'
     : str.match(/(?:20岁以下|u-?20|\(u20\)|（u20）|u20岁以下)/i) ? 'u20'
     : str.match(/(?:19岁以下|u-?19|\(u19\)|（u19）|u19岁以下)/i) ? 'u19'
+    : str.match(/(?:18岁以下|u-?18|\(u18\)|（u18）|u18岁以下)/i) ? 'u18'
     : str.match(/(?:17岁以下|u-?17|\(u17\)|（u17）|u17岁以下)/i) ? 'u17'
+    : str.match(/(?:16岁以下|u-?16|\(u16\)|（u16）|u16岁以下)/i) ? 'u16'
+    : str.match(/(?:预备队|reserves?|b队|\bii\b)/i) ? 'reserves'
+    : str.match(/(?:青年队|青年|梯队|youth)/i) ? 'youth'
     : null;
   if (ageMatch) {
     ageCategory = ageMatch;
@@ -34,14 +39,19 @@ export function extractTeamSuffixes(name: string): SuffixInfo {
 
   // Remove the suffixes and noisy prefixes/suffixes from the cleanName for core text comparison
   let clean = str
-    .replace(/\(女\)|（女）|\[女\]|女足|Women|women|\bW\b/gi, '')
+    .replace(/\(女\)|（女）|\[女\]|女足|女子|Women|women|ladies|wfc|\bW\b/gi, '')
     .replace(/(?:23岁以下|u-?23|\(u23\)|（u23）|u23岁以下)/gi, '')
+    .replace(/(?:22岁以下|u-?22|\(u22\)|（u22）|u22岁以下)/gi, '')
     .replace(/(?:21岁以下|u-?21|\(u21\)|（u21）|u21岁以下)/gi, '')
     .replace(/(?:20岁以下|u-?20|\(u20\)|（u20）|u20岁以下)/gi, '')
     .replace(/(?:19岁以下|u-?19|\(u19\)|（u19）|u19岁以下)/gi, '')
+    .replace(/(?:18岁以下|u-?18|\(u18\)|（u18）|u18岁以下)/gi, '')
     .replace(/(?:17岁以下|u-?17|\(u17\)|（u17）|u17岁以下)/gi, '')
+    .replace(/(?:16岁以下|u-?16|\(u16\)|（u16）|u16岁以下)/gi, '')
+    .replace(/(?:预备队|reserves?|b队|\bii\b)/gi, '')
+    .replace(/(?:青年队|青年|梯队|youth)/gi, '')
     .replace(/\(中\)|（中）|\[中\]|\(主\)|（主）|\[主\]/g, '')
-    .replace(/football club|fc|俱乐部|体育|竞技/gi, '')
+    .replace(/football club|fc|sc|俱乐部|体育|竞技|联合|联队/gi, '')
     .replace(/[·\.\-\_\s\(\)（）\[\]]/g, '')
     .toLowerCase();
 

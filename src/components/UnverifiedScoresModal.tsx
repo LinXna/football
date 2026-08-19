@@ -335,6 +335,52 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
     );
   };
 
+  // Auto Match Live/Prematch Scores
+  const handleAutoMatchLeisuScores = () => {
+    let autoFilled = 0;
+    const allKnownSources = [
+      ...liveMatches.map((m) => ({ item: m, score: m.score, ht: m.ht_score })),
+      ...prematchMatches.map((m) => ({ item: m, score: m.score, ht: m.ht_score })),
+    ];
+
+    setItems((prev) =>
+      prev.map((target) => {
+        if (target.hasScoreEntered && target.scoreVerified) return target;
+        const matched = allKnownSources.find((src) => {
+          if (!src.score || (src.score.home === undefined && src.score.away === undefined)) return false;
+          const targetHome = target.ybty_home || '';
+          const targetAway = target.ybty_away || '';
+          const srcHome = src.item.ybty_home || src.item.leisu_home || '';
+          const srcAway = src.item.ybty_away || src.item.leisu_away || '';
+          return isSameTeamName(targetHome, srcHome) && isSameTeamName(targetAway, srcAway);
+        });
+        if (matched && matched.score) {
+          const hVal = Number(matched.score.home ?? 0);
+          const aVal = Number(matched.score.away ?? 0);
+          autoFilled++;
+          return {
+            ...target,
+            homeScore: hVal,
+            awayScore: aVal,
+            htHomeScore: matched.ht?.home ?? target.htHomeScore,
+            htAwayScore: matched.ht?.away ?? target.htAwayScore,
+            scoreVerified: true,
+            hasScoreEntered: true,
+            selected: true,
+          };
+        }
+        return target;
+      })
+    );
+
+    if (autoFilled > 0) {
+      setSuccessMsg(`⚡ 智能比对完成：已从双源即时库自动匹配并填充 ${autoFilled} 场比分，并自动勾选核验！点击下方保存即可批量入账。`);
+    } else {
+      setSuccessMsg('未在即时快照库中检索到未录入的新比分。');
+    }
+    setTimeout(() => setSuccessMsg(null), 4000);
+  };
+
   // Quick Paste Parsing Logic
   const handleApplyQuickPaste = () => {
     if (!quickPasteText.trim()) return;
@@ -524,14 +570,26 @@ export const UnverifiedScoresModal: React.FC<Props> = ({
               </button>
             </div>
 
-            {/* Quick Paste Toggle */}
-            <button
-              onClick={() => setShowQuickPaste(!showQuickPaste)}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-xl border border-slate-700 flex items-center gap-1.5 transition-colors"
-            >
-              <ClipboardCheck className="w-3.5 h-3.5 text-teal-400" />
-              文本极速匹配比分
-            </button>
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleAutoMatchLeisuScores}
+                className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold rounded-xl shadow flex items-center gap-1.5 transition-all"
+                title="自动遍历当前滚球与非滚球快照库，自动填充最新比分并勾选核验"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                智能匹配即时比分
+              </button>
+
+              {/* Quick Paste Toggle */}
+              <button
+                onClick={() => setShowQuickPaste(!showQuickPaste)}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-xl border border-slate-700 flex items-center gap-1.5 transition-colors"
+              >
+                <ClipboardCheck className="w-3.5 h-3.5 text-teal-400" />
+                文本极速匹配比分
+              </button>
+            </div>
           </div>
 
           {/* Quick Paste Textarea */}

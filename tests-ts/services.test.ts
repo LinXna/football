@@ -578,4 +578,990 @@ test('parseModelJson repairs JSON with missing commas and trailing commas from L
   assert.equal(parsed.ticket.legs.length, 2);
 });
 
+test('advanced quantitative engines properly evaluate referee, fatigue, weather, steam, game-state, and bench', async () => {
+  const {
+    evaluateRefereeDisciplineAndPenalty,
+    evaluateScheduleCongestionAndRest,
+    evaluateWeatherAndPitchPhysics,
+    evaluateOddsSteamMovementAndDiscrepancy,
+    evaluateGameStateLeadPreservation,
+    evaluateSubBenchImpact,
+    buildMasterTacticalSynthesis,
+  } = await import('../server/services/advancedTacticalQuantitativeEngines');
+
+  // 1. Referee test
+  const harshRef = evaluateRefereeDisciplineAndPenalty({ referee: '安东尼奥·马特乌·拉奥斯' });
+  assert.equal(harshRef.referee_profile, 'HARSH_CARD_PENALTY_ELEVATED');
+  assert.ok(harshRef.referee_severity_index >= 1.25);
+  assert.ok(harshRef.penalty_expectancy_lambda >= 0.3);
+
+  // 2. Schedule congestion test
+  const now = new Date('2026-08-20T12:00:00Z').getTime();
+  const congested = evaluateScheduleCongestionAndRest({
+    recent_trends: {
+      home_recent: [{ match_date: new Date(now - 7 * 24 * 3600 * 1000).toISOString() }],
+      away_recent: [{ match_date: new Date(now - 2 * 24 * 3600 * 1000).toISOString() }],
+    },
+  }, '2026-08-20T12:00:00Z');
+  assert.equal(congested.is_away_congested_double_week, true);
+  assert.equal(congested.late_fatigue_breakdown_risk, true);
+  assert.ok(congested.rest_advantage_delta >= 3);
+
+  // 3. Weather & pitch physics test
+  const rainWeather = evaluateWeatherAndPitchPhysics({ weather: '中雨 18°C 湿度90%' });
+  assert.ok(rainWeather.pitch_skid_friction_index < 0.9);
+  assert.ok(rainWeather.goal_damping_delta_lambda < 0);
+  assert.ok(rainWeather.corner_inflation_multiplier > 1.1);
+
+  // 4. Odds steam movement test
+  const steamOdds = evaluateOddsSteamMovementAndDiscrepancy({
+    reference_odds: {
+      europe: { open_home: 2.10, current_home: 1.85 },
+    },
+  }, { europe: { open_home: 2.10, current_home: 1.85 } });
+  assert.equal(steamOdds.is_sharp_steam_action, true);
+  assert.equal(steamOdds.steam_direction, 'SHARP_HOME_STEAM');
+
+  // 5. Game state & golden entry test
+  const gameState = evaluateGameStateLeadPreservation(
+    {},
+    { home: { dangerous_attacks: 25, shots: 5 }, away: { dangerous_attacks: 20, shots: 4 } },
+    { home: 0, away: 0 },
+    52
+  );
+  assert.equal(gameState.current_game_state, 'STALEMATE_0_0');
+  assert.equal(gameState.golden_entry_point_unlocked, true);
+
+  // 6. Sub bench impact test
+  const bench = evaluateSubBenchImpact(
+    {
+      home_substitutes: [{ name: '前锋A', position: '前锋' }, { name: '边锋B', position: 'FW' }],
+      away_substitutes: [{ name: '后卫C', position: '后卫' }],
+    },
+    {}
+  );
+  assert.equal(bench.second_half_sub_surge_potential, 'HIGH_SURGE_HOME');
+  assert.ok(bench.home_bench_attack_score > bench.away_bench_attack_score);
+
+  // 7. Goal Time-Bucket & Half-Time Asymmetry test
+  const {
+    evaluateGoalTimeBucketAndHalfAsymmetry,
+    evaluateMultiBookmakerOddsDispersion,
+    evaluateMarginDistributionAndDeepCover,
+    evaluateBookedDefenderAndSecondYellowRisk,
+    evaluateCornerToGoalConversionThreat,
+    evaluateKnockoutAggregateAndExtraTimeDynamics,
+  } = await import('../server/services/advancedTacticalQuantitativeEngines');
+
+  const slowStarter = evaluateGoalTimeBucketAndHalfAsymmetry({
+    goal_distribution: {
+      home: { all: { scored: [[1, 0, 45], [4, 60, 90]] } },
+      away: { all: { scored: [[1, 15, 30], [5, 75, 90]] } },
+    },
+  });
+  assert.equal(slowStarter.half_time_tempo_profile, 'SLOW_STARTER_SECOND_HALF_BURST');
+  assert.ok(slowStarter.combined_first_half_goal_share_pct <= 35.0);
+
+  // 8. Multi-Bookmaker Odds Dispersion test
+  const dispersion = evaluateMultiBookmakerOddsDispersion({
+    bookmakers: [
+      { key: 'pinnacle', markets: { h2h: [{ name: 'Home', price: 1.85 }, { name: 'Draw', price: 3.5 }, { name: 'Away', price: 4.2 }] } },
+      { key: 'marathon', markets: { h2h: [{ name: 'Home', price: 1.84 }, { name: 'Draw', price: 3.52 }, { name: 'Away', price: 4.25 }] } },
+      { key: 'unibet', markets: { h2h: [{ name: 'Home', price: 1.86 }, { name: 'Draw', price: 3.48 }, { name: 'Away', price: 4.15 }] } },
+    ],
+  });
+  assert.equal(dispersion.market_consensus_level, 'STRONG_CONSENSUS_SHARP_DEFENSE');
+  assert.ok(dispersion.home_odds_std_dev < 0.03);
+
+  // 9. Margin distribution & DCE test
+  const dceTrap = evaluateMarginDistributionAndDeepCover({
+    recent_trends: {
+      historical_analysis: {
+        recent_matches: {
+          home: [
+            { score: '1-0' }, { score: '2-1' }, { score: '1-0' }, { score: '3-2' }, { score: '2-0' },
+          ],
+        },
+      },
+    },
+  });
+  assert.equal(dceTrap.deep_spread_risk_warning, true);
+  assert.ok(dceTrap.win_by_1_goal_pct >= 60);
+  assert.ok(dceTrap.deep_cover_efficiency_dce <= 0.35);
+
+  // 10. Booked defender constraint test
+  const bookedDef = evaluateBookedDefenderAndSecondYellowRisk({
+    ybty_home: '主队',
+    ybty_away: '客队',
+    incidents: [
+      "22' 黄牌 客队 4号中卫",
+      "31' 黄牌 客队 6号后腰",
+    ],
+  }, 40, 1.25);
+  assert.equal(bookedDef.away_booked_defenders, 2);
+  assert.ok(bookedDef.defensive_constraint_drag_away < 0.85);
+
+  // 11. Corner threat conversion test
+  const emptyCorner = evaluateCornerToGoalConversionThreat(
+    {},
+    { home: { corners: 8, shots: 3 }, away: { corners: 2, shots: 1 } },
+    65
+  );
+  assert.equal(emptyCorner.aerial_threat_profile, 'EMPTY_CORNER_DEFLECTION_INFLATION');
+
+  // 12. Knockout aggregate & extra-time stall test
+  const cupStall = evaluateKnockoutAggregateAndExtraTimeDynamics(
+    {},
+    '英格兰足总杯',
+    { home: 1, away: 1 },
+    83
+  );
+  assert.equal(cupStall.is_knockout_match, true);
+  assert.equal(cupStall.extra_time_stall_risk_80plus, true);
+
+  // 13. Possession efficiency & counter directness test
+  const {
+    evaluatePossessionEfficiencyAndCounterDirectness,
+    evaluateTacticalFoulAndSetPieceVulnerability,
+    evaluateOffsideLinePhysicsAndTrapBreakthrough,
+    evaluateStreakMomentumAndMeanRegression,
+    evaluateHalfVsFullSpreadHarmonicConsistency,
+    evaluateLeagueTierDisparityAndTablePressure,
+  } = await import('../server/services/advancedTacticalQuantitativeEngines');
+
+  const possTest = evaluatePossessionEfficiencyAndCounterDirectness({
+    possession: { home: 68, away: 32 },
+    dangerous_attacks: { home: 18, away: 22 },
+    shots_on_target: { home: 1, away: 8 },
+  }, 50);
+  assert.equal(possTest.possession_tactical_profile, 'STERILE_INEFFECTIVE_POSSESSION_TRAP');
+  assert.ok(possTest.away_counter_directness_index >= 0.35);
+
+  // 14. Tactical foul & fragmentation test
+  const foulTest = evaluateTacticalFoulAndSetPieceVulnerability({
+    fouls: { home: 9, away: 8 },
+  }, 45);
+  assert.equal(foulTest.game_rhythm_fragmentation_level, 'HIGH_FRAGMENTATION_STALL');
+  assert.equal(foulTest.danger_zone_free_kick_threat, true);
+
+  // 15. Offside line physics test
+  const offsideTest = evaluateOffsideLinePhysicsAndTrapBreakthrough({
+    offsides: { home: 3, away: 2 },
+  }, 55);
+  assert.equal(offsideTest.high_defensive_line_trap_active, true);
+  assert.equal(offsideTest.broken_trap_breakthrough_hazard, true);
+
+  // 16. Streak momentum & mean regression test
+  const streakTest = evaluateStreakMomentumAndMeanRegression({
+    trend_summary: {
+      home: { table: [{ continuous_win: 6, continuous_lose: 0 }] },
+    },
+  });
+  assert.equal(streakTest.streak_profile, 'EXTREME_WIN_STREAK_OVERHEAT_TRAP');
+  assert.ok(streakTest.market_overheat_penalty_delta <= -0.4);
+
+  // 17. Half vs Full spread harmonic test
+  const harmonicTest = evaluateHalfVsFullSpreadHarmonicConsistency([
+    { market: 'full_spread', options: [{ line: '-1.5', odds: 1.95 }] },
+    { market: 'half_spread', options: [{ line: '0.0', odds: 2.1 }] },
+  ]);
+  assert.equal(harmonicTest.harmonic_profile, 'SOFT_FIRST_HALF_SECOND_HALF_BURST');
+
+  // 18. League tier & table pressure test
+  const tierTest = evaluateLeagueTierDisparityAndTablePressure(
+    {
+      home_team: { rank: 19 },
+      away_team: { rank: 3 },
+    },
+    '英格兰超级联赛'
+  );
+  assert.equal(tierTest.relegation_desperation_defense_boost, true);
+  assert.equal(tierTest.home_points_urgency_multiplier, 1.35);
+
+  // 19. First-goal resilience test
+  const {
+    evaluateFirstGoalAndComebackResilience,
+    evaluateBothTeamsToScoreJointProbability,
+    evaluatePassAccuracyAndMidfieldProgression,
+    evaluateStartingLineupAgeAndLateFatigue,
+    evaluateGoalkeeperSaveQualityAndRegression,
+    evaluateExtremeDrawCompressionAndCollusion,
+  } = await import('../server/services/advancedTacticalQuantitativeEngines');
+
+  const resilienceTest = evaluateFirstGoalAndComebackResilience({
+    trend_summary: {
+      home: { table: [{ score_first_win: 9, score_first_total: 10, concede_first_points: 1, concede_first_total: 5 }] },
+    },
+  }, { home: 1, away: 0 });
+  assert.equal(resilienceTest.resilience_profile, 'IRON_LEAD_PROTECTOR');
+  assert.equal(resilienceTest.home_first_goal_win_rate_pct, 90.0);
+
+  // 20. BTTS Joint Probability test
+  const bttsTest = evaluateBothTeamsToScoreJointProbability({}, 1.8, 1.5);
+  assert.equal(bttsTest.btts_profile, 'HIGH_DUAL_NET_FIREPOWER');
+  assert.ok(bttsTest.theoretical_joint_btts_prob_pct >= 60.0);
+
+  // 21. Pass accuracy & MPE test
+  const passProgTest = evaluatePassAccuracyAndMidfieldProgression({
+    home: { pass_accuracy: 88, dangerous_attacks: 40, attacks: 60 },
+    away: { pass_accuracy: 65, dangerous_attacks: 10, attacks: 30 },
+  }, 60);
+  assert.equal(passProgTest.forced_turnover_hazard_away, true);
+  assert.equal(passProgTest.progression_profile, 'FORCED_TURNOVER_COLLAPSE_RISK');
+
+  // 22. Lineup age & late fatigue test
+  const ageTest = evaluateStartingLineupAgeAndLateFatigue({
+    home_starters: [{ age: 22 }, { age: 23 }, { age: 24 }],
+    away_starters: [{ age: 31 }, { age: 32 }, { age: 33 }],
+  }, 75);
+  assert.equal(ageTest.veteran_late_fatigue_risk_70plus, true);
+  assert.ok(ageTest.away_avg_age >= 31.0);
+
+  // 23. Goalkeeper save quality test
+  const gkTest = evaluateGoalkeeperSaveQualityAndRegression({
+    away: { saves: 6 },
+    home: { shots_on_target: 7 },
+  }, 70);
+  assert.equal(gkTest.goalkeeper_god_mode_active, true);
+  assert.equal(gkTest.late_regression_leak_risk, false);
+
+  // 24. Extreme draw compression test
+  const drawCompTest = evaluateExtremeDrawCompressionAndCollusion([
+    {
+      market: 'full_1x2',
+      options: [
+        { side: 'home', odds: 2.70 },
+        { side: 'draw', odds: 2.50 },
+        { side: 'away', odds: 3.10 },
+      ],
+    },
+  ], 2.5);
+  assert.equal(drawCompTest.is_extreme_draw_compression, true);
+  assert.equal(drawCompTest.market_draw_odds, 2.50);
+
+  // 25. Box shot penetration test
+  const {
+    evaluateBoxShotPenetrationAndDesperation,
+    evaluateYellowCardAccelerationAndBoilingPoint,
+    evaluateHomeAwayPolarizationDisparity,
+    evaluateHeadToHeadTacticalNemesis,
+    evaluateOverUnderStreakBiasAndReversion,
+    evaluateQuarterLineAsymmetricCushion,
+  } = await import('../server/services/advancedTacticalQuantitativeEngines');
+
+  const boxTest = evaluateBoxShotPenetrationAndDesperation({
+    home: { shots: 10, shots_inside_box: 1, shots_on_target: 1 },
+    away: { shots: 4, shots_inside_box: 3, shots_on_target: 3 },
+  }, 50);
+  assert.equal(boxTest.home_desperation_long_shot_trap, true);
+  assert.equal(boxTest.box_penetration_profile, 'STERILE_OUTSIDE_BOX_DESPERATION');
+
+  // 26. Yellow card acceleration test
+  const cardAccelTest = evaluateYellowCardAccelerationAndBoilingPoint({
+    incidents: [
+      { minute: 58, type: 'yellow_card' },
+      { minute: 62, type: 'yellow_card' },
+      { minute: 67, type: 'yellow_card' },
+    ],
+  }, 70);
+  assert.equal(cardAccelTest.boiling_point_red_card_imminent, true);
+  assert.equal(cardAccelTest.card_acceleration_profile, 'BOILING_POINT_ESCALATION');
+
+  // 27. Home away polarization test
+  const polarTest = evaluateHomeAwayPolarizationDisparity({
+    home_team: { home_wins: 8, home_played: 10 },
+    away_team: { away_losses: 7, away_played: 10 },
+  }, '主队', '客队');
+  assert.equal(polarTest.is_fortress_vs_frailty_resonance, true);
+  assert.equal(polarTest.home_team_home_win_rate_pct, 80.0);
+
+  // 28. H2H nemesis test
+  const h2hTest = evaluateHeadToHeadTacticalNemesis({
+    trend_summary: {
+      history: [
+        { result: 'home_win' },
+        { result: 'home_win' },
+        { result: 'home_win' },
+        { result: 'home_win' },
+        { result: 'draw' },
+      ],
+    },
+  });
+  assert.equal(h2hTest.nemesis_profile, 'HOME_NEMESIS_DOMINANCE');
+  assert.equal(h2hTest.home_h2h_spread_win_rate_pct, 80.0);
+
+  // 29. OU streak bias test
+  const ouStreakTest = evaluateOverUnderStreakBiasAndReversion({
+    trend_summary: {
+      over_under: { continuous_over: 6 },
+    },
+  }, [{ market: 'full_total', options: [{ line: '3.25', odds: 1.95 }] }]);
+  assert.equal(ouStreakTest.over_total_market_overheat_trap, true);
+  assert.equal(ouStreakTest.ou_streak_profile, 'OVERHEAT_OVER_TRAP');
+
+  // 30. Quarter line cushion test
+  const quarterTest = evaluateQuarterLineAsymmetricCushion([
+    {
+      market: 'full_spread',
+      options: [
+        { side: 'home', line: '-0.75', odds: 1.90 },
+        { side: 'away', line: '+0.75', odds: 1.98 },
+      ],
+    },
+  ]);
+  assert.equal(quarterTest.is_quarter_line_market, true);
+  assert.equal(quarterTest.half_loss_cushion_advantage, true);
+
+  // 31. VAR trauma test
+  const {
+    evaluateVarInterventionAndMoraleTrauma,
+    evaluateClinicalFinishingPurity,
+    evaluateHalfTimeFullTimeTransitionMatrix,
+    evaluateLateOddsJuiceDropAndTrapValve,
+    evaluateCornerVelocityAndFalsePressureSkew,
+    evaluateInPlaySubstitutionFreshLegsImpact,
+  } = await import('../server/services/advancedTacticalQuantitativeEngines');
+
+  const varTest = evaluateVarInterventionAndMoraleTrauma({
+    incidents: [
+      { minute: 60, text: 'VAR取消进球 (越位在先)' },
+    ],
+  }, 68);
+  assert.equal(varTest.var_goal_cancelled, true);
+  assert.equal(varTest.var_recent_shock_active_15min, true);
+  assert.equal(varTest.var_trauma_profile, 'RECENT_VAR_GOAL_DISALLOWED_SLUMP');
+
+  // 32. Clinical finishing test
+  const finishingTest = evaluateClinicalFinishingPurity({
+    home: { shots_on_target: 8 },
+    away: { shots_on_target: 2 },
+  }, { home: 0, away: 2 });
+  assert.equal(finishingTest.home_sterile_shots_trap, true);
+  assert.equal(finishingTest.away_clinical_killer_advantage, true);
+  assert.equal(finishingTest.finishing_profile, 'HOME_STERILE_TARGET_TRAP');
+
+  // 33. HT/FT transition matrix test
+  const htFtTest = evaluateHalfTimeFullTimeTransitionMatrix({
+    trend_summary: {
+      half_full: { win_win: 2, win_draw: 3, win_loss: 1 },
+    },
+  }, { home: 1, away: 0 }, 50);
+  assert.equal(htFtTest.ht_lead_collapse_hazard, true);
+  assert.equal(htFtTest.ht_ft_transition_profile, 'FREQUENT_HT_LEAD_COLLAPSE');
+
+  // 34. Late odds juice drop test
+  const juiceTest = evaluateLateOddsJuiceDropAndTrapValve([
+    {
+      market: 'full_spread',
+      options: [
+        { side: 'home', odds: 1.72 },
+        { side: 'away', odds: 2.15 },
+      ],
+    },
+  ]);
+  assert.equal(juiceTest.is_ultra_low_juice_trap, true);
+  assert.equal(juiceTest.favorite_juice_level, 1.72);
+  assert.equal(juiceTest.juice_drop_profile, 'LOW_JUICE_TRAP_VALVE');
+
+  // 35. Corner velocity test
+  const cornerVelTest = evaluateCornerVelocityAndFalsePressureSkew({
+    home: { corners: 6, shots_on_target: 1 },
+    away: { corners: 3, shots_on_target: 0 },
+  }, 40);
+  assert.equal(cornerVelTest.is_sterile_corner_inflation, true);
+  assert.equal(cornerVelTest.corner_velocity_profile, 'STERILE_CORNER_DEFLECTION_INFLATION');
+
+  // 36. In-play substitution test
+  const inPlaySubTest = evaluateInPlaySubstitutionFreshLegsImpact({
+    incidents: [
+      { minute: 61, text: '主队换人: 换上中锋 前锋' },
+      { minute: 66, text: '主队换人: 换上边锋' },
+    ],
+  }, 70);
+  assert.equal(inPlaySubTest.fresh_legs_tempo_acceleration_window, true);
+  assert.equal(inPlaySubTest.sub_impact_profile, 'ATTACKING_FRESH_LEGS_TEMPO_BURST');
+
+  // 37. Stoppage time drama test
+  const {
+    evaluateStoppageTimeExpansionAndLateDrama,
+    evaluateDerbyMatchTacticalDeformation,
+    evaluatePenaltyConversionAndVulnerability,
+    evaluateHalfTimeTacticalReadjustmentSurge,
+    evaluatePostRedCardDeepBlockResistance,
+    evaluateMultiAwayRoadFatigueAndTravelDrag,
+  } = await import('../server/services/advancedTacticalQuantitativeEngines');
+
+  const stoppageTest = evaluateStoppageTimeExpansionAndLateDrama({
+    incidents: [
+      { minute: 50, text: 'VAR介入检视' },
+      { minute: 65, text: 'VAR确认点球' },
+      { minute: 70, text: '换人' },
+      { minute: 75, text: '担架入场 伤退' },
+    ],
+  }, 88);
+  assert.equal(stoppageTest.is_extended_stoppage_time_drama, true);
+  assert.ok(stoppageTest.estimated_stoppage_minutes >= 6);
+
+  // 38. Derby match deformation test
+  const derbyTest = evaluateDerbyMatchTacticalDeformation('英超', '阿森纳', '热刺');
+  assert.equal(derbyTest.is_derby_fixture, true);
+  assert.equal(derbyTest.derby_name, '北伦敦德比');
+  assert.equal(derbyTest.spread_compression_damping_factor, 0.70);
+
+  // 39. Penalty vulnerability test
+  const penaltyTest = evaluatePenaltyConversionAndVulnerability({
+    trend_summary: { penalties_scored: 1, penalties_total: 3 },
+  }, {
+    home: { fouls: 16, shots_inside_box: 6 },
+    away: { fouls: 15, shots_inside_box: 5 },
+  });
+  assert.equal(penaltyTest.box_foul_vulnerability_hazard, true);
+  assert.equal(penaltyTest.penalty_profile, 'HIGH_PENALTY_VULNERABILITY');
+
+  // 40. Half-time readjustment test
+  const htSurgeTest = evaluateHalfTimeTacticalReadjustmentSurge({
+    home: { dangerous_attacks: 25 },
+    away: { dangerous_attacks: 20 },
+  }, 50);
+  assert.equal(htSurgeTest.is_locker_room_tactical_surge, true);
+  assert.equal(htSurgeTest.readjustment_profile, 'ELITE_LOCKER_ROOM_SURGE');
+
+  // 41. Bus parking test
+  const busParkingTest = evaluatePostRedCardDeepBlockResistance({
+    incidents: [{ minute: 40, text: '客队后卫 红牌罚下' }],
+  }, {
+    home: { shots_on_target: 3 },
+    away: { shots_on_target: 1 },
+  }, 70);
+  assert.equal(busParkingTest.has_red_card, true);
+  assert.equal(busParkingTest.is_fortress_10_man_low_block, true);
+  assert.equal(busParkingTest.bus_parking_profile, 'FORTRESS_10_MAN_BUS_PARK');
+
+  // 42. Road fatigue test
+  const roadFatigueTest = evaluateMultiAwayRoadFatigueAndTravelDrag({
+    trend_summary: {
+      history: [
+        { venue: 'away' },
+        { venue: 'away' },
+        { venue: 'away' },
+      ],
+    },
+  }, '切尔西');
+  assert.equal(roadFatigueTest.is_road_weariness_exhaustion, true);
+  assert.equal(roadFatigueTest.consecutive_away_games_count, 3);
+  assert.equal(roadFatigueTest.road_fatigue_profile, 'CONSECUTIVE_AWAY_ROAD_EXHAUSTION');
+
+  // 43. Big chance backlash test
+  const {
+    evaluateBigChanceMissedAndBacklashVulnerability,
+    evaluateDeadRubberAggregateBlowoutStall,
+    evaluateTwoLegAggregateTiedExtraTimeAversion,
+    evaluateMassivePreEuropeSquadRotationHazard,
+    evaluateStalemateBreakthroughFloodgateEffect,
+    evaluateSetPieceDefensiveMarkingLeak,
+  } = await import('../server/services/advancedTacticalQuantitativeEngines');
+
+  const bigChanceTest = evaluateBigChanceMissedAndBacklashVulnerability({
+    incidents: [
+      { minute: 30, text: '主队前锋 击中门柱' },
+      { minute: 42, text: '主队前锋 单刀被扑' },
+    ],
+  }, {}, 45);
+  assert.equal(bigChanceTest.is_counter_backlash_vulnerability, true);
+  assert.equal(bigChanceTest.big_chances_missed_count, 2);
+  assert.equal(bigChanceTest.backlash_profile, 'SEVERE_BIG_CHANCE_MISS_BACKLASH');
+
+  // 44. Dead rubber blowout test
+  const deadRubberTest = evaluateDeadRubberAggregateBlowoutStall({
+    trend_summary: { first_leg_score: { home: 4, away: 0 } },
+  }, '欧冠淘汰赛');
+  assert.equal(deadRubberTest.is_aggregate_blowout_dead_rubber, true);
+  assert.equal(deadRubberTest.first_leg_lead_margin, 4);
+  assert.equal(deadRubberTest.blowout_profile, 'AGGREGATE_BLOWOUT_STALL');
+
+  // 45. Two-leg extra-time aversion test
+  const extraTimeTest = evaluateTwoLegAggregateTiedExtraTimeAversion({
+    trend_summary: { first_leg_score: { home: 1, away: 0 } },
+  }, '欧洲冠军联赛', { home: 1, away: 0 }, 80);
+  assert.equal(extraTimeTest.is_extra_time_stall_inertia, true);
+  assert.equal(extraTimeTest.extra_time_profile, 'EXTRA_TIME_STALL_INERTIA');
+
+  // 46. Massive squad rotation test
+  const rotationTest = evaluateMassivePreEuropeSquadRotationHazard({
+    home_starters: ['主力1', '主力2', '替补A(替)', '替补B(替)', '替补C(替)', '替补D(替)', '替补E(替)', '主力8', '主力9', '主力10', '主力11'],
+  }, {});
+  assert.equal(rotationTest.is_massive_squad_rotation_hazard, true);
+  assert.ok(rotationTest.estimated_rotation_ratio >= 0.40);
+  assert.equal(rotationTest.rotation_profile, 'MASSIVE_SQUAD_ROTATION_HAZARD');
+
+  // 47. Stalemate floodgate test
+  const stalemateTest = evaluateStalemateBreakthroughFloodgateEffect({ home: 1, away: 0 }, 65, {
+    incidents: [{ minute: 60, text: '主队进球' }],
+  });
+  assert.equal(stalemateTest.is_stalemate_floodgate_active, true);
+  assert.equal(stalemateTest.stalemate_profile, 'STALEMATE_BREAKTHROUGH_FLOODGATE');
+
+  // 48. Set piece marking leak test
+  const setPieceTest = evaluateSetPieceDefensiveMarkingLeak({
+    home: { corners: 6, fouls: 15, header_shots: 4 },
+    away: { corners: 5, fouls: 14, header_shots: 1 },
+  }, {});
+  assert.equal(setPieceTest.is_set_piece_aerial_marking_leak, true);
+  assert.equal(setPieceTest.aerial_leak_profile, 'SET_PIECE_AERIAL_MARKING_LEAK');
+
+  // 49. Engines 55-60 tests
+  const {
+    evaluateExhaustedSubstitutionsAndInjuredStraggler,
+    evaluateBackupGoalkeeperSubstitutionCollapse,
+    evaluateMultiRedCardChaosAndSpaceExplosion,
+    evaluateZeroShotOnTargetSurgeAndMeanReversion,
+    evaluateTwoGoalDeficitCapitulationAndCollapse,
+    evaluateHighFrequencyOffsideTrapBreakdown,
+  } = await import('../server/services/advancedTacticalQuantitativeEngines');
+
+  // 55. Exhausted substitutions test
+  const exhaustedSubTest = evaluateExhaustedSubstitutionsAndInjuredStraggler({
+    incidents: [
+      { minute: 60, text: '主队换人' },
+      { minute: 65, text: '主队换人' },
+      { minute: 70, text: '主队换人' },
+      { minute: 72, text: '主队换人' },
+      { minute: 74, text: '主队换人' },
+      { minute: 78, text: '主队后卫 抽筋接受医疗' },
+    ],
+  }, 80);
+  assert.equal(exhaustedSubTest.is_exhausted_substitutions_straggler, true);
+  assert.equal(exhaustedSubTest.straggler_profile, 'EXHAUSTED_SUB_INJURY_HAZARD');
+
+  // 56. Backup GK test
+  const backupGkTest = evaluateBackupGoalkeeperSubstitutionCollapse({
+    incidents: [{ minute: 25, text: '主队主力门将 伤退换下，替补门将上场' }],
+  });
+  assert.equal(backupGkTest.is_backup_gk_in_play, true);
+  assert.equal(backupGkTest.gk_collapse_profile, 'BACKUP_GK_CONFIDENCE_COLLAPSE');
+
+  // 57. Multi-red card test
+  const multiRedTest = evaluateMultiRedCardChaosAndSpaceExplosion({
+    incidents: [
+      { minute: 35, text: '主队后卫 红牌罚下' },
+      { minute: 70, text: '客队中场 红牌罚下' },
+    ],
+  });
+  assert.equal(multiRedTest.is_multi_red_card_chaos, true);
+  assert.equal(multiRedTest.total_red_cards_count, 2);
+  assert.equal(multiRedTest.space_explosion_profile, 'MULTI_RED_CARD_SPACE_EXPLOSION');
+
+  // 58. Zero SOT mean reversion test
+  const zeroSotTest = evaluateZeroShotOnTargetSurgeAndMeanReversion({
+    home: { shots: 11, shots_on_target: 1 },
+    away: { shots: 4, shots_on_target: 2 },
+  }, 45);
+  assert.equal(zeroSotTest.is_zero_sot_mean_reversion_due, true);
+  assert.equal(zeroSotTest.reversion_profile, 'EXTREME_ZERO_SOT_MEAN_REVERSION');
+
+  // 59. Two-goal deficit capitulation test
+  const deficitTest = evaluateTwoGoalDeficitCapitulationAndCollapse({ home: 2, away: 0 }, 75, {
+    away: { possession: 32 },
+  });
+  assert.equal(deficitTest.is_two_goal_deficit_capitulation, true);
+  assert.equal(deficitTest.deficit_profile, 'TWO_GOAL_DEFICIT_CAPITULATION');
+
+  // 60. High-frequency offside trap breakdown test
+  const offsideTrapTest = evaluateHighFrequencyOffsideTrapBreakdown({
+    home: { offsides: 4 },
+    away: { offsides: 2 },
+  }, 60);
+  assert.equal(offsideTrapTest.is_offside_trap_collapse_imminent, true);
+  assert.equal(offsideTrapTest.total_offsides_count, 6);
+  assert.equal(offsideTrapTest.trap_breakdown_profile, 'HIGH_FREQUENCY_OFFSIDE_BREAKDOWN');
+
+  // 50. Engines 61-66 tests
+  const {
+    evaluatePlayoffExtraTimeDrawInertiaAndPenaltyHorizon,
+    evaluateFavoriteHalfTimeDeficitRageSurge,
+    evaluateTrailingGoalkeeperPushUpAndEmptyNetCounter,
+    evaluateUltraLongStoppageTimeDragAndBuzzerBeater,
+    evaluateComfortableLeadComplacencyAndConsolationGoal,
+    evaluateHomeWinlessDesperationAndFanPressure,
+  } = await import('../server/services/advancedTacticalQuantitativeEngines');
+
+  // 61. Playoff extra time inertia test
+  const playoffTest = evaluatePlayoffExtraTimeDrawInertiaAndPenaltyHorizon('德甲升级附加赛', { home: 1, away: 1 }, 80);
+  assert.equal(playoffTest.is_playoff_draw_penalty_inertia, true);
+  assert.equal(playoffTest.playoff_profile, 'PLAYOFF_EXTRA_TIME_PENALTY_INERTIA');
+
+  // 62. Favorite HT rage surge test
+  const favRageTest = evaluateFavoriteHalfTimeDeficitRageSurge({ home: 0, away: 1 }, 50, { home: 1.35 });
+  assert.equal(favRageTest.is_favorite_ht_rage_surge, true);
+  assert.equal(favRageTest.surge_profile, 'FAVORITE_HT_RAGE_COMEBACK_SURGE');
+
+  // 63. Trailing GK push-up test
+  const gkPushTest = evaluateTrailingGoalkeeperPushUpAndEmptyNetCounter({
+    incidents: [{ minute: 92, text: '落后方角球，门将压上禁区' }],
+  }, { home: 1, away: 2 }, 94, '英格兰足总杯');
+  assert.equal(gkPushTest.is_gk_push_up_empty_net_risk, true);
+  assert.equal(gkPushTest.empty_net_profile, 'TRAILING_GK_PUSH_UP_EMPTY_NET');
+
+  // 64. Ultra-long stoppage beater test
+  const ultraStoppageTest = evaluateUltraLongStoppageTimeDragAndBuzzerBeater({
+    incidents: [
+      { minute: 75, text: 'VAR介入进球取消' },
+      { minute: 88, text: 'VAR介入点球判罚' },
+    ],
+  }, 95);
+  assert.equal(ultraStoppageTest.is_ultra_long_stoppage_beater, true);
+  assert.equal(ultraStoppageTest.stoppage_beater_profile, 'ULTRA_LONG_STOPPAGE_BUZZER_BEATER');
+
+  // 65. Comfortable lead consolation test
+  const consolationTest = evaluateComfortableLeadComplacencyAndConsolationGoal({ home: 4, away: 0 }, 78, {
+    incidents: [
+      { minute: 60, text: '主队换人' },
+      { minute: 65, text: '主队换人' },
+      { minute: 70, text: '主队换人' },
+      { minute: 75, text: '主队换人' },
+    ],
+  });
+  assert.equal(consolationTest.is_comfortable_lead_consolation_risk, true);
+  assert.equal(consolationTest.consolation_profile, 'COMFORTABLE_LEAD_CONSOLATION_BTTS');
+
+  // 66. Home winless desperation push test
+  const winlessTest = evaluateHomeWinlessDesperationAndFanPressure({}, {
+    home_form: 'LLDDL',
+  }, '埃弗顿');
+  assert.equal(winlessTest.is_home_winless_desperation_push, true);
+  assert.equal(winlessTest.fan_pressure_profile, 'HOME_WINLESS_DESPERATION_PUSH');
+
+  // 67. Newly promoted late deflation test
+  const {
+    evaluateNewlyPromotedEuphoriaAndLateDeflation,
+    evaluateTopGoalscorerEarlyInjuryAndFinishingVacuum,
+    evaluateSlipperyWetPitchAndGoalkeeperFumble,
+    evaluateSequentialRedCardTemporalAsymmetry,
+    evaluateSuperSubInstantImpactAndColdTouchPenaltyHazard,
+    evaluateCleanFirstHalfDisciplineAndSecondHalfBoiling,
+  } = await import('../server/services/advancedTacticalQuantitativeEngines');
+
+  const promotedTest = evaluateNewlyPromotedEuphoriaAndLateDeflation('英超', '伊普斯维奇', '曼城', 75, { home: 1, away: 2 });
+  assert.equal(promotedTest.is_promoted_late_deflation_risk, true);
+  assert.equal(promotedTest.promoted_profile, 'PROMOTED_LATE_DEFLATION_COLLAPSE');
+
+  // 68. Top scorer early injury test
+  const scorerInjTest = evaluateTopGoalscorerEarlyInjuryAndFinishingVacuum({
+    incidents: [
+      { minute: 30, text: '主队主力前锋伤退' },
+    ],
+  }, 45);
+  assert.equal(scorerInjTest.is_top_scorer_injured_early, true);
+  assert.equal(scorerInjTest.finishing_vacuum_profile, 'TOP_SCORER_INJURY_FINISHING_VACUUM');
+
+  // 69. Slippery pitch fumble test
+  const fumbleTest = evaluateSlipperyWetPitchAndGoalkeeperFumble('暴雨 8°C', {
+    shots: { home: 8, away: 6 },
+  });
+  assert.equal(fumbleTest.is_slippery_pitch_fumble_risk, true);
+  assert.equal(fumbleTest.fumble_profile, 'SLIPPERY_PITCH_GK_FUMBLE_HAZARD');
+
+  // 70. Sequential red card temporal asymmetry test
+  const seqRedTest = evaluateSequentialRedCardTemporalAsymmetry({
+    incidents: [
+      { minute: 25, text: '主队红牌' },
+      { minute: 60, text: '客队红牌' },
+    ],
+  });
+  assert.equal(seqRedTest.is_sequential_red_card_asymmetry, true);
+  assert.equal(seqRedTest.temporal_gap_minutes, 35);
+  assert.equal(seqRedTest.asymmetry_profile, 'SEQUENTIAL_RED_CARD_FATIGUE_GAP');
+
+  // 71. Super-sub impact window test
+  const subImpactTest = evaluateSuperSubInstantImpactAndColdTouchPenaltyHazard({
+    incidents: [
+      { minute: 70, text: '主队换人' },
+    ],
+  }, 73);
+  assert.equal(subImpactTest.is_super_sub_impact_window, true);
+  assert.equal(subImpactTest.sub_impact_profile, 'SUPER_SUB_INSTANT_IMPACT_HAZARD');
+
+  // 72. Clean first half discipline second half boiling test
+  const cardBoilTest = evaluateCleanFirstHalfDisciplineAndSecondHalfBoiling({
+    yellow_cards: { home: 1, away: 0 },
+  }, 70, 1.25);
+  assert.equal(cardBoilTest.is_second_half_card_boiling, true);
+  assert.equal(cardBoilTest.escalation_profile, 'SECOND_HALF_CARD_ESCALATION_BOILING');
+
+  // 73. Interim manager bounce test
+  const {
+    evaluateInterimManagerDebutBounceAndTacticalUncertainty,
+    evaluateGoalkeeperAerialClaimVsFlappingDanger,
+    evaluateEarlyMissedPenaltyPsychologicalReversal,
+    evaluateHighTurnoverRecoveryAndTransitionLethality,
+    evaluateCentralCongestionAndFlankIsolationSkew,
+    evaluatePostTournamentNationalTeamFatigueAndLetdown,
+  } = await import('../server/services/advancedTacticalQuantitativeEngines');
+
+  const interimTest = evaluateInterimManagerDebutBounceAndTacticalUncertainty({
+    commentary: '球队本场迎来新帅首秀',
+  }, '切尔西');
+  assert.equal(interimTest.is_interim_manager_bounce, true);
+  assert.equal(interimTest.manager_profile, 'INTERIM_MANAGER_DEBUT_BOUNCE');
+
+  // 74. Goalkeeper aerial flapping test
+  const gkAerialTest = evaluateGoalkeeperAerialClaimVsFlappingDanger({
+    corners: { home: 5, away: 4 },
+    crosses: { home: 12, away: 10 },
+  }, 65);
+  assert.equal(gkAerialTest.is_gk_aerial_vulnerability, true);
+  assert.equal(gkAerialTest.aerial_profile, 'GOALKEEPER_AERIAL_FLAPPING_HAZARD');
+
+  // 75. Early missed penalty reversal test
+  const missedPenTest = evaluateEarlyMissedPenaltyPsychologicalReversal({
+    incidents: [
+      { minute: 12, text: '主队点球被门将神勇扑出' },
+    ],
+  }, 25);
+  assert.equal(missedPenTest.is_early_missed_penalty_reversal, true);
+  assert.equal(missedPenTest.reversal_profile, 'EARLY_MISSED_PENALTY_MORALE_COLLAPSE');
+
+  // 76. High turnover transition test
+  const turnoverTest = evaluateHighTurnoverRecoveryAndTransitionLethality({
+    dangerous_attacks: { home: 35, away: 25 },
+  }, 60);
+  assert.equal(turnoverTest.is_high_turnover_lethal, true);
+  assert.equal(turnoverTest.transition_profile, 'HIGH_TURNOVER_TRANSITION_LETHAL');
+
+  // 77. Central congestion flank vacuum test
+  const congestionTest = evaluateCentralCongestionAndFlankIsolationSkew({
+    blocked_shots: { home: 4, away: 3 },
+  }, { home: 0, away: 1 }, 75);
+  assert.equal(congestionTest.is_central_congestion_flank_vacuum, true);
+  assert.equal(congestionTest.congestion_profile, 'CENTRAL_CONGESTION_FLANK_VACUUM');
+
+  // 78. National team fatigue letdown test
+  const natFatigueTest = evaluatePostTournamentNationalTeamFatigueAndLetdown({
+    news: '多名国脚经历国家队比赛日归队',
+  }, '英超', 70);
+  assert.equal(natFatigueTest.is_national_team_fatigue_letdown, true);
+  assert.equal(natFatigueTest.fatigue_profile, 'NATIONAL_TEAM_FATIGUE_LETDOWN');
+
+  // 79. Sweeper keeper hazard test
+  const {
+    evaluateSweeperKeeperHighLineClearanceHazard,
+    evaluateEarlyRedCardUnderdogCounterEfficiency,
+    evaluateConsecutiveCornerWaveFatigueAndSecondBallThreat,
+    evaluateLongThrowInCatapultHazard,
+    evaluateLateGameTimeWastingAndFrustrationEscalation,
+    evaluatePostEuropeanMidweekAwayFixtureEnergyDip,
+  } = await import('../server/services/advancedTacticalQuantitativeEngines');
+
+  const sweeperTest = evaluateSweeperKeeperHighLineClearanceHazard({
+    offsides: { home: 3, away: 3 },
+  }, 60);
+  assert.equal(sweeperTest.is_sweeper_keeper_hazard, true);
+  assert.equal(sweeperTest.sweeper_profile, 'SWEEPER_KEEPER_HIGH_LINE_RISK');
+
+  // 80. Early red counter skew test
+  const earlyRedTest = evaluateEarlyRedCardUnderdogCounterEfficiency({
+    red_cards: { home: 1, away: 0 },
+  }, 30, { home_win: 1.45 });
+  assert.equal(earlyRedTest.is_early_red_counter_skew, true);
+  assert.equal(earlyRedTest.skew_profile, 'FAVORITE_TEN_MAN_OPEN_BACKLINE');
+
+  // 81. Consecutive corner wave test
+  const cornerWaveTest = evaluateConsecutiveCornerWaveFatigueAndSecondBallThreat({
+    corners: { home: 6, away: 3 },
+  }, 65);
+  assert.equal(cornerWaveTest.is_consecutive_corner_wave, true);
+  assert.equal(cornerWaveTest.corner_wave_profile, 'CONSECUTIVE_CORNER_WAVE_SECOND_BALL_THREAT');
+
+  // 82. Long throw catapult threat test
+  const longThrowTest = evaluateLongThrowInCatapultHazard({
+    commentary: '客队大力手抛球掷入禁区制造混乱',
+  }, '英甲');
+  assert.equal(longThrowTest.is_long_throw_catapult_threat, true);
+  assert.equal(longThrowTest.throw_profile, 'LONG_THROW_TACTICAL_CATAPULT');
+
+  // 83. Late time wasting escalation test
+  const lateWastingTest = evaluateLateGameTimeWastingAndFrustrationEscalation({
+    fouls: { home: 12, away: 10 },
+  }, { home: 1, away: 0 }, 82);
+  assert.equal(lateWastingTest.is_late_time_wasting_card_boiling, true);
+  assert.equal(lateWastingTest.wasting_profile, 'LATE_TIME_WASTING_FRUSTRATION_CARDS');
+
+  // 84. Post Europe away dip test
+  const europeDipTest = evaluatePostEuropeanMidweekAwayFixtureEnergyDip({
+    news: '周四欧联杯客场苦战后周末联赛客战',
+  }, '西甲', 65);
+  assert.equal(europeDipTest.is_post_europe_away_energy_dip, true);
+  assert.equal(europeDipTest.energy_profile, 'POST_EUROPE_AWAY_ENERGY_DIP');
+
+  // 85-90 Tests
+  const {
+    evaluateFirstHalfEarlyConcedingComebackSurge,
+    evaluateLateDefensiveSubFiveAtTheBackFortress,
+    evaluateArtificialTurfPitchDisparity,
+    evaluateGoalkeeperDirectLaunchAndAerialDuelChannel,
+    evaluateCornerPhysicalAltercationAndSetPieceScuffleHazard,
+    evaluateInvertedFullbackTransitionSpaceExposure,
+  } = await import('../server/services/advancedTacticalQuantitativeEngines');
+
+  // 85. Early conceding comeback surge test
+  const earlyConcedeTest = evaluateFirstHalfEarlyConcedingComebackSurge(
+    { home: 0, away: 1 },
+    20,
+    { home_win: 1.40 },
+    { home: { shots: 5 }, away: { shots: 1 } }
+  );
+  assert.equal(earlyConcedeTest.is_early_conceding_comeback_surge, true);
+  assert.equal(earlyConcedeTest.surge_profile, 'FAVORITE_EARLY_CONCEDE_PRESSURE_SURGE');
+
+  // 86. Late defensive 5-back fortress test
+  const lateFiveBackTest = evaluateLateDefensiveSubFiveAtTheBackFortress(
+    { substitutions: '换上后卫变阵五后卫' },
+    { home: 1, away: 0 },
+    80
+  );
+  assert.equal(lateFiveBackTest.is_late_five_back_fortress, true);
+  assert.equal(lateFiveBackTest.fortress_profile, 'LATE_FIVE_AT_THE_BACK_FORTRESS');
+
+  // 87. Artificial turf disparity test
+  const artificialTurfTest = evaluateArtificialTurfPitchDisparity(
+    { venue: '人工草皮球场' },
+    '瑞典超'
+  );
+  assert.equal(artificialTurfTest.is_artificial_turf_disparity, true);
+  assert.equal(artificialTurfTest.turf_profile, 'ARTIFICIAL_TURF_PITCH_DISPARITY');
+
+  // 88. GK direct launch test
+  const gkLaunchTest = evaluateGoalkeeperDirectLaunchAndAerialDuelChannel(
+    {
+      passes: { home: 120, away: 110 },
+      fouls: { home: 10, away: 9 },
+    },
+    60
+  );
+  assert.equal(gkLaunchTest.is_direct_launch_aerial_duel, true);
+  assert.equal(gkLaunchTest.launch_profile, 'DIRECT_LONG_LAUNCH_TARGET_MAN');
+
+  // 89. Set piece scuffle cards test
+  const setPieceScuffleTest = evaluateCornerPhysicalAltercationAndSetPieceScuffleHazard(
+    {
+      corners: { home: 5, away: 4 },
+      fouls: { home: 11, away: 10 },
+    },
+    60
+  );
+  assert.equal(setPieceScuffleTest.is_set_piece_scuffle_card_hazard, true);
+  assert.equal(setPieceScuffleTest.scuffle_profile, 'SET_PIECE_PHYSICAL_ALTERCATION_HAZARD');
+
+  // 90. Inverted fullback flank space exposure test
+  const invertedFullbackTest = evaluateInvertedFullbackTransitionSpaceExposure(
+    { tactics: '采用内收边后卫体系' },
+    50
+  );
+  assert.equal(invertedFullbackTest.is_inverted_fullback_space_exposed, true);
+  assert.equal(invertedFullbackTest.flank_profile, 'INVERTED_FULLBACK_FLANK_VACUUM_EXPOSED');
+
+  // Master synthesis test
+  const master = buildMasterTacticalSynthesis(
+    {
+      ybty_home: '阿森纳',
+      ybty_away: '切尔西',
+      league: '英超',
+      weather: '中雨 15°C',
+      referee: '吉尔·曼萨诺',
+      lineups: {
+        home_starters: ['门将1', '后卫2', '后卫3', '后卫4', '后卫5', '中场6', '中场7', '中场8', '前锋9', '前锋10', '前锋11'],
+        away_starters: ['门将1', '后卫2', '后卫3', '后卫4', '后卫5', '中场6', '中场7', '中场8', '前锋9', '前锋10', '前锋11'],
+      },
+      live_statistics: {
+        home: { dangerous_attacks: 30, shots: 6, corners: 4 },
+        away: { dangerous_attacks: 20, shots: 3, corners: 2 },
+      },
+      score: { home: 0, away: 0 },
+    },
+    55,
+    []
+  );
+  assert.ok(master.master_tactical_summary_zh.length > 20);
+  assert.ok(master.weather_pitch_physics);
+  assert.ok(master.referee_discipline);
+  assert.ok(master.game_state_lead_preservation);
+  assert.ok(master.goal_time_bucket_asymmetry);
+  assert.ok(master.multi_bookmaker_dispersion);
+  assert.ok(master.margin_distribution_dce);
+  assert.ok(master.knockout_aggregate_dynamics);
+  assert.ok(master.possession_efficiency);
+  assert.ok(master.box_shot_penetration);
+  assert.ok(master.clinical_finishing);
+  assert.ok(master.tactical_foul_drag);
+  assert.ok(master.card_acceleration);
+  assert.ok(master.offside_line_physics);
+  assert.ok(master.league_tier_pressure);
+  assert.ok(master.home_away_polarization);
+  assert.ok(master.head_to_head_nemesis);
+  assert.ok(master.streak_momentum);
+  assert.ok(master.ou_streak_bias);
+  assert.ok(master.half_full_harmonic_spread);
+  assert.ok(master.quarter_line_cushion);
+  assert.ok(master.late_juice_trap);
+  assert.ok(master.var_trauma);
+  assert.ok(master.ht_ft_transition_matrix);
+  assert.ok(master.corner_velocity);
+  assert.ok(master.in_play_sub_impact);
+  assert.ok(master.first_goal_resilience);
+  assert.ok(master.btts_joint_probability);
+  assert.ok(master.pass_accuracy_progression);
+  assert.ok(master.lineup_age_fatigue);
+  assert.ok(master.goalkeeper_save_quality);
+  assert.ok(master.extreme_draw_compression);
+  assert.ok(master.bus_parking_resistance);
+  assert.ok(master.stoppage_time_drama);
+  assert.ok(master.derby_match_deformation);
+  assert.ok(master.penalty_vulnerability);
+  assert.ok(master.ht_tactical_readjustment);
+  assert.ok(master.road_fatigue_drag);
+  assert.ok(master.big_chance_backlash);
+  assert.ok(master.dead_rubber_blowout_stall);
+  assert.ok(master.extra_time_stall_aversion);
+  assert.ok(master.squad_rotation_hazard);
+  assert.ok(master.stalemate_floodgate);
+  assert.ok(master.set_piece_marking_leak);
+  assert.ok(master.exhausted_sub_straggler);
+  assert.ok(master.backup_gk_collapse);
+  assert.ok(master.multi_red_card_chaos);
+  assert.ok(master.zero_sot_reversion);
+  assert.ok(master.two_goal_deficit_collapse);
+  assert.ok(master.offside_trap_breakdown);
+  assert.ok(master.playoff_draw_penalty_inertia);
+  assert.ok(master.favorite_ht_rage_surge);
+  assert.ok(master.trailing_gk_push_up);
+  assert.ok(master.ultra_long_stoppage_beater);
+  assert.ok(master.comfortable_lead_consolation);
+  assert.ok(master.home_winless_desperation);
+  assert.ok(master.promoted_deflation);
+  assert.ok(master.top_scorer_injury);
+  assert.ok(master.slippery_pitch_fumble);
+  assert.ok(master.sequential_red_card_asymmetry);
+  assert.ok(master.super_sub_impact);
+  assert.ok(master.card_escalation_boiling);
+  assert.ok(master.interim_manager_bounce);
+  assert.ok(master.goalkeeper_aerial_flapping);
+  assert.ok(master.early_missed_penalty);
+  assert.ok(master.high_turnover_transition);
+  assert.ok(master.central_congestion_flank);
+  assert.ok(master.national_team_fatigue);
+  assert.ok(master.sweeper_keeper_hazard);
+  assert.ok(master.early_red_counter_skew);
+  assert.ok(master.consecutive_corner_wave);
+  assert.ok(master.long_throw_catapult);
+  assert.ok(master.late_time_wasting_cards);
+  assert.ok(master.post_europe_away_dip);
+  assert.ok(master.late_five_back_fortress);
+  assert.ok(master.early_conceding_comeback_surge);
+  assert.ok(master.artificial_turf_disparity);
+  assert.ok(master.goalkeeper_direct_launch);
+  assert.ok(master.set_piece_scuffle_cards);
+  assert.ok(master.inverted_fullback_flank_vacuum);
+});
+
+
 
