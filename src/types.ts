@@ -340,10 +340,14 @@ export interface AIAnalysisResponse {
     ticket_index: number;
     grade: 'A' | 'B' | 'C';
     estimated_total_odds: number;
-    joint_probability?: number; // 联合胜率 % (P1 * P2 * ...)
-    combined_ev_pct?: number; // 整单预期价值边际 % (EV > 0)
+    joint_probability?: number; // 校准后联合胜率 %
+    raw_joint_probability?: number; // 原始连乘胜率 %
+    combined_ev_pct?: number; // 真实期望边际 % (校准后 EV)
+    raw_ev_pct?: number; // 原始未折现 EV %
     kelly_fraction_pct?: number; // 1/4 凯利建议注码 %
-    sharpe_assessment?: 'HIGH_EDGE_CORE' | 'BALANCED_GROWTH' | 'SPECULATIVE_VALUE';
+    haircut_factor?: number; // 多腿不确定性折现系数
+    is_high_quality_anchor_combo?: boolean; // 是否具备全腿高胜率基石
+    sharpe_assessment?: 'HIGH_EDGE_CORE' | 'BALANCED_GROWTH' | 'SPECULATIVE_VALUE' | 'FRAGILE_LOTTERY';
     correlation_audit?: {
       independence_score: number; // 1-100
       tactical_synergy: string;

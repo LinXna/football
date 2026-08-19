@@ -3,11 +3,16 @@ import { withVerifiedYbtyOptionIds } from './verifiedMarketAssessment';
 import { resolveScoreVerification } from './scoreValidation';
 import {
   calculateAttackConversion,
+  calculateHandicapExpectancyMetrics,
   calculateMarketOverroundAndFairOdds,
   classifyLineupTransparency,
   detectTournamentRisk,
   analyzeH2HRecency,
+  evaluateFiveMarketsSanityAndCoupling,
+  computeIndependentPoissonDistribution,
 } from './quantitativeFeatures';
+import { deepMineFormAndH2H } from './formAndH2HDeepMining';
+import { buildMasterTacticalSynthesis } from './advancedTacticalQuantitativeEngines';
 
 const BETTABLE_MARKET = /^(full|half)_(h2h|spread|total)$/;
 const KEY_EVENT = /进球|破门|goal|红牌|red card|黄牌|yellow card|角球|corner|半场结束|中场|half.?time|下半场开始|second half|点球|penalty|var|取消进球|伤退|受伤|injur|换人|substitut|中断|暂停/i;
@@ -445,6 +450,32 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
   const homeTeam = item?.ybty_home || item?.home || item?.home_team || '';
   const awayTeam = item?.ybty_away || item?.away || item?.away_team || '';
   const attackConversion = calculateAttackConversion(liveStatistics, item?.score);
+  const formAndH2HDeep = deepMineFormAndH2H(item);
+  let handicapCalibration = mode === 'prematch_eval' ? null : calculateHandicapExpectancyMetrics(liveStatistics, item?.score, minute);
+
+  // If live handicap calibration is absent (e.g. pre-match or before in-play statistics), calibrate baseline Poisson via Form & H2H Deep Mining
+  if (!handicapCalibration && formAndH2HDeep?.form_weighted_poisson_prior) {
+    const prior = formAndH2HDeep.form_weighted_poisson_prior;
+    const poissonSim = computeIndependentPoissonDistribution(prior.lambda_home_prior, prior.lambda_away_prior);
+    handicapCalibration = {
+      projected_net_goal_margin: {
+        home_minus_away: prior.projected_baseline_margin,
+        favored_side: prior.projected_baseline_margin > 0.2 ? 'home' : prior.projected_baseline_margin < -0.2 ? 'away' : 'even',
+      },
+      independent_poisson_distribution: poissonSim,
+      attack_dominance_ratio: {
+        home: Number(((prior.lambda_home_prior / Math.max(0.1, prior.lambda_total_prior)) * 100).toFixed(1)),
+        away: Number(((prior.lambda_away_prior / Math.max(0.1, prior.lambda_total_prior)) * 100).toFixed(1)),
+      },
+      handicap_sanity_notes: [
+        `【主客场与战绩深度先验】主场进球期望λ=${prior.lambda_home_prior}，客场进球期望λ=${prior.lambda_away_prior}，基准净胜期望 ${prior.projected_baseline_margin > 0 ? '+' : ''}${prior.projected_baseline_margin} 球。`,
+        prior.venue_impact_note_zh,
+        formAndH2HDeep.head_to_head_deep.tactical_matchup_note_zh,
+      ],
+    };
+  }
+
+  const fiveMarketsCoupling = evaluateFiveMarketsSanityAndCoupling(verifiedMarkets, liveStatistics, item?.score);
   const lineupData = item?.lineups || item?.detail_context?.formal?.lineup || item?.detail_context?.lineup || item?.detail_context?.formal?.static_match?.lineup;
   const lineupTransparency = classifyLineupTransparency(lineupData);
   const slimLineups = slimLineupDetails(lineupData);
@@ -500,6 +531,10 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
     },
     quantitative_analysis: {
       attack_conversion: attackConversion || undefined,
+      handicap_calibration: handicapCalibration || undefined,
+      five_markets_coupling_audit: fiveMarketsCoupling || undefined,
+      form_and_h2h_deep_metrics: formAndH2HDeep || undefined,
+      master_tactical_synthesis: buildMasterTacticalSynthesis(item, minute, verifiedMarkets) || undefined,
       lineup_transparency: lineupTransparency.tier !== 'unknown_or_unannounced' ? lineupTransparency : undefined,
       fair_market_pricing: fairPricing.length > 0 ? fairPricing : undefined,
     },

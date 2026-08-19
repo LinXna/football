@@ -1643,24 +1643,42 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                     {/* Quantitative Edge & Kelly Bar */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-950/80 border border-slate-800 rounded p-2 text-xs">
                       <div>
-                        <div className="text-[10px] text-slate-500">联合理论胜率</div>
-                        <div className="font-mono font-bold text-sky-300">{ticket.joint_probability ?? '--'}%</div>
+                        <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                          <span>校准联合胜率</span>
+                          {ticket.haircut_factor && (
+                            <span className="text-[9px] text-indigo-400 font-mono" title="已执行贝叶斯多腿不确定性折现">
+                              ({Math.round(ticket.haircut_factor * 100)}%折现)
+                            </span>
+                          )}
+                        </div>
+                        <div className="font-mono font-bold text-sky-300">
+                          {ticket.joint_probability ?? '--'}%
+                          {ticket.raw_joint_probability && ticket.raw_joint_probability !== ticket.joint_probability && (
+                            <span className="text-[10px] text-slate-500 line-through ml-1 font-normal" title="原始连乘未折现胜率">
+                              {ticket.raw_joint_probability}%
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-slate-500">整单价值边际 (EV)</div>
+                        <div className="text-[10px] text-slate-500">真实期望边际 (+EV)</div>
                         <div className={`font-mono font-bold ${(ticket.combined_ev_pct ?? 0) > 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
                           {(ticket.combined_ev_pct ?? 0) > 0 ? `+${ticket.combined_ev_pct}%` : `${ticket.combined_ev_pct ?? '--'}%`}
                         </div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-slate-500">1/4 凯利建议注码</div>
-                        <div className="font-mono font-bold text-indigo-300">{ticket.kelly_fraction_pct ? `${ticket.kelly_fraction_pct}%` : (ticket.bankroll_guidance?.recommended_stake_pct || '0.8%')}</div>
+                        <div className="text-[10px] text-slate-500">机构风控建议仓位</div>
+                        <div className="font-mono font-bold text-indigo-300">
+                          {ticket.bankroll_guidance?.recommended_stake_pct || (ticket.kelly_fraction_pct ? `${ticket.kelly_fraction_pct}%` : '0.8%')}
+                        </div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-slate-500">反脆弱独立性</div>
+                        <div className="text-[10px] text-slate-500">组合抗脆弱性</div>
                         <div className="font-mono font-bold text-emerald-400 flex items-center gap-1">
                           <span>{ticket.correlation_audit?.independence_score ?? 90}/100</span>
-                          <span className="text-[10px] text-emerald-500 font-normal">({ticket.correlation_audit?.correlation_risk_check === 'passed' ? '已过审' : '提醒'})</span>
+                          <span className="text-[10px] text-emerald-500 font-normal">
+                            {ticket.is_high_quality_anchor_combo ? '💎基石型' : ticket.correlation_audit?.correlation_risk_check === 'passed' ? '已过审' : '提醒'}
+                          </span>
                         </div>
                       </div>
                     </div>

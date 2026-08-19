@@ -260,9 +260,12 @@ export function extractMatchRecentForm(match: DecisionItem): MatchRecentFormData
 
   // 1. Try to extract raw structured items if present
   const ctx = match.detail_context || {};
-  const rawH2H = (match as any).h2h || ctx.h2h || ctx.head_to_head || ctx.formal?.history?.h2h;
-  const rawHomeMatches = ctx.home_recent || ctx.recent_matches?.home || ctx.recent_form?.home;
-  const rawAwayMatches = ctx.away_recent || ctx.recent_matches?.away || ctx.recent_form?.away;
+  const hist = match.recent_trends?.historical_analysis || ctx.formal?.historical_analysis || ctx.formal?.history || {};
+  const trends = match.recent_trends || (match as any).trend_summary || {};
+  
+  const rawH2H = (match as any).h2h || hist.head_to_head || trends.h2h || ctx.h2h || ctx.head_to_head;
+  const rawHomeMatches = trends?.home?.matches || trends?.home_recent_form?.matches || hist?.home_recent_form?.matches || ctx.home_recent || ctx.recent_matches?.home;
+  const rawAwayMatches = trends?.away?.matches || trends?.away_recent_form?.matches || hist?.away_recent_form?.matches || ctx.away_recent || ctx.recent_matches?.away;
 
   let homeMatches: RecentMatchRecord[] = [];
   let awayMatches: RecentMatchRecord[] = [];

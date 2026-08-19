@@ -1,5 +1,5 @@
 import { validateParlayLegAgainstCandidate } from './verifiedMarketAssessment';
-import { calculateBankrollGuidance } from './quantitativeFeatures';
+import { calculateBankrollGuidance, calculateCalibratedParlayMetrics } from './quantitativeFeatures';
 
 const cleanTeam = (str: any): string => {
   if (typeof str !== 'string') return '';
@@ -37,36 +37,24 @@ export function normalizeParlayRecommendations(result: any, sanitizeLeg: (leg: a
       const invalid = legs.filter((leg: any) => leg.ybty_market_verified !== true);
       const ticketGrade = invalid.length ? 'C' : (ticket.grade || 'B');
       
-      // Calculate joint probability and total combined odds
-      const calculatedTotalOdds = Number((legs.reduce((acc: number, l: any) => acc * (Number(l.odds) || 1), 1)).toFixed(2));
-      const totalOdds = Number(ticket?.estimated_total_odds) > 1 ? Number(ticket.estimated_total_odds) : calculatedTotalOdds;
-      
-      // Joint probability % = P1 * P2 * ...
-      const rawJointProb = legs.length > 0
-        ? legs.reduce((acc: number, l: any) => acc * ((Number(l.probability) || 55) / 100), 1) * 100
-        : 0;
-      const jointProbability = Number((typeof ticket?.joint_probability === 'number' && ticket.joint_probability > 0 ? ticket.joint_probability : rawJointProb).toFixed(1));
+      // Calculate Calibrated Multi-Leg EV & Bayesian Shrinkage Metrics
+      const calibratedMetrics = calculateCalibratedParlayMetrics(
+        legs.map((l: any) => ({
+          odds: Number(l.odds) || 1,
+          probability: typeof l.probability === 'number' ? l.probability : null,
+          market: l.market,
+          line: l.line,
+          grade: l.grade,
+        })),
+        typeof ticket?.joint_probability === 'number' ? ticket.joint_probability : null,
+        typeof ticket?.combined_ev_pct === 'number' ? ticket.combined_ev_pct : null
+      );
 
-      // Combined EV % = (Joint Prob / 100 * Total Odds - 1) * 100
-      const calculatedEv = Number(((jointProbability / 100 * totalOdds - 1) * 100).toFixed(1));
-      const combinedEvPct = typeof ticket?.combined_ev_pct === 'number' ? ticket.combined_ev_pct : calculatedEv;
-
-      // 1/4 Kelly Fraction %
-      // f* = max(0, (b*p - q)/b) * 0.25
-      const b = Math.max(0.01, totalOdds - 1);
-      const p = jointProbability / 100;
-      const q = 1 - p;
-      const fullKelly = Math.max(0, (b * p - q) / b);
-      const quarterKellyPct = Number((fullKelly * 0.25 * 100).toFixed(2));
-      const kellyFractionPct = typeof ticket?.kelly_fraction_pct === 'number' ? ticket.kelly_fraction_pct : quarterKellyPct;
-
-      // Sharpe Assessment
-      let sharpeAssessment: 'HIGH_EDGE_CORE' | 'BALANCED_GROWTH' | 'SPECULATIVE_VALUE' = 'SPECULATIVE_VALUE';
-      if (combinedEvPct >= 12 && jointProbability >= 25) {
-        sharpeAssessment = 'HIGH_EDGE_CORE';
-      } else if (combinedEvPct >= 4 && jointProbability >= 15) {
-        sharpeAssessment = 'BALANCED_GROWTH';
-      }
+      const totalOdds = calibratedMetrics.totalOdds;
+      const jointProbability = calibratedMetrics.calibratedJointProbPct;
+      const combinedEvPct = calibratedMetrics.calibratedEvPct;
+      const kellyFractionPct = calibratedMetrics.quarterKellyPct;
+      const sharpeAssessment = calibratedMetrics.sharpeAssessment;
 
       // Correlation & Antifragility Audit
       const leagueSet = new Set(legs.map((l: any) => l.league || l.ybty_league || '').filter(Boolean));
@@ -78,13 +66,22 @@ export function normalizeParlayRecommendations(result: any, sanitizeLeg: (leg: a
       if (legs.length > 1 && leagueSet.size === 1 && leagueSet.size < legs.length) {
         independenceScore -= 12; // 同联赛
       }
+      if (calibratedMetrics.warnings.length > 0) {
+        independenceScore -= (calibratedMetrics.warnings.length * 8);
+      }
+      independenceScore = Math.max(20, Math.min(100, independenceScore));
+
       const correlationRiskCheck = independenceScore >= 70 ? 'passed' : 'warning';
       const correlationAudit = ticket?.correlation_audit || {
         independence_score: independenceScore,
         tactical_synergy: ticket?.correlation_audit?.tactical_synergy || '各腿赛事独立性良好，具备跨盘口节奏互补性',
         correlation_risk_check: correlationRiskCheck,
-        notes: ticket?.correlation_audit?.notes || (correlationRiskCheck === 'passed' ? '通过独立性与反脆弱审查，无同质化爆仓风险' : '存在同联赛/同赛程相关性风险，建议微调注码'),
+        notes: ticket?.correlation_audit?.notes || (correlationRiskCheck === 'passed' ? '通过独立性与反脆弱审查，无同质化爆仓风险' : '存在同联赛或高方差腿相关性风险，建议微调注码'),
       };
+
+      if (calibratedMetrics.warnings.length > 0 && !correlationAudit.notes.includes(calibratedMetrics.warnings[0])) {
+        correlationAudit.notes += ` | 风控提示: ${calibratedMetrics.warnings.join('; ')}`;
+      }
 
       const bankroll = calculateBankrollGuidance({
         grade: ticketGrade,
@@ -93,9 +90,9 @@ export function normalizeParlayRecommendations(result: any, sanitizeLeg: (leg: a
       });
 
       if (kellyFractionPct > 0) {
-        bankroll.recommended_stake_pct = `${kellyFractionPct}%`;
+        bankroll.recommended_stake_pct = calibratedMetrics.recommendedStakePct;
         bankroll.fractional_kelly_pct = kellyFractionPct;
-        bankroll.guidance_text = `1/4 凯利测算建议仓位 ${kellyFractionPct}% (整单EV +${combinedEvPct}%)，兼顾几何增值与回撤控制`;
+        bankroll.guidance_text = `1/4 凯利测算建议微仓 ${calibratedMetrics.recommendedStakePct} (校准后整单EV +${combinedEvPct}%)，严格遵循机构风控上限`;
       }
 
       return {
@@ -103,9 +100,13 @@ export function normalizeParlayRecommendations(result: any, sanitizeLeg: (leg: a
         legs,
         estimated_total_odds: totalOdds,
         joint_probability: jointProbability,
+        raw_joint_probability: calibratedMetrics.rawJointProbPct,
         combined_ev_pct: combinedEvPct,
+        raw_ev_pct: calibratedMetrics.rawEvPct,
         kelly_fraction_pct: kellyFractionPct,
         sharpe_assessment: ticket?.sharpe_assessment || sharpeAssessment,
+        haircut_factor: calibratedMetrics.haircutFactor,
+        is_high_quality_anchor_combo: calibratedMetrics.isHighQualityAnchorCombo,
         correlation_audit: correlationAudit,
         verification_passed: invalid.length === 0,
         grade: ticketGrade,
@@ -115,4 +116,5 @@ export function normalizeParlayRecommendations(result: any, sanitizeLeg: (leg: a
     }),
   };
 }
+
 

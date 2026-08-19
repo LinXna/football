@@ -68,7 +68,281 @@ export function calculateAttackConversion(statistics: unknown, score?: unknown):
 }
 
 /**
- * 2. Bookmaker Overround & Fair Odds (Margined vs Margin-Stripped Fair Probabilities)
+ * 2. Asian Handicap Net Goal Differential & Spread De-Biasing Metrics
+ * Prevents over-estimating handicap cover probabilities by modeling in-play net goal expectancies.
+ */
+export function calculateHandicapExpectancyMetrics(
+  statistics: unknown,
+  score: unknown,
+  minute: number,
+  handicapOptions?: Array<{ side?: string | null; line?: any; odds?: number }>
+): {
+  projected_net_goal_margin: { home_minus_away: number; favored_side: 'home' | 'away' | 'even' };
+  independent_poisson_distribution?: IndependentPoissonDistribution;
+  attack_dominance_ratio: { home: number; away: number };
+  game_state_tempo_drag?: string;
+  handicap_sanity_notes: string[];
+} | null {
+  const stats = object(statistics);
+  const currentScore = object(score);
+  const currentMin = Math.max(0, Math.min(90, number(minute)));
+  const remainingMins = Math.max(5, 90 - currentMin);
+
+  const getSideVal = (field: string, side: 'home' | 'away') => {
+    const val = stats[field];
+    if (val && typeof val === 'object') {
+      const v = side === 'home' ? (val.home ?? val.h) : (val.away ?? val.a);
+      return number(v);
+    }
+    return 0;
+  };
+
+  const onTargetH = getSideVal('shots_on_target', 'home') || getSideVal('on_target', 'home');
+  const onTargetA = getSideVal('shots_on_target', 'away') || getSideVal('on_target', 'away');
+  const dangerH = getSideVal('dangerous_attacks', 'home') || getSideVal('danger_attacks', 'home');
+  const dangerA = getSideVal('dangerous_attacks', 'away') || getSideVal('danger_attacks', 'away');
+  const goalH = number(currentScore.home);
+  const goalA = number(currentScore.away);
+  const scoreDiff = goalH - goalA; // Home lead > 0, Away lead < 0
+
+  if (onTargetH === 0 && onTargetA === 0 && dangerH === 0 && dangerA === 0) return null;
+
+  // Expected rest-of-match goal creation rate per minute based on shots on target and dangerous attacks
+  const rawRateH = (onTargetH * 0.28 + dangerH * 0.035) / Math.max(15, currentMin);
+  const rawRateA = (onTargetA * 0.28 + dangerA * 0.035) / Math.max(15, currentMin);
+
+  // Game state adjustment: If leading by >= 2 goals, leading team reduces attacking tempo (drag factor)
+  let tempoDragH = 1.0;
+  let tempoDragA = 1.0;
+  let tempoNote: string | undefined;
+
+  if (scoreDiff >= 2) {
+    tempoDragH = 0.65; // Home leads by 2+: slows down, protects lead
+    tempoDragA = 1.20; // Away trails by 2+: takes risks
+    tempoNote = `主队当前净领先 ${scoreDiff} 球，战术转向控节奏与轮换防守，下半场让球必须从0:0重新起算，深让深让极易爆冷输盘`;
+  } else if (scoreDiff <= -2) {
+    tempoDragA = 0.65; // Away leads by 2+
+    tempoDragH = 1.20;
+    tempoNote = `客队当前净领先 ${Math.abs(scoreDiff)} 球，客队进攻强度收缩，下半场从0:0起算让球切忌盲目追客队深盘`;
+  }
+
+  const projectedRestGoalsH = Number((rawRateH * tempoDragH * remainingMins).toFixed(2));
+  const projectedRestGoalsA = Number((rawRateA * tempoDragA * remainingMins).toFixed(2));
+  const netMargin = Number((projectedRestGoalsH - projectedRestGoalsA).toFixed(2));
+
+  const totalDanger = dangerH + dangerA;
+  const domH = totalDanger > 0 ? Number(((dangerH / totalDanger) * 100).toFixed(1)) : 50;
+  const domA = totalDanger > 0 ? Number(((dangerA / totalDanger) * 100).toFixed(1)) : 50;
+
+  const notes: string[] = [];
+  if (Math.abs(netMargin) < 0.45) {
+    notes.push('剩余时段双方预期净胜球差接近平衡 (ΔxG < 0.45)，让半球以上 (-0.5/-1.0) 真实覆盖概率通常 ≤ 45%，强让深盘具备高虚高风险，优先考虑平手盘 (0) 或受让防冷。');
+  } else if (netMargin > 0.8) {
+    notes.push(`主队进攻压迫与转化显著占优 (剩余预期净胜 +${netMargin}球)，支撑 -0.5 让步，但让 -1.0 以上深盘仍需考虑终局控盘风险。`);
+  } else if (netMargin < -0.8) {
+    notes.push(`客队进攻压迫与转化显著占优 (剩余预期净胜 +${Math.abs(netMargin)}球)，客让具备数据支持。`);
+  }
+
+  const poissonSim = computeIndependentPoissonDistribution(projectedRestGoalsH, projectedRestGoalsA);
+
+  return {
+    projected_net_goal_margin: {
+      home_minus_away: netMargin,
+      favored_side: netMargin > 0.3 ? 'home' : netMargin < -0.3 ? 'away' : 'even',
+    },
+    independent_poisson_distribution: poissonSim,
+    attack_dominance_ratio: { home: domH, away: domA },
+    game_state_tempo_drag: tempoNote,
+    handicap_sanity_notes: notes,
+  };
+}
+
+function factorial(n: number): number {
+  if (n <= 1) return 1;
+  let res = 1;
+  for (let i = 2; i <= n; i++) res *= i;
+  return res;
+}
+
+function poissonProb(k: number, lambda: number): number {
+  if (lambda <= 0) return k === 0 ? 1 : 0;
+  return (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial(k);
+}
+
+export interface IndependentPoissonDistribution {
+  lambdas: { home: number; away: number; total: number };
+  margin_distribution_pct: {
+    home_win_by_1: number;
+    home_win_by_2: number;
+    home_win_by_3_plus: number;
+    draw_exact: number;
+    away_win_exact: number;
+  };
+  total_goals_distribution_pct: {
+    under_1_5: number;
+    under_2_5: number;
+    over_2_5: number;
+    over_3_5: number;
+  };
+  top_scorelines: Array<{ score: string; prob_pct: number }>;
+}
+
+export function computeIndependentPoissonDistribution(
+  lambdaH: number,
+  lambdaA: number
+): IndependentPoissonDistribution {
+  const lH = Math.max(0.05, lambdaH);
+  const lA = Math.max(0.05, lambdaA);
+
+  let win1 = 0;
+  let win2 = 0;
+  let win3Plus = 0;
+  let draw = 0;
+  let awayWin = 0;
+
+  let under15 = 0;
+  let under25 = 0;
+  let over25 = 0;
+  let over35 = 0;
+
+  const scoreMatrix: Array<{ score: string; prob_pct: number }> = [];
+
+  for (let h = 0; h <= 6; h++) {
+    const pH = poissonProb(h, lH);
+    for (let a = 0; a <= 6; a++) {
+      const pA = poissonProb(a, lA);
+      const p = pH * pA;
+      const pPct = Number((p * 100).toFixed(1));
+
+      scoreMatrix.push({ score: `${h}-${a}`, prob_pct: pPct });
+
+      const diff = h - a;
+      if (diff === 1) win1 += p;
+      else if (diff === 2) win2 += p;
+      else if (diff >= 3) win3Plus += p;
+      else if (diff === 0) draw += p;
+      else awayWin += p;
+
+      const total = h + a;
+      if (total <= 1) under15 += p;
+      if (total <= 2) under25 += p;
+      if (total >= 3) over25 += p;
+      if (total >= 4) over35 += p;
+    }
+  }
+
+  scoreMatrix.sort((a, b) => b.prob_pct - a.prob_pct);
+
+  return {
+    lambdas: {
+      home: Number(lH.toFixed(2)),
+      away: Number(lA.toFixed(2)),
+      total: Number((lH + lA).toFixed(2)),
+    },
+    margin_distribution_pct: {
+      home_win_by_1: Number((win1 * 100).toFixed(1)),
+      home_win_by_2: Number((win2 * 100).toFixed(1)),
+      home_win_by_3_plus: Number((win3Plus * 100).toFixed(1)),
+      draw_exact: Number((draw * 100).toFixed(1)),
+      away_win_exact: Number((awayWin * 100).toFixed(1)),
+    },
+    total_goals_distribution_pct: {
+      under_1_5: Number((under15 * 100).toFixed(1)),
+      under_2_5: Number((under25 * 100).toFixed(1)),
+      over_2_5: Number((over25 * 100).toFixed(1)),
+      over_3_5: Number((over35 * 100).toFixed(1)),
+    },
+    top_scorelines: scoreMatrix.slice(0, 4),
+  };
+}
+
+/**
+ * 2b. Deep Spread vs Total Goals Coupling & 5-Market Sanity Auditor
+ * Audits mathematical consistency between Asian Handicap (e.g. -2.0) and Total Goals (e.g. 3.0),
+ * and prevents the "Bookmaker Anchor Fallacy" where AI mistakes deep lines for guaranteed blowouts.
+ */
+export function evaluateFiveMarketsSanityAndCoupling(
+  verifiedMarkets: any[],
+  stats?: unknown,
+  score?: unknown
+): {
+  deep_spread_trap_detected: boolean;
+  spread_total_ratio?: number;
+  primary_spread_line?: number;
+  primary_total_line?: number;
+  mathematical_conflict_verdict?: string;
+  market_specific_guidance: {
+    total_goals_assessment: string;
+    favorite_spread_assessment: string;
+    underdog_spread_assessment: string;
+    level_ball_protection_assessment: string;
+    match_1x2_assessment: string;
+  };
+} | null {
+  if (!Array.isArray(verifiedMarkets) || verifiedMarkets.length === 0) return null;
+
+  const spreadMarket = verifiedMarkets.find((m) => m.market === 'full_spread');
+  const totalMarket = verifiedMarkets.find((m) => m.market === 'full_total');
+
+  let primarySpreadLine: number | null = null;
+  let primaryTotalLine: number | null = null;
+
+  if (spreadMarket && Array.isArray(spreadMarket.options)) {
+    for (const opt of spreadMarket.options) {
+      const lineNum = parseFloat(String(opt.line || '').replace(/[^\d.-]/g, ''));
+      if (!isNaN(lineNum) && lineNum !== 0) {
+        if (primarySpreadLine === null || Math.abs(lineNum) > Math.abs(primarySpreadLine)) {
+          primarySpreadLine = lineNum;
+        }
+      }
+    }
+  }
+
+  if (totalMarket && Array.isArray(totalMarket.options)) {
+    for (const opt of totalMarket.options) {
+      const lineNum = parseFloat(String(opt.line || '').replace(/[^\d.-]/g, ''));
+      if (!isNaN(lineNum) && lineNum > 0) {
+        if (primaryTotalLine === null || Math.abs(lineNum - 2.5) < Math.abs(primaryTotalLine - 2.5)) {
+          primaryTotalLine = lineNum;
+        }
+      }
+    }
+  }
+
+  const absSpread = primarySpreadLine !== null ? Math.abs(primarySpreadLine) : 0;
+  const isDeepSpread = absSpread >= 1.5;
+  const ratio = (primaryTotalLine && primaryTotalLine > 0) ? Number((absSpread / primaryTotalLine).toFixed(2)) : 0;
+
+  let isTrap = false;
+  let conflictVerdict: string | undefined;
+
+  if (isDeepSpread && primaryTotalLine && primaryTotalLine <= absSpread + 1.25) {
+    isTrap = true;
+    conflictVerdict = `⚠️【深盘与大小球容量冲突预警 (Deep Spread Conflict)】: 机构让球盘深达 ${primarySpreadLine! > 0 ? '+' : ''}${primarySpreadLine}，但全场总进球盘仅为 ${primaryTotalLine} 球 (深度占比 ${Math.round(ratio * 100)}%)。在总进球预期受限时，常见比分 1-0(负)、2-0(走)、2-1(负) 均无法穿盘；让深盘真实赢盘概率通常低于 35%，绝非优势项！统计学上受让方 (+${absSpread}) 或大小球具备更强期望值。`;
+  }
+
+  return {
+    deep_spread_trap_detected: isTrap,
+    spread_total_ratio: ratio > 0 ? ratio : undefined,
+    primary_spread_line: primarySpreadLine ?? undefined,
+    primary_total_line: primaryTotalLine ?? undefined,
+    mathematical_conflict_verdict: conflictVerdict,
+    market_specific_guidance: {
+      total_goals_assessment: '大小球定价依据：全场总期望进球 λ_total、禁区真实射正转化与防守低位硬度。不因让球深而盲目追大，容量受限时倾向小球或保护副盘。',
+      favorite_spread_assessment: isTrap
+        ? `优势让深盘 (${primarySpreadLine}) 处于高风险价值陷阱区间，必须具备压倒性破大巴与净胜3球以上的实质数据才可考虑，默认判定为 avoid / NO_BET。`
+        : '优势让球定价依据：剩余预期净胜球差 ΔxG 与同级穿盘历史胜率。让步 -0.5/-1.0 需 ΔxG > 0.45 支撑。',
+      underdog_spread_assessment: isTrap
+        ? `弱势受让盘 (+${absSpread}) 涵盖 1-0、2-1 等全部小胜比分与平局爆冷，在大小球低容量下赢盘+走盘期望高达 65%+，具有极强防守反击价值。`
+        : '弱势受让定价依据：弱队低位防守韧性、受让安全垫（赢半/走盘保护）与冷门对冲。',
+      level_ball_protection_assessment: '平手盘 (0) / 平半 (+0.25) 定价依据：针对 1X2 独赢赔率过低（1.10~1.25）或强弱难分时的保本退款策略。',
+      match_1x2_assessment: '全场独赢定价依据：纯粹胜平负公允概率，彻底与让球盘深度脱钩，严禁将 1X2 胜率误等同于让球赢盘胜率。',
+    },
+  };
+}
+
+/**
+ * 3. Bookmaker Overround & Fair Odds (Margined vs Margin-Stripped Fair Probabilities)
  */
 export interface FairOptionResult {
   side?: string | null;
@@ -387,25 +661,25 @@ export function calculateBankrollGuidance(params: {
   if (isParlay) {
     if (legCount === 2) {
       return {
-        recommended_stake_pct: '1.0% - 1.5%',
-        max_stake_pct: 1.5,
+        recommended_stake_pct: '0.8% - 1.0%',
+        max_stake_pct: 1.0,
         stake_sizing_tier: 'LIGHT_PARLAY',
-        guidance_text: '2串1黄金组合：复合抽水可控，建议轻仓 1.0% - 1.5%。',
+        guidance_text: '2串1黄金组合：复合抽水可控，执行机构级微仓 0.8% - 1.0%。',
       };
     }
     if (legCount === 3) {
       return {
-        recommended_stake_pct: '0.5% - 1.0%',
-        max_stake_pct: 1.0,
+        recommended_stake_pct: '0.4% - 0.6%',
+        max_stake_pct: 0.6,
         stake_sizing_tier: 'LIGHT_PARLAY',
-        guidance_text: '3串1长线组合：注意复合抽水递增，建议微仓 0.5% - 1.0%。',
+        guidance_text: '3串1组合：受复合抽水与方差累积影响，严格执行微仓 0.4% - 0.6%。',
       };
     }
     return {
-      recommended_stake_pct: '0.25% - 0.5%',
-      max_stake_pct: 0.5,
+      recommended_stake_pct: '0.2% - 0.3%',
+      max_stake_pct: 0.3,
       stake_sizing_tier: 'LIGHT_PARLAY',
-      guidance_text: '4腿以上多串关：抽水偏高，仅作娱乐彩票微仓。',
+      guidance_text: '4腿以上多串关：抽水偏高且方差极大，仅作娱乐彩票超微仓 (0.2% - 0.3%)。',
     };
   }
 
@@ -424,6 +698,164 @@ export function calculateBankrollGuidance(params: {
     max_stake_pct: 2.0,
     stake_sizing_tier: 'STANDARD_PLAY',
     guidance_text: 'B级标准推荐：数据达标但存在局部不确定性，建议标准防守仓位 1% - 2%。',
+  };
+}
+
+/**
+ * 5.1 Calibrated Institutional Parlay & True +EV Engine
+ * Solves the critical exponential distortion of raw probability compounding in sports betting.
+ * Applies Bayesian shrinkage (haircut) to damp model calibration variance,
+ * factors in quarter-line split cushions, and enforces institutional Kelly caps.
+ */
+export interface CalibratedParlayLegInput {
+  odds: number;
+  probability?: number | null;
+  market?: string | null;
+  line?: string | null;
+  grade?: string | null;
+}
+
+export interface CalibratedParlayMetrics {
+  totalOdds: number;
+  rawJointProbPct: number;
+  calibratedJointProbPct: number;
+  rawEvPct: number;
+  calibratedEvPct: number;
+  quarterKellyPct: number;
+  recommendedStakePct: string;
+  sharpeAssessment: 'HIGH_EDGE_CORE' | 'BALANCED_GROWTH' | 'SPECULATIVE_VALUE' | 'FRAGILE_LOTTERY';
+  haircutFactor: number;
+  isHighQualityAnchorCombo: boolean;
+  warnings: string[];
+}
+
+export function calculateCalibratedParlayMetrics(
+  legs: CalibratedParlayLegInput[],
+  modelProvidedJointProb?: number | null,
+  modelProvidedEv?: number | null
+): CalibratedParlayMetrics {
+  const validLegs = (legs || []).filter((l) => Number(l.odds) > 1);
+  const legCount = validLegs.length;
+
+  if (legCount === 0) {
+    return {
+      totalOdds: 1.0,
+      rawJointProbPct: 0,
+      calibratedJointProbPct: 0,
+      rawEvPct: 0,
+      calibratedEvPct: 0,
+      quarterKellyPct: 0,
+      recommendedStakePct: '0%',
+      sharpeAssessment: 'FRAGILE_LOTTERY',
+      haircutFactor: 1.0,
+      isHighQualityAnchorCombo: false,
+      warnings: ['无有效串关腿数据'],
+    };
+  }
+
+  // 1. Calculate Total Compound Odds
+  const calculatedTotalOdds = Number(validLegs.reduce((acc, l) => acc * Number(l.odds), 1).toFixed(2));
+  const totalOdds = calculatedTotalOdds;
+
+  // 2. Multi-leg Shrinkage Factor (Bayesian Haircut against model estimation error)
+  // 2-leg: 0.85, 3-leg: 0.72, 4-leg: 0.60, 5-leg+: 0.50
+  const haircutFactor = legCount === 2 ? 0.85 : legCount === 3 ? 0.72 : legCount === 4 ? 0.60 : 0.50;
+
+  // 3. Evaluate each leg's implied prob, raw model prob, and calibrated prob
+  let rawJointMult = 1.0;
+  let calibratedJointMult = 1.0;
+  let highProbLegs = 0;
+  let lowProbLegs = 0;
+  let cushionedLegs = 0;
+  const warnings: string[] = [];
+
+  for (const leg of validLegs) {
+    const odds = Number(leg.odds);
+    const impliedProb = 100 / odds; // in 0..100%
+    let rawProb = typeof leg.probability === 'number' && leg.probability > 0
+      ? leg.probability
+      : (impliedProb + 3.5); // Fallback: small default edge
+
+    // Clamp raw probability to realistic bounds (10% ~ 90%)
+    rawProb = Math.max(10, Math.min(90, rawProb));
+    const rawEdge = rawProb - impliedProb;
+
+    // Check if this leg has quarter-line split protection (e.g. 0/0.5, 2/2.5, 0.25, 0.75, 平半)
+    const lineText = String(leg.line || '');
+    const isQuarterLine = /[0-9]\/[0-9]|\.25|\.75|平半|半一/i.test(lineText);
+    if (isQuarterLine) cushionedLegs++;
+
+    if (rawProb >= 56) highProbLegs++;
+    if (rawProb < 48) {
+      lowProbLegs++;
+      warnings.push(`腿 [${leg.market || ''} ${leg.line || ''} @${leg.odds}] 预估胜率 (${rawProb}%) 偏低，降低整单成活率`);
+    }
+
+    // Shrink the edge towards fair market probability
+    const calibratedEdge = rawEdge * haircutFactor;
+    const calibratedProb = Math.max(5, Math.min(95, impliedProb + calibratedEdge));
+
+    rawJointMult *= (rawProb / 100);
+    calibratedJointMult *= (calibratedProb / 100);
+  }
+
+  const rawJointProbPct = Number((rawJointMult * 100).toFixed(1));
+  let calibratedJointProbPct = Number((calibratedJointMult * 100).toFixed(1));
+
+  // If AI model provided a joint probability that is reasonable and lower/calibrated, take the conservative minimum
+  if (typeof modelProvidedJointProb === 'number' && modelProvidedJointProb > 0 && modelProvidedJointProb <= 100) {
+    calibratedJointProbPct = Math.min(calibratedJointProbPct, Number(modelProvidedJointProb.toFixed(1)));
+  }
+
+  // 4. Calculate Net Calibrated EV % = (Calibrated Joint Prob / 100 * Total Odds - 1) * 100
+  const rawEvPct = Number(((rawJointProbPct / 100 * totalOdds - 1) * 100).toFixed(1));
+  let calculatedCalibratedEv = Number(((calibratedJointProbPct / 100 * totalOdds - 1) * 100).toFixed(1));
+
+  // Damp extreme EV numbers (over +25% in parlays is almost always overfit variance)
+  if (calculatedCalibratedEv > 25) {
+    calculatedCalibratedEv = Number((25 + (calculatedCalibratedEv - 25) * 0.25).toFixed(1));
+  }
+  const calibratedEvPct = calculatedCalibratedEv;
+
+  // 5. Institutional Fractional Kelly with strict variance damping
+  // f* = max(0, (b*p - q)/b)
+  const b = Math.max(0.01, totalOdds - 1);
+  const p = calibratedJointProbPct / 100;
+  const q = Math.max(0, 1 - p);
+  const rawKelly = Math.max(0, (b * p - q) / b);
+  
+  // Institutional Parlay Stake Cap
+  const maxStakeCap = legCount === 2 ? 1.0 : legCount === 3 ? 0.6 : 0.3;
+  const quarterKellyCalculated = Number((rawKelly * 0.25 * 100).toFixed(2));
+  const finalQuarterKelly = Math.min(maxStakeCap, Math.max(0, quarterKellyCalculated));
+
+  const recommendedStakePct = finalQuarterKelly > 0 ? `${finalQuarterKelly}%` : '0%';
+
+  // 6. Sharpe & Portfolio Resilience Assessment
+  const isHighQualityAnchorCombo = highProbLegs >= legCount && lowProbLegs === 0 && calibratedEvPct >= 4;
+  let sharpeAssessment: 'HIGH_EDGE_CORE' | 'BALANCED_GROWTH' | 'SPECULATIVE_VALUE' | 'FRAGILE_LOTTERY' = 'SPECULATIVE_VALUE';
+
+  if (calibratedEvPct >= 8 && calibratedJointProbPct >= (legCount === 2 ? 32 : 18) && isHighQualityAnchorCombo) {
+    sharpeAssessment = 'HIGH_EDGE_CORE';
+  } else if (calibratedEvPct >= 3 && calibratedJointProbPct >= (legCount === 2 ? 24 : 12)) {
+    sharpeAssessment = 'BALANCED_GROWTH';
+  } else if (calibratedEvPct <= -5 || calibratedJointProbPct < (legCount === 2 ? 15 : 6) || lowProbLegs >= 2) {
+    sharpeAssessment = 'FRAGILE_LOTTERY';
+    warnings.push('整单理论成活率过低或期望值为负，属于高风险易损彩票组合');
+  }
+
+  return {
+    totalOdds,
+    rawJointProbPct,
+    calibratedJointProbPct,
+    rawEvPct,
+    calibratedEvPct,
+    quarterKellyPct: finalQuarterKelly,
+    recommendedStakePct,
+    sharpeAssessment,
+    haircutFactor,
+    isHighQualityAnchorCombo,
+    warnings,
   };
 }
 

@@ -781,10 +781,26 @@ function sanitizeMarketAssessment(item: any) {
 
   direction = direction.replace(/\s+/g, ' ').trim();
 
+  const odds = Number(item.odds);
+  const probability = Number(item.probability);
+  let implied_probability = item.implied_probability != null && !isNaN(Number(item.implied_probability)) ? Number(item.implied_probability) : null;
+  let value_edge = item.value_edge != null && !isNaN(Number(item.value_edge)) ? Number(item.value_edge) : null;
+
+  if (odds > 1 && implied_probability === null) {
+    implied_probability = Number((100 / odds).toFixed(1));
+  }
+  if (!isNaN(probability) && probability > 0 && implied_probability !== null && value_edge === null) {
+    value_edge = Number((probability - implied_probability).toFixed(1));
+  }
+
   return {
     ...item,
     direction: direction || '暂无方向',
     line,
+    odds: !isNaN(odds) && odds > 0 ? odds : null,
+    probability: !isNaN(probability) && probability > 0 ? probability : null,
+    implied_probability,
+    value_edge,
   };
 }
 
@@ -849,14 +865,28 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
 7. 阵容透明度与杯赛风控：参考 quantitative_analysis.lineup_transparency 与 tournament_risk。杯赛/友谊赛且首发阵容未确认时严禁 A 级推荐，最高限制 C 级。
 8. 独赢 1X2 替代玩法转化：当独赢赔率处于 1.05~1.25 鸡肋区间（缺乏安全边际）或 0-0/2-2 胶着时，评为 NO_BET / avoid，并在 reason 中明确引导转投具备退款/走盘保护的“让球 0（平手盘）/ 让球 -0.5”。
 9. 赛前无 score_verified 限制；赛前 score_verified=true 仅表示规则不适用，不得因此降级。
-10. 波胆/双方进球/单双/进球数/进球时间段使用 status=prediction, odds=null，给出方向概率。
+10. 5大核心真实投注市场聚焦：market_assessments 必须且仅包含 5 大可投注市场（全场大小球、半场大小球、全场让球、半场让球、全场独赢1X2），严禁输出不可投注的非标准娱乐玩法。
 11. grade A/B/C 全部展示；没有合格正式主选时 recommendation=null。
 12. 串关与仓位：同一方向 B 级最多进一组串关；A 级≥85分且阵容明确时最多两组。单场 A 级仓位 3%~5%，B 级 1%~2%，串关 1% 以内。
 13. 【跨批次时序动能与盘口衰减精算 (Snapshot Delta & Momentum Analysis)】：
    - 系统已注入 snapshot_delta_and_momentum 模块，记录了上一采样批次与当前批次的比赛分钟差、盘口掉落幅度与实况攻防加速度 (dangerous_attacks_rate_per_min, shots_delta 等)；
    - 当发现【盘口掉落 + 攻势加速 (GOLDEN_ENTRY_LINE_DROP / HIGH_ATTACK_ACCELERATION)】：即上一批次大球/让球盘口过深未出手，经过20~45分钟盘口自然掉落 ≥0.75 球（如 2.75→1.75 或 3.0→2.0）且危险进攻速率高（>0.6次/分）并伴随持续射正时，必须优先给出高置信度的顺势大球或强队让球升级推荐；
    - 当发现【无效倒脚 (PASSIVE_POSSESSION)】：即控球率大幅增加但 0 射正、危险进攻停滞时，必须坚决规避盲目追大，并在 reason 中明确指出时序动能衰竭；
-   - 当发现【红牌/战术崩溃 (DISCIPLINE_COLLAPSE)】：若时序期间突发红牌，必须重估受罚方防线，顺势调整对立面让球或剩余进球。`;
+   - 当发现【红牌/战术崩溃 (DISCIPLINE_COLLAPSE)】：若时序期间突发红牌，必须重估受罚方防线，顺势调整对立面让球或剩余进球。
+14. 【近期战绩与主客场特异性深度挖掘与利用 (Deep Form & Venue Specific Matrix)】：
+   - 参阅 quantitative_analysis.form_and_h2h_deep_metrics:
+     * 主队主场特异能力 (home_at_home_specific): 深入对比主队【主场胜率、主场场均进球/失球、主场零封率与主场让盘赢盘率】 vs 总体表现。严禁只看总积分，必须识别“主场龙/主场虫”特异性！
+     * 客队客场特异能力 (away_on_road_specific): 深入解析客队【客场抗冷不败率、客场场均失球(防守脆弱度)、客场破门率】。客队客场场均失球高 (如 >1.8) 且防守松散时，利好主队让深盘与大球；若客队客场场均失球仅 0.8 且低位防反不败率达 65%+，必须重点防范受让抗冷！
+     * 历史交锋克制属性 (head_to_head_deep): 深入分析近 1-2 年双方直接交锋场均总进球、大球率、主场迎战净胜球历史与球风相克特征 (tactical_matchup_note_zh)。
+     * 战绩加权先验期望进球 (form_weighted_poisson_prior): 融合主队主场进球能力与客队客场防守丢球率，计算 baseline 期望进球 λ_home_prior 与 λ_away_prior，并在 reason 中明确引用战绩支撑依据！
+15. 【高级战术量化合成引擎全流程实战利用 (Master Tactical Synthesis & Execution)】：
+   - 必须深度调用 quantitative_analysis.master_tactical_synthesis 中的6项精算成果：
+     * 1. 阵容位置折损 (positional_absence): 门将/主力中卫缺阵防守期望 GA 增加 0.35~0.7 球；头号射手缺阵进攻期望 GF 下滑 0.3~0.6 球。
+     * 2. 角球动能与禁区挤压 (corner_squeeze): 10分钟角球爆发速率 (velocity_per_10min ≥ 1.5) 代表禁区被高压围攻，破门高发。
+     * 3. 红牌人数失衡物理模型 (red_card_discipline): 上半场红牌失球乘数高达 2.15x (体能防线双崩塌)；终局 78'+ 红牌则转入低位摆大巴。
+     * 4. 欧亚指数倒挂与诱盘审计 (euro_asian_parity): 欧赔换算理论让球线 vs 实际亚盘深度，精准识别深开诱上 (DEEP_SPREAD_TRAP) 与浅开阻上。
+     * 5. 积分榜战意差值 (strategic_motivation): 保级生死战或争冠冲刺期战意加权，面对中游无欲无求球队具备战意压制。
+     * 6. 非线性进球时段 (non_linear_time_decay): 30-45'+ 半场体能节点 (权重 1.30) 与 75-90'+ 终局搏命期 (权重 1.55) 为进球最高发窗口。`;
 
   const verifiedOptionRule = `【YBTY真实选项白名单・最高优先级】
 全场/半场大小球、让球、独赢1X2禁止手工填写或改写投注盘口。必须先从本场 verified_ybty_markets 选择一个真实 option，并原样返回它的 option_id 到 market_option_id。系统将根据 option_id 自动回填并锁定 direction、line、odds，AI填写的同名字段不作为投注依据。严禁把 reference_odds 当作投注赔率；严禁自行换盘、猜盘或生成YBTY未提供的半场盘口。某市场不在 verified_ybty_markets 时必须返回 market_option_id=null、status=unavailable、odds=null、line=null。概率必须针对该 option_id 对应的真实盘口单独评估，不得把其他盘口概率套用过来。`;
@@ -992,6 +1022,7 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
 ---【双重视角核心研判准则】---
 1. ⚽【专业足球比赛数据分析员视角】(Senior Football Match Data Analyst Perspective)：
    - 深度解析各场比赛的即时/赛前技术统计（射正、危险进攻转化率 dangerous_attack_to_shot_ratio、三区压迫倾角 field_tilt_share、控球与攻防动能）；
+   - 深度利用 quantitative_analysis.form_and_h2h_deep_metrics 挖掘主队在主场的破门/零封率、客队在客场的防守丢球率/抗冷不败率、历史对战克制属性及 λ_home_prior/λ_away_prior 期望进球基准；
    - 结合首发阵容质量、核心伤停、红黄牌及换人战术影响、主客场分化与杯赛/联赛战意，客观推演比赛走势与阶段发力期（开局试探、半场攻坚、下半场调整、终局反扑）。
 2. 💰【足球比赛专业投注人士视角】(Professional Football Bettor & Quantitative Syndicator Perspective)：
    - 剔除机构抽水（Overround），基于真实概率分布进行公允定价，锁定具备正期望值（Value Edge = 真实概率 - 盘口隐含概率 > 0）的优质盘口；
@@ -1006,26 +1037,33 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
      * 若半场比分为 3-1，此时下注“主队 0（平手盘）”，下半场必须以 0:0 起算！如果下半场主队 0 球、客队打入 1 球（全场 3-2），下半场比分为 0-1，买主队平手盘是【全输】！
      * 若半场比分为 4-1，此时下注“主队 -1.5”，下半场主队必须再次净胜 2 球以上（例如下半场 2-0，全场 6-1）才算赢盘！如果下半场主队控球倒脚、双方均未破门（全场保持 4-1），下半场比分实际为 0-0，买主队 -1.5 是【全输】！
    - 严禁出现“因为半场领先2-3球所以平手盘或-1.5盘胜率高达85%~95%”的严重常识性错误！领先球队下半场往往轮换控速、防守松懈，其下半场净胜球胜率通常仅在 45%~60% 之间，绝非稳赢！
+   - 严禁将全场胜负 (1X2) 胜率直接套用到让球盘！强队让 -0.5/-1.0 必须有实质净胜球创造数据 (ΔxG ≥ 0.5) 支持；若强队进攻三区压迫转化不足或已大比分领先，严禁盲目给让球高分，必须积极考察受让抗冷 (+0.5/+1.0) 与平手盘 (0) 退款保护的真实 +EV。
 4. 半场让球 (First-Half Asian Handicap)：以上半场45分钟净胜球结算。适合捕捉强队半场抢开局压迫、早盘强弱分化明显的比赛。
 5. 全场独赢 1X2 (Full-Time 1X2)：结合双方真实胜平负概率与机构欧赔抽水率对比，寻找具备显著正期望值 (EV > 0) 的高性价比选项。
 6. 亚盘四分之一盘口精确期望：-0.25/+0.25、-0.75/+0.75、2/2.5、2.5/3 等盘口，必须拆解为赢半、输半、走盘计算综合数学期望，杜绝粗暴二元化全赢全输推算。
 
 ---【专业足球投资组合与量化风控模型】---
-1. 独立正期望值与防诱盘价值陷阱审计 (True Positive EV & Trap Audit)：
-   - +EV 是长期盈利的数学基石，但必须是结合技战术、实时射正与战意推演后的【真实价值】，绝非无脑追逐账面赔率差；
+1. 串关选腿基石准则与真实 +EV 审计 (High-Certainty Anchor Rule & Realistic +EV Audit)：
+   - ⚠️【串关乘法法则】：串关整单成活率是各腿概率的连乘积。串关的命脉在于【高单腿确定性（单腿预估胜率 ≥ 58%~65%）+ 稳健正期望值 (+EV 3%~12%)】；
+   - 严禁“为求高赔或账面大 EV 拼凑低胜率冷门”：任何胜率 < 50% 的单向深冷或高方差博弈单腿，严禁作为多串关核心基石！
+   - 优先选择具备【退款/赢半/走盘安全垫】的亚盘平手 (0)、受让平半 (+0.25)、受让半球 (+0.5)、大小球保护拆分副盘 (2/2.5, 3/3.5)，大幅提高串关整单抗脆弱性；
    - 警惕【机构价值陷阱（Value Trap / 诱盘）】：
-     * 当机构给某方开出异常丰厚的让步或超高水位时，必须深度排查是否为诱上/诱下陷阱（例如：领先方已满足净胜球或小组出线、下半场准备换下核心攻击手、落后方急躁压上但缺乏禁区实质威胁等）；
-     * 在成熟体育博彩市场中，真实 +EV 边际通常在 +3% ~ +15% 之间。任何单腿评估出 >80% 胜率（在 1.80+ 赔率下）或 >+25% EV 的极端数值，99% 属于认知偏差或诱盘陷阱，必须立即进行二次客观概率校准！
-2. 动态相关性与反脆弱审查 (Correlation Risk & Antifragility)：
+     * 当机构给某方开出异常丰厚让步或超高水位时，必须排查是否为战意诱盘、下半场核心轮换或无威胁控球；
+     * 串关多腿复合抽水与模型过拟合折现：2串1真实合理EV通常在 +6%~+18%，3串1在 +8%~+20%，4串1在 +10%~+25%。严禁输出脱离现实的虚高 +40%~+80% EV。
+2. 机构级凯利资金管理与仓位硬性上限 (Institutional Bankroll Management)：
+   - 2 串 1 黄金组合：建议微仓 0.8% ~ 1.0%；
+   - 3 串 1 组合：建议微仓 0.4% ~ 0.6%；
+   - 4 串 1 及以上：仅作超微仓娱乐彩票 (0.2% ~ 0.3%)，严禁重仓。
+3. 动态相关性与反脆弱审查 (Correlation Risk & Antifragility)：
    - 科学评估相关性风险级别（低/中/高），常规联赛普通轮次中，各场比赛属于【低相关性/独立事件】。只要各单场研究独立达标且具备真实正期望值 (+EV)，正常允许组入串关；
    - 严防同质化爆仓风险（如全部单子均押注单一方向或单一剧本），通过多维度玩法（如让球+大小球）实现健康的资产分散。
-3. 战术剧本驱动与多规格组合差异化 (Game-Script & Scenario-Driven Portfolio Architecture)：
+4. 战术剧本驱动与多规格组合差异化 (Game-Script & Scenario-Driven Portfolio Architecture)：
    - 操盘手必须充分利用当前比赛池中天然存在的不同比赛状态（如大比分领先场次 vs 0-0 焦灼场次 vs 对攻开放场次），客观推演下半场真实走势：
      * 剧本 1【下半场反击与攻防动能】（如 2串1）：针对下半场仍有强烈破门战意、射正转化率极高的强攻场次；
      * 剧本 2【攻势停滞与防守窒息】（如 3串1 或 4串1）：针对 30~45 分钟 0-0 且射正极少、三区压迫低效的场次，组合全场小球/半场小球，利用比赛时间流逝形成高确定性收割；
      * 剧本 3【多维度跨盘口立体对冲】（如 4串1 或 10串1）：在同一张票中融合“受让抗冷 + 僵局小球 + 强势独赢 + 开放大球”，形成节奏与风险互补的立体资产配置；
    - 严禁盲目复制同质化盘口，必须在各规格票之间展现清晰的战术差异化与 5 大盘口立体覆盖。
-4. 比分真实性门禁 (Score Verification Gate)：滚球比赛若即时比分未经可靠核验（score_verified: false），一票否决，严禁作为高确定性依据组入正式高信心串关。
+5. 比分真实性门禁 (Score Verification Gate)：滚球比赛若即时比分未经可靠核验（score_verified: false），一票否决，严禁作为高确定性依据组入正式高信心串关。
 
 ---【职业辛迪加多玩法组合策略（全面覆盖 5 大核心盘口）】---
 在选择串关腿或单场方向时，必须应用职业操盘思维：
@@ -1082,9 +1120,9 @@ ${JSON.stringify(historicalFeedback)}
       "ticket_index": 1,
       "grade": "A|B|C",
       "estimated_total_odds": 3.65,
-      "joint_probability": 36.5,
-      "combined_ev_pct": 33.2,
-      "kelly_fraction_pct": 1.15,
+      "joint_probability": 31.2,
+      "combined_ev_pct": 13.9,
+      "kelly_fraction_pct": 0.95,
       "sharpe_assessment": "HIGH_EDGE_CORE",
       "correlation_audit": {
         "independence_score": 90,
@@ -1264,6 +1302,34 @@ You MUST evaluate the following matches (${batchHeader}) with rigorous football 
 Return ONLY a single valid JSON object (no markdown, no conversational commentary).
 
 [Evaluation and Risk Control Protocol]
+0. The Three-Step Quantitative Betting Analytical Architecture (专业数据分析与操盘三步闭环):
+   - 【第一步：纯现场与主客场特异物理数据推演 (Pure Data-First Match Physics & Venue Splits)】:
+     * 严禁看盘说球！盘口是机构平衡资金的商业报价，绝非比赛事实！
+     * 必须深入解析 quantitative_analysis.attack_conversion 中的 dangerous_attack_to_shot_ratio（实质破防转化率）、field_tilt_share（前场三十米压迫倾角）和 shot_on_target_accuracy（射正质量）；
+     * 【六大高级战术量化引擎深度利用 (Master Tactical Synthesis)】:
+       - 1. 核心阵容折损 (master_tactical_synthesis.positional_absence): 门将/主力中卫缺阵防守期望 GA 增加 0.35~0.7 球；头号射手缺阵进攻期望 GF 下滑 0.3~0.6 球。
+       - 2. 角球动能与禁区挤压 (master_tactical_synthesis.corner_squeeze): 10分钟角球爆发速率 (velocity_per_10min ≥ 1.5) 代表禁区被高压围攻，破门高发。
+       - 3. 红牌人数失衡物理模型 (master_tactical_synthesis.red_card_discipline): 上半场红牌失球乘数高达 2.15x (体能防线双崩塌)；终局 78'+ 红牌则转入低位摆大巴。
+       - 4. 欧亚指数倒挂与诱盘审计 (master_tactical_synthesis.euro_asian_parity): 欧赔换算理论让球线 vs 实际亚盘深度，精准识别深开诱上 (DEEP_SPREAD_TRAP) 与浅开阻上。
+       - 5. 积分榜战意差值 (master_tactical_synthesis.strategic_motivation): 保级生死战或争冠冲刺期战意加权，面对中游无欲无求球队具备战意压制。
+       - 6. 非线性进球时段 (master_tactical_synthesis.non_linear_time_decay): 30-45'+ 半场体能节点 (权重 1.30) 与 75-90'+ 终局搏命期 (权重 1.55) 为进球最高发窗口。
+     * 【近期战绩与主客场特异深度挖掘与利用 (Deep Form & Venue Splits)】:
+       - 必须深度利用 quantitative_analysis.form_and_h2h_deep_metrics:
+       - 主队主场特定战绩 (home_at_home_specific): 进球破门率、主场胜率、主场场均进球/失球、主场防守零封率；
+       - 客队客场特定战绩 (away_on_road_specific): 客场防守丢球率、客场抗冷不败率、客场进攻破门率；
+       - 历史交锋深度特征 (head_to_head_deep): 历史交锋对战克制属性、近1-2年主客场直接对决历史净胜球与风格；
+       - 战绩先验期望进球 (form_weighted_poisson_prior): 将主队主场进攻效率与客队客场防守脆弱度交叉加权推导出的 λ_home_prior 与 λ_away_prior，结合现场攻防数据共同校准期望值；
+     * 结合 quantitative_analysis.lineup_transparency 与 focused_incidents（红牌、主力换人、战术发力期），推演场上真实的攻防力量对比与势能。
+   - 【第二步：推演无偏概率与比分分布 (Independent Poisson & Goal Expectancy Modeling)】:
+     * 参阅 quantitative_analysis.handicap_calibration.independent_poisson_distribution 中的 lambdas（双方独立期望进球 λ_home, λ_away, λ_total）、margin_distribution_pct（净胜1球、净胜2球、净胜3+球、平负分布）与 top_scorelines（最常态高频比分）；
+     * 融合近期战绩与主客场特异性加权，在不看盘口的前提下客观推导出该场比赛真实的比分概率矩阵。
+   - 【第三步：比对机构盘口寻找真实定价漏洞 (Cross-Examination Against Market Lines for True +EV)】:
+     * 将第二步计算出的客观真实概率，比对 verified_ybty_markets 中机构去除抽水后的 fair_prob_pct 与当前盘口门槛；
+     * 动态数据定夺深盘与大小球价值: 
+       - 若现场攻防数据（λ期望进球、射正转化率与净胜球分布）确实强力支持优势方大比分穿盘（例如 λ_home 极高且射正持续破防），则顺应数据如实推荐让球与大球，绝不盲目唱反调；
+       - 若现场数据证明优势方虽胜但攻门转化有限、常态小胜（如 1-0、2-0、2-1）占据获胜样本 50%+，而机构开出 -2.0 深盘让步，则精准识别【让深盘为机构诱上陷阱】，顺势将价值锁定在【受让 +2.0】或【全场小球】；
+     * 严禁机械教条化写死，一切由真实攻防数据与期望值驱动！只有当 Value Edge (真实概率 - 机构隐含概率) > 0 时才判定为正式推荐。
+
 1. Pro-Bettor Execution Framework & Game Phase Analysis (职业操盘手实战策略与发力期分析):
    - 比赛阶段动态权重 (Game Momentum & Fatigue Windows): 结合开局试探(0-15')、半场攻坚(15-45')、战术调整(45-60')、终局反扑(75-90+')不同时段特征，严禁死板时间均摊。
    - 策略 A (半场测试+下半场追加 Probe & Scale-in): 适于破门预期高但赛前盘口水位过深，先小打半场，数据确认后下半场追加全场大/让球。
@@ -1273,20 +1339,32 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
 
 2. Quantitative Analysis, In-play Calibration & Decisive Match State (量化分析、即时校准与终局封盘准则):
    - 机构抽水与公允价格: 参阅 quantitative_analysis.fair_market_pricing 中的 overround_pct 与 fair_prob_pct。只有模型评估胜率显著高于市场公平概率 (Value Edge > 0) 时才允许作为 A/B 级推荐。
-   - 终局大比分封盘处理 (Decisive Match State & Suspended 1X2): 当单方建立净胜球 ≥ 2 且场面完全掌控，导致机构已下架或封盘该队独赢选项（verified_ybty_markets 仅剩落后方逆转或平局超高赔 @10+）时，严禁机械选择小概率负向选项；全场独赢1X2统一输出 market_option_id=null, status="unavailable", grade="NO_BET", direction="主胜(已封盘)"（或客胜已封盘），probability 填写真实终局胜率（90%~98%），odds=null, line=null，在 reason 中清晰说明“领先优势稳固，机构已封盘无赔率，不予下注”。
+   - 亚盘深盘让球与大小球容量联合精算、防机构深盘锚定诱导准则 (Deep Spread vs Total Goals Coupling & De-Biasing Protocol · 核心重点):
+     * ⚠️【破除机构初盘深盘锚定诱导 (Bookmaker Anchor Fallacy)】: 机构开出优势方 -1.75 / -2.0 / -2.25 深盘，仅代表机构为平衡注码设立的高门槛，绝非比赛打出 3-0/4-0 惨案的保证！
+     * ⚠️【大小球容量与让球深度的联合数学制约 (Total Goals vs Spread Coupling)】:
+       - 参阅 quantitative_analysis.five_markets_coupling_audit。当全场大小球仅为 3.0 球而让球盘深达 -2.0 时，总进球容量受到严格限制；
+       - 在泊松概率分布下，常态主胜比分 1-0 (让球全输)、2-0 (让球走盘)、2-1 (让球全输) 占据了优势方获胜样本的 50% 以上；
+       - 优势方在 3.0 大小球环境下打穿 -2.0 的真实赢盘概率通常仅 30%~38% (在 @1.90 水位下是严重 -EV 陷阱)！而弱势受让方 (+2.0) 凭借 1-0、2-1 等小负比分即可全赢，赢盘+走盘率高达 65%+！
+       - 严禁赛前仅凭球队名气和初盘 -2.0 就主推让深盘；必须严格审查同级别破大巴能力与历史同盘净胜 3 球以上比例！
+     * 滚球让球必须以当前时刻 (0:0) 重新起算，已有净胜球完全清零！严禁把上半场或已有的领先比分当做让球的安全垫；
+     * 净胜球预期与盘口深度硬性审查: 必须参考 quantitative_analysis.handicap_calibration：
+       - 若剩余时段双方预期净胜球差 ΔxG < 0.45 球，打穿 -0.5 或 -1.0 盘口的真实概率通常 ≤45%，严禁虚标 60%+ 概率或包装为 +EV 推荐；
+       - 若强队已建立净胜球 ≥2 球，战术转向控节奏与轮换防守 (game_state_tempo_drag)，下半场再穿深盘概率极低，强行推让深盘属于典型诱上陷阱；
+       - 主动审查【受让方韧性防守 (+0.5/+1.0/+1.5/+2.0)】与【平手盘 (0) 退款保护】的真实正期望值，彻底破除“凡强队必推让球”、“让球几乎全给高分”的盲目偏见。
    - 动态进球率与即时大小球双向精算模型（In-Play Goal Expectancy & Balanced Market Selection）:
      * 核心逻辑: 严禁预设立场（既不盲目看大，也不机械偏向看小）。必须客观计算下半场“剩余期望进球 λ_rest”与当前盘口所需净进球数 (Line - Current_Goals) 的期望收益比 (+EV)。
      * 大球动能支持条件 (+EV Over 判定): 强对抗开放局（如 2-2 对攻且持续创造机会、落后方大举反扑）、单方实质围攻（三区压迫 field_tilt_share > 60% 且角球与有效射正高频产生）、机构在四分之一拆分副盘（如 3.5/4 @1.65~@1.75）开出明显偏低防范水位时，应顺势选择大球保护副盘。
      * 小球防守支持条件 (+EV Under 判定): 低频阵地胶着（双方半场有效射正极度匮乏 ≤1~2次且角球少、无门将扑救险情）、净胜球 ≥3 大比分降速（3-0/4-0 等领先方战术轮换控节奏、垃圾时间期望进球回落），不盲目追深盘大球。
      * 战术纪律与吃牌的辩证分析: 吃牌反映拼抢强度与犯规压力，不能简单等同于“吃牌必小球”；落后方连续吃牌防线脱节易被反击丢球，领先方吃牌需结合落后方反扑强度与射正综合研判，严禁教条化推论。
+   - 终局大比分封盘处理 (Decisive Match State & Suspended 1X2): 当单方建立净胜球 ≥ 2 且场面完全掌控，导致机构已下架或封盘该队独赢选项（verified_ybty_markets 仅剩落后方逆转或平局超高赔 @10+）时，严禁机械选择小概率负向选项；全场独赢1X2统一输出 market_option_id=null, status="unavailable", grade="NO_BET", direction="主胜(已封盘)"（或客胜已封盘），probability 填写真实终局胜率（90%~98%），odds=null, line=null，在 reason 中清晰说明“领先优势稳固，机构已封盘无赔率，不予下注”。
    - 进攻威胁与场面倾斜: 参阅 quantitative_analysis.attack_conversion 中的 dangerous_attack_to_shot_ratio（危险进攻转化比）与 field_tilt_share（进攻三区压迫占比），识别无效控球。
    - 阵容透明度与杯赛轮换: 参阅 quantitative_analysis.lineup_transparency 与 tournament_risk。杯赛/友谊赛且阵容未确认时严禁 A 级正式推荐，最高限制 C 级。
    - 独赢 1X2 替代玩法引导: 当独赢赔率在 1.05~1.25 处于低收益鸡肋区间（缺乏安全边际）或 0-0/2-2 胶着时，评为 NO_BET / avoid，并在 reason 中明确引导转投具备退款/走盘保护的“让球 0（平手盘）/ 让球 -0.5”。
 
-3. Mandatory 5 Real Betting Markets (Each match's market_assessments MUST evaluate ALL 5 core markets):
-   - 全场大小球 (full_total)
+3. Mandatory 5 Real Betting Markets (Each match's market_assessments MUST evaluate ALL 5 core markets across independent dimensions):
+   - 全场大小球 (full_total): 基于总进球期望 λ_total、禁区压迫与射正转化独立定价。
    - 半场大小球 (half_total: If this match has no half_total options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
-   - 全场让球 (full_spread)
+   - 全场让球 (full_spread): 必须严格比对净胜球预期 ΔxG 与盘口深度，深度 ≥ 1.5 时强制执行大小球容量审计，积极挖掘受让抗冷与平手保护价值。
    - 半场让球 (half_spread: If this match has no half_spread options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
    - 全场独赢1X2 (full_h2h: If this match has no full_h2h options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
    
@@ -1298,7 +1376,7 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
    - Avoid (status="avoid", grade="NO_BET"): value_edge <= 0 or lacking margin of safety.
 
 4. Best Overall Recommendation (recommendation field):
-   - Pick the single best/highest-value option among the 5 real markets above (grade="A" or "B").
+   - Pick the single best/highest-value option among the 5 real markets above (grade="A" or "B"), fully weighing all 5 categories (大小球, 让球, 受让抗冷, 平手退款保护, 独赢) without defaulting to any single market!
    - If none of the 5 markets qualify for A/B recommendation, set recommendation to null (or grade="NO_BET").
 
 5. Live Score Verification:
@@ -1322,14 +1400,14 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
       "score_source": "ybty_verified",
       "verification_passed": true,
       "recommendation": {
-        "category": "全场让球",
-        "market": "full_spread",
-        "market_option_id": "full_spread__m1__o1",
-        "direction": "主队",
-        "line": "-0.5",
-        "odds": 1.95,
-        "probability": 62.0,
-        "value_edge": 10.7,
+        "category": "全场大小球",
+        "market": "full_total",
+        "market_option_id": "full_total__m1__o1",
+        "direction": "大 2.5",
+        "line": "2.5",
+        "odds": 1.92,
+        "probability": 59.0,
+        "value_edge": 6.9,
         "grade": "B"
       },
       "market_assessments": [
@@ -1338,8 +1416,8 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
           "market_option_id": "full_total__m1__o1",
           "direction": "大 2.5",
           "line": "2.5",
-          "odds": 1.98,
-          "probability": 60.0,
+          "odds": 1.92,
+          "probability": 59.0,
           "grade": "B",
           "status": "recommend",
           "reason": "攻势迅猛且创造多次威胁",
@@ -1425,10 +1503,38 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
    - Handicap-to-Goal Expectation Alignment (让球深浅与净胜期望匹配): Ensure handicap lines strictly correspond to realistic projected goal margins backed by actual data, avoiding unwarranted deep handicap traps.
 
 [Evaluation and Risk Control Protocol]
+0. The Three-Step Quantitative Betting Analytical Architecture (专业数据分析与操盘三步闭环 · 核心基石):
+   - 【第一步：纯现场与主客场特异物理数据推演 (Pure Data-First Match Physics & Venue Splits)】:
+     * 严禁看盘说球！盘口是机构平衡资金的商业报价，绝非比赛事实！
+     * 必须深入解析 quantitative_analysis.attack_conversion 中的 dangerous_attack_to_shot_ratio（实质破防转化率）、field_tilt_share（前场三十米压迫倾角）和 shot_on_target_accuracy（射正质量）；
+     * 【六大高级战术量化引擎深度利用 (Master Tactical Synthesis)】:
+       - 1. 核心阵容折损 (master_tactical_synthesis.positional_absence): 门将/主力中卫缺阵防守期望 GA 增加 0.35~0.7 球；头号射手缺阵进攻期望 GF 下滑 0.3~0.6 球。
+       - 2. 角球动能与禁区挤压 (master_tactical_synthesis.corner_squeeze): 10分钟角球爆发速率 (velocity_per_10min ≥ 1.5) 代表禁区被高压围攻，破门高发。
+       - 3. 红牌人数失衡物理模型 (master_tactical_synthesis.red_card_discipline): 上半场红牌失球乘数高达 2.15x (体能防线双崩塌)；终局 78'+ 红牌则转入低位摆大巴。
+       - 4. 欧亚指数倒挂与诱盘审计 (master_tactical_synthesis.euro_asian_parity): 欧赔换算理论让球线 vs 实际亚盘深度，精准识别深开诱上 (DEEP_SPREAD_TRAP) 与浅开阻上。
+       - 5. 积分榜战意差值 (master_tactical_synthesis.strategic_motivation): 保级生死战或争冠冲刺期战意加权，面对中游无欲无求球队具备战意压制。
+       - 6. 非线性进球时段 (master_tactical_synthesis.non_linear_time_decay): 30-45'+ 半场体能节点 (权重 1.30) 与 75-90'+ 终局搏命期 (权重 1.55) 为进球最高发窗口。
+     * 【近期战绩与主客场特异深度挖掘与利用 (Deep Form & Venue Splits)】:
+       - 必须深度利用 quantitative_analysis.form_and_h2h_deep_metrics:
+       - 主队主场特定战绩 (home_at_home_specific): 进球破门率、主场胜率、主场场均进球/失球、主场防守零封率；
+       - 客队客场特定战绩 (away_on_road_specific): 客场防守丢球率、客场抗冷不败率、客场进攻破门率；
+       - 历史交锋深度特征 (head_to_head_deep): 历史交锋对战克制属性、近1-2年主客场直接对决历史净胜球与风格；
+       - 战绩先验期望进球 (form_weighted_poisson_prior): 将主队主场进攻效率与客队客场防守脆弱度交叉加权推导出的 λ_home_prior 与 λ_away_prior，结合现场攻防数据共同校准期望值；
+     * 结合 quantitative_analysis.lineup_transparency 与 focused_incidents（红牌、主力换人、战术发力期），客观推演场上真实的攻防力量对比与势能。
+   - 【第二步：推演无偏概率与比分分布 (Independent Poisson & Goal Expectancy Modeling)】:
+     * 参阅 quantitative_analysis.handicap_calibration.independent_poisson_distribution 中的 lambdas（双方独立期望进球 λ_home, λ_away, λ_total）、margin_distribution_pct（净胜1球、净胜2球、净胜3+球、平负分布）与 top_scorelines（最常态高频比分）；
+     * 融合近期战绩与主客场特异性加权，在不看盘口的前提下客观推导出该场比赛真实的比分概率矩阵。
+   - 【第三步：比对机构盘口寻找真实定价漏洞 (Cross-Examination Against Market Lines for True +EV)】:
+     * 将第二步计算出的客观真实概率，比对 verified_ybty_markets 中机构去除抽水后的 fair_prob_pct 与当前盘口门槛；
+     * 动态数据定夺深盘与大小球价值 (参阅 five_markets_coupling_audit): 
+       - 若攻防数据（λ期望进球、射正转化率与净胜球分布）确实强力支持大比分穿盘（如 λ_home 极高且射正破防率极佳），顺应数据如实推荐让深盘与大球；
+       - 若数据证明优势方虽胜但常态小胜（1-0/2-0/2-1）占比高，而机构开出 -2.0 深盘让步，则精准识别深盘诱上陷阱，果断将价值锁定在【受让 +2.0】或【全场小球】；
+     * 严禁机械教条化写死，一切由真实攻防数据与期望值驱动！只有当 Value Edge (真实概率 - 机构隐含概率) > 0 时才允许推荐。
+
 1. Mandatory 5 Real Betting Markets (Each match's market_assessments MUST evaluate ALL 5 core markets in this exact order):
-   1. 全场大小球 (full_total)
+   1. 全场大小球 (full_total): 基于总进球期望 λ_total、禁区压迫与射正转化独立定价。
    2. 半场大小球 (half_total: If this match has no half_total options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
-   3. 全场让球 (full_spread)
+   3. 全场让球 (full_spread): 必须严格比对净胜球预期 ΔxG 与盘口深度，深度 ≥ 1.5 时强制执行大小球容量审计，积极挖掘受让抗冷与平手保护价值。
    4. 半场让球 (half_spread: If this match has no half_spread options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
    5. 全场独赢1X2 (full_h2h: If this match has no full_h2h options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
    
@@ -1440,7 +1546,7 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
    - Avoid (status="avoid", grade="NO_BET"): value_edge <= 0 or lacking margin of safety.
 
 2. Best Overall Recommendation (recommendation field):
-   - Pick the single best/highest-value option among the 5 real markets above (grade="A" or "B").
+   - Pick the single best/highest-value option among the 5 real markets above (grade="A" or "B"), fully weighing all 5 categories (大小球, 让球, 受让抗冷, 平手退款保护, 独赢) without defaulting to any single market!
    - If none of the 5 markets qualify for A/B recommendation, set recommendation to null (or grade="NO_BET").
 
 3. Live Score Verification (Score Verification Gate):
@@ -1580,13 +1686,19 @@ ${JSON.stringify(chunkData, null, 2)}`;
 Follow the [Football Market Audit Protocol v2] strictly. Evaluate ALL ${chunkData.length} matches in ${batchLabel} strictly combining technical match analytics with quantitative betting strategy (+EV, overround deduction, bankroll protection). Return ONLY a single valid JSON object — no natural language, no Markdown fences.
 Mode: ${modeLabel}
 
+[The Three-Step Quantitative Betting Analytical Protocol]
+0. 【第一步：纯现场数据推演】: 严禁看盘说球！深入解析 quantitative_analysis.attack_conversion 中的 dangerous_attack_to_shot_ratio（破防转化率）、field_tilt_share（三区压迫）和 shot_on_target_accuracy（射正质量），排查首发阵容与换人红牌。
+1. 【第二步：推演无偏概率与比分分布】: 依据 quantitative_analysis.handicap_calibration.independent_poisson_distribution（双方独立期望进球 λ_home, λ_away 与 margin_distribution_pct 净胜球分布），先独立推导出真实比分矩阵。
+2. 【第三步：比对机构盘口寻找真实定价漏洞】: 将第二步客观概率比对机构去除抽水后的 fair_prob_pct 与盘口门槛。动态判定深盘与大小球价值：若数据强力支撑大比分穿盘，顺应数据推荐让深盘与大球；若数据证明仅为常态小胜（1-0/2-0/2-1 占主胜样本 50%+），则精准识别深盘诱上陷阱，果断将价值锁定在【受让】或【小球】。严禁教条写死，一切以数据第一性与 Value Edge (真实概率 - 机构隐含概率 > 0) 为准！
+
 [Rules and Constraints]
 1. Each match must include exactly 5 real market assessments in strict order:
    1.full_total 2.half_total 3.full_spread 4.half_spread 5.full_h2h
 2. Real betting markets (full/half total, spread, h2h) must use a real option from this match's verified_ybty_markets, copy option_id verbatim to market_option_id, and set odds_source="ybty_verified".
 3. probability is expressed as 0-100 percent. Only allow status="watch" or "recommend" when value_edge = probability - (100/odds) > 0 and evidence is sufficient.
 4. If live and score_verified=false: all 5 real markets must be status="avoid", grade="NO_BET", recommendation=null, verification_passed=false.
-5. CRITICAL: The output matches array must contain exactly ${chunkData.length} objects — one per match. Never omit, merge, or use placeholder objects for any match.
+5. Best Overall Recommendation (recommendation field): Pick the highest-value option among the 5 real markets, balancing 大小球, 让球, 受让抗冷, 平手保护, 独赢 without defaulting to any single market!
+6. CRITICAL: The output matches array must contain exactly ${chunkData.length} objects — one per match. Never omit, merge, or use placeholder objects for any match.
 
 [Output JSON Schema — output only this, nothing else]
 {"schema_version":"football_market_audit_v2","summary":"matches:${chunkData.length}|recommend:N|watch:N|avoid:N","matches":[{"match":"original match name","ybty_home":"YBTY home","ybty_away":"YBTY away","summary":"minute|score|score_verified|final instruction","score_verified":false,"score_source":"source","verification_passed":false,"recommendation":null,"market_assessments":[{"category":"one of the 5 categories","market":"real market key","market_option_id":null,"direction":null,"line":null,"odds":null,"odds_source":null,"probability":null,"probability_scope":"simplified settlement scope","implied_probability":null,"value_edge":null,"grade":"A|B|C|NO_BET","status":"recommend|watch|avoid|unavailable","reason":"core data|status tag","evidence_refs":["input field path"],"risk":"risk tag"}]}]}
