@@ -138,6 +138,7 @@ export function buildPromptInterfaceContext(item: unknown, compact = false): Jso
     live_efficiency: object(statistics.efficiency).by_attacking_side
       ? statistics.efficiency
       : buildPromptLiveEfficiency(statistics, match.score),
+    snapshot_delta_and_momentum: match.snapshot_delta || null,
     calibration_policy: 'Do not invent field weights or modify the score. Use as evidence; numerical scoring is allowed only after real settled samples pass chronological holdout validation.',
   };
   if (!compact || !hasFormalPayload) return fullContext;
@@ -146,6 +147,7 @@ export function buildPromptInterfaceContext(item: unknown, compact = false): Jso
     schema_version: fullContext.schema_version,
     source_formal_field_manifest: fullContext.source_formal_field_manifest,
     source_formal_payload: formal,
+    snapshot_delta_and_momentum: match.snapshot_delta || null,
     source_payload_policy: 'Complete source data is carried exactly once. Read indexed modules from source_formal_payload using source_field_paths; no source field has been removed.',
     source_field_paths: {
       match: 'source_formal_payload.static_match',

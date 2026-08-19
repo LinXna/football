@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { DecisionItem, PipelineStatus, getLeagueName, getTeamDisplay } from '../types';
 import { DataSupplementModal } from './DataSupplementModal';
 import { BatchSupplementModal } from './BatchSupplementModal';
+import { RecentFormModal } from './RecentFormModal';
 import { displayText, playerNames } from '../lib/displayValue';
+import { extractMatchLiveStats } from '../lib/matchStats';
 import { 
   ShieldCheck, 
   ShieldAlert, 
@@ -25,7 +27,8 @@ import {
   CheckCircle2,
   Send,
   Trophy,
-  Trash2
+  Trash2,
+  BarChart3
 } from 'lucide-react';
 
 interface Props {
@@ -60,6 +63,7 @@ export const LiveMatchesView: React.FC<Props> = ({
 
   // Custom Clear Confirm Modal State
   const [confirmClearModal, setConfirmClearModal] = useState<{ open: boolean; selectedOnly: boolean } | null>(null);
+  const [selectedFormMatch, setSelectedFormMatch] = useState<DecisionItem | null>(null);
 
   const matchesWithCustom = decisions.map((m) => customUpdatedMatches[m.match] || m);
 
@@ -453,6 +457,15 @@ export const LiveMatchesView: React.FC<Props> = ({
                   {/* Right Actions */}
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={() => setSelectedFormMatch(m)}
+                      className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shadow"
+                      title="查看主客队近期战绩、胜率走势与历史交锋 (点击弹出)"
+                    >
+                      <BarChart3 className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>近期战绩</span>
+                    </button>
+
+                    <button
                       onClick={() => handleOpenSupplement(m)}
                       className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-medium flex items-center gap-1 transition-all"
                       title="手动修补比分、补充数据与突破PASS"
@@ -481,25 +494,38 @@ export const LiveMatchesView: React.FC<Props> = ({
                 <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
                   {(() => {
                     const teams = getTeamDisplay(m);
+                    const stats = extractMatchLiveStats(m);
                     return (
-                      <div className="col-span-2 flex items-center justify-between bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
-                        <div className="text-right flex-1 pr-4 space-y-0.5">
-                          <div className="text-sm font-bold text-slate-100">{teams.homeYbty}</div>
-                          <div className="text-xs font-semibold text-purple-300">{teams.homeLeisu}</div>
+                      <div className="col-span-2 flex flex-col justify-between bg-slate-950/60 p-3 rounded-lg border border-slate-800/80 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="text-right flex-1 pr-4 space-y-0.5">
+                            <div className="text-sm font-bold text-slate-100">{teams.homeYbty}</div>
+                            <div className="text-xs font-semibold text-purple-300">{teams.homeLeisu}</div>
+                          </div>
+
+                          <div className="px-4 py-1.5 bg-slate-900 border border-slate-700 rounded-md text-center min-w-[80px] shrink-0">
+                            <div className="text-xl font-mono font-bold text-emerald-400">
+                              {m.score ? `${m.score.home} - ${m.score.away}` : '0 - 0'}
+                            </div>
+                            <div className="text-[10px] text-slate-400 tracking-wider">
+                              当前比分 {m.commence_time || m.ybty_start_time_beijing ? `(${m.commence_time || m.ybty_start_time_beijing})` : ''}
+                            </div>
+                          </div>
+
+                          <div className="text-left flex-1 pl-4 space-y-0.5">
+                            <div className="text-sm font-bold text-slate-100">{teams.awayYbty}</div>
+                            <div className="text-xs font-semibold text-purple-300">{teams.awayLeisu}</div>
+                          </div>
                         </div>
 
-                        <div className="px-4 py-1.5 bg-slate-900 border border-slate-700 rounded-md text-center min-w-[80px] shrink-0">
-                          <div className="text-xl font-mono font-bold text-emerald-400">
-                            {m.score ? `${m.score.home} - ${m.score.away}` : '0 - 0'}
-                          </div>
-                          <div className="text-[10px] text-slate-400 tracking-wider">
-                            当前比分 {m.commence_time || m.ybty_start_time_beijing ? `(${m.commence_time || m.ybty_start_time_beijing})` : ''}
-                          </div>
-                        </div>
-
-                        <div className="text-left flex-1 pl-4 space-y-0.5">
-                          <div className="text-sm font-bold text-slate-100">{teams.awayYbty}</div>
-                          <div className="text-xs font-semibold text-purple-300">{teams.awayLeisu}</div>
+                        {/* 🚩 现场实况统计 */}
+                        <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] bg-slate-900/90 rounded px-2 py-1 border border-slate-800 text-slate-300 font-mono mt-1">
+                          <span className="text-amber-300" title="控球率 (主-客)">⏱️ {stats.possession.text}</span>
+                          <span className="text-rose-300" title="危险进攻 (主-客)">⚡ {stats.dangerousAttacks.text}</span>
+                          <span className="text-sky-300" title="角球 (主-客)">🚩 {stats.corners.text}</span>
+                          <span className="text-emerald-300" title="射门(射正) (主-客)">🎯 {stats.shotsCombined.text}</span>
+                          <span className="text-amber-400" title="黄牌 (主-客)">🟨 {stats.yellowCards.text}</span>
+                          <span className={stats.redCards.hasRed ? 'text-rose-400 font-bold' : 'text-slate-400'} title="红牌 (主-客)">🟥 {stats.redCards.text}</span>
                         </div>
                       </div>
                     );
@@ -599,6 +625,13 @@ export const LiveMatchesView: React.FC<Props> = ({
           })}
         </div>
       )}
+
+      {/* Recent Form Modal */}
+      <RecentFormModal
+        match={selectedFormMatch}
+        isOpen={!!selectedFormMatch}
+        onClose={() => setSelectedFormMatch(null)}
+      />
 
       {/* Supplement Modal */}
       {supplementMatch && (

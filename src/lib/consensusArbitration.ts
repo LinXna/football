@@ -338,6 +338,22 @@ export function analyzeDualConsensus(
     riskFlags.push('AI 评估显示全盘口期望值不足或处于庄家抽水陷阱');
   }
 
+  // 检查跨批次时序动能与盘口走势（Snapshot Delta）
+  const delta = (systemMatch as any).snapshot_delta;
+  let isGoldenEntry = false;
+  if (delta && delta.has_history) {
+    if (delta.is_golden_entry_point || delta.momentum_signal === 'GOLDEN_ENTRY_LINE_DROP') {
+      isGoldenEntry = true;
+      consensusReasons.push(`🔥 跨批次时序契机：${delta.momentum_assessment}`);
+    } else if (delta.momentum_signal === 'HIGH_ATTACK_ACCELERATION') {
+      consensusReasons.push(`⚡ 攻防加速度高：${delta.momentum_assessment}`);
+    } else if (delta.momentum_signal === 'PASSIVE_POSSESSION') {
+      riskFlags.push(`⚠️ 跨时段无效倒脚：${delta.momentum_assessment}`);
+    } else if (delta.momentum_signal === 'DISCIPLINE_COLLAPSE') {
+      riskFlags.push(`⚠️ 跨时段突发红牌：${delta.momentum_assessment}`);
+    }
+  }
+
   // 4. 判断系统与 AI 的方向是否冲突
   let isDirectionConflict = false;
   if (hasSystemRec && hasAiRec) {
@@ -424,7 +440,9 @@ export function analyzeDualConsensus(
         grade: finalGrade,
         valueEdgePct: aiValueEdge,
         recommendedStake: stake,
-        actionGuide: aiProStrategy || '顺应场面压制与盘口轨迹顺势切入',
+        actionGuide: isGoldenEntry
+          ? `🔥 时序动能黄金入场：盘口衰减+攻势加速，${aiProStrategy || '顺势切入'}`
+          : (aiProStrategy || '顺应场面压制与盘口轨迹顺势切入'),
         isQuarter: false,
         marketOptionId: targetRec.market_option_id || null,
       },

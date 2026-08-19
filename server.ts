@@ -851,7 +851,12 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
 9. 赛前无 score_verified 限制；赛前 score_verified=true 仅表示规则不适用，不得因此降级。
 10. 波胆/双方进球/单双/进球数/进球时间段使用 status=prediction, odds=null，给出方向概率。
 11. grade A/B/C 全部展示；没有合格正式主选时 recommendation=null。
-12. 串关与仓位：同一方向 B 级最多进一组串关；A 级≥85分且阵容明确时最多两组。单场 A 级仓位 3%~5%，B 级 1%~2%，串关 1% 以内。`;
+12. 串关与仓位：同一方向 B 级最多进一组串关；A 级≥85分且阵容明确时最多两组。单场 A 级仓位 3%~5%，B 级 1%~2%，串关 1% 以内。
+13. 【跨批次时序动能与盘口衰减精算 (Snapshot Delta & Momentum Analysis)】：
+   - 系统已注入 snapshot_delta_and_momentum 模块，记录了上一采样批次与当前批次的比赛分钟差、盘口掉落幅度与实况攻防加速度 (dangerous_attacks_rate_per_min, shots_delta 等)；
+   - 当发现【盘口掉落 + 攻势加速 (GOLDEN_ENTRY_LINE_DROP / HIGH_ATTACK_ACCELERATION)】：即上一批次大球/让球盘口过深未出手，经过20~45分钟盘口自然掉落 ≥0.75 球（如 2.75→1.75 或 3.0→2.0）且危险进攻速率高（>0.6次/分）并伴随持续射正时，必须优先给出高置信度的顺势大球或强队让球升级推荐；
+   - 当发现【无效倒脚 (PASSIVE_POSSESSION)】：即控球率大幅增加但 0 射正、危险进攻停滞时，必须坚决规避盲目追大，并在 reason 中明确指出时序动能衰竭；
+   - 当发现【红牌/战术崩溃 (DISCIPLINE_COLLAPSE)】：若时序期间突发红牌，必须重估受罚方防线，顺势调整对立面让球或剩余进球。`;
 
   const verifiedOptionRule = `【YBTY真实选项白名单・最高优先级】
 全场/半场大小球、让球、独赢1X2禁止手工填写或改写投注盘口。必须先从本场 verified_ybty_markets 选择一个真实 option，并原样返回它的 option_id 到 market_option_id。系统将根据 option_id 自动回填并锁定 direction、line、odds，AI填写的同名字段不作为投注依据。严禁把 reference_odds 当作投注赔率；严禁自行换盘、猜盘或生成YBTY未提供的半场盘口。某市场不在 verified_ybty_markets 时必须返回 market_option_id=null、status=unavailable、odds=null、line=null。概率必须针对该 option_id 对应的真实盘口单独评估，不得把其他盘口概率套用过来。`;

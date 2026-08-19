@@ -22,6 +22,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { UnverifiedScoresModal } from './components/UnverifiedScoresModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const LiveMatchesView = lazy(() => import('./components/LiveMatchesView').then(({ LiveMatchesView }) => ({ default: LiveMatchesView })));
 const PrematchMatchesView = lazy(() => import('./components/PrematchMatchesView').then(({ PrematchMatchesView }) => ({ default: PrematchMatchesView })));
@@ -302,64 +303,66 @@ export default function App() {
       {/* Main App Content View Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
         <Suspense fallback={<div className="py-16 text-center text-sm text-slate-400">正在加载页面…</div>}>
-        {activeTab === 'recommendations' && (
-          <BettingRecommendationsView
-            liveMatches={liveDecisions}
-            prematchMatches={prematchDecisions}
-            onSelectForAi={handleSelectForAi}
-            onRefreshLedger={fetchLedgerData}
-          />
-        )}
+          <ErrorBoundary>
+            {activeTab === 'recommendations' && (
+              <BettingRecommendationsView
+                liveMatches={liveDecisions}
+                prematchMatches={prematchDecisions}
+                onSelectForAi={handleSelectForAi}
+                onRefreshLedger={fetchLedgerData}
+              />
+            )}
 
-        {activeTab === 'live' && (
-          <LiveMatchesView
-            decisions={liveDecisions}
-            pipelineStatus={livePipeline}
-            summary={liveSummary}
-            onSelectForAi={handleSelectForAi}
-            onRefreshAll={reloadAll}
-          />
-        )}
+            {activeTab === 'live' && (
+              <LiveMatchesView
+                decisions={liveDecisions}
+                pipelineStatus={livePipeline}
+                summary={liveSummary}
+                onSelectForAi={handleSelectForAi}
+                onRefreshAll={reloadAll}
+              />
+            )}
 
-        {activeTab === 'prematch' && (
-          <PrematchMatchesView
-            decisions={prematchDecisions}
-            pipelineStatus={prematchPipeline}
-            summary={prematchSummary}
-            brief={prematchBrief}
-            onSelectForAi={handleSelectForAi}
-            onRefreshAll={reloadAll}
-          />
-        )}
+            {activeTab === 'prematch' && (
+              <PrematchMatchesView
+                decisions={prematchDecisions}
+                pipelineStatus={prematchPipeline}
+                summary={prematchSummary}
+                brief={prematchBrief}
+                onSelectForAi={handleSelectForAi}
+                onRefreshAll={reloadAll}
+              />
+            )}
 
-        {activeTab === 'ai' && (
-          <AiEvaluatorView
-            selectedMatch={selectedMatchForAi}
-            allMatches={allMatchesForParlay}
-            liveMatches={liveDecisions}
-            prematchMatches={prematchDecisions}
-            onRefreshLedger={fetchLedgerData}
-          />
-        )}
+            {activeTab === 'ai' && (
+              <AiEvaluatorView
+                selectedMatch={selectedMatchForAi}
+                allMatches={allMatchesForParlay}
+                liveMatches={liveDecisions}
+                prematchMatches={prematchDecisions}
+                onRefreshLedger={fetchLedgerData}
+              />
+            )}
 
-        {activeTab === 'ledger' && (
-          <LedgerView
-            ledger={ledger}
-            backtestReport={backtestReport}
-          />
-        )}
+            {activeTab === 'ledger' && (
+              <LedgerView
+                ledger={ledger}
+                backtestReport={backtestReport}
+              />
+            )}
 
-        {activeTab === 'aliases' && (
-          <TeamAliasesView
-            manualAliases={manualAliases}
-            autoAliases={autoAliases}
-            onRefresh={fetchAliasesData}
-          />
-        )}
+            {activeTab === 'aliases' && (
+              <TeamAliasesView
+                manualAliases={manualAliases}
+                autoAliases={autoAliases}
+                onRefresh={fetchAliasesData}
+              />
+            )}
 
-        {activeTab === 'export' && (
-          <ExportDataView onRefreshAll={reloadAll} />
-        )}
+            {activeTab === 'export' && (
+              <ExportDataView onRefreshAll={reloadAll} />
+            )}
+          </ErrorBoundary>
         </Suspense>
       </main>
 

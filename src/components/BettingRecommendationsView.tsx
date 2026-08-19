@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { DecisionItem, getLeagueName, getTeamDisplay } from '../types';
 import { DataSupplementModal } from './DataSupplementModal';
 import { BatchSupplementModal } from './BatchSupplementModal';
+import { RecentFormModal } from './RecentFormModal';
 import { isQuarterLine, parseQuarterLine, getQuarterSplits, formatAsianLine } from '../lib/quarterSettlement';
 import { generateExtendedAnalysis } from '../lib/extendedRecommendation';
 import { analyzeDualConsensus, DualConsensusAnalysis, formatMarketLabel, formatBetOption } from '../lib/consensusArbitration';
 import { displayText } from '../lib/displayValue';
+import { extractMatchLiveStats } from '../lib/matchStats';
 import { 
   Trophy, 
   ShieldCheck, 
@@ -78,18 +80,18 @@ export const BettingRecommendationsView: React.FC<Props> = ({
   onSelectForAi,
   onRefreshLedger,
 }) => {
-  const [filterType, setFilterType] = useState<'ALL' | 'DUAL_CONSENSUS' | 'AI_UPGRADE' | 'AVOID_RISK' | 'GRADE_AB' | 'GRADE_B' | 'GRADE_C' | 'LIVE' | 'PREMATCH' | 'PARLAY'>('ALL');
-  const [marketViewTab, setMarketViewTab] = useState<'PARLAY_TICKETS' | 'ALL_MARKETS' | 'OU_HANDICAP' | 'GOAL_PREDICTIONS' | 'INTERVALS' | 'LIVE_TIMING'>('ALL_MARKETS');
+  const [filterType, setFilterType] = useState<'ALL' | 'DUAL_CONSENSUS' | 'AI_UPGRADE' | 'GRADE_AB' | 'GRADE_B' | 'GRADE_C' | 'LIVE' | 'PREMATCH' | 'PARLAY'>('ALL');
+  const [marketViewTab, setMarketViewTab] = useState<'PARLAY_TICKETS' | 'ALL_MARKETS' | 'OU_HANDICAP' | 'GOAL_PREDICTIONS' | 'INTERVALS'>('ALL_MARKETS');
   const [searchTerm, setSearchTerm] = useState('');
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [submitSuccessId, setSubmitSuccessId] = useState<string | null>(null);
-  const [showExplanation, setShowExplanation] = useState(true);
+  const [showExplanation, setShowExplanation] = useState(false);
   const [aiEvaluationHistory, setAiEvaluationHistory] = useState<any[]>([]);
-  const [expanded12MarketsMatch, setExpanded12MarketsMatch] = useState<string | null>(null);
 
   // Single Modal State
   const [supplementMatch, setSupplementMatch] = useState<DecisionItem | null>(null);
   const [isSingleModalOpen, setIsSingleModalOpen] = useState(false);
+  const [selectedFormMatch, setSelectedFormMatch] = useState<DecisionItem | null>(null);
   const [customUpdatedMatches, setCustomUpdatedMatches] = useState<Record<string, DecisionItem>>({});
 
   // Batch Operations State
@@ -153,9 +155,6 @@ export const BettingRecommendationsView: React.FC<Props> = ({
     }
     if (filterType === 'AI_UPGRADE') {
       return consensus.tier === 'AI_VALUE_UPGRADE';
-    }
-    if (filterType === 'AVOID_RISK') {
-      return consensus.isHighRisk || consensus.tier === 'DIVERGENCE_AVOID' || consensus.tier === 'HIGH_RISK_AVOID';
     }
     if (filterType === 'GRADE_AB') {
       return m.grade === 'A' || m.grade === 'B' || m.status === 'WATCH' || consensus.isBetWorthy;
@@ -1300,7 +1299,6 @@ export const BettingRecommendationsView: React.FC<Props> = ({
             { id: 'ALL', label: '全部比赛' },
             { id: 'DUAL_CONSENSUS', label: '🏆 双重强共识 (最佳优选)' },
             { id: 'AI_UPGRADE', label: '💡 AI量化升级' },
-            { id: 'AVOID_RISK', label: '⛔ 风险/分歧规避' },
             { id: 'GRADE_AB', label: 'A/B级精选' },
             { id: 'GRADE_B', label: 'B级研究候选' },
             { id: 'GRADE_C', label: 'C级观察候选' },
@@ -1339,7 +1337,6 @@ export const BettingRecommendationsView: React.FC<Props> = ({
             { id: 'OU_HANDICAP', label: '⚽ 让球/大小球 (全场+半场)', icon: Trophy },
             { id: 'GOAL_PREDICTIONS', label: '🎯 进球综合预测', icon: Target },
             { id: 'INTERVALS', label: '⏱️ 时间区间投注', icon: Clock3 },
-            { id: 'LIVE_TIMING', label: '📉 盘口掉落/反弹最佳入场', icon: TrendingDown },
           ].map((mTab) => {
             const Icon = mTab.icon;
             return (
@@ -1589,36 +1586,73 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                     {ticket.legs.map((leg, idx) => {
                       const teams = getTeamDisplay(leg);
                       const sourceMeta = parlaySourceMeta(leg.directionSource);
+                      const legHome = (leg as any).home || leg.ybty_home || teams.homeYbty;
+                      const legAway = (leg as any).away || leg.ybty_away || teams.awayYbty;
+                      const legMatchItem = allCombined.find(
+                        (m) =>
+                          m.match === leg.match ||
+                          (m.ybty_home && legHome && m.ybty_home === legHome && m.ybty_away === legAway) ||
+                          (m.match && leg.match && (m.match.includes(leg.match) || leg.match.includes(m.match)))
+                      );
+                      const legStats = extractMatchLiveStats(legMatchItem, leg);
                       return (
-                        <div key={leg.match + idx} className="bg-slate-950/90 p-3 rounded-lg border border-indigo-900/50 space-y-1.5 flex flex-col justify-between">
-                          <div className="flex items-center justify-between text-[11px] text-slate-400">
-                            <span className="font-bold text-indigo-300 flex items-center gap-1">
-                              腿 #{idx + 1} ({leg.grade}级)
-                            </span>
-                            <span className="font-mono text-slate-400">{leg.startTime}</span>
-                          </div>
-                          <div>
-                            <span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${sourceMeta.className}`}>
-                              来源：{sourceMeta.label}
-                            </span>
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-1 mb-1">
-                              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-purple-950/80 text-purple-300 border border-purple-800/60 flex items-center gap-0.5">
-                                <Trophy className="w-3 h-3 text-purple-400 shrink-0" />
-                                {leg.league}
+                        <div key={leg.match + idx} className="bg-slate-950/90 p-3 rounded-lg border border-indigo-900/50 space-y-2 flex flex-col justify-between">
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between text-[11px] text-slate-400">
+                              <span className="font-bold text-indigo-300 flex items-center gap-1">
+                                腿 #{idx + 1} ({leg.grade}级)
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => setSelectedFormMatch(legMatchItem || ({
+                                    match: leg.match,
+                                    ybty_home: legHome,
+                                    ybty_away: legAway,
+                                    league: leg.league,
+                                    status: 'WATCH'
+                                  } as any))}
+                                  className="text-[10px] text-indigo-300 hover:text-indigo-200 flex items-center gap-1 bg-indigo-950/80 hover:bg-indigo-900 px-1.5 py-0.5 rounded border border-indigo-800/60 transition-colors"
+                                  title="查看本腿近期战绩、历史交锋与胜率走势 (点击弹出)"
+                                >
+                                  <BarChart3 className="w-3 h-3 text-indigo-400" />
+                                  <span>战绩</span>
+                                </button>
+                                <span className="font-mono text-slate-400">{leg.startTime}</span>
+                              </div>
+                            </div>
+                            <div>
+                              <span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${sourceMeta.className}`}>
+                                来源：{sourceMeta.label}
                               </span>
                             </div>
-                            <div className="font-bold text-slate-100 text-xs">
-                              {teams.homeYbty} <span className="text-slate-400 font-normal">vs</span> {teams.awayYbty}
+                            <div>
+                              <div className="flex items-center gap-1 mb-1">
+                                <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-purple-950/80 text-purple-300 border border-purple-800/60 flex items-center gap-0.5">
+                                  <Trophy className="w-3 h-3 text-purple-400 shrink-0" />
+                                  {leg.league}
+                                </span>
+                              </div>
+                              <div className="font-bold text-slate-100 text-xs">
+                                {teams.homeYbty} <span className="text-slate-400 font-normal">vs</span> {teams.awayYbty}
+                              </div>
+                              <div className="text-[11px] font-semibold text-purple-300">
+                                {teams.homeLeisu} <span className="text-purple-400 font-normal">vs</span> {teams.awayLeisu}
+                              </div>
+                              <div className="mt-1 flex items-center justify-between font-mono text-xs">
+                                <span className="text-emerald-400 font-bold">{leg.market} ({leg.line})</span>
+                                <span className="text-amber-300 font-bold">@{leg.odds}</span>
+                              </div>
                             </div>
-                            <div className="text-[11px] font-semibold text-purple-300">
-                              {teams.homeLeisu} <span className="text-purple-400 font-normal">vs</span> {teams.awayLeisu}
-                            </div>
-                            <div className="mt-1 flex items-center justify-between font-mono text-xs">
-                              <span className="text-emerald-400 font-bold">{leg.market} ({leg.line})</span>
-                              <span className="text-amber-300 font-bold">@{leg.odds}</span>
-                            </div>
+                          </div>
+
+                          {/* 🚩 实况统计 (控球率, 危险进攻, 角球, 射门/射正, 黄牌, 红牌) */}
+                          <div className="flex flex-wrap items-center gap-1.5 text-[10px] bg-slate-900/90 rounded px-2 py-1 border border-slate-800/80 text-slate-300 font-mono mt-1">
+                            <span className="text-amber-300" title="控球率 (主-客)">⏱️ {legStats.possession.text}</span>
+                            <span className="text-rose-300" title="危险进攻 (主-客)">⚡ {legStats.dangerousAttacks.text}</span>
+                            <span className="text-sky-300" title="角球 (主-客)">🚩 {legStats.corners.text}</span>
+                            <span className="text-emerald-300" title="射门(射正) (主-客)">🎯 {legStats.shotsCombined.text}</span>
+                            <span className="text-amber-400" title="黄牌 (主-客)">🟨 {legStats.yellowCards.text}</span>
+                            <span className={legStats.redCards.hasRed ? 'text-rose-400 font-bold' : 'text-slate-400'} title="红牌 (主-客)">🟥 {legStats.redCards.text}</span>
                           </div>
                         </div>
                       );
@@ -1808,6 +1842,15 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                   {/* Actions */}
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={() => setSelectedFormMatch(m)}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shadow"
+                      title="查看主客队近期战绩、胜率走势与历史交锋 (点击弹出)"
+                    >
+                      <BarChart3 className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>📊 近期战绩</span>
+                    </button>
+
+                    <button
                       onClick={() => handleOpenSupplement(m)}
                       className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shadow"
                       title="手动修正比分、核验状态或补充缺口"
@@ -1860,6 +1903,7 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                   {/* Col 1: Teams & Score */}
                   {(() => {
                     const teams = getTeamDisplay(m);
+                    const matchStats = extractMatchLiveStats(m);
                     return (
                       <div className="flex flex-col justify-between bg-slate-950/70 p-3 rounded-lg border border-slate-800 space-y-2">
                         <div className="flex items-center justify-between border-b border-slate-800/70 pb-1.5 text-xs">
@@ -1893,6 +1937,28 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                             <div className="text-xs font-semibold text-purple-300 truncate" title={teams.awayLeisu}>{teams.awayLeisu}</div>
                           </div>
                         </div>
+
+                        {/* 🚩 现场实况统计 (控球率, 危险进攻, 角球, 射门/射正, 黄牌, 红牌) */}
+                        <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] bg-slate-900/90 rounded px-2 py-1 border border-slate-800 text-slate-300 font-mono mt-1">
+                          <span className="text-amber-300" title="控球率 (主-客)">⏱️ {matchStats.possession.text}</span>
+                          <span className="text-rose-300" title="危险进攻 (主-客)">⚡ {matchStats.dangerousAttacks.text}</span>
+                          <span className="text-sky-300" title="角球 (主-客)">🚩 {matchStats.corners.text}</span>
+                          <span className="text-emerald-300" title="射门(射正) (主-客)">🎯 {matchStats.shotsCombined.text}</span>
+                          <span className="text-amber-400" title="黄牌 (主-客)">🟨 {matchStats.yellowCards.text}</span>
+                          <span className={matchStats.redCards.hasRed ? 'text-rose-400 font-bold' : 'text-slate-400'} title="红牌 (主-客)">🟥 {matchStats.redCards.text}</span>
+                        </div>
+
+                        {/* 📈 跨批次时序快照增量 (Snapshot Delta & Momentum) */}
+                        {m.snapshot_delta?.has_history && (
+                          <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] bg-indigo-950/50 border border-indigo-500/40 rounded px-2 py-0.5 text-indigo-200 mt-1 font-mono">
+                            <span className="text-indigo-300 font-semibold">📈 距{m.snapshot_delta.elapsed_minutes}'前:</span>
+                            <span className="text-rose-300">⚡危攻 +{m.snapshot_delta.stat_acceleration.dangerous_attacks_delta.total} ({m.snapshot_delta.stat_acceleration.dangerous_attacks_rate_per_min}/分)</span>
+                            <span className="text-emerald-300">🎯射正 +{m.snapshot_delta.stat_acceleration.shots_on_target_delta.total}</span>
+                            {m.snapshot_delta.line_movement.ou_line_drop !== null && (
+                              <span className="text-sky-300">📉盘口 {m.snapshot_delta.line_movement.ou_line_drop <= 0 ? `掉落 ${Math.abs(m.snapshot_delta.line_movement.ou_line_drop)}` : `+${m.snapshot_delta.line_movement.ou_line_drop}`}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -2010,7 +2076,9 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                 {/* DUAL CONSENSUS SYNTHESIS & BEST BETTING PLAN PANEL */}
                 {(() => {
                   const consensus = analyzeDualConsensus(m, latestAiEvaluation);
-                  const is12MarketsOpen = expanded12MarketsMatch === m.match;
+                  if (consensus.tier === 'HIGH_RISK_AVOID' || (!consensus.isBetWorthy && !consensus.bestProposal)) {
+                    return null;
+                  }
 
                   return (
                     <div className="mx-4 mb-4 rounded-xl border border-slate-800 bg-slate-950/80 p-3.5 space-y-3 shadow-inner">
@@ -2021,7 +2089,6 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                             {consensus.tier === 'DUAL_STRONG_CONSENSUS' && <Flame className="w-3.5 h-3.5 text-emerald-300" />}
                             {consensus.tier === 'AI_VALUE_UPGRADE' && <Sparkles className="w-3.5 h-3.5 text-sky-300" />}
                             {consensus.tier === 'DIVERGENCE_AVOID' && <AlertTriangle className="w-3.5 h-3.5 text-amber-300" />}
-                            {consensus.tier === 'HIGH_RISK_AVOID' && <ShieldX className="w-3.5 h-3.5 text-rose-300" />}
                             <span>{consensus.badgeLabel}</span>
                           </span>
                           <span className="text-xs font-bold text-slate-200">{consensus.title}</span>
@@ -2032,24 +2099,10 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                             <span className="bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3 text-emerald-400" /> 经研判：值得投注
                             </span>
-                          ) : consensus.isHighRisk ? (
-                            <span className="bg-rose-950/70 border border-rose-500/50 text-rose-300 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
-                              <XCircle className="w-3 h-3 text-rose-400" /> 经研判：高风险规避
-                            </span>
                           ) : (
                             <span className="bg-slate-900 border border-slate-700 text-slate-400 text-[10px] px-2 py-0.5 rounded">
                               观望不入账
                             </span>
-                          )}
-
-                          {Array.isArray(latestAiEvaluation?.market_assessments) && latestAiEvaluation.market_assessments.length > 0 && (
-                            <button
-                              onClick={() => setExpanded12MarketsMatch(is12MarketsOpen ? null : m.match)}
-                              className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded text-[11px] font-medium flex items-center gap-1 transition-colors"
-                            >
-                              <span>核心玩法对照 ({latestAiEvaluation.market_assessments.length})</span>
-                              {is12MarketsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            </button>
                           )}
                         </div>
                       </div>
@@ -2116,82 +2169,6 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                           ))}
                         </div>
                       </div>
-
-                      {/* Collapsible Market Comparison Panel */}
-                      {is12MarketsOpen && Array.isArray(latestAiEvaluation?.market_assessments) && latestAiEvaluation.market_assessments.length > 0 && (
-                        <div className="pt-3 border-t border-slate-800 space-y-2.5 animate-fade-in">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-bold text-sky-300 flex items-center gap-1.5">
-                              <Scale className="w-4 h-4 text-sky-400" /> 原系统 vs AI 核心玩法逐项核对
-                            </span>
-                            <span className="text-[10px] text-slate-500">
-                              对比系统模型与 AI 深度剥离抽水后的期望概率
-                            </span>
-                          </div>
-
-                          <div className="space-y-2">
-                            {latestAiEvaluation.market_assessments.map((assessment: any, assessmentIndex: number) => {
-                              const status = aiAssessmentStatus(String(assessment.status || ''));
-                              const hasOdds = Number.isFinite(Number(assessment.odds)) && Number(assessment.odds) > 1;
-                              const hasProbability = Number.isFinite(Number(assessment.probability));
-                              const assessmentLine = String(assessment.line ?? '').trim();
-                              const directionText = String(assessment.direction || '--');
-                              const displayedDirection = assessmentLine && !directionText.includes(assessmentLine)
-                                ? `${directionText} ${assessmentLine}`
-                                : directionText;
-                              const systemAssessment = systemAssessments[String(assessment.category || '')] || null;
-                              const systemLine = String(systemAssessment?.line ?? '').trim();
-                              const systemDirection = String(systemAssessment?.direction || '无数据');
-                              const displayedSystemDirection = systemLine && !systemDirection.includes(systemLine)
-                                ? `${systemDirection} ${systemLine}`
-                                : systemDirection;
-                              const systemHasOdds = Number.isFinite(Number(systemAssessment?.odds)) && Number(systemAssessment.odds) > 1;
-                              const systemHasProbability = Number.isFinite(Number(systemAssessment?.probability));
-
-                              return (
-                                <div key={`${assessment.category}-${assessmentIndex}`} className="overflow-hidden rounded-lg border border-slate-700 bg-slate-900/90">
-                                  <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/80 px-3 py-1.5">
-                                    <strong className="text-xs text-slate-200">{formatMarketLabel(assessment.category || assessment.market)}</strong>
-                                    <span className="text-[9px] text-slate-500">双重研判对比</span>
-                                  </div>
-                                  <div className="grid grid-cols-1 md:grid-cols-2">
-                                    <div className="border-b border-slate-800 p-2.5 text-xs md:border-b-0 md:border-r">
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className="font-bold text-emerald-300">原系统初筛</span>
-                                        <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[9px] text-emerald-400">透明模型/真实盘口</span>
-                                      </div>
-                                      <div className="mt-1.5 flex items-start justify-between gap-2">
-                                        <div className="font-bold text-slate-200">{displayedSystemDirection}</div>
-                                        <div className="shrink-0 font-mono font-bold text-amber-300">{systemHasOdds ? `@${systemAssessment.odds}` : '无真实赔率'}</div>
-                                      </div>
-                                      <div className="mt-1 text-[11px] text-slate-400">概率：<strong className="text-slate-200">{systemHasProbability ? `${systemAssessment.probability}%` : '--'}</strong></div>
-                                      <div className="mt-1.5 border-t border-slate-800 pt-1.5 text-[10px] leading-relaxed text-slate-400">{systemAssessment?.reason || '原系统没有该玩法的可用数据。'}</div>
-                                    </div>
-                                    <div className={`p-2.5 text-xs ${status.className}`}>
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className="font-bold">AI 深度量化</span>
-                                        <span className="rounded bg-black/20 px-1.5 py-0.5 text-[9px] font-bold">{assessment.status === 'prediction' ? status.label : `${status.label} · ${assessment.grade || 'NO_BET'}`}</span>
-                                      </div>
-                                      <div className="mt-1.5 flex items-start justify-between gap-2">
-                                        <div className="font-bold text-current">{displayedDirection}</div>
-                                        <div className="shrink-0 font-mono font-bold text-amber-300">{hasOdds ? `@${assessment.odds}` : '无真实赔率'}</div>
-                                      </div>
-                                      <div className="mt-1 text-[11px] text-slate-300">
-                                        概率：<strong>{hasProbability ? `${assessment.probability}%` : '--'}</strong>
-                                        {assessment.probability_scope ? <span className="text-slate-500"> · {assessment.probability_scope}</span> : null}
-                                      </div>
-                                      {Array.isArray(assessment.alternatives) && assessment.alternatives.length > 0 && (
-                                        <div className="mt-1 text-[10px] text-slate-500">备选：{assessment.alternatives.map((item: any) => `${item.direction} ${item.probability}%`).join('；')}</div>
-                                      )}
-                                      <div className="mt-1.5 border-t border-white/10 pt-1.5 text-[10px] leading-relaxed text-slate-400">{assessment.reason || '未提供评估依据'}</div>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   );
                 })()}
@@ -2491,41 +2468,6 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                       {renderAiInline('进球时间段')}
                     </div>
                   )}
-
-                  {/* 3. Live Line Drop & Rebound Entry Timing Advice Box */}
-                  {(marketViewTab === 'ALL_MARKETS' || marketViewTab === 'LIVE_TIMING') && (
-                    <div className="bg-gradient-to-r from-slate-950 via-emerald-950/40 to-slate-950 p-3.5 rounded-lg border-2 border-emerald-500/50 space-y-2 shadow-lg">
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                        <div className="font-bold text-emerald-300 flex items-center gap-1.5">
-                          <TrendingDown className="w-4 h-4 text-emerald-400" />
-                          <span>📉 滚球场景：盘口掉落 / 反弹最佳入场节点建议</span>
-                        </div>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono">
-                          {ext.liveEntryTiming.confidenceLevel}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] font-mono">
-                        <div className="bg-slate-900/90 p-2 rounded border border-slate-800">
-                          <span className="text-slate-500 block text-[9px]">盘口轨迹与掉落比对</span>
-                          <span className="text-slate-200 font-bold">{ext.liveEntryTiming.lineDropSummary}</span>
-                        </div>
-                        <div className="bg-slate-900/90 p-2 rounded border border-slate-800">
-                          <span className="text-slate-500 block text-[9px]">最佳反弹目标盘口/水位</span>
-                          <span className="text-emerald-400 font-bold">{ext.liveEntryTiming.reboundOpportunity}</span>
-                        </div>
-                        <div className="bg-slate-900/90 p-2 rounded border border-slate-800">
-                          <span className="text-slate-500 block text-[9px]">触发表征与观察节点</span>
-                          <span className="text-amber-300 font-bold">{ext.liveEntryTiming.triggerCondition}</span>
-                        </div>
-                      </div>
-
-                      <div className="bg-slate-900/80 p-2 rounded border border-emerald-500/30 text-xs text-slate-200 flex items-center gap-2">
-                        <Zap className="w-4 h-4 text-amber-400 shrink-0" />
-                        <span><strong>操作建议:</strong> {ext.liveEntryTiming.actionableStep}</span>
-                      </div>
-                    </div>
-                  )}
                 </div>
                 </>
 
@@ -2562,6 +2504,13 @@ export const BettingRecommendationsView: React.FC<Props> = ({
           })}
         </div>
       )}
+
+      {/* Recent Form Popup Modal */}
+      <RecentFormModal
+        match={selectedFormMatch}
+        isOpen={!!selectedFormMatch}
+        onClose={() => setSelectedFormMatch(null)}
+      />
 
       {/* Single Match Supplement Modal */}
       {supplementMatch && (

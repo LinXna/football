@@ -50,9 +50,87 @@ const poisson = (lambda: number, goals: number): number => {
 
 const percent = (value: number): number => Math.round(value * 1000) / 10;
 
-function verifiedMarket(item: DecisionItem, marketType: string): RawMarket | null {
-  const rows = Array.isArray(item.ybty_raw_markets) ? item.ybty_raw_markets as RawMarket[] : [];
-  return rows.find((row) => row.market === marketType && row.market_type_verified !== false) || null;
+function verifiedMarket(item: DecisionItem | null | undefined, marketType: string): RawMarket | null {
+  if (!item) return null;
+  const rows = Array.isArray(item.ybty_raw_markets) ? (item.ybty_raw_markets as RawMarket[]) : [];
+
+  // Exact or semantic match in raw markets
+  let found = rows.find((row) => row.market === marketType && row.market_type_verified !== false);
+  if (found && usableOptions(found).length > 0) return found;
+
+  // Fallback 1: match common aliases in ybty_raw_markets
+  if (marketType === 'full_total') {
+    found = rows.find((row) => (row.market === 'total' || row.market === 'ou' || row.market === 'full_total' || String((row as any).market_title || '').includes('大小球')) && row.market_type_verified !== false);
+  } else if (marketType === 'half_total') {
+    found = rows.find((row) => (row.market === 'half_total' || row.market === 'ht_total' || String((row as any).market_title || '').includes('半场大小')) && row.market_type_verified !== false);
+  } else if (marketType === 'full_spread') {
+    found = rows.find((row) => (row.market === 'spread' || row.market === 'ah' || row.market === 'handicap' || row.market === 'full_spread' || String((row as any).market_title || '').includes('让球')) && row.market_type_verified !== false);
+  } else if (marketType === 'half_spread') {
+    found = rows.find((row) => (row.market === 'half_spread' || row.market === 'ht_spread' || String((row as any).market_title || '').includes('半场让球')) && row.market_type_verified !== false);
+  } else if (marketType === 'full_h2h') {
+    found = rows.find((row) => (row.market === 'h2h' || row.market === '1x2' || row.market === 'full_h2h' || String((row as any).market_title || '').includes('独赢')) && row.market_type_verified !== false);
+  }
+  if (found && usableOptions(found).length > 0) return found;
+
+  // Fallback 2: check item.ybty_markets
+  const ybtyMarkets = (item as any)?.ybty_markets;
+  if (ybtyMarkets) {
+    if (marketType === 'full_total' && ybtyMarkets.total) {
+      const tot = ybtyMarkets.total;
+      const opts: RawOption[] = [];
+      if (tot.over_odds) opts.push({ selection: String(tot.line ?? ''), line: tot.line, odds: tot.over_odds, side: 'over', suspended: tot.over_suspended });
+      if (tot.under_odds) opts.push({ selection: String(tot.line ?? ''), line: tot.line, odds: tot.under_odds, side: 'under', suspended: tot.under_suspended });
+      if (opts.length) return { market: 'full_total', options: opts };
+    } else if (marketType === 'full_spread' && ybtyMarkets.spread) {
+      const sp = ybtyMarkets.spread;
+      const opts: RawOption[] = [];
+      if (sp.home_odds) opts.push({ selection: String(sp.home_line ?? ''), line: sp.home_line, odds: sp.home_odds, side: 'home', suspended: sp.home_suspended });
+      if (sp.away_odds) opts.push({ selection: String(sp.away_line ?? ''), line: sp.away_line, odds: sp.away_odds, side: 'away', suspended: sp.away_suspended });
+      if (opts.length) return { market: 'full_spread', options: opts };
+    } else if (marketType === 'full_h2h' && ybtyMarkets.h2h) {
+      const h = ybtyMarkets.h2h;
+      const opts: RawOption[] = [];
+      if (h.home_odds) opts.push({ selection: '主', odds: h.home_odds, side: 'home', suspended: h.home_suspended });
+      if (h.away_odds) opts.push({ selection: '客', odds: h.away_odds, side: 'away', suspended: h.away_suspended });
+      if (h.draw_odds) opts.push({ selection: '平', odds: h.draw_odds, side: 'draw', suspended: h.draw_suspended });
+      if (opts.length) return { market: 'full_h2h', options: opts };
+    }
+  }
+
+  // Fallback 3: check item.recommendation
+  const rec = item?.recommendation;
+  if (rec && rec.odds) {
+    const recMarket = String(rec.market || '');
+    const isTotal = /total|大小球/i.test(recMarket);
+    const isSpread = /spread|让球/i.test(recMarket);
+    const isH2H = /h2h|独赢|1x2/i.test(recMarket);
+    const isHalf = /半场|half|ht/i.test(recMarket);
+
+    const recSel = String((rec as any)?.selection || rec?.basis || '');
+    if (marketType === 'full_total' && isTotal && !isHalf) {
+      const side = recSel.toLowerCase().includes('under') || recSel.includes('小') ? 'under' : 'over';
+      return { market: 'full_total', options: [{ selection: String(rec.line ?? recSel ?? ''), line: rec.line, odds: rec.odds, side }] };
+    }
+    if (marketType === 'half_total' && isTotal && isHalf) {
+      const side = recSel.toLowerCase().includes('under') || recSel.includes('小') ? 'under' : 'over';
+      return { market: 'half_total', options: [{ selection: String(rec.line ?? recSel ?? ''), line: rec.line, odds: rec.odds, side }] };
+    }
+    if (marketType === 'full_spread' && isSpread && !isHalf) {
+      const side = recSel.toLowerCase().includes('away') || recSel.includes('客') ? 'away' : 'home';
+      return { market: 'full_spread', options: [{ selection: String(rec.line ?? recSel ?? ''), line: rec.line, odds: rec.odds, side }] };
+    }
+    if (marketType === 'half_spread' && isSpread && isHalf) {
+      const side = recSel.toLowerCase().includes('away') || recSel.includes('客') ? 'away' : 'home';
+      return { market: 'half_spread', options: [{ selection: String(rec.line ?? recSel ?? ''), line: rec.line, odds: rec.odds, side }] };
+    }
+    if (marketType === 'full_h2h' && isH2H) {
+      const side = recSel.toLowerCase().includes('away') || recSel.includes('客') ? 'away' :
+                   recSel.toLowerCase().includes('draw') || recSel.includes('平') ? 'draw' : 'home';
+      return { market: 'full_h2h', options: [{ selection: '1X2', odds: rec.odds, side }] };
+    }
+  }
+
+  return null;
 }
 
 function usableOptions(market: RawMarket | null): Array<RawOption & { numericOdds: number }> {
@@ -71,6 +149,7 @@ function marketLean(options: Array<RawOption & { numericOdds: number }>) {
 }
 
 function historicalSummary(item: DecisionItem): { h2h: string; recent: string } {
+  if (!item) return { h2h: '历史交锋：暂无可计算样本', recent: '近期战绩：暂无可计算样本' };
   const root: any = (item as any).recent_trends || {};
   const analysis = root.analysis_data || root;
   const historical = root.historical_analysis || analysis.historical_analysis;
@@ -140,11 +219,24 @@ function realMarketRecommendation(market: RawMarket | null, label: string, homeN
   const lean = marketLean(usableOptions(market));
   if (!lean) return { value: `${label}暂无真实盘口`, line: '--', odds: null, confidence: 0, reason: 'YBTY本次导入没有可用且已核验的该市场盘口，不生成默认盘口或赔率。' };
   const side = String(lean.option.side || '');
-  const direction = side === 'over' ? '大球' : side === 'under' ? '小球' : side === 'home' ? homeName : side === 'away' ? awayName : '平局';
-  const line = String(lean.option.line ?? lean.option.selection ?? '--');
+  const rawLine = String(lean.option.line ?? lean.option.selection ?? '').trim();
+  const formattedLine = rawLine && rawLine !== '--' && rawLine !== 'undefined' ? formatAsianLine(rawLine) : '';
+
+  let fullDisplay = '';
+  if (label.includes('让球') || label.includes('spread')) {
+    const team = side === 'away' ? awayName : homeName;
+    const lineSuffix = formattedLine ? ` ${formattedLine}` : '';
+    fullDisplay = `${label}${team}${lineSuffix}`.trim();
+  } else {
+    // Total (Over/Under)
+    const direction = side === 'over' ? '大球' : side === 'under' ? '小球' : side === 'home' ? homeName : side === 'away' ? awayName : '平局';
+    const lineSuffix = formattedLine ? ` ${formattedLine}` : '';
+    fullDisplay = `${label}${direction}${lineSuffix}`.trim();
+  }
+
   return {
-    value: `${label}${direction}`,
-    line: formatAsianLine(line),
+    value: fullDisplay,
+    line: formattedLine || '--',
     odds: lean.option.numericOdds,
     confidence: lean.probability,
     reason: `方向和赔率直接来自YBTY已核验盘口；${lean.probability}%是该市场去除同盘水位后的隐含概率，不是编造的模型胜率。`,
@@ -152,8 +244,10 @@ function realMarketRecommendation(market: RawMarket | null, label: string, homeN
 }
 
 export function generateExtendedAnalysis(matchItem: DecisionItem): ExtendedMatchAnalysis {
-  const homeName = matchItem.ybty_home || matchItem.match.split('vs')[0]?.trim() || '主队';
-  const awayName = matchItem.ybty_away || matchItem.match.split('vs')[1]?.trim() || '客队';
+  const matchStr = String(matchItem?.match || (matchItem as any)?.match_name || (matchItem as any)?.ybty_match || '');
+  const matchParts = matchStr.includes('vs') ? matchStr.split('vs') : matchStr.includes('VS') ? matchStr.split('VS') : [];
+  const homeName = matchItem?.ybty_home || matchParts[0]?.trim() || '主队';
+  const awayName = matchItem?.ybty_away || matchParts[1]?.trim() || '客队';
   const history = historicalSummary(matchItem);
   const fullTotal = verifiedMarket(matchItem, 'full_total');
   const halfTotal = verifiedMarket(matchItem, 'half_total');
@@ -163,8 +257,8 @@ export function generateExtendedAnalysis(matchItem: DecisionItem): ExtendedMatch
 
   const ftTotalRec = realMarketRecommendation(fullTotal, '全场', homeName, awayName);
   const htTotalRec = realMarketRecommendation(halfTotal, '半场', homeName, awayName);
-  const ftSpreadRec = realMarketRecommendation(fullSpread, '全场让球：', homeName, awayName);
-  const htSpreadRec = realMarketRecommendation(halfSpread, '半场让球：', homeName, awayName);
+  const ftSpreadRec = realMarketRecommendation(fullSpread, '全场让球 ', homeName, awayName);
+  const htSpreadRec = realMarketRecommendation(halfSpread, '半场让球 ', homeName, awayName);
   const h2hLean = marketLean(usableOptions(fullH2h));
   const h2hSide = String(h2hLean?.option.side || '');
   const h2hValue = h2hSide === 'home' ? `主胜（${homeName}）` : h2hSide === 'away' ? `客胜（${awayName}）` : h2hSide === 'draw' ? '平局' : '暂无真实独赢盘口';

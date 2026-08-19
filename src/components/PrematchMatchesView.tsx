@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { DecisionItem, PipelineStatus, getLeagueName, getTeamDisplay } from '../types';
 import { DataSupplementModal } from './DataSupplementModal';
 import { BatchSupplementModal } from './BatchSupplementModal';
+import { RecentFormModal } from './RecentFormModal';
 import { displayText } from '../lib/displayValue';
 import { 
   Calendar, 
@@ -21,7 +22,8 @@ import {
   Send,
   Trophy,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  BarChart3
 } from 'lucide-react';
 
 interface Props {
@@ -57,6 +59,7 @@ export const PrematchMatchesView: React.FC<Props> = ({
 
   // Custom Clear Confirm Modal State
   const [confirmClearModal, setConfirmClearModal] = useState<{ open: boolean; selectedOnly: boolean } | null>(null);
+  const [selectedFormMatch, setSelectedFormMatch] = useState<DecisionItem | null>(null);
 
   const matchesWithCustom = decisions.map((m) => customUpdatedMatches[m.match] || m);
 
@@ -407,6 +410,15 @@ export const PrematchMatchesView: React.FC<Props> = ({
 
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={() => setSelectedFormMatch(m)}
+                      className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shadow"
+                      title="查看主客队近期战绩、胜率走势与历史交锋 (点击弹出)"
+                    >
+                      <BarChart3 className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>近期战绩</span>
+                    </button>
+
+                    <button
                       onClick={() => handleOpenSupplement(m)}
                       className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-medium flex items-center gap-1 transition-all"
                       title="手动修补数据与时间"
@@ -499,6 +511,13 @@ export const PrematchMatchesView: React.FC<Props> = ({
           })}
         </div>
       )}
+
+      {/* Recent Form Modal */}
+      <RecentFormModal
+        match={selectedFormMatch}
+        isOpen={!!selectedFormMatch}
+        onClose={() => setSelectedFormMatch(null)}
+      />
 
       {/* Supplement Modal */}
       {supplementMatch && (

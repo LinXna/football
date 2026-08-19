@@ -114,6 +114,7 @@ export interface DecisionItem {
   risks?: string[];
   evidence?: string[];
   intercept_reason?: string;
+  snapshot_delta?: any;
 }
 
 export interface DecisionsPayload {

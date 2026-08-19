@@ -1,6 +1,7 @@
 import type express from 'express';
 import { DATA_FILES } from '../dataFiles';
 import { readJsonFile } from '../jsonStore';
+import { recordMatchSnapshots, computeMatchSnapshotDelta } from '../services/snapshotDeltaEngine';
 
 type PipelineDependencies = {
   cleanTeamName: (value: unknown) => string;
@@ -31,14 +32,21 @@ export function registerPipelineRoutes(app: express.Express, deps: PipelineDepen
       const l = cand.match?.league || cand.market_source?.league || cand.detail_context?.tournament;
       if (l && !leagueByMatch.has(id)) leagueByMatch.set(id, String(l).trim());
     }
-    const visibleDecisions = (Array.isArray(decisions.decisions) ? decisions.decisions : []).map((item: any) => {
+
+    const rawDecisions = Array.isArray(decisions.decisions) ? decisions.decisions : [];
+    // Record current match snapshots into persistent timeline
+    recordMatchSnapshots([...rawDecisions, ...(Array.isArray(candidates.candidates) ? candidates.candidates : [])]);
+
+    const visibleDecisions = rawDecisions.map((item: any) => {
       const id = deps.matchIdentity(item);
       const fallbackLeague = leagueByMatch.get(id);
+      const snapshotDelta = computeMatchSnapshotDelta(item);
       return deps.hideInvalidRecommendation({
         ...item,
         league: item.league || fallbackLeague,
         ybty_league: item.ybty_league || fallbackLeague,
         ybty_raw_markets: rawMarketByMatch.get(id) || deps.normalizeYbtyMarketTypes(item.ybty_raw_markets),
+        snapshot_delta: snapshotDelta,
       });
     });
 
@@ -68,17 +76,21 @@ export function registerPipelineRoutes(app: express.Express, deps: PipelineDepen
       if (l && !leagueByMatch.has(id)) leagueByMatch.set(id, String(l).trim());
     }
 
+    recordMatchSnapshots([...formalDecisions, ...researchQueue, ...(Array.isArray(candidates.candidates) ? candidates.candidates : [])]);
+
     const visibleDecisions = [
       ...formalDecisions,
       ...researchQueue.filter((item: any) => !formalMatches.has(String(item?.match || ''))),
     ].map((item: any) => {
       const id = deps.matchIdentity(item);
       const fallbackLeague = leagueByMatch.get(id);
+      const snapshotDelta = computeMatchSnapshotDelta(item);
       return deps.hideInvalidRecommendation({
         ...item,
         league: item.league || fallbackLeague,
         ybty_league: item.ybty_league || fallbackLeague,
         ybty_raw_markets: deps.normalizeYbtyMarketTypes(item.ybty_raw_markets),
+        snapshot_delta: snapshotDelta,
       });
     });
 
