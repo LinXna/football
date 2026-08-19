@@ -13,6 +13,7 @@ import {
 } from './quantitativeFeatures';
 import { deepMineFormAndH2H } from './formAndH2HDeepMining';
 import { buildMasterTacticalSynthesis } from './advancedTacticalQuantitativeEngines';
+import { evaluateLeisuCornerQuantitativePricing } from './leisuCornerMarket';
 
 const BETTABLE_MARKET = /^(full|half)_(h2h|spread|total)$/;
 const KEY_EVENT = /进球|破门|goal|红牌|red card|黄牌|yellow card|角球|corner|半场结束|中场|half.?time|下半场开始|second half|点球|penalty|var|取消进球|伤退|受伤|injur|换人|substitut|中断|暂停/i;
@@ -459,6 +460,7 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
   const awayTeam = item?.ybty_away || item?.away || item?.away_team || '';
   const attackConversion = calculateAttackConversion(liveStatistics, item?.score);
   const formAndH2HDeep = deepMineFormAndH2H(item);
+  const cornerAnalysis = evaluateLeisuCornerQuantitativePricing(item, minute);
   let handicapCalibration = mode === 'prematch_eval' ? null : calculateHandicapExpectancyMetrics(liveStatistics, item?.score, minute);
 
   // If live handicap calibration is absent (e.g. pre-match or before in-play statistics), calibrate baseline Poisson via Form & H2H Deep Mining
@@ -542,6 +544,7 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
       handicap_calibration: handicapCalibration || undefined,
       five_markets_coupling_audit: fiveMarketsCoupling || undefined,
       form_and_h2h_deep_metrics: formAndH2HDeep || undefined,
+      corner_expectancy_and_pricing: cornerAnalysis || undefined,
       master_tactical_synthesis: buildMasterTacticalSynthesis(item, minute, verifiedMarkets) || undefined,
       lineup_transparency: lineupTransparency.tier !== 'unknown_or_unannounced' ? lineupTransparency : undefined,
       fair_market_pricing: fairPricing.length > 0 ? fairPricing : undefined,
@@ -551,6 +554,7 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
     reference_odds: slimReferenceOdds(item?.reference_odds),
     trend_summary: trendSummary(item),
     verified_ybty_markets: verifiedMarkets,
+    verified_leisu_corner_markets: cornerAnalysis.markets.filter((m) => m.available).length > 0 ? cornerAnalysis.markets : undefined,
   };
 
   return stripNullsAndEmpty(rawPayload) || {};

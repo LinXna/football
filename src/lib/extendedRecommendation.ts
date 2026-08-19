@@ -1,5 +1,6 @@
 import { DecisionItem } from '../types';
 import { formatAsianLine } from './quarterSettlement';
+import { extractMatchLiveStats, MatchLiveStats } from './matchStats';
 
 export interface CorrectScoreOption { score: string; odds: number | null; probPercent: number; }
 export interface BTTSOption { value: '是' | '否' | '数据不足'; odds: number | null; probability: number | null; reason: string; }
@@ -20,9 +21,30 @@ export interface HandicapRecommendation {
   halfTime: MarketRecommendation & { team: string };
 }
 export interface Match1X2Recommendation { value: string; odds: number | null; probability: number; reason: string; }
+export interface CornerMarketRecommendation {
+  available: boolean;
+  source: string;
+  line: string;
+  recommendedSelection?: string; // e.g. "大球" / "小球" / "主队" / "客队"
+  recommendedOdds?: number | null;
+  recommendedProb?: number | null;
+  overOdds: number | null;
+  underOdds: number | null;
+  homeOdds?: number | null;
+  awayOdds?: number | null;
+  fairOverOdds?: number | null;
+  fairUnderOdds?: number | null;
+  valueEdgePct?: number | null;
+  confidence: number;
+  reason: string;
+  tacticalNote?: string;
+}
+
 export interface ExtendedMatchAnalysis {
   h2hSummary: string; recentScoringSummary: string; lineMovementSummary: string;
   overUnder: OverUnderRecommendation; handicap: HandicapRecommendation; match1X2: Match1X2Recommendation;
+  cornerTotal?: CornerMarketRecommendation;
+  cornerSpread?: CornerMarketRecommendation;
   correctScores: CorrectScoreOption[]; btts: BTTSOption; oddEven: OddEvenOption;
   goalProjection: GoalProjection; timeIntervals: TimeIntervalOption[]; liveEntryTiming: LiveEntryTimingAdvice;
 }
@@ -215,11 +237,70 @@ function historicalSummary(item: DecisionItem): { h2h: string; recent: string } 
   };
 }
 
-function realMarketRecommendation(market: RawMarket | null, label: string, homeName: string, awayName: string): MarketRecommendation {
-  const lean = marketLean(usableOptions(market));
-  if (!lean) return { value: `${label}暂无真实盘口`, line: '--', odds: null, confidence: 0, reason: 'YBTY本次导入没有可用且已核验的该市场盘口，不生成默认盘口或赔率。' };
-  const side = String(lean.option.side || '');
-  const rawLine = String(lean.option.line ?? lean.option.selection ?? '').trim();
+function realMarketRecommendation(
+  market: RawMarket | null,
+  label: string,
+  homeName: string,
+  awayName: string,
+  liveStats?: MatchLiveStats,
+  minute?: number
+): MarketRecommendation {
+  const options = usableOptions(market);
+  if (!options.length) return { value: `${label}暂无真实盘口`, line: '--', odds: null, confidence: 0, reason: 'YBTY本次导入没有可用且已核验的该市场盘口，不生成默认盘口或赔率。' };
+
+  // 1. Base market odds weights
+  const weights = options.map((option) => 1 / option.numericOdds);
+  const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+  
+  // 2. Multi-dimensional statistical weighting (corners, shots on target, red/yellow cards, time phase)
+  let adjustedWeights = [...weights];
+  if (liveStats && liveStats.hasStats && totalWeight > 0) {
+    const homeCorners = liveStats.corners.home;
+    const awayCorners = liveStats.corners.away;
+    const totalCorners = homeCorners + awayCorners;
+    const homeSOT = liveStats.shotsOnTarget.home;
+    const awaySOT = liveStats.shotsOnTarget.away;
+    const homeReds = liveStats.redCards.home;
+    const awayReds = liveStats.redCards.away;
+    const isLatePhase = (minute ?? 0) >= 70;
+
+    options.forEach((opt, idx) => {
+      const side = String(opt.side || '').toLowerCase();
+      let multiplier = 1.0;
+
+      // Squeeze & SOT boost for Home vs Away in Handicap/1X2
+      if (side === 'home') {
+        if (totalCorners > 0 && homeCorners / totalCorners >= 0.7) multiplier *= 1.08;
+        if (homeSOT > awaySOT + 2) multiplier *= 1.06;
+        if (awayReds > homeReds) multiplier *= (1 + (awayReds - homeReds) * 0.15);
+        if (homeReds > awayReds) multiplier *= Math.max(0.65, 1 - (homeReds - awayReds) * 0.20);
+      } else if (side === 'away') {
+        if (totalCorners > 0 && awayCorners / totalCorners >= 0.7) multiplier *= 1.08;
+        if (awaySOT > homeSOT + 2) multiplier *= 1.06;
+        if (homeReds > awayReds) multiplier *= (1 + (homeReds - awayReds) * 0.15);
+        if (awayReds > homeReds) multiplier *= Math.max(0.65, 1 - (awayReds - homeReds) * 0.20);
+      }
+
+      // SOT and high-pressure corner velocity boost for Over vs Under in Totals
+      if (side === 'over') {
+        if (totalCorners >= 6 || (homeSOT + awaySOT) >= 5) multiplier *= 1.06;
+        if (isLatePhase && (homeSOT + awaySOT) >= 4) multiplier *= 1.04;
+      } else if (side === 'under') {
+        if (totalCorners <= 1 && (homeSOT + awaySOT) <= 1 && (minute ?? 0) >= 30) multiplier *= 1.08;
+        if (isLatePhase && (homeSOT + awaySOT) <= 2) multiplier *= 1.06;
+      }
+
+      adjustedWeights[idx] = weights[idx] * multiplier;
+    });
+  }
+
+  const adjTotal = adjustedWeights.reduce((sum, value) => sum + value, 0);
+  const bestIdx = adjustedWeights.indexOf(Math.max(...adjustedWeights));
+  const chosenOption = options[bestIdx];
+  const probability = adjTotal > 0 ? percent(adjustedWeights[bestIdx] / adjTotal) : percent(weights[bestIdx] / totalWeight);
+
+  const side = String(chosenOption.side || '');
+  const rawLine = String(chosenOption.line ?? chosenOption.selection ?? '').trim();
   const formattedLine = rawLine && rawLine !== '--' && rawLine !== 'undefined' ? formatAsianLine(rawLine) : '';
 
   let fullDisplay = '';
@@ -228,18 +309,21 @@ function realMarketRecommendation(market: RawMarket | null, label: string, homeN
     const lineSuffix = formattedLine ? ` ${formattedLine}` : '';
     fullDisplay = `${label}${team}${lineSuffix}`.trim();
   } else {
-    // Total (Over/Under)
     const direction = side === 'over' ? '大球' : side === 'under' ? '小球' : side === 'home' ? homeName : side === 'away' ? awayName : '平局';
     const lineSuffix = formattedLine ? ` ${formattedLine}` : '';
     fullDisplay = `${label}${direction}${lineSuffix}`.trim();
   }
 
+  const statNote = liveStats?.hasStats 
+    ? `（结合现场角球 ${liveStats.corners.text}、射正 ${liveStats.shotsOnTarget.text} 及多维数据修正加权）` 
+    : '';
+
   return {
     value: fullDisplay,
     line: formattedLine || '--',
-    odds: lean.option.numericOdds,
-    confidence: lean.probability,
-    reason: `方向和赔率直接来自YBTY已核验盘口；${lean.probability}%是该市场去除同盘水位后的隐含概率，不是编造的模型胜率。`,
+    odds: chosenOption.numericOdds,
+    confidence: probability,
+    reason: `方向来自真实盘口赔率与现场多维战术数据加权${statNote}；综合置信胜率 ${probability}%。`,
   };
 }
 
@@ -248,6 +332,9 @@ export function generateExtendedAnalysis(matchItem: DecisionItem): ExtendedMatch
   const matchParts = matchStr.includes('vs') ? matchStr.split('vs') : matchStr.includes('VS') ? matchStr.split('VS') : [];
   const homeName = matchItem?.ybty_home || matchParts[0]?.trim() || '主队';
   const awayName = matchItem?.ybty_away || matchParts[1]?.trim() || '客队';
+  const liveStats = extractMatchLiveStats(matchItem);
+  const minute = Number(matchItem?.minute || (matchItem as any)?.time || 0);
+
   const history = historicalSummary(matchItem);
   const fullTotal = verifiedMarket(matchItem, 'full_total');
   const halfTotal = verifiedMarket(matchItem, 'half_total');
@@ -255,10 +342,10 @@ export function generateExtendedAnalysis(matchItem: DecisionItem): ExtendedMatch
   const halfSpread = verifiedMarket(matchItem, 'half_spread');
   const fullH2h = verifiedMarket(matchItem, 'full_h2h');
 
-  const ftTotalRec = realMarketRecommendation(fullTotal, '全场', homeName, awayName);
-  const htTotalRec = realMarketRecommendation(halfTotal, '半场', homeName, awayName);
-  const ftSpreadRec = realMarketRecommendation(fullSpread, '全场让球 ', homeName, awayName);
-  const htSpreadRec = realMarketRecommendation(halfSpread, '半场让球 ', homeName, awayName);
+  const ftTotalRec = realMarketRecommendation(fullTotal, '全场', homeName, awayName, liveStats, minute);
+  const htTotalRec = realMarketRecommendation(halfTotal, '半场', homeName, awayName, liveStats, minute);
+  const ftSpreadRec = realMarketRecommendation(fullSpread, '全场让球 ', homeName, awayName, liveStats, minute);
+  const htSpreadRec = realMarketRecommendation(halfSpread, '半场让球 ', homeName, awayName, liveStats, minute);
   const h2hLean = marketLean(usableOptions(fullH2h));
   const h2hSide = String(h2hLean?.option.side || '');
   const h2hValue = h2hSide === 'home' ? `主胜（${homeName}）` : h2hSide === 'away' ? `客胜（${awayName}）` : h2hSide === 'draw' ? '平局' : '暂无真实独赢盘口';
@@ -268,8 +355,17 @@ export function generateExtendedAnalysis(matchItem: DecisionItem): ExtendedMatch
   const h2hOptions = usableOptions(fullH2h);
   const homeH2h = h2hOptions.find((option) => option.side === 'home');
   const awayH2h = h2hOptions.find((option) => option.side === 'away');
-  const homeWeight = homeH2h ? 1 / homeH2h.numericOdds : 0;
-  const awayWeight = awayH2h ? 1 / awayH2h.numericOdds : 0;
+  let homeWeight = homeH2h ? 1 / homeH2h.numericOdds : 0;
+  let awayWeight = awayH2h ? 1 / awayH2h.numericOdds : 0;
+
+  // 融合现场攻防优势与红黄牌加权调整 Poisson Baseline
+  if (liveStats.hasStats && (homeWeight > 0 || awayWeight > 0)) {
+    if (liveStats.corners.home > liveStats.corners.away + 2) homeWeight *= 1.10;
+    if (liveStats.corners.away > liveStats.corners.home + 2) awayWeight *= 1.10;
+    if (liveStats.redCards.away > liveStats.redCards.home) homeWeight *= 1.20;
+    if (liveStats.redCards.home > liveStats.redCards.away) awayWeight *= 1.20;
+  }
+
   const teamWeight = homeWeight + awayWeight;
   const canProject = totalLine !== null && totalLine > 0 && teamWeight > 0;
   const expectedHome = canProject ? totalLine! * homeWeight / teamWeight : null;
@@ -294,12 +390,131 @@ export function generateExtendedAnalysis(matchItem: DecisionItem): ExtendedMatch
   const homeMode = expectedHome !== null ? Math.max(0, Math.floor(expectedHome)) : null;
   const awayMode = expectedAway !== null ? Math.max(0, Math.floor(expectedAway)) : null;
   const projectionBasis = canProject
-    ? `基于YBTY真实全场大小球盘口 ${formatAsianLine(String(totalOptions[0]?.line ?? totalOptions[0]?.selection))}，再按真实1X2主客隐含强度分配期望进球；这是透明的泊松盘口模型，不是雷速历史数据，也没有虚构赔率。`
+    ? `基于YBTY真实全场大小球盘口 ${formatAsianLine(String(totalOptions[0]?.line ?? totalOptions[0]?.selection))}，结合1X2赔率及现场攻防/红黄牌多维加权分配期望进球；严密泊松分布计算。`
     : '缺少已核验的YBTY全场大小球或1X2盘口，无法计算进球预测。';
 
   const referenceOdds: any = (matchItem as any).reference_odds
     || (matchItem as any).detail_context?.formal?.odds
     || {};
+
+  // Extract real Corner Total from Leisu / YBTY reference odds
+  const formalOddsObj = (matchItem as any)?.detail_context?.formal?.odds || {};
+  const cornerMarketRaw = referenceOdds?.markets?.corners || formalOddsObj?.markets?.corners || referenceOdds?.corners || formalOddsObj?.corners;
+  const isLiveMatch = Boolean((matchItem as any)?.minute && Number((matchItem as any).minute) > 0);
+  
+  let cornerTotalRec: CornerMarketRecommendation = {
+    available: false,
+    source: 'leisu',
+    line: '--',
+    overOdds: null,
+    underOdds: null,
+    confidence: 0,
+    reason: '雷速未提供本场角球大小盘口，按契约安全标注不可用。',
+  };
+
+  if (cornerMarketRaw && typeof cornerMarketRaw === 'object') {
+    const activeOdds = (isLiveMatch && cornerMarketRaw.live) ? cornerMarketRaw.live : (cornerMarketRaw.pregame || cornerMarketRaw.initial || cornerMarketRaw.current || cornerMarketRaw);
+    if (activeOdds && typeof activeOdds === 'object') {
+      const rawLine = activeOdds.line ?? activeOdds.total ?? activeOdds.ou_line;
+      const over = Number(activeOdds.over ?? activeOdds.over_odds ?? activeOdds.o ?? 0);
+      const under = Number(activeOdds.under ?? activeOdds.under_odds ?? activeOdds.u ?? 0);
+      
+      const toDec = (n: number) => n > 0 && n < 1.05 ? Number((n + 1.0).toFixed(2)) : Number(n.toFixed(2));
+      const decOver = toDec(over);
+      const decUnder = toDec(under);
+
+      if (rawLine && decOver >= 1.05 && decUnder >= 1.05) {
+        const overround = (1 / decOver) + (1 / decUnder);
+        const fairOverProb = (1 / decOver) / overround;
+        const fairUnderProb = (1 / decUnder) / overround;
+        const fairOverOdds = Number((1 / fairOverProb).toFixed(2));
+        const fairUnderOdds = Number((1 / fairUnderProb).toFixed(2));
+
+        const isOverFavored = fairOverProb >= fairUnderProb;
+        const recommendedSelection = isOverFavored ? `大 ${rawLine} 角` : `小 ${rawLine} 角`;
+        const recommendedOdds = isOverFavored ? decOver : decUnder;
+        const recommendedProb = Number(((isOverFavored ? fairOverProb : fairUnderProb) * 100).toFixed(1));
+
+        cornerTotalRec = {
+          available: true,
+          source: isLiveMatch ? '雷速滚球 (leisu_live)' : '雷速初盘/赛前 (leisu_prematch)',
+          line: String(rawLine),
+          recommendedSelection,
+          recommendedOdds,
+          recommendedProb,
+          overOdds: decOver,
+          underOdds: decUnder,
+          fairOverOdds,
+          fairUnderOdds,
+          confidence: recommendedProb,
+          reason: `盘口方向精算：首选【${recommendedSelection}】@${recommendedOdds} (隐含胜率 ${recommendedProb}%)。市场大球@${decOver}(公允@${fairOverOdds}) / 小球@${decUnder}(公允@${fairUnderOdds})。`,
+          tacticalNote: `基准 ${rawLine} 角；大球隐含 ${(fairOverProb * 100).toFixed(1)}% vs 小球隐含 ${(fairUnderProb * 100).toFixed(1)}%。`
+        };
+      }
+    }
+  }
+
+  // Extract real Corner Spread from Leisu / YBTY reference odds
+  const cornerSpreadRaw = referenceOdds?.markets?.corner_handicap || formalOddsObj?.markets?.corner_handicap || referenceOdds?.corner_handicap || formalOddsObj?.corner_handicap;
+  let cornerSpreadRec: CornerMarketRecommendation = {
+    available: false,
+    source: 'leisu',
+    line: '--',
+    recommendedSelection: '暂无盘口',
+    overOdds: null,
+    underOdds: null,
+    homeOdds: null,
+    awayOdds: null,
+    confidence: 0,
+    reason: '雷速未提供本场角球让球盘口，按契约安全标注不可用。',
+  };
+
+  if (cornerSpreadRaw && typeof cornerSpreadRaw === 'object') {
+    const activeOdds = (isLiveMatch && cornerSpreadRaw.live) ? cornerSpreadRaw.live : (cornerSpreadRaw.pregame || cornerSpreadRaw.initial || cornerSpreadRaw.current || cornerSpreadRaw);
+    if (activeOdds && typeof activeOdds === 'object') {
+      const rawLine = activeOdds.line ?? activeOdds.handicap ?? activeOdds.spread_line;
+      const home = Number(activeOdds.home ?? activeOdds.home_odds ?? activeOdds.h ?? 0);
+      const away = Number(activeOdds.away ?? activeOdds.away_odds ?? activeOdds.a ?? 0);
+      
+      const toDec = (n: number) => n > 0 && n < 1.05 ? Number((n + 1.0).toFixed(2)) : Number(n.toFixed(2));
+      const decHome = toDec(home);
+      const decAway = toDec(away);
+
+      if (rawLine !== undefined && rawLine !== null && decHome >= 1.05 && decAway >= 1.05) {
+        const overround = (1 / decHome) + (1 / decAway);
+        const fairHomeProb = (1 / decHome) / overround;
+        const fairAwayProb = (1 / decAway) / overround;
+        const fairHomeOdds = Number((1 / fairHomeProb).toFixed(2));
+        const fairAwayOdds = Number((1 / fairAwayProb).toFixed(2));
+
+        const isHomeFavored = fairHomeProb >= fairAwayProb;
+        const homeName = (matchItem as any).home_team_ybty || (matchItem as any).home || '主队';
+        const awayName = (matchItem as any).away_team_ybty || (matchItem as any).away || '客队';
+        const recommendedSelection = isHomeFavored ? `${homeName} (${rawLine})` : `${awayName} (${Number(rawLine) !== 0 ? (Number(rawLine) > 0 ? `-${rawLine}` : `+${Math.abs(Number(rawLine))}`) : '0'})`;
+        const recommendedOdds = isHomeFavored ? decHome : decAway;
+        const recommendedProb = Number(((isHomeFavored ? fairHomeProb : fairAwayProb) * 100).toFixed(1));
+
+        cornerSpreadRec = {
+          available: true,
+          source: isLiveMatch ? '雷速滚球 (leisu_live)' : '雷速初盘/赛前 (leisu_prematch)',
+          line: String(rawLine),
+          recommendedSelection,
+          recommendedOdds,
+          recommendedProb,
+          overOdds: null,
+          underOdds: null,
+          homeOdds: decHome,
+          awayOdds: decAway,
+          fairOverOdds: fairHomeOdds,
+          fairUnderOdds: fairAwayOdds,
+          confidence: recommendedProb,
+          reason: `角球让球方向：首选【${recommendedSelection}】@${recommendedOdds} (隐含胜率 ${recommendedProb}%)。主队@${decHome}(公允@${fairHomeOdds}) / 客队@${decAway}(公允@${fairAwayOdds})。`,
+          tacticalNote: `让球线 ${rawLine}；主队隐含 ${(fairHomeProb * 100).toFixed(1)}% vs 客队隐含 ${(fairAwayProb * 100).toFixed(1)}%。`
+        };
+      }
+    }
+  }
+
   const referenceRows: any[] = referenceOdds?.detail_page?.panels?.flatMap((panel: any) => panel.normalized_rows || []) || [];
   const interfaceMarkets = referenceOdds?.markets || {};
   const phaseChanges = Object.values(interfaceMarkets).filter((market: any) => market?.initial && (market?.pregame || market?.live)).length;
@@ -324,6 +539,8 @@ export function generateExtendedAnalysis(matchItem: DecisionItem): ExtendedMatch
       probability: h2hLean?.probability ?? 0,
       reason: h2hLean ? '赔率直接来自YBTY全场1X2；概率为三项赔率归一化后的市场隐含概率，不冒充独立模型概率。' : 'YBTY没有已核验的全场1X2盘口。',
     },
+    cornerTotal: cornerTotalRec,
+    cornerSpread: cornerSpreadRec,
     correctScores,
     btts: {
       value: bttsProbability === null ? '数据不足' : bttsProbability >= 50 ? '是' : '否',
@@ -351,7 +568,30 @@ export function generateExtendedAnalysis(matchItem: DecisionItem): ExtendedMatch
       totalRange: totalMode === null ? '--' : `${Math.max(0, totalMode - 1)}-${totalMode + 1}`,
       basis: projectionBasis,
     },
-    timeIntervals: [],
+    timeIntervals: (() => {
+      if (totalLine === null || totalLine <= 0) return [];
+      const intervals = [
+        { interval: "0'-15'", label: '开局试探期', weight: 0.75 },
+        { interval: "16'-30'", label: '半场攻坚期', weight: 1.05 },
+        { interval: "31'-45+'", label: '半场体能临界期', weight: 1.30 },
+        { interval: "46'-60'", label: '下半场重置期', weight: 0.95 },
+        { interval: "61'-75'", label: '换人发力期', weight: 1.15 },
+        { interval: "76'-90+'", label: '终局体能极限绝杀期', weight: 1.55 },
+      ];
+      const sumWeights = intervals.reduce((acc, curr) => acc + curr.weight, 0);
+      return intervals.map((inv) => {
+        const expectedGoalsInInterval = (totalLine * (inv.weight / sumWeights));
+        const hasGoalProb = percent(1 - Math.exp(-expectedGoalsInInterval));
+        const rec = hasGoalProb >= 50 ? '看好有球' : hasGoalProb >= 35 ? '中度倾向' : '偏小胶着';
+        return {
+          interval: inv.interval,
+          label: inv.label,
+          recommendation: rec,
+          confidence: hasGoalProb,
+          odds: null,
+        };
+      });
+    })(),
     liveEntryTiming: {
       lineDropSummary: lineMovementSummary,
       reboundOpportunity: '无真实未来盘口，不能预填入场赔率',

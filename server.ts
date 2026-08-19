@@ -865,7 +865,7 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
 7. 阵容透明度与杯赛风控：参考 quantitative_analysis.lineup_transparency 与 tournament_risk。杯赛/友谊赛且首发阵容未确认时严禁 A 级推荐，最高限制 C 级。
 8. 独赢 1X2 替代玩法转化：当独赢赔率处于 1.05~1.25 鸡肋区间（缺乏安全边际）或 0-0/2-2 胶着时，评为 NO_BET / avoid，并在 reason 中明确引导转投具备退款/走盘保护的“让球 0（平手盘）/ 让球 -0.5”。
 9. 赛前无 score_verified 限制；赛前 score_verified=true 仅表示规则不适用，不得因此降级。
-10. 5大核心真实投注市场聚焦：market_assessments 必须且仅包含 5 大可投注市场（全场大小球、半场大小球、全场让球、半场让球、全场独赢1X2），严禁输出不可投注的非标准娱乐玩法。
+10. 核心真实投注市场聚焦：market_assessments 包含 5 大常规核心盘口（全场大小球、半场大小球、全场让球、半场让球、全场独赢1X2）以及 2 大角球真实盘口（全场角球大小、全场角球让球）。
 11. grade A/B/C 全部展示；没有合格正式主选时 recommendation=null。
 12. 串关与仓位：同一方向 B 级最多进一组串关；A 级≥85分且阵容明确时最多两组。单场 A 级仓位 3%~5%，B 级 1%~2%，串关 1% 以内。
 13. 【跨批次时序动能与盘口衰减精算 (Snapshot Delta & Momentum Analysis)】：
@@ -879,17 +879,23 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
      * 客队客场特异能力 (away_on_road_specific): 深入解析客队【客场抗冷不败率、客场场均失球(防守脆弱度)、客场破门率】。客队客场场均失球高 (如 >1.8) 且防守松散时，利好主队让深盘与大球；若客队客场场均失球仅 0.8 且低位防反不败率达 65%+，必须重点防范受让抗冷！
      * 历史交锋克制属性 (head_to_head_deep): 深入分析近 1-2 年双方直接交锋场均总进球、大球率、主场迎战净胜球历史与球风相克特征 (tactical_matchup_note_zh)。
      * 战绩加权先验期望进球 (form_weighted_poisson_prior): 融合主队主场进球能力与客队客场防守丢球率，计算 baseline 期望进球 λ_home_prior 与 λ_away_prior，并在 reason 中明确引用战绩支撑依据！
-15. 【高级战术量化合成引擎全流程实战利用 (Master Tactical Synthesis & Execution)】：
-   - 必须深度调用 quantitative_analysis.master_tactical_synthesis 中的6项精算成果：
-     * 1. 阵容位置折损 (positional_absence): 门将/主力中卫缺阵防守期望 GA 增加 0.35~0.7 球；头号射手缺阵进攻期望 GF 下滑 0.3~0.6 球。
-     * 2. 角球动能与禁区挤压 (corner_squeeze): 10分钟角球爆发速率 (velocity_per_10min ≥ 1.5) 代表禁区被高压围攻，破门高发。
-     * 3. 红牌人数失衡物理模型 (red_card_discipline): 上半场红牌失球乘数高达 2.15x (体能防线双崩塌)；终局 78'+ 红牌则转入低位摆大巴。
-     * 4. 欧亚指数倒挂与诱盘审计 (euro_asian_parity): 欧赔换算理论让球线 vs 实际亚盘深度，精准识别深开诱上 (DEEP_SPREAD_TRAP) 与浅开阻上。
-     * 5. 积分榜战意差值 (strategic_motivation): 保级生死战或争冠冲刺期战意加权，面对中游无欲无求球队具备战意压制。
-     * 6. 非线性进球时段 (non_linear_time_decay): 30-45'+ 半场体能节点 (权重 1.30) 与 75-90'+ 终局搏命期 (权重 1.55) 为进球最高发窗口。`;
+15. 【高级战术量化合成引擎全流程实战利用与硬核数据证据链绑定 (Master Tactical Synthesis & Evidence Chain)】：
+   - ⚠️【硬核因果证据链公理】：严禁脱离比赛真实数据凭空评估盘口或做单一赔率推导！AI 在给出任何推荐 (status="recommend") 或重点研判时，必须从 quantitative_analysis.master_tactical_synthesis 及现场统计中提取以下 4 项客观事实作为因果论据支撑，并在 reason 和 summary 中明确引用：
+     * 1. 现场禁区挤压与边路压制 (corner_squeeze & dangerous_attacks): 必须引用具体的角球比值（如 4-0 边路底线高压压制、角球爆发速率 velocity_per_10min）与射正转化效率；
+     * 2. 时段体能与战术发力期 (non_linear_time_decay): 必须引用当前比赛分钟所处的生理与换人发力窗口（如 55'-75' 核心攻防转换期、75'+ 搏命期）；
+     * 3. 纪律失衡与红黄牌累积 (red_card_discipline & referee_discipline): 必须引用双方吃牌状态对防线动作变形与体能消耗的客观物理影响；
+     * 4. 历史交锋与球风克制 (head_to_head_deep & tactical_matchup): 必须引用双方近 1-2 年交锋及主客场特异性数据支撑。
+   - 严禁在缺乏上述 4 项客观数据链支撑的情况下盲目给 A/B 级推荐；每一个最终推荐的盘口，其推导逻辑必须与上述 4 项客观数据完全自洽！
+16. 【全场角球大小与全场角球让球雷速盘口研判与标注规范 (Leisu Corner Markets Execution)】：
+   - 角球盘口（全场角球大小、全场角球让球）采用雷速真实盘口数据 (verified_leisu_corner_markets)；
+   - 若雷速提供了角球盘口且有正向价值边际 (Value Edge > 0)，必须引用其 option_id 与实际赔率并结合 quantitative_analysis.corner_expectancy_and_pricing 进行严密推导；
+   - 若本场比赛雷速未提供角球大小或让球盘口，必须在 market_assessments 中返回：
+     category="全场角球大小" / "全场角球让球", status="unavailable", grade="NO_BET", odds=null, line=null, market_option_id=null, reason="雷速未提供本场角球盘口，不予推荐"。`;
 
-  const verifiedOptionRule = `【YBTY真实选项白名单・最高优先级】
-全场/半场大小球、让球、独赢1X2禁止手工填写或改写投注盘口。必须先从本场 verified_ybty_markets 选择一个真实 option，并原样返回它的 option_id 到 market_option_id。系统将根据 option_id 自动回填并锁定 direction、line、odds，AI填写的同名字段不作为投注依据。严禁把 reference_odds 当作投注赔率；严禁自行换盘、猜盘或生成YBTY未提供的半场盘口。某市场不在 verified_ybty_markets 时必须返回 market_option_id=null、status=unavailable、odds=null、line=null。概率必须针对该 option_id 对应的真实盘口单独评估，不得把其他盘口概率套用过来。`;
+  const verifiedOptionRule = `【真实选项白名单・最高优先级】
+全场/半场大小球、让球、独赢1X2禁止手工填写或改写投注盘口，必须从 verified_ybty_markets 选择真实 option 并原样返回 option_id。
+全场角球大小、全场角球让球必须从 verified_leisu_corner_markets 选择真实 option 并原样返回 option_id；若雷速未提供角球盘口，必须返回 status="unavailable"、grade="NO_BET"、odds=null、line=null。
+系统将根据 option_id 自动回填并锁定 direction、line、odds，AI填写的同名字段不作为投注依据。严禁自行换盘、猜盘或生成不存在的盘口。`;
   const oddsSourceRoles = `【赔率数据源角色・必须理解】
 1. YBTY是本系统实际投注平台。所有可下注的玩法、方向、盘口、赔率只能来自 verified_ybty_markets；输出时标记 odds_source="ybty_verified"。
 2. 雷速 reference_odds/formal.odds 是参考公司赔率，不是本系统可下注报价。它必须用于提高判断质量：比较初盘/赛前盘/滚球盘、市场共识、升降盘、赔率分歧和异常水位，并在 reason 中说明 reference_odds_usage。
@@ -1058,6 +1064,9 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
    - 科学评估相关性风险级别（低/中/高），常规联赛普通轮次中，各场比赛属于【低相关性/独立事件】。只要各单场研究独立达标且具备真实正期望值 (+EV)，正常允许组入串关；
    - 严防同质化爆仓风险（如全部单子均押注单一方向或单一剧本），通过多维度玩法（如让球+大小球）实现健康的资产分散。
 4. 战术剧本驱动与多规格组合差异化 (Game-Script & Scenario-Driven Portfolio Architecture)：
+   - ⚠️【同一比赛不同玩法在串关中的科学多样化与对冲赋能 (Multi-Market Diversification)】：
+     * 允许且鼓励根据同一场比赛各玩法独立的全维度数据支撑结果，在不同串关票中采用不同的最优玩法腿（例如：在激进高赔票中采用该场高 EV 的独赢主胜，在稳健防守票中采用该场高胜率的受让+0.5或总进球小球保底）；
+     * 每一腿必须由其独立的全维度数据链条（现场攻防/发力期/纪律/历史/水位EV）严格支撑，单张串关票内不重复堆砌同一场，跨票组合通过不同玩法有效分散单点风险，绝不一种玩法走到底；
    - 操盘手必须充分利用当前比赛池中天然存在的不同比赛状态（如大比分领先场次 vs 0-0 焦灼场次 vs 对攻开放场次），客观推演下半场真实走势：
      * 剧本 1【下半场反击与攻防动能】（如 2串1）：针对下半场仍有强烈破门战意、射正转化率极高的强攻场次；
      * 剧本 2【攻势停滞与防守窒息】（如 3串1 或 4串1）：针对 30~45 分钟 0-0 且射正极少、三区压迫低效的场次，组合全场小球/半场小球，利用比赛时间流逝形成高确定性收割；

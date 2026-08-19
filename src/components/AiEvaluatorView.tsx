@@ -2039,6 +2039,40 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                             prob: ext?.match1X2?.probability ? `${ext.match1X2.probability}%` : '--',
                             isPrimary: /full_h2h|独赢|1x2/i.test(machineRecMarket),
                           },
+                          {
+                            key: 'full_corner_total',
+                            label: '⑥ 全场角球大小 (雷速)',
+                            direction: (() => {
+                              const co = effectiveMatchItem?.reference_odds?.corners || effectiveMatchItem?.detail_context?.formal?.odds?.corners;
+                              if (co && co.line && (co.over || co.over_odds)) {
+                                return `大/小 ${co.line} (雷速)`;
+                              }
+                              return '雷速未提供角球盘口';
+                            })(),
+                            odds: (() => {
+                              const co = effectiveMatchItem?.reference_odds?.corners || effectiveMatchItem?.detail_context?.formal?.odds?.corners;
+                              return co?.over ? `@${co.over}` : '--';
+                            })(),
+                            prob: '--',
+                            isPrimary: /角球大小|corner_total/i.test(machineRecMarket),
+                          },
+                          {
+                            key: 'full_corner_spread',
+                            label: '⑦ 全场角球让球 (雷速)',
+                            direction: (() => {
+                              const cs = effectiveMatchItem?.reference_odds?.corner_handicap || effectiveMatchItem?.detail_context?.formal?.odds?.corner_handicap;
+                              if (cs && cs.line && (cs.home || cs.home_odds)) {
+                                return `让球 ${cs.line} (雷速)`;
+                              }
+                              return '雷速未提供角球让球';
+                            })(),
+                            odds: (() => {
+                              const cs = effectiveMatchItem?.reference_odds?.corner_handicap || effectiveMatchItem?.detail_context?.formal?.odds?.corner_handicap;
+                              return cs?.home ? `@${cs.home}` : '--';
+                            })(),
+                            prob: '--',
+                            isPrimary: /角球让球|corner_spread/i.test(machineRecMarket),
+                          },
                         ];
 
                         return (
@@ -2158,6 +2192,18 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                             label: '⑤ 全场独赢1X2',
                             assessment: findAiAssessment('独赢', 'full_h2h'),
                             isLegPick: /独赢|1x2|full_h2h|h2h/i.test(legMarket),
+                          },
+                          {
+                            key: 'full_corner_total',
+                            label: '⑥ 全场角球大小',
+                            assessment: findAiAssessment('角球大小', 'full_corner_total'),
+                            isLegPick: /角球大小|corner_total/i.test(legMarket),
+                          },
+                          {
+                            key: 'full_corner_spread',
+                            label: '⑦ 全场角球让球',
+                            assessment: findAiAssessment('角球让球', 'full_corner_spread'),
+                            isLegPick: /角球让球|corner_spread/i.test(legMarket),
                           },
                         ];
 
