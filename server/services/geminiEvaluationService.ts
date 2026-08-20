@@ -141,7 +141,9 @@ export function createGeminiEvaluationHandler(deps: {
         const matchResult = normalizeMatchPredictionsAndAssessments(rawMatch);
         const assessments = Array.isArray(matchResult.market_assessments) ? matchResult.market_assessments : [];
         const byCategory = new Map(assessments.map((item: any) => [String(item.category || ''), item]));
-        const inputMatch = evaluationData[idx] || {};
+        const matchId = String(rawMatch?.match_id || rawMatch?.leisu_match_id || '').trim();
+        const inputMatch = (matchId ? evaluationData.find((d: any) => String(d?.match_info?.match_id || d?.match_info?.leisu_match_id || d?.match_id || '').trim() === matchId) : undefined)
+          || evaluationData[idx] || {};
         const verifiedMarketTypes = new Set((inputMatch?.verified_ybty_markets || []).map((market: any) => market.market));
         const requiredMarketByCategory: Record<string, string> = {
           '全场大小球': 'full_total',
@@ -151,7 +153,17 @@ export function createGeminiEvaluationHandler(deps: {
           '全场独赢1X2': 'full_h2h',
         };
         return {
+          ...inputMatch,
           ...matchResult,
+          match_id: inputMatch?.match_info?.match_id || matchId || matchResult.match_id,
+          leisu_match_id: inputMatch?.match_info?.leisu_match_id || matchId || matchResult.leisu_match_id,
+          ybty_home: inputMatch?.match_info?.ybty_home || matchResult.ybty_home,
+          ybty_away: inputMatch?.match_info?.ybty_away || matchResult.ybty_away,
+          match: inputMatch?.match_info?.match || matchResult.match || `${inputMatch?.match_info?.ybty_home || matchResult.ybty_home} vs ${inputMatch?.match_info?.ybty_away || matchResult.ybty_away}`,
+          league: inputMatch?.match_info?.league || matchResult.league,
+          live_statistics: inputMatch?.live_statistics || inputMatch?._statistics || matchResult.live_statistics || null,
+          score: inputMatch?.match_info?.score !== undefined ? inputMatch.match_info.score : matchResult.score,
+          minute: inputMatch?.match_info?.minute !== undefined ? inputMatch.match_info.minute : matchResult.minute,
           score_verified: mode === 'prematch_eval' ? true : inputMatch?.match_info?.score_verified === true,
           score_source: mode === 'prematch_eval' ? 'prematch_not_applicable' : (inputMatch?.match_info?.score_source || 'unverified'),
           market_assessments: requiredCategoriesV2.map((category) => {

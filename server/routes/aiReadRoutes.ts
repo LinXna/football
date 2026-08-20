@@ -152,17 +152,29 @@ export function registerAiManualImportRoutes(app: express.Express, deps: { parse
       const sameTeams = (homeA: unknown, awayA: unknown, homeB: unknown, awayB: unknown) =>
         cleanTeam(homeA) === cleanTeam(homeB) && cleanTeam(awayA) === cleanTeam(awayB);
 
+      const matchPrimaryId = (m: any): string =>
+        String(m?.match_id || m?.leisu_match_id || m?.id || m?.matched_leisu_id || m?.candidate?.match_id || m?.candidate?.id || '').trim();
+
       const sourceMatches = storedMatches.map((stored: any) => {
-        const wrapper = parlayCandidatePool.find((entry: any) =>
-          entry?.match === stored.match
-          || sameTeams(entry?.candidate?.home, entry?.candidate?.away, stored.ybty_home, stored.ybty_away)
-          || sameTeams(entry?.ybty_home, entry?.ybty_away, stored.ybty_home, stored.ybty_away));
-        const ybty = parlayYbtyPool.find((entry: any) =>
-          sameTeams(entry?.home, entry?.away, stored.ybty_home, stored.ybty_away));
+        const storedId = matchPrimaryId(stored);
+        const wrapper = parlayCandidatePool.find((entry: any) => {
+          const entryId = matchPrimaryId(entry);
+          if (storedId && entryId && storedId === entryId) return true;
+          return entry?.match === stored.match
+            || sameTeams(entry?.candidate?.home, entry?.candidate?.away, stored.ybty_home, stored.ybty_away)
+            || sameTeams(entry?.ybty_home, entry?.ybty_away, stored.ybty_home, stored.ybty_away);
+        });
+        const ybty = parlayYbtyPool.find((entry: any) => {
+          const ybtyId = matchPrimaryId(entry);
+          if (storedId && ybtyId && storedId === ybtyId) return true;
+          return sameTeams(entry?.home, entry?.away, stored.ybty_home, stored.ybty_away);
+        });
         const source = wrapper || {};
         return {
           ...source,
           ...stored,
+          match_id: stored.match_id || stored.leisu_match_id || source.match_id || source.leisu_match_id || ybty?.match_id,
+          leisu_match_id: stored.leisu_match_id || stored.match_id || source.leisu_match_id || source.match_id || ybty?.match_id,
           ybty_raw_markets: Array.isArray(stored.ybty_raw_markets) && stored.ybty_raw_markets.length > 0
             ? stored.ybty_raw_markets
             : normalizeYbtyMarketTypes(ybty?.markets || source.ybty_raw_markets || []),
@@ -173,8 +185,11 @@ export function registerAiManualImportRoutes(app: express.Express, deps: { parse
       if (Array.isArray(parsed.matches)) parsed.matches = parsed.matches.map((match: any) => {
         const assessments = Array.isArray(match.market_assessments) ? match.market_assessments : [];
         const existing = new Map(assessments.map((item: any) => [String(item.category || ''), item]));
-        const source = sourceMatches.find((item: any) => normalizeName(item.match) === normalizeName(match.match))
-          || sourceMatches.find((item: any) => normalizeName(item.ybty_home) === normalizeName(match.ybty_home) && normalizeName(item.ybty_away) === normalizeName(match.ybty_away));
+        const matchId = matchPrimaryId(match);
+        const source = (matchId ? sourceMatches.find((item: any) => matchPrimaryId(item) === matchId) : undefined)
+          || sourceMatches.find((item: any) => normalizeName(item.match) === normalizeName(match.match))
+          || sourceMatches.find((item: any) => normalizeName(item.ybty_home) === normalizeName(match.ybty_home) && normalizeName(item.ybty_away) === normalizeName(match.ybty_away))
+          || sourceMatches.find((item: any) => cleanTeam(item.ybty_home) === cleanTeam(match.ybty_home) && cleanTeam(item.ybty_away) === cleanTeam(match.ybty_away));
         const verifiedMarkets = normalizeYbtyMarketTypes(source?.ybty_raw_markets || []);
         const scoreVerification = resolveScoreVerification(source, mode === 'prematch_eval');
         const scoreVerified = scoreVerification.verified || match.score_verified === true || /\|true\|/i.test(match.summary || '');
@@ -191,7 +206,17 @@ export function registerAiManualImportRoutes(app: express.Express, deps: { parse
           }).join('；')}。请让AI严格按Prompt中的 verified_ybty_markets 真实选项重新评估，不能直接导入。`);
         }
         return {
+          ...source,
           ...match,
+          match_id: source?.match_id || match.match_id || source?.leisu_match_id,
+          leisu_match_id: source?.leisu_match_id || match.leisu_match_id || source?.match_id,
+          ybty_home: source?.ybty_home || match.ybty_home,
+          ybty_away: source?.ybty_away || match.ybty_away,
+          match: source?.match || match.match || `${source?.ybty_home || match.ybty_home} vs ${source?.ybty_away || match.ybty_away}`,
+          league: source?.league || source?.ybty_league || match.league,
+          live_statistics: source?.live_statistics || source?._statistics || match.live_statistics || null,
+          score: source?.score !== undefined ? source.score : match.score,
+          minute: source?.minute !== undefined ? source.minute : match.minute,
           score_verified: scoreVerified,
           score_source: scoreSource,
           recommendation: scoreVerified ? match.recommendation : null,

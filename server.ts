@@ -865,7 +865,7 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
 7. 阵容透明度与杯赛风控：参考 quantitative_analysis.lineup_transparency 与 tournament_risk。杯赛/友谊赛且首发阵容未确认时严禁 A 级推荐，最高限制 C 级。
 8. 独赢 1X2 替代玩法转化：当独赢赔率处于 1.05~1.25 鸡肋区间（缺乏安全边际）或 0-0/2-2 胶着时，评为 NO_BET / avoid，并在 reason 中明确引导转投具备退款/走盘保护的“让球 0（平手盘）/ 让球 -0.5”。
 9. 赛前无 score_verified 限制；赛前 score_verified=true 仅表示规则不适用，不得因此降级。
-10. 核心真实投注市场聚焦：market_assessments 包含 5 大常规核心盘口（全场大小球、半场大小球、全场让球、半场让球、全场独赢1X2）以及 2 大角球真实盘口（全场角球大小、全场角球让球）。
+10. 5大核心真实投注市场聚焦：market_assessments 必须且仅包含 5 大可投注市场（全场大小球、半场大小球、全场让球、半场让球、全场独赢1X2），严禁输出不可投注的非标准娱乐玩法。
 11. grade A/B/C 全部展示；没有合格正式主选时 recommendation=null。
 12. 串关与仓位：同一方向 B 级最多进一组串关；A 级≥85分且阵容明确时最多两组。单场 A 级仓位 3%~5%，B 级 1%~2%，串关 1% 以内。
 13. 【跨批次时序动能与盘口衰减精算 (Snapshot Delta & Momentum Analysis)】：
@@ -879,29 +879,17 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
      * 客队客场特异能力 (away_on_road_specific): 深入解析客队【客场抗冷不败率、客场场均失球(防守脆弱度)、客场破门率】。客队客场场均失球高 (如 >1.8) 且防守松散时，利好主队让深盘与大球；若客队客场场均失球仅 0.8 且低位防反不败率达 65%+，必须重点防范受让抗冷！
      * 历史交锋克制属性 (head_to_head_deep): 深入分析近 1-2 年双方直接交锋场均总进球、大球率、主场迎战净胜球历史与球风相克特征 (tactical_matchup_note_zh)。
      * 战绩加权先验期望进球 (form_weighted_poisson_prior): 融合主队主场进球能力与客队客场防守丢球率，计算 baseline 期望进球 λ_home_prior 与 λ_away_prior，并在 reason 中明确引用战绩支撑依据！
-15. 【高级战术量化合成引擎全流程实战利用与硬核数据证据链绑定 (Master Tactical Synthesis & Evidence Chain)】：
-   - ⚠️【硬核因果证据链公理】：严禁脱离比赛真实数据凭空评估盘口或做单一赔率推导！AI 在给出任何推荐 (status="recommend") 或重点研判时，必须从 quantitative_analysis.master_tactical_synthesis 及现场统计中提取以下 4 项客观事实作为因果论据支撑，并在 reason 和 summary 中明确引用：
-     * 1. 现场禁区挤压与边路压制 (corner_squeeze & dangerous_attacks): 必须引用具体的角球比值（如 4-0 边路底线高压压制、角球爆发速率 velocity_per_10min）与射正转化效率；
-     * 2. 时段体能与战术发力期 (non_linear_time_decay): 必须引用当前比赛分钟所处的生理与换人发力窗口（如 55'-75' 核心攻防转换期、75'+ 搏命期）；
-     * 3. 纪律失衡与红黄牌累积 (red_card_discipline & referee_discipline): 必须引用双方吃牌状态对防线动作变形与体能消耗的客观物理影响；
-     * 4. 历史交锋与球风克制 (head_to_head_deep & tactical_matchup): 必须引用双方近 1-2 年交锋及主客场特异性数据支撑。
-   - 严禁在缺乏上述 4 项客观数据链支撑的情况下盲目给 A/B 级推荐；每一个最终推荐的盘口，其推导逻辑必须与上述 4 项客观数据完全自洽！
-16. 【全场角球大小与全场角球让球雷速盘口研判与标注规范 (Leisu Corner Markets Execution)】：
-   - 角球盘口（全场角球大小、全场角球让球）采用雷速真实盘口数据 (verified_leisu_corner_markets)；
-   - 若雷速提供了角球盘口且有正向价值边际 (Value Edge > 0)，必须引用其 option_id 与实际赔率并结合 quantitative_analysis.corner_expectancy_and_pricing 进行严密推导；
-   - 若本场比赛雷速未提供角球大小或让球盘口，必须在 market_assessments 中返回：
-     category="全场角球大小" / "全场角球让球", status="unavailable", grade="NO_BET", odds=null, line=null, market_option_id=null, reason="雷速未提供本场角球盘口，不予推荐"。
-17. 【AI 概率机器数学锚定与战术审计一票否决职责 (AI Probability Anchoring & Veto Power Protocol)】：
-   - 1. 机器数学锚定基准：verified_ybty_markets 各选项中已注入机器预计算的 implied_prob_pct、machine_fair_prob_pct（公允真实概率）与 machine_value_edge。AI 评估的 probability 必须严格以此为基础锚点，严禁脱离客观数学基准凭空捏造虚高胜率。
-   - 2. 战术微调容差范围 (±3% ~ ±5%)：只有当 AI 识别到明确的活跃战术特征（如：主力门将/核心中卫缺阵、红牌人数失衡、降雨湿滑物理阻尼、高温体能透支、欧亚倒挂深盘陷阱、四分之一盘口缓冲）时，才允许在机器公允概率上进行 ±3% ~ ±5% 的客观战术修正，并在 reason 中清晰说明微调理由。
-   - 3. AI 的核心职能——“战术质检与一票否决权 (Tactical Veto Power)”：
-     * 机器量化负责第一道数学初筛（是否存在正向期望值）；
-     * AI 负责第二道战术质检：专注于审查机器模型看不到的场外隐患（如杯赛大幅练兵轮换、联赛中游战意松懈、极端天气阻尼、机构断崖式低水诱热）。如果机器初筛给出了 +EV，但 AI 审查发现了致命隐患，AI 必须行使一票否决权，坚决将其降级为 watch (C级) 或直接判定为 avoid (NO_BET)，有效避免机器算法的机械死角！`;
+15. 【高级战术量化合成引擎全流程实战利用 (Master Tactical Synthesis & Execution)】：
+   - 必须深度调用 quantitative_analysis.master_tactical_synthesis 中的6项精算成果：
+     * 1. 阵容位置折损 (positional_absence): 门将/主力中卫缺阵防守期望 GA 增加 0.35~0.7 球；头号射手缺阵进攻期望 GF 下滑 0.3~0.6 球。
+     * 2. 角球动能与禁区挤压 (corner_squeeze): 10分钟角球爆发速率 (velocity_per_10min ≥ 1.5) 代表禁区被高压围攻，破门高发。
+     * 3. 红牌人数失衡物理模型 (red_card_discipline): 上半场红牌失球乘数高达 2.15x (体能防线双崩塌)；终局 78'+ 红牌则转入低位摆大巴。
+     * 4. 欧亚指数倒挂与诱盘审计 (euro_asian_parity): 欧赔换算理论让球线 vs 实际亚盘深度，精准识别深开诱上 (DEEP_SPREAD_TRAP) 与浅开阻上。
+     * 5. 积分榜战意差值 (strategic_motivation): 保级生死战或争冠冲刺期战意加权，面对中游无欲无求球队具备战意压制。
+     * 6. 非线性进球时段 (non_linear_time_decay): 30-45'+ 半场体能节点 (权重 1.30) 与 75-90'+ 终局搏命期 (权重 1.55) 为进球最高发窗口。`;
 
-  const verifiedOptionRule = `【真实选项白名单・最高优先级】
-全场/半场大小球、让球、独赢1X2禁止手工填写或改写投注盘口，必须从 verified_ybty_markets 选择真实 option 并原样返回 option_id。
-全场角球大小、全场角球让球必须从 verified_leisu_corner_markets 选择真实 option 并原样返回 option_id；若雷速未提供角球盘口，必须返回 status="unavailable"、grade="NO_BET"、odds=null、line=null。
-系统将根据 option_id 自动回填并锁定 direction、line、odds，AI填写的同名字段不作为投注依据。严禁自行换盘、猜盘或生成不存在的盘口。`;
+  const verifiedOptionRule = `【YBTY真实选项白名单・最高优先级】
+全场/半场大小球、让球、独赢1X2禁止手工填写或改写投注盘口。必须先从本场 verified_ybty_markets 选择一个真实 option，并原样返回它的 option_id 到 market_option_id。系统将根据 option_id 自动回填并锁定 direction、line、odds，AI填写的同名字段不作为投注依据。严禁把 reference_odds 当作投注赔率；严禁自行换盘、猜盘或生成YBTY未提供的半场盘口。某市场不在 verified_ybty_markets 时必须返回 market_option_id=null、status=unavailable、odds=null、line=null。概率必须针对该 option_id 对应的真实盘口单独评估，不得把其他盘口概率套用过来。`;
   const oddsSourceRoles = `【赔率数据源角色・必须理解】
 1. YBTY是本系统实际投注平台。所有可下注的玩法、方向、盘口、赔率只能来自 verified_ybty_markets；输出时标记 odds_source="ybty_verified"。
 2. 雷速 reference_odds/formal.odds 是参考公司赔率，不是本系统可下注报价。它必须用于提高判断质量：比较初盘/赛前盘/滚球盘、市场共识、升降盘、赔率分歧和异常水位，并在 reason 中说明 reference_odds_usage。
@@ -1066,17 +1054,21 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
    - 2 串 1 黄金组合：建议微仓 0.8% ~ 1.0%；
    - 3 串 1 组合：建议微仓 0.4% ~ 0.6%；
    - 4 串 1 及以上：仅作超微仓娱乐彩票 (0.2% ~ 0.3%)，严禁重仓。
-3. 动态相关性与反脆弱审查 (Correlation Risk & Antifragility)：
-   - 科学评估相关性风险级别（低/中/高），常规联赛普通轮次中，各场比赛属于【低相关性/独立事件】。只要各单场研究独立达标且具备真实正期望值 (+EV)，正常允许组入串关；
-   - 严防同质化爆仓风险（如全部单子均押注单一方向或单一剧本），通过多维度玩法（如让球+大小球）实现健康的资产分散。
+3. 动态相关性与反脆弱审查与【跨规格严禁俄罗斯套娃式嵌套】(Correlation Risk & Cross-Ticket Diversity · 强制铁律)：
+   - ⚠️【严禁俄罗斯套娃式全盘照搬 (Zero Nested Parlay Cloning)】：
+     * 严禁出现“2串1是【比赛A+比赛B】，3串1是【比赛A+比赛B+比赛C】，4串1是【比赛A+比赛B+比赛C+比赛D】”的懒惰嵌套！
+     * 一旦核心腿（如比赛A）发生意外爆仓，将导致你的 2串1、3串1、4串1 在同一瞬间被同时击穿全军覆没！
+     * 【跨规格重叠度硬性熔断 (Max Overlap Ceiling)】：不同规格串关票之间，相同比赛+相同投注方向的重复腿【绝对不得超过 1 场（重叠率必须 ≤ 50%）】！
+   - ⚠️【不同规格票的战术剧本差异化定位】：
+     * 【2 串 1 黄金组合 (核心稳健)】：定位为高确定性胜率票。精选全场最具防守窒息感或最稳健的 2 场（如 0-0 僵局小球 + 大小球/让球走盘退款保护副盘）；
+     * 【3 串 1 动能组合 (战意突破)】：定位为破门与让球穿盘票。必须挑选另外具有强烈进攻动能、射正转化极佳的 3 场比赛（如单边围攻大球、落后反扑大球、深盘破大巴让球），严禁整单照搬 2 串 1；
+     * 【4 串 1 立体对冲大单】：定位为全维度跨盘口对冲票。在 4 场比赛中全面涵盖“大小球 + 让球 + 受让防冷 + 平手保护”，各腿权重独立，形成多层次抗脆弱收益结构；
+   - ⚠️【单场比赛多玩法横向利用】：同一场高质量比赛若在不同串关出现，应当采用该场比赛的不同玩法维度（例如：在2串1中使用【全场小球】，在3串1中使用【主队让球】），实现真正的立体对冲。
+   - 严防同质化爆仓风险，科学保障多张串关票的独立成活率！
 4. 战术剧本驱动与多规格组合差异化 (Game-Script & Scenario-Driven Portfolio Architecture)：
-   - ⚠️【同一比赛不同玩法在串关中的科学多样化与对冲赋能 (Multi-Market Diversification)】：
-     * 允许且鼓励根据同一场比赛各玩法独立的全维度数据支撑结果，在不同串关票中采用不同的最优玩法腿（例如：在激进高赔票中采用该场高 EV 的独赢主胜，在稳健防守票中采用该场高胜率的受让+0.5或总进球小球保底）；
-     * 每一腿必须由其独立的全维度数据链条（现场攻防/发力期/纪律/历史/水位EV）严格支撑，单张串关票内不重复堆砌同一场，跨票组合通过不同玩法有效分散单点风险，绝不一种玩法走到底；
-     * 🚫【跨票组合严禁重复骨架 (Strict Multi-Ticket Non-Duplication)】：多张串关票之间严禁出现完全相同的 2 场比赛组合！若生成多张 2 串 1，每张票必须使用完全不同的比赛；2 串 1 与 3 串 1 之间最多允许重叠 1 场核心优质腿，绝不允许用完全相同的 2 场比赛作为两张票的相同骨架！
    - 操盘手必须充分利用当前比赛池中天然存在的不同比赛状态（如大比分领先场次 vs 0-0 焦灼场次 vs 对攻开放场次），客观推演下半场真实走势：
-     * 剧本 1【下半场反击与攻防动能】（如 2串1）：针对下半场仍有强烈破门战意、射正转化率极高的强攻场次；
-     * 剧本 2【攻势停滞与防守窒息】（如 3串1 或 4串1）：针对 30~45 分钟 0-0 且射正极少、三区压迫低效的场次，组合全场小球/半场小球，利用比赛时间流逝形成高确定性收割；
+     * 剧本 1【下半场反击与攻防动能】（如 2串1 或 3串1）：针对下半场仍有强烈破门战意、射正转化率极高的强攻场次；
+     * 剧本 2【攻势停滞与防守窒息】（如 2串1 或 3串1）：针对 30~45 分钟 0-0 且射正极少、三区压迫低效的场次，组合全场小球/半场小球，利用比赛时间流逝形成高确定性收割；
      * 剧本 3【多维度跨盘口立体对冲】（如 4串1 或 10串1）：在同一张票中融合“受让抗冷 + 僵局小球 + 强势独赢 + 开放大球”，形成节奏与风险互补的立体资产配置；
    - 严禁盲目复制同质化盘口，必须在各规格票之间展现清晰的战术差异化与 5 大盘口立体覆盖。
 5. 比分真实性门禁 (Score Verification Gate)：滚球比赛若即时比分未经可靠核验（score_verified: false），一票否决，严禁作为高确定性依据组入正式高信心串关。
@@ -1209,16 +1201,24 @@ ${JSON.stringify(historicalFeedback)}
       : readJsonFile<any>('output/leisu_latest.json', { events: [] });
     const sameTeams = (homeA: unknown, awayA: unknown, homeB: unknown, awayB: unknown) =>
       cleanTeamName(homeA) === cleanTeamName(homeB) && cleanTeamName(awayA) === cleanTeamName(awayB);
+    const matchPrimaryId = (m: any): string =>
+      String(m?.match_id || m?.leisu_match_id || m?.id || m?.matched_leisu_id || m?.candidate?.match_id || m?.candidate?.id || '').trim();
+
     const hydrateStoredMatch = (found: any) => {
-      const candidateWrapper = (Array.isArray(candidateFile.candidates) ? candidateFile.candidates : []).find((entry: any) =>
-        entry?.match === found.match
-        || sameTeams(entry?.candidate?.home, entry?.candidate?.away, found.ybty_home, found.ybty_away)
-        || sameTeams(entry?.ybty_home, entry?.ybty_away, found.ybty_home, found.ybty_away));
+      const foundId = matchPrimaryId(found);
+      const candidateWrapper = (Array.isArray(candidateFile.candidates) ? candidateFile.candidates : []).find((entry: any) => {
+        const entryId = matchPrimaryId(entry);
+        if (foundId && entryId && foundId === entryId) return true;
+        return entry?.match === found.match
+          || sameTeams(entry?.candidate?.home, entry?.candidate?.away, found.ybty_home, found.ybty_away)
+          || sameTeams(entry?.ybty_home, entry?.ybty_away, found.ybty_home, found.ybty_away);
+      });
       const candidateDetails = candidateWrapper ? {
         league: candidateWrapper.match?.league || candidateWrapper.market_source?.league || candidateWrapper.detail_context?.tournament || undefined,
         ybty_league: candidateWrapper.market_source?.league || undefined,
         leisu_league: candidateWrapper.match?.league || undefined,
         live_statistics: candidateWrapper.live_statistics,
+        attack_momentum_timeline: candidateWrapper.attack_momentum_timeline || candidateWrapper.detail_context?.formal?.live_match?.attack_momentum_timeline || candidateWrapper.detail_context?.attack_momentum_timeline,
         reference_odds: candidateWrapper.reference_odds,
         recent_trends: candidateWrapper.recent_trends,
         incidents: candidateWrapper.incidents,
@@ -1228,14 +1228,21 @@ ${JSON.stringify(historicalFeedback)}
         live_text: candidateWrapper.live_text,
         detail_context: candidateWrapper.detail_context,
       } : {};
-      const rawYbty = (Array.isArray(ybtySnapshot.matches) ? ybtySnapshot.matches : []).find((entry: any) =>
-        sameTeams(entry.home, entry.away, found.ybty_home, found.ybty_away));
-      const rawLeisu = (Array.isArray(leisuSnapshot.events) ? leisuSnapshot.events : []).find((entry: any) =>
-        sameTeams(entry?.homeTeam?.name || entry?.home, entry?.awayTeam?.name || entry?.away, found.leisu_home, found.leisu_away));
+      const rawYbty = (Array.isArray(ybtySnapshot.matches) ? ybtySnapshot.matches : []).find((entry: any) => {
+        const ybtyId = matchPrimaryId(entry);
+        if (foundId && ybtyId && foundId === ybtyId) return true;
+        return sameTeams(entry.home, entry.away, found.ybty_home, found.ybty_away);
+      });
+      const rawLeisu = (Array.isArray(leisuSnapshot.events) ? leisuSnapshot.events : []).find((entry: any) => {
+        const leisuId = matchPrimaryId(entry);
+        if (foundId && leisuId && foundId === leisuId) return true;
+        return sameTeams(entry?.homeTeam?.name || entry?.home, entry?.awayTeam?.name || entry?.away, found.leisu_home, found.leisu_away);
+      });
       const rawDetails = rawLeisu ? {
         league: rawLeisu.tournament?.name || rawLeisu.league || undefined,
         leisu_league: rawLeisu.tournament?.name || rawLeisu.league || undefined,
         live_statistics: rawLeisu._statistics || rawLeisu.live_statistics,
+        attack_momentum_timeline: rawLeisu.attack_momentum_timeline || rawLeisu._detail_context?.formal?.live_match?.attack_momentum_timeline || rawLeisu.detail_context?.formal?.live_match?.attack_momentum_timeline || rawLeisu.detail_context?.attack_momentum_timeline,
         incidents: rawLeisu._incidents || rawLeisu.incidents,
         weather: rawLeisu._weather || rawLeisu.weather,
         live_text: rawLeisu._live_text || rawLeisu.live_text,
@@ -1261,12 +1268,14 @@ ${JSON.stringify(historicalFeedback)}
     };
     const unresolved: string[] = [];
     requestedMatches = batch_match_refs.map((ref: any) => {
+      const refId = matchPrimaryId(ref);
+      const byId = refId ? storedMatches.find((item: any) => matchPrimaryId(item) === refId) : undefined;
       const exact = storedMatches.find((item: any) => item.match === ref.match);
       const byTeams = storedMatches.find((item: any) =>
         cleanTeamName(item.ybty_home) === cleanTeamName(ref.ybty_home) &&
         cleanTeamName(item.ybty_away) === cleanTeamName(ref.ybty_away)
       );
-      const found = exact || byTeams;
+      const found = byId || exact || byTeams;
       if (!found) unresolved.push(ref.match || `${ref.ybty_home} vs ${ref.ybty_away}`);
       if (!found) return null;
       const hydrated = hydrateStoredMatch(found);
@@ -1318,14 +1327,28 @@ You MUST evaluate the following matches (${batchHeader}) with rigorous football 
 Return ONLY a single valid JSON object (no markdown, no conversational commentary).
 
 [Evaluation and Risk Control Protocol]
-0. The Three-Step Quantitative Betting Analytical Architecture (专业数据分析与操盘三步闭环):
-   - 【第一步：纯现场与主客场特异物理数据推演 (Pure Data-First Match Physics & Venue Splits)】:
+0. The Three-Step Quantitative Betting Analytical Architecture (专业数据分析与操盘三步闭环 · 物理数据绝对优先):
+   - 【雷速数据五步结构化研判标准体系 (Leisu 5-Step Analytical Synthesis)】:
+     1. 【攻势评分曲线与临近势头 (attack_momentum_timeline)】: 
+        - 深度考察 recent_5min_momentum（近5分钟超近端攻势爆发）与 recent_15min_pressure_share（近15分钟攻势占比）；
+        - 提取 continuous_dominance_windows 连续强势压制区间（如客队持续压制高潮），研判场上真实主动权归属；
+     2. 【文字事件流与攻势对齐 (text_live / focused_incidents 与 timeline 交叉匹配)】: 
+        - 严格核验攻势高潮是否在对应时间点转化为真实战果（如 17' 角球、26' 破门）或迫使对方吃牌/犯规，甄别是“高效破防”还是“雷声大雨点小(无效控球)”；
+     3. 【累计攻防数据 (confirmed_statistics / attack_conversion)】: 判断攻势是否积累为有效危险进攻、真实射正质量与前场压迫倾角 (field_tilt)；
+     4. 【机构盘口变化 (odds / verified_ybty_markets)】: 对比市场盘口是否同步变盘或存在深度/水位错位 (+EV)；
+     5. 【基本面与阵容实力核验 (recent_matches / lineup / league_standings / goal_distribution)】: 核验该走势是否符合双方基本实力层级、伤停折损与进球时间分布特征。
+
+   - 【第一步：纯现场与主客场特异物理数据推演 (Pure Data-First Match Physics & Dominance Siege)】:
      * 严禁看盘说球！盘口是机构平衡资金的商业报价，绝非比赛事实！
-     * 必须深入解析 quantitative_analysis.attack_conversion 中的 dangerous_attack_to_shot_ratio（实质破防转化率）、field_tilt_share（前场三十米压迫倾角）和 shot_on_target_accuracy（射正质量）；
+     * 必须优先精读 live_match_physical_facts 中的实时攻防事实：
+       - pure_physical_match_model.physical_lambdas（纯攻防推演出的剩余进球期望 λ_rest 与全场完赛期望 λ_full）；
+       - pure_physical_match_model.dominant_siege_factor（单边高压围攻特征：前场压迫倾角 ≥65% 且射门绝对压制时的攻防动能强化）；
+       - pure_physical_match_model.market_physical_edge_audit（物理推演真实概率 vs 机构隐含概率的差异审计与 Edge 计算）；
+       - attack_conversion（实质破防转化率、进攻三区压迫倾角与射正质量）；
      * 【六大高级战术量化引擎深度利用 (Master Tactical Synthesis)】:
        - 1. 核心阵容折损 (master_tactical_synthesis.positional_absence): 门将/主力中卫缺阵防守期望 GA 增加 0.35~0.7 球；头号射手缺阵进攻期望 GF 下滑 0.3~0.6 球。
        - 2. 角球动能与禁区挤压 (master_tactical_synthesis.corner_squeeze): 10分钟角球爆发速率 (velocity_per_10min ≥ 1.5) 代表禁区被高压围攻，破门高发。
-       - 3. 红牌人数失衡物理模型 (master_tactical_synthesis.red_card_discipline): 上半场红牌失球乘数高达 2.15x (体能防线双崩塌)；终局 78'+ 红牌则转入低位摆大巴。
+       - 3. 红牌与纪律失衡物理模型 (master_tactical_synthesis.red_card_discipline): 上半场红牌失球乘数高达 2.15x (体能防线双崩塌)；后防线 2+ 张黄牌意味着逼抢受限易被打穿。
        - 4. 欧亚指数倒挂与诱盘审计 (master_tactical_synthesis.euro_asian_parity): 欧赔换算理论让球线 vs 实际亚盘深度，精准识别深开诱上 (DEEP_SPREAD_TRAP) 与浅开阻上。
        - 5. 积分榜战意差值 (master_tactical_synthesis.strategic_motivation): 保级生死战或争冠冲刺期战意加权，面对中游无欲无求球队具备战意压制。
        - 6. 非线性进球时段 (master_tactical_synthesis.non_linear_time_decay): 30-45'+ 半场体能节点 (权重 1.30) 与 75-90'+ 终局搏命期 (权重 1.55) 为进球最高发窗口。
@@ -1336,15 +1359,17 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
        - 历史交锋深度特征 (head_to_head_deep): 历史交锋对战克制属性、近1-2年主客场直接对决历史净胜球与风格；
        - 战绩先验期望进球 (form_weighted_poisson_prior): 将主队主场进攻效率与客队客场防守脆弱度交叉加权推导出的 λ_home_prior 与 λ_away_prior，结合现场攻防数据共同校准期望值；
      * 结合 quantitative_analysis.lineup_transparency 与 focused_incidents（红牌、主力换人、战术发力期），推演场上真实的攻防力量对比与势能。
-   - 【第二步：推演无偏概率与比分分布 (Independent Poisson & Goal Expectancy Modeling)】:
-     * 参阅 quantitative_analysis.handicap_calibration.independent_poisson_distribution 中的 lambdas（双方独立期望进球 λ_home, λ_away, λ_total）、margin_distribution_pct（净胜1球、净胜2球、净胜3+球、平负分布）与 top_scorelines（最常态高频比分）；
-     * 融合近期战绩与主客场特异性加权，在不看盘口的前提下客观推导出该场比赛真实的比分概率矩阵。
+   - 【第二步：推演无偏概率与比分分布 (Independent Poisson & Pure Physical Modeling)】:
+     * 参阅 live_match_physical_facts.pure_physical_match_model.pure_physical_distribution 以及 quantitative_analysis.handicap_calibration.independent_poisson_distribution 中的 lambdas、margin_distribution_pct 与 top_scorelines；
+     * 融合近期战绩与主客场特异性加权，在完全不看盘口的前提下客观推导出该场比赛真实的比分概率矩阵与期望。
    - 【第三步：比对机构盘口寻找真实定价漏洞 (Cross-Examination Against Market Lines for True +EV)】:
-     * 将第二步计算出的客观真实概率，比对 verified_ybty_markets 中机构去除抽水后的 fair_prob_pct 与当前盘口门槛；
-     * 动态数据定夺深盘与大小球价值: 
-       - 若现场攻防数据（λ期望进球、射正转化率与净胜球分布）确实强力支持优势方大比分穿盘（例如 λ_home 极高且射正持续破防），则顺应数据如实推荐让球与大球，绝不盲目唱反调；
-       - 若现场数据证明优势方虽胜但攻门转化有限、常态小胜（如 1-0、2-0、2-1）占据获胜样本 50%+，而机构开出 -2.0 深盘让步，则精准识别【让深盘为机构诱上陷阱】，顺势将价值锁定在【受让 +2.0】或【全场小球】；
-     * 严禁机械教条化写死，一切由真实攻防数据与期望值驱动！只有当 Value Edge (真实概率 - 机构隐含概率) > 0 时才判定为正式推荐。
+     * 将第二步计算出的客观真实概率，比对 verified_ybty_markets 与 pure_physical_match_model.market_physical_edge_audit 中的公允概率与当前盘口门槛；
+     * 严禁机械教条化写死，一切由真实攻防数据与期望值驱动！只有当 Value Edge (真实概率 - 机构隐含概率) > 0 且具有清晰物理证据支持时才判定为正式推荐。
+   - 【第四步：严密证据链论证准则 (Strict Three-Stage Evidence Chain in Reason)】:
+     * 每个玩法的 reason 必须遵循【三段式证据链】：
+       1. 【现场物理事实】：直接引用实际射门(射正)、前场压迫倾角、角球速率、吃牌等物理指标；
+       2. 【战术场景推演】：结合比分、早早领先控场、下半场搏命反扑或单边围攻进行物理推演；
+       3. 【盘口错位与EV判定】：比对公允胜率与赔率隐含概率，明确指出是否存在机构诱导或真实正期望值(+EV)。
 
 1. Pro-Bettor Execution Framework & Game Phase Analysis (职业操盘手实战策略与发力期分析):
    - 比赛阶段动态权重 (Game Momentum & Fatigue Windows): 结合开局试探(0-15')、半场攻坚(15-45')、战术调整(45-60')、终局反扑(75-90+')不同时段特征，严禁死板时间均摊。
@@ -1375,12 +1400,9 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
    - 终局大比分封盘处理 (Decisive Match State & Suspended 1X2): 当单方建立净胜球 ≥ 2 且场面完全掌控，导致机构已下架或封盘该队独赢选项（verified_ybty_markets 仅剩落后方逆转或平局超高赔 @10+）时，严禁机械选择小概率负向选项；全场独赢1X2统一输出 market_option_id=null, status="unavailable", grade="NO_BET", direction="主胜(已封盘)"（或客胜已封盘），probability 填写真实终局胜率（90%~98%），odds=null, line=null，在 reason 中清晰说明“领先优势稳固，机构已封盘无赔率，不予下注”。
    - 进攻威胁与场面倾斜: 参阅 quantitative_analysis.attack_conversion 中的 dangerous_attack_to_shot_ratio（危险进攻转化比）与 field_tilt_share（进攻三区压迫占比），识别无效控球。
    - 阵容透明度与杯赛轮换: 参阅 quantitative_analysis.lineup_transparency 与 tournament_risk。杯赛/友谊赛且阵容未确认时严禁 A 级正式推荐，最高限制 C 级。
+   - ⚠️【早早领先控场识别 (0~15'破门)】: 优势方在比赛前15分钟早早破门建立1球优势后，主动降速控球引诱对手压出，此时段(15'-45')射门偏少属于阶段性战术控盘，绝不等于下半场缺乏进球能力，严禁仅凭半场低射门数盲目在下半场推断全场小球！
+   - ⚠️【杯赛单场淘汰制下半场搏命反扑与小球硬性拦截】: 杯赛单场淘汰赛在落后1球局面下，落后方在下半场(尤其60分后)必然全员压上搏命，后防门户大开极易引发反击与进球潮。硬性风控准则：杯赛淘汰赛单球落后局【严禁推荐全场小球】！若让球与独赢无明显正期望值，坚决评为 NO_BET！
    - 独赢 1X2 替代玩法引导: 当独赢赔率在 1.05~1.25 处于低收益鸡肋区间（缺乏安全边际）或 0-0/2-2 胶着时，评为 NO_BET / avoid，并在 reason 中明确引导转投具备退款/走盘保护的“让球 0（平手盘）/ 让球 -0.5”。
-   - 机器数学锚定与战术微调协议 (Machine Probability Anchoring & Tactical Veto Power Protocol · 核心约束):
-     * verified_ybty_markets 各选项中已注入机器精算的 machine_fair_prob_pct (公允去水概率) 与 implied_prob_pct (机构隐含概率)；
-     * AI 评估的 probability 必须以 machine_fair_prob_pct 为基础锚点，严禁脱离客观数学基准凭空虚标胜率；
-     * 战术微调容差 (±3% ~ ±5%): 仅在 master_tactical_synthesis 中出现真实活跃警报 (如主力伤停、红牌失衡、降雨物理阻尼、高温体能透支、欧亚倒挂深盘陷阱) 时，允许在机器公允概率上微调 ±3% ~ ±5% 并阐明原因；
-     * AI 一票否决权 (Tactical Veto Power): 若机器计算有 +EV 但存在场外隐患 (杯赛大幅轮换、中游战意松懈、极端天气、机构断崖式低水诱热)，AI 必须果断降级至 watch 或 avoid！
 
 3. Mandatory 5 Real Betting Markets (Each match's market_assessments MUST evaluate ALL 5 core markets across independent dimensions):
    - 全场大小球 (full_total): 基于总进球期望 λ_total、禁区压迫与射正转化独立定价。
@@ -1403,8 +1425,9 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
 5. Live Score Verification:
    - If score_verified is false, DO NOT give any A/B grade real market recommendations. All 5 real markets must be status="avoid" / grade="NO_BET".
 
-6. Completeness Constraint:
+6. Completeness & Identity Preservation Constraint:
    - CRITICAL: You MUST output all ${chunkData.length} matches in the "matches" array.
+   - ⚠️ MUST PRESERVE IDENTIFIERS VERBATIM: You must preserve match_id, leisu_match_id, match, ybty_home, and ybty_away exactly as provided in the input. Do NOT translate, modify, transliterate, or omit them.
    - For every match, market_assessments must include all 5 core real markets.
 
 [Output JSON Schema Template]
@@ -1413,9 +1436,11 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
   "summary": "matches:${chunkData.length}|recommend:N|watch:N|avoid:N",
   "matches": [
     {
-      "match": "Original match name",
-      "ybty_home": "YBTY home team",
-      "ybty_away": "YBTY away team",
+      "match": "Original match name (verbatim from input match_info.match)",
+      "match_id": "Original match_id (verbatim from input match_info.match_id)",
+      "leisu_match_id": "Original leisu_match_id (verbatim from input match_info.leisu_match_id)",
+      "ybty_home": "YBTY home team (verbatim from input match_info.ybty_home)",
+      "ybty_away": "YBTY away team (verbatim from input match_info.ybty_away)",
       "summary": "minute|score|score_verified|conclusion",
       "score_verified": true,
       "score_source": "ybty_verified",
@@ -1524,14 +1549,28 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
    - Handicap-to-Goal Expectation Alignment (让球深浅与净胜期望匹配): Ensure handicap lines strictly correspond to realistic projected goal margins backed by actual data, avoiding unwarranted deep handicap traps.
 
 [Evaluation and Risk Control Protocol]
-0. The Three-Step Quantitative Betting Analytical Architecture (专业数据分析与操盘三步闭环 · 核心基石):
-   - 【第一步：纯现场与主客场特异物理数据推演 (Pure Data-First Match Physics & Venue Splits)】:
+0. The Three-Step Quantitative Betting Analytical Architecture (专业数据分析与操盘三步闭环 · 物理数据绝对优先):
+   - 【雷速数据五步结构化研判标准体系 (Leisu 5-Step Analytical Synthesis)】:
+     1. 【攻势评分曲线与临近势头 (attack_momentum_timeline)】: 
+        - 深度考察 recent_5min_momentum（近5分钟超近端攻势爆发）与 recent_15min_pressure_share（近15分钟攻势占比）；
+        - 提取 continuous_dominance_windows 连续强势压制区间（如客队持续压制高潮），研判场上真实主动权归属；
+     2. 【文字事件流与攻势对齐 (text_live / focused_incidents 与 timeline 交叉匹配)】: 
+        - 严格核验攻势高潮是否在对应时间点转化为真实战果（如 17' 角球、26' 破门）或迫使对方吃牌/犯规，甄别是“高效破防”还是“雷声大雨点小(无效控球)”；
+     3. 【累计攻防数据 (confirmed_statistics / attack_conversion)】: 判断攻势是否积累为有效危险进攻、真实射正质量与前场压迫倾角 (field_tilt)；
+     4. 【机构盘口变化 (odds / verified_ybty_markets)】: 对比市场盘口是否同步变盘或存在深度/水位错位 (+EV)；
+     5. 【基本面与阵容实力核验 (recent_matches / lineup / league_standings / goal_distribution)】: 核验该走势是否符合双方基本实力层级、伤停折损与进球时间分布特征。
+
+   - 【第一步：纯现场与主客场特异物理数据推演 (Pure Data-First Match Physics & Dominance Siege)】:
      * 严禁看盘说球！盘口是机构平衡资金的商业报价，绝非比赛事实！
-     * 必须深入解析 quantitative_analysis.attack_conversion 中的 dangerous_attack_to_shot_ratio（实质破防转化率）、field_tilt_share（前场三十米压迫倾角）和 shot_on_target_accuracy（射正质量）；
+     * 必须优先精读 live_match_physical_facts 中的实时攻防事实：
+       - pure_physical_match_model.physical_lambdas（纯攻防推演出的剩余进球期望 λ_rest 与全场完赛期望 λ_full）；
+       - pure_physical_match_model.dominant_siege_factor（单边高压围攻特征：前场压迫倾角 ≥65% 且射门绝对压制时的攻防动能强化）；
+       - pure_physical_match_model.market_physical_edge_audit（物理推演真实概率 vs 机构隐含概率的差异审计与 Edge 计算）；
+       - attack_conversion（实质破防转化率、进攻三区压迫倾角与射正质量）；
      * 【六大高级战术量化引擎深度利用 (Master Tactical Synthesis)】:
        - 1. 核心阵容折损 (master_tactical_synthesis.positional_absence): 门将/主力中卫缺阵防守期望 GA 增加 0.35~0.7 球；头号射手缺阵进攻期望 GF 下滑 0.3~0.6 球。
        - 2. 角球动能与禁区挤压 (master_tactical_synthesis.corner_squeeze): 10分钟角球爆发速率 (velocity_per_10min ≥ 1.5) 代表禁区被高压围攻，破门高发。
-       - 3. 红牌人数失衡物理模型 (master_tactical_synthesis.red_card_discipline): 上半场红牌失球乘数高达 2.15x (体能防线双崩塌)；终局 78'+ 红牌则转入低位摆大巴。
+       - 3. 红牌与纪律失衡物理模型 (master_tactical_synthesis.red_card_discipline): 上半场红牌失球乘数高达 2.15x (体能防线双崩塌)；后防线 2+ 张黄牌意味着逼抢受限易被打穿。
        - 4. 欧亚指数倒挂与诱盘审计 (master_tactical_synthesis.euro_asian_parity): 欧赔换算理论让球线 vs 实际亚盘深度，精准识别深开诱上 (DEEP_SPREAD_TRAP) 与浅开阻上。
        - 5. 积分榜战意差值 (master_tactical_synthesis.strategic_motivation): 保级生死战或争冠冲刺期战意加权，面对中游无欲无求球队具备战意压制。
        - 6. 非线性进球时段 (master_tactical_synthesis.non_linear_time_decay): 30-45'+ 半场体能节点 (权重 1.30) 与 75-90'+ 终局搏命期 (权重 1.55) 为进球最高发窗口。
@@ -1542,15 +1581,25 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
        - 历史交锋深度特征 (head_to_head_deep): 历史交锋对战克制属性、近1-2年主客场直接对决历史净胜球与风格；
        - 战绩先验期望进球 (form_weighted_poisson_prior): 将主队主场进攻效率与客队客场防守脆弱度交叉加权推导出的 λ_home_prior 与 λ_away_prior，结合现场攻防数据共同校准期望值；
      * 结合 quantitative_analysis.lineup_transparency 与 focused_incidents（红牌、主力换人、战术发力期），客观推演场上真实的攻防力量对比与势能。
-   - 【第二步：推演无偏概率与比分分布 (Independent Poisson & Goal Expectancy Modeling)】:
-     * 参阅 quantitative_analysis.handicap_calibration.independent_poisson_distribution 中的 lambdas（双方独立期望进球 λ_home, λ_away, λ_total）、margin_distribution_pct（净胜1球、净胜2球、净胜3+球、平负分布）与 top_scorelines（最常态高频比分）；
-     * 融合近期战绩与主客场特异性加权，在不看盘口的前提下客观推导出该场比赛真实的比分概率矩阵。
+   - 【第二步：推演无偏概率与比分分布 (Independent Poisson & Pure Physical Modeling)】:
+     * 参阅 live_match_physical_facts.pure_physical_match_model.pure_physical_distribution 以及 quantitative_analysis.handicap_calibration.independent_poisson_distribution 中的 lambdas、margin_distribution_pct 与 top_scorelines；
+     * 融合近期战绩与主客场特异性加权，在完全不看盘口的前提下客观推导出该场比赛真实的比分概率矩阵。
    - 【第三步：比对机构盘口寻找真实定价漏洞 (Cross-Examination Against Market Lines for True +EV)】:
-     * 将第二步计算出的客观真实概率，比对 verified_ybty_markets 中机构去除抽水后的 fair_prob_pct 与当前盘口门槛；
+     * 将第二步计算出的客观真实概率，比对 verified_ybty_markets 与 pure_physical_match_model.market_physical_edge_audit 中的公允概率与当前盘口门槛；
      * 动态数据定夺深盘与大小球价值 (参阅 five_markets_coupling_audit): 
        - 若攻防数据（λ期望进球、射正转化率与净胜球分布）确实强力支持大比分穿盘（如 λ_home 极高且射正破防率极佳），顺应数据如实推荐让深盘与大球；
        - 若数据证明优势方虽胜但常态小胜（1-0/2-0/2-1）占比高，而机构开出 -2.0 深盘让步，则精准识别深盘诱上陷阱，果断将价值锁定在【受让 +2.0】或【全场小球】；
-     * 严禁机械教条化写死，一切由真实攻防数据与期望值驱动！只有当 Value Edge (真实概率 - 机构隐含概率) > 0 时才允许推荐。
+     * 严禁机械教条化写死，一切由真实攻防数据与期望值驱动！只有当 Value Edge (真实概率 - 机构隐含概率) > 0 且具有物理数据支撑时才允许推荐。
+   - 【第四步：严密证据链论证准则 (Strict Three-Stage Evidence Chain in Reason)】:
+     * 每个玩法的 reason 必须遵循【三段式证据链】：
+       1. 【现场物理事实】：直接引用实际射门(射正)、前场压迫倾角、角球速率、吃牌等物理指标；
+       2. 【战术场景推演】：结合比分、早早领先控场、下半场搏命反扑或单边围攻进行物理推演；
+       3. 【盘口错位与EV判定】：比对公允胜率与赔率隐含概率，明确指出是否存在机构诱导或真实正期望值(+EV)。
+
+   - 进攻威胁与场面倾斜: 参阅 quantitative_analysis.attack_conversion 中的 dangerous_attack_to_shot_ratio（危险进攻转化比）与 field_tilt_share（进攻三区压迫占比），识别无效控球。
+   - 阵容透明度与杯赛轮换: 参阅 quantitative_analysis.lineup_transparency 与 tournament_risk。杯赛/友谊赛且阵容未确认时严禁 A 级正式推荐，最高限制 C 级。
+   - ⚠️【早早领先控场识别 (0~15'破门)】: 优势方在比赛前15分钟早早破门建立1球优势后，主动降速控球引诱对手压出，此时段(15'-45')射门偏少属于阶段性战术控盘，绝不等于下半场缺乏进球能力，严禁仅凭半场低射门数盲目在下半场推断全场小球！
+   - ⚠️【杯赛单场淘汰制下半场搏命反扑与小球硬性拦截】: 杯赛单场淘汰赛在落后1球局面下，落后方在下半场(尤其60分后)必然全员压上搏命，后防门户大开极易引发反击与进球潮。硬性风控准则：杯赛淘汰赛单球落后局【严禁推荐全场小球】！若让球与独赢无明显正期望值，坚决评为 NO_BET！
 
 1. Mandatory 5 Real Betting Markets (Each match's market_assessments MUST evaluate ALL 5 core markets in this exact order):
    1. 全场大小球 (full_total): 基于总进球期望 λ_total、禁区压迫与射正转化独立定价。
@@ -1573,8 +1622,9 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
 3. Live Score Verification (Score Verification Gate):
    - If score_verified is false, DO NOT give any A/B grade real market recommendations. All 5 real markets must be status="avoid" / grade="NO_BET".
 
-4. Completeness Constraint:
+4. Completeness & Identity Preservation Constraint:
    - CRITICAL: You MUST output all ${chunkData.length} matches in the "matches" array. Never omit, merge, or truncate any match.
+   - ⚠️ MUST PRESERVE IDENTIFIERS VERBATIM: You must preserve match_id, leisu_match_id, match, ybty_home, and ybty_away exactly as provided in the input. Do NOT translate, modify, transliterate, or omit them.
    - For every match, market_assessments must include all 5 core real markets.
 
 [Output JSON Schema Template]
@@ -1583,9 +1633,11 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
   "summary": "matches:${chunkData.length}|recommend:N|watch:N|avoid:N",
   "matches": [
     {
-      "match": "Original match name",
-      "ybty_home": "YBTY home team",
-      "ybty_away": "YBTY away team",
+      "match": "Original match name (verbatim from input match_info.match)",
+      "match_id": "Original match_id (verbatim from input match_info.match_id)",
+      "leisu_match_id": "Original leisu_match_id (verbatim from input match_info.leisu_match_id)",
+      "ybty_home": "YBTY home team (verbatim from input match_info.ybty_home)",
+      "ybty_away": "YBTY away team (verbatim from input match_info.ybty_away)",
       "summary": "minute|score|score_verified|conclusion",
       "score_verified": true,
       "score_source": "ybty_verified",

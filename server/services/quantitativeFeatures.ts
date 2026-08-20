@@ -58,31 +58,32 @@ export function calculateAttackConversion(statistics: unknown, score?: unknown):
 
   if (shotsH === 0 && shotsA === 0 && dangerH === 0 && dangerA === 0) return null;
 
-  // Pure in-play physical xG created by actual field play (Independent of bookmaker odds)
-  const physicalXgH = Number((onTargetH * 0.28 + (shotsH - onTargetH) * 0.05 + dangerH * 0.015).toFixed(2));
-  const physicalXgA = Number((onTargetA * 0.28 + (shotsA - onTargetA) * 0.05 + dangerA * 0.015).toFixed(2));
-  const totalPhysicalXg = Number((physicalXgH + physicalXgA).toFixed(2));
-
-  let tacticalDominanceVerdict = '双方场面势均力敌';
-  if (shotsH >= shotsA * 2 && dangerH >= dangerA * 1.5) {
-    tacticalDominanceVerdict = `主队全面压迫围攻 (射门${shotsH}-${shotsA}·危险进攻${dangerH}-${dangerA})`;
-  } else if (shotsA >= shotsH * 2 && dangerA >= dangerH * 1.5) {
-    tacticalDominanceVerdict = `客队反客为主全面压迫 (射门${shotsA}-${shotsH}·危险进攻${dangerA}-${dangerH})`;
-  } else if (onTargetH > onTargetA && fieldTiltH && fieldTiltH > 0.6) {
-    tacticalDominanceVerdict = `主队前场压迫占优 (压迫倾角${Math.round(fieldTiltH * 100)}%·射正${onTargetH}-${onTargetA})`;
-  } else if (onTargetA > onTargetH && fieldTiltA && fieldTiltA > 0.6) {
-    tacticalDominanceVerdict = `客队前场压迫占优 (压迫倾角${Math.round(fieldTiltA * 100)}%·射正${onTargetA}-${onTargetH})`;
-  }
-
   return {
     field_tilt_share: { home: fieldTiltH, away: fieldTiltA },
     dangerous_attack_to_shot_ratio: { home: dangerToShotH, away: dangerToShotA },
     shot_on_target_accuracy: { home: shotAccuracyH, away: shotAccuracyA },
     finishing_conversion: { home: finishingH, away: finishingA },
-    physical_xg_created: { home: physicalXgH, away: physicalXgA, total: totalPhysicalXg },
-    tactical_dominance_verdict: tacticalDominanceVerdict,
     summary_note: 'Dangerous attack to shot ratio measures penetrative threat vs empty possession. Field tilt measures territorial pressure in attacking third.',
   };
+}
+
+export interface IndependentPoissonDistribution {
+  lambdas: { home: number; away: number; total: number };
+  margin_distribution_pct: {
+    home_win_by_1: number;
+    home_win_by_2: number;
+    home_win_by_3_plus: number;
+    draw_exact: number;
+    away_win_exact: number;
+  };
+  total_goals_distribution_pct: {
+    under_1_5: number;
+    under_2_5: number;
+    under_3_5: number;
+    over_2_5: number;
+    over_3_5: number;
+  };
+  top_scorelines: Array<{ score: string; prob_pct: number }>;
 }
 
 /**
@@ -97,8 +98,7 @@ export function calculateHandicapExpectancyMetrics(
 ): {
   projected_net_goal_margin: { home_minus_away: number; favored_side: 'home' | 'away' | 'even' };
   independent_poisson_distribution?: IndependentPoissonDistribution;
-  attack_dominance_ratio?: { home: number; away: number };
-  projected_prior_dominance_ratio?: { home: number; away: number };
+  attack_dominance_ratio: { home: number; away: number };
   game_state_tempo_drag?: string;
   handicap_sanity_notes: string[];
 } | null {
@@ -143,13 +143,37 @@ export function calculateHandicapExpectancyMetrics(
     tempoDragA = 0.65; // Away leads by 2+
     tempoDragH = 1.20;
     tempoNote = `客队当前净领先 ${Math.abs(scoreDiff)} 球，客队进攻强度收缩，下半场从0:0起算让球切忌盲目追客队深盘`;
+  } else if (scoreDiff === 1 && currentMin <= 60) {
+    tempoNote = `【早早领先控场识别】主队当前1球领先，主动降速控球引诱对手压出，此时段射门偏少属于战术控盘，绝不等于下半场缺乏进球能力，严禁误判全场小球`;
+  } else if (scoreDiff === -1 && currentMin <= 60) {
+    tempoNote = `【早早领先控场识别】客队当前1球领先，客队战术收缩控场引诱主队压出，此时段双方射门偏少属于战术控盘，绝不等于下半场缺乏进球能力，严禁误判全场小球`;
   }
 
-  const projectedRestGoalsH = Number((rawRateH * tempoDragH * remainingMins).toFixed(2));
-  const projectedRestGoalsA = Number((rawRateA * tempoDragA * remainingMins).toFixed(2));
+  // Dominance Siege Factor: One-sided high-pressure siege adjustment
+  const totalDanger = dangerH + dangerA;
+  const fieldTiltH = totalDanger > 0 ? (dangerH / totalDanger) : 0.5;
+  const fieldTiltA = totalDanger > 0 ? (dangerA / totalDanger) : 0.5;
+  const shotsH = onTargetH + (getSideVal('shots_off_target', 'home') || getSideVal('off_target', 'home'));
+  const shotsA = onTargetA + (getSideVal('shots_off_target', 'away') || getSideVal('off_target', 'away'));
+
+  let siegeMultH = 1.0;
+  let siegeMultA = 1.0;
+  let siegeNote: string | undefined;
+
+  if (fieldTiltH >= 0.65 && shotsH >= Math.max(4, shotsA * 2)) {
+    siegeMultH = 1.0 + (fieldTiltH - 0.60) * 1.5;
+    siegeMultA = Math.max(0.40, 1.0 - (fieldTiltH - 0.50) * 1.2);
+    siegeNote = `【单边高压围攻特征 (Dominance Siege)】主队前场压迫倾角达 ${(fieldTiltH * 100).toFixed(1)}% 且射门 ${shotsH}-${shotsA} 绝对压制，下半场破门动能强化 ${siegeMultH.toFixed(2)}x`;
+  } else if (fieldTiltA >= 0.65 && shotsA >= Math.max(4, shotsH * 2)) {
+    siegeMultA = 1.0 + (fieldTiltA - 0.60) * 1.5;
+    siegeMultH = Math.max(0.40, 1.0 - (fieldTiltA - 0.50) * 1.2);
+    siegeNote = `【单边高压围攻特征 (Dominance Siege)】客队前场压迫倾角达 ${(fieldTiltA * 100).toFixed(1)}% 且射门 ${shotsA}-${shotsH} 绝对压制，下半场破门动能强化 ${siegeMultA.toFixed(2)}x`;
+  }
+
+  const projectedRestGoalsH = Number((rawRateH * tempoDragH * siegeMultH * remainingMins).toFixed(2));
+  const projectedRestGoalsA = Number((rawRateA * tempoDragA * siegeMultA * remainingMins).toFixed(2));
   const netMargin = Number((projectedRestGoalsH - projectedRestGoalsA).toFixed(2));
 
-  const totalDanger = dangerH + dangerA;
   const domH = totalDanger > 0 ? Number(((dangerH / totalDanger) * 100).toFixed(1)) : 50;
   const domA = totalDanger > 0 ? Number(((dangerA / totalDanger) * 100).toFixed(1)) : 50;
 
@@ -188,22 +212,249 @@ function poissonProb(k: number, lambda: number): number {
   return (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial(k);
 }
 
-export interface IndependentPoissonDistribution {
-  lambdas: { home: number; away: number; total: number };
-  margin_distribution_pct: {
-    home_win_by_1: number;
-    home_win_by_2: number;
-    home_win_by_3_plus: number;
-    draw_exact: number;
-    away_win_exact: number;
+export interface PurePhysicalOptionEdge {
+  market: string;
+  option_id?: string;
+  direction?: string;
+  line?: any;
+  odds: number;
+  bookmaker_implied_prob_pct: number;
+  physical_model_prob_pct: number;
+  physical_value_edge: number;
+  discrepancy_verdict: 'STRONG_VALUE_MISPRICING' | 'BOOKMAKER_BAIT_TRAP' | 'FAIR_PRICING';
+  physical_evidence_zh: string;
+}
+
+export interface PurePhysicalMatchModel {
+  physical_lambdas: {
+    rest_home: number;
+    rest_away: number;
+    rest_total: number;
+    projected_full_home: number;
+    projected_full_away: number;
+    projected_full_total: number;
   };
-  total_goals_distribution_pct: {
-    under_1_5: number;
-    under_2_5: number;
-    over_2_5: number;
-    over_3_5: number;
+  dominant_siege_factor?: {
+    side: 'home' | 'away' | 'none';
+    field_tilt_pct: number;
+    shot_ratio: string;
+    impact_note_zh: string;
   };
-  top_scorelines: Array<{ score: string; prob_pct: number }>;
+  pure_physical_distribution: {
+    home_win_pct: number;
+    draw_pct: number;
+    away_win_pct: number;
+    over_2_5_pct: number;
+    under_2_5_pct: number;
+    over_3_5_pct: number;
+    under_3_5_pct: number;
+    top_scorelines: Array<{ score: string; prob_pct: number }>;
+  };
+  market_physical_edge_audit: PurePhysicalOptionEdge[];
+  executive_physical_summary_zh: string;
+}
+
+export function calculatePurePhysicalMatchModel(
+  statistics: unknown,
+  score: unknown,
+  minute: number,
+  verifiedMarkets: any[] = [],
+  formPrior?: { lambda_home_prior: number; lambda_away_prior: number }
+): PurePhysicalMatchModel | null {
+  const stats = object(statistics);
+  const currentScore = object(score);
+  const currentMin = Math.max(0, Math.min(90, number(minute)));
+  const remainingMins = Math.max(5, 90 - currentMin);
+
+  const getSideVal = (field: string, side: 'home' | 'away') => {
+    const val = stats[field];
+    if (val && typeof val === 'object') {
+      const v = side === 'home' ? (val.home ?? val.h) : (val.away ?? val.a);
+      return number(v);
+    }
+    return 0;
+  };
+
+  const onTargetH = getSideVal('shots_on_target', 'home') || getSideVal('on_target', 'home');
+  const onTargetA = getSideVal('shots_on_target', 'away') || getSideVal('on_target', 'away');
+  const dangerH = getSideVal('dangerous_attacks', 'home') || getSideVal('danger_attacks', 'home');
+  const dangerA = getSideVal('dangerous_attacks', 'away') || getSideVal('danger_attacks', 'away');
+  const offTargetH = getSideVal('shots_off_target', 'home') || getSideVal('off_target', 'home');
+  const offTargetA = getSideVal('shots_off_target', 'away') || getSideVal('off_target', 'away');
+  const shotsH = onTargetH + offTargetH;
+  const shotsA = onTargetA + offTargetA;
+  const cornersH = getSideVal('corners', 'home');
+  const cornersA = getSideVal('corners', 'away');
+  const yellowH = getSideVal('yellow_cards', 'home') || getSideVal('yellows', 'home');
+  const yellowA = getSideVal('yellow_cards', 'away') || getSideVal('yellows', 'away');
+
+  const goalH = number(currentScore.home);
+  const goalA = number(currentScore.away);
+  const scoreDiff = goalH - goalA;
+
+  let restLH = 0;
+  let restLA = 0;
+
+  if (currentMin === 0 || (onTargetH === 0 && onTargetA === 0 && dangerH === 0 && dangerA === 0)) {
+    // Pre-match / no live stats: derive purely from form & H2H prior
+    const priorH = formPrior?.lambda_home_prior || 1.35;
+    const priorA = formPrior?.lambda_away_prior || 1.15;
+    restLH = Number(priorH.toFixed(2));
+    restLA = Number(priorA.toFixed(2));
+  } else {
+    // In-play: Pure physical data-first match physics
+    const rawRateH = (onTargetH * 0.32 + dangerH * 0.038 + cornersH * 0.04) / Math.max(15, currentMin);
+    const rawRateA = (onTargetA * 0.32 + dangerA * 0.038 + cornersA * 0.04) / Math.max(15, currentMin);
+
+    let tempoH = 1.0;
+    let tempoA = 1.0;
+    if (scoreDiff >= 2) {
+      tempoH = 0.65;
+      tempoA = 1.25;
+    } else if (scoreDiff <= -2) {
+      tempoA = 0.65;
+      tempoH = 1.25;
+    }
+
+    // Dominance Siege Multiplier
+    const totalDanger = dangerH + dangerA;
+    const tiltH = totalDanger > 0 ? (dangerH / totalDanger) : 0.5;
+    const tiltA = totalDanger > 0 ? (dangerA / totalDanger) : 0.5;
+
+    let siegeH = 1.0;
+    let siegeA = 1.0;
+    if (tiltH >= 0.65 && shotsH >= Math.max(4, shotsA * 2)) {
+      siegeH = 1.0 + (tiltH - 0.60) * 1.5;
+      siegeA = Math.max(0.40, 1.0 - (tiltH - 0.50) * 1.2);
+    } else if (tiltA >= 0.65 && shotsA >= Math.max(4, shotsH * 2)) {
+      siegeA = 1.0 + (tiltA - 0.60) * 1.5;
+      siegeH = Math.max(0.40, 1.0 - (tiltA - 0.50) * 1.2);
+    }
+
+    // Yellow cards fatigue/defensive breakdown factor
+    if (yellowA >= 2) siegeH *= 1.15;
+    if (yellowH >= 2) siegeA *= 1.15;
+
+    restLH = Number((rawRateH * tempoH * siegeH * remainingMins).toFixed(2));
+    restLA = Number((rawRateA * tempoA * siegeA * remainingMins).toFixed(2));
+  }
+
+  const fullLH = Number((goalH + restLH).toFixed(2));
+  const fullLA = Number((goalA + restLA).toFixed(2));
+  const fullLTotal = Number((fullLH + fullLA).toFixed(2));
+
+  // Compute Poisson for full match physical expectations
+  const fullSim = computeIndependentPoissonDistribution(fullLH, fullLA);
+
+  const totalDanger = dangerH + dangerA;
+  const tiltH = totalDanger > 0 ? Number(((dangerH / totalDanger) * 100).toFixed(1)) : 50;
+  const tiltA = totalDanger > 0 ? Number(((dangerA / totalDanger) * 100).toFixed(1)) : 50;
+
+  let siegeInfo: PurePhysicalMatchModel['dominant_siege_factor'];
+  if (tiltH >= 65 && shotsH >= Math.max(4, shotsA * 2)) {
+    siegeInfo = {
+      side: 'home',
+      field_tilt_pct: tiltH,
+      shot_ratio: `${shotsH}-${shotsA}`,
+      impact_note_zh: `主队前场压迫倾角 ${tiltH}% 且射门 ${shotsH}-${shotsA}，形成单边围攻，下半场具备高破门预期。`,
+    };
+  } else if (tiltA >= 65 && shotsA >= Math.max(4, shotsH * 2)) {
+    siegeInfo = {
+      side: 'away',
+      field_tilt_pct: tiltA,
+      shot_ratio: `${shotsA}-${shotsH}`,
+      impact_note_zh: `客队前场压迫倾角 ${tiltA}% 且射门 ${shotsA}-${shotsH}，形成单边围攻，下半场具备高破门预期。`,
+    };
+  }
+
+  // Cross-evaluate verified options
+  const edgeAudit: PurePhysicalOptionEdge[] = [];
+  for (const m of verifiedMarkets) {
+    for (const opt of asArray(m.options)) {
+      const odds = Number(opt.odds);
+      if (odds <= 1.05) continue;
+      const implied = Number(((1 / odds) * 100).toFixed(2));
+      let physicalProb = 50.0;
+
+      if (m.market === 'full_h2h') {
+        if (opt.side === 'home' || String(opt.line || '').includes('主')) {
+          physicalProb = fullSim.margin_distribution_pct.home_win_by_1 + fullSim.margin_distribution_pct.home_win_by_2 + fullSim.margin_distribution_pct.home_win_by_3_plus;
+        } else if (opt.side === 'draw' || String(opt.line || '').includes('平')) {
+          physicalProb = fullSim.margin_distribution_pct.draw_exact;
+        } else {
+          physicalProb = fullSim.margin_distribution_pct.away_win_exact;
+        }
+      } else if (m.market === 'full_total') {
+        const lineNum = parseFloat(String(opt.line || '').replace(/[^\d.]/g, ''));
+        const isOver = opt.side === 'over' || /大/i.test(String(opt.line || ''));
+        if (lineNum <= 2.5) {
+          physicalProb = isOver ? fullSim.total_goals_distribution_pct.over_2_5 : fullSim.total_goals_distribution_pct.under_2_5;
+        } else if (lineNum <= 3.25) {
+          const pOver = (fullSim.total_goals_distribution_pct.over_2_5 + fullSim.total_goals_distribution_pct.over_3_5) / 2;
+          physicalProb = isOver ? pOver : (100 - pOver);
+        } else {
+          physicalProb = isOver ? fullSim.total_goals_distribution_pct.over_3_5 : (100 - fullSim.total_goals_distribution_pct.over_3_5);
+        }
+      } else if (m.market === 'full_spread') {
+        const isHome = opt.side === 'home' || String(opt.line || '').includes('主');
+        const netExpected = fullLH - fullLA;
+        if (isHome) {
+          physicalProb = netExpected > 0.4 ? 60 : netExpected < -0.4 ? 42 : 50;
+        } else {
+          physicalProb = netExpected < -0.4 ? 60 : netExpected > 0.4 ? 42 : 50;
+        }
+      }
+
+      physicalProb = Number(Math.max(5, Math.min(95, physicalProb)).toFixed(1));
+      const edge = Number((physicalProb - implied).toFixed(2));
+      let verdict: PurePhysicalOptionEdge['discrepancy_verdict'] = 'FAIR_PRICING';
+      if (edge >= 6.0) verdict = 'STRONG_VALUE_MISPRICING';
+      else if (edge <= -6.0) verdict = 'BOOKMAKER_BAIT_TRAP';
+
+      edgeAudit.push({
+        market: m.market,
+        option_id: opt.option_id,
+        direction: `${opt.side || ''} ${opt.line || ''}`.trim(),
+        line: opt.line,
+        odds,
+        bookmaker_implied_prob_pct: implied,
+        physical_model_prob_pct: physicalProb,
+        physical_value_edge: edge,
+        discrepancy_verdict: verdict,
+        physical_evidence_zh: `现场射门 ${shotsH}-${shotsA}(射正 ${onTargetH}-${onTargetA})，三区压迫 ${tiltH}%-${tiltA}%，物理推演胜率 ${physicalProb}% vs 机构隐含 ${implied}% (Edge: ${edge > 0 ? '+' : ''}${edge}%)`,
+      });
+    }
+  }
+
+  const homeWinPct = Number((fullSim.margin_distribution_pct.home_win_by_1 + fullSim.margin_distribution_pct.home_win_by_2 + fullSim.margin_distribution_pct.home_win_by_3_plus).toFixed(1));
+
+  return {
+    physical_lambdas: {
+      rest_home: restLH,
+      rest_away: restLA,
+      rest_total: Number((restLH + restLA).toFixed(2)),
+      projected_full_home: fullLH,
+      projected_full_away: fullLA,
+      projected_full_total: fullLTotal,
+    },
+    dominant_siege_factor: siegeInfo,
+    pure_physical_distribution: {
+      home_win_pct: homeWinPct,
+      draw_pct: fullSim.margin_distribution_pct.draw_exact,
+      away_win_pct: fullSim.margin_distribution_pct.away_win_exact,
+      over_2_5_pct: fullSim.total_goals_distribution_pct.over_2_5,
+      under_2_5_pct: fullSim.total_goals_distribution_pct.under_2_5,
+      over_3_5_pct: fullSim.total_goals_distribution_pct.over_3_5,
+      under_3_5_pct: fullSim.total_goals_distribution_pct.under_3_5,
+      top_scorelines: fullSim.top_scorelines,
+    },
+    market_physical_edge_audit: edgeAudit,
+    executive_physical_summary_zh: `【纯物理攻防推演】下半场剩余进球期望: 主λ=${restLH}, 客λ=${restLA}(总λ=${(restLH + restLA).toFixed(2)})；全场完赛期望比分: ${fullLH.toFixed(1)} - ${fullLA.toFixed(1)}。`,
+  };
+}
+
+function asArray(val: unknown): any[] {
+  return Array.isArray(val) ? val : [];
 }
 
 export function computeIndependentPoissonDistribution(
@@ -221,6 +472,7 @@ export function computeIndependentPoissonDistribution(
 
   let under15 = 0;
   let under25 = 0;
+  let under35 = 0;
   let over25 = 0;
   let over35 = 0;
 
@@ -245,6 +497,7 @@ export function computeIndependentPoissonDistribution(
       const total = h + a;
       if (total <= 1) under15 += p;
       if (total <= 2) under25 += p;
+      if (total <= 3) under35 += p;
       if (total >= 3) over25 += p;
       if (total >= 4) over35 += p;
     }
@@ -268,6 +521,7 @@ export function computeIndependentPoissonDistribution(
     total_goals_distribution_pct: {
       under_1_5: Number((under15 * 100).toFixed(1)),
       under_2_5: Number((under25 * 100).toFixed(1)),
+      under_3_5: Number((under35 * 100).toFixed(1)),
       over_2_5: Number((over25 * 100).toFixed(1)),
       over_3_5: Number((over35 * 100).toFixed(1)),
     },
@@ -526,6 +780,7 @@ export function classifyTournamentTier(leagueName: string, homeTeam = '', awayTe
       strategic_directives: [
         '强队轮换风险极高，豪门往往派出替补/轮换阵容。',
         '【深盘陷阱防范】低独赢赔率绝不等于能打穿 -1.5 / -2.0 深盘，禁止仅凭名气推深盘。',
+        '【单场淘汰制下半场搏命反扑与小球硬性拦截】单场淘汰制下若存在1球落后，落后方在下半场(尤其60分后)必然全员压上搏命，后防门户大开极易引发反击进球潮。硬性规则：杯赛落后1球局严禁推全场小球，无明确EV时输出NO_BET。',
         '两回合赛制需关注首回合比分(次回合保平即出线)；单回合淘汰需防范常规时间保平拖入点球大战。',
         '首发阵容未公布时最高评级限制为 C 级，严禁给出 A 级正式推荐。',
       ],
@@ -950,5 +1205,311 @@ export function analyzeH2HRecency(h2hList: unknown[]): {
     stale_over_2years_count: stale,
     recency_verdict: verdict,
     guidance_note: note,
+  };
+}
+
+/**
+ * 7. Attack Momentum Timeline Analyzer (整场分段攻势评分曲线分析)
+ * Respects 2D segment boundary (data[0] for 1st half, data[1] for 2nd half).
+ * Extracts continuous dominant pressure windows and strictly aligns them with match incidents & text_live events.
+ * Computes near-term 5min/15min momentum shifts and tactical conversion for in-play AI evaluation.
+ */
+export function analyzeAttackMomentumTimeline(
+  timelineInput: any,
+  currentMinute: number = 0,
+  incidentsInput?: any[],
+  homeTeamName: string = '',
+  awayTeamName: string = ''
+): {
+  recent_5min_momentum: { home: number; away: number; dominant_side: 'home' | 'away' | 'balanced' };
+  recent_15min_pressure_share: { home: number; away: number };
+  continuous_dominance_windows: Array<{
+    segment_name: string;
+    start_min: number;
+    end_min: number;
+    duration_mins: number;
+    dominant_side: 'home' | 'away';
+    summary_zh: string;
+    correlated_incidents: string[];
+    conversion_type: 'GOAL_CONVERTED' | 'DANGER_CONVERTED' | 'CARD_FORCED' | 'STERILE_PRESSURE';
+  }>;
+  momentum_trend: 'HOME_HEAVY_PRESSURE' | 'AWAY_HEAVY_PRESSURE' | 'BALANCED_CONTEST';
+  tactical_conversion_verdict: string;
+  momentum_verdict_zh: string;
+} | null {
+  if (!timelineInput || typeof timelineInput !== 'object') return null;
+
+  const rawData = timelineInput.data;
+  const nominalMinutes = Number(timelineInput.nominal_segment_minutes) || 45;
+
+  // Normalize into 2D segments: Array<Array<number>>
+  let segments: number[][] = [];
+
+  if (Array.isArray(rawData) && rawData.length > 0) {
+    if (Array.isArray(rawData[0])) {
+      // 2D Array [ [..], [..] ]
+      segments = rawData.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
+    } else if (typeof rawData[0] === 'number') {
+      // Flat 1D Array fallback
+      segments = [rawData.map(Number)];
+    }
+  } else if (Array.isArray(timelineInput.periods) && timelineInput.periods.length > 0) {
+    segments = timelineInput.periods.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
+  } else if (Array.isArray(timelineInput.raw?.data) && timelineInput.raw.data.length > 0) {
+    segments = timelineInput.raw.data.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
+  }
+
+  // Filter out empty segments
+  segments = segments.filter((s) => s.length > 0);
+  if (segments.length === 0) return null;
+
+  // Normalize incident list for timeline matching
+  const parsedIncidents: Array<{ min: number; text: string; type: string; team: 'home' | 'away' | 'unknown' }> = [];
+  if (Array.isArray(incidentsInput)) {
+    for (const rawInc of incidentsInput) {
+      if (typeof rawInc === 'string') {
+        const minMatch = rawInc.match(/^(\d{1,3})/);
+        const min = minMatch ? parseInt(minMatch[1], 10) : -1;
+        if (min >= 0) {
+          let team: 'home' | 'away' | 'unknown' = 'unknown';
+          if (homeTeamName && rawInc.includes(homeTeamName)) team = 'home';
+          else if (awayTeamName && rawInc.includes(awayTeamName)) team = 'away';
+          parsedIncidents.push({ min, text: rawInc, type: rawInc, team });
+        }
+      } else if (rawInc && typeof rawInc === 'object') {
+        const min = Number(rawInc.time ?? rawInc.minute ?? rawInc.min ?? -1);
+        const desc = String(rawInc.text ?? rawInc.content ?? rawInc.type_name ?? rawInc.type ?? '');
+        const target = Number(rawInc.position ?? rawInc.team ?? 0);
+        const team = target === 1 ? 'home' : target === 2 ? 'away' : 'unknown';
+        if (min >= 0) {
+          parsedIncidents.push({ min, text: desc || `${min}' 比赛事件`, type: desc, team });
+        }
+      }
+    }
+  }
+
+  interface DominanceWindowItem {
+    segment_name: string;
+    start_min: number;
+    end_min: number;
+    duration_mins: number;
+    dominant_side: 'home' | 'away';
+    summary_zh: string;
+    correlated_incidents: string[];
+    conversion_type: 'GOAL_CONVERTED' | 'DANGER_CONVERTED' | 'CARD_FORCED' | 'STERILE_PRESSURE';
+  }
+
+  const dominanceWindows: DominanceWindowItem[] = [];
+  const allFlattenedPoints: Array<{ min: number; h: number; a: number; score: number }> = [];
+
+  // Analyze each segment independently respecting period boundaries
+  segments.forEach((segScores, segIdx) => {
+    const segName = segIdx === 0 ? '上半场' : segIdx === 1 ? '下半场' : segIdx === 2 ? '加时上半场' : segIdx === 3 ? '加时下半场' : `第${segIdx + 1}阶段`;
+    const baseOffset = segIdx === 0 ? 0 : segIdx * nominalMinutes + 1;
+
+    let currentSide: 'home' | 'away' | null = null;
+    let windowStartIdx = 0;
+    let streak = 0;
+
+    const commitWindow = (side: 'home' | 'away', startIdx: number, endIdx: number, streakCount: number) => {
+      if (streakCount < 4) return;
+      const startMin = segIdx === 0 ? startIdx : nominalMinutes + 1 + startIdx;
+      const endMin = segIdx === 0 ? endIdx : nominalMinutes + 1 + endIdx;
+      const sideName = side === 'home' ? (homeTeamName || '主队') : (awayTeamName || '客队');
+
+      // Correlate with incidents occurring in [startMin - 1, endMin + 1]
+      const correlated = parsedIncidents
+        .filter((inc) => inc.min >= Math.max(0, startMin - 1) && inc.min <= endMin + 1)
+        .map((inc) => inc.text);
+
+      let convType: DominanceWindowItem['conversion_type'] = 'STERILE_PRESSURE';
+      const corrStr = correlated.join(' ');
+      if (/进球|破门|点球进|得分/i.test(corrStr)) {
+        convType = 'GOAL_CONVERTED';
+      } else if (/角球|射正|中框|扑救|险情/i.test(corrStr)) {
+        convType = 'DANGER_CONVERTED';
+      } else if (/红牌|黄牌|造牌/i.test(corrStr)) {
+        convType = 'CARD_FORCED';
+      }
+
+      const convNote =
+        convType === 'GOAL_CONVERTED' ? '【转化破门】' :
+        convType === 'DANGER_CONVERTED' ? '【造角球/险情】' :
+        convType === 'CARD_FORCED' ? '【造牌/加剧犯规】' : '【持续压迫/雷声大雨点小】';
+
+      const windowDesc = `[${segName}] ${startMin}'-${endMin}' ${side === 'home' ? '主队' : '客队'}(${sideName})持续压制高潮(连续${streakCount}分钟攻势占优) ${convNote}`;
+
+      dominanceWindows.push({
+        segment_name: segName,
+        start_min: startMin,
+        end_min: endMin,
+        duration_mins: streakCount,
+        dominant_side: side,
+        summary_zh: windowDesc,
+        correlated_incidents: correlated,
+        conversion_type: convType,
+      });
+    };
+
+    segScores.forEach((score, idx) => {
+      const h = score > 0 ? score : 0;
+      const a = score < 0 ? Math.abs(score) : 0;
+      const approxMin = baseOffset + idx;
+      allFlattenedPoints.push({ min: approxMin, h, a, score });
+
+      const side = h >= 30 && h > a ? 'home' : a >= 30 && a > h ? 'away' : null;
+      if (side && side === currentSide) {
+        streak++;
+      } else {
+        if (currentSide && streak >= 4) {
+          commitWindow(currentSide, windowStartIdx, idx - 1, streak);
+        }
+        currentSide = side;
+        windowStartIdx = idx;
+        streak = side ? 1 : 0;
+      }
+    });
+
+    if (currentSide && streak >= 4) {
+      commitWindow(currentSide, windowStartIdx, segScores.length - 1, streak);
+    }
+  });
+
+  // Calculate recent 15 minutes pressure share from the latest segment points
+  const activeSegment = segments[segments.length - 1] || [];
+  let recent15Slice: number[] = [];
+
+  if (activeSegment.length >= 15) {
+    recent15Slice = activeSegment.slice(-15);
+  } else {
+    const prevSegment = segments.length > 1 ? segments[segments.length - 2] : [];
+    const needed = 15 - activeSegment.length;
+    recent15Slice = [...prevSegment.slice(-needed), ...activeSegment];
+  }
+
+  let recentHSum = 0;
+  let recentASum = 0;
+  for (const score of recent15Slice) {
+    if (score > 0) recentHSum += score;
+    else if (score < 0) recentASum += Math.abs(score);
+  }
+
+  const totalRecent = recentHSum + recentASum;
+  const homeShare = totalRecent > 0 ? Number(((recentHSum / totalRecent) * 100).toFixed(1)) : 50;
+  const awayShare = totalRecent > 0 ? Number(((recentASum / totalRecent) * 100).toFixed(1)) : 50;
+
+  // Calculate immediate 5-minute momentum (近5分钟超近端攻势势头)
+  const recent5Slice = activeSegment.length >= 5 ? activeSegment.slice(-5) : recent15Slice.slice(-5);
+  let imm5H = 0;
+  let imm5A = 0;
+  for (const score of recent5Slice) {
+    if (score > 0) imm5H += score;
+    else if (score < 0) imm5A += Math.abs(score);
+  }
+  const total5 = imm5H + imm5A;
+  const imm5HShare = total5 > 0 ? Number(((imm5H / total5) * 100).toFixed(1)) : 50;
+  const imm5AShare = total5 > 0 ? Number(((imm5A / total5) * 100).toFixed(1)) : 50;
+  const dominantSide5: 'home' | 'away' | 'balanced' =
+    imm5HShare >= 65 ? 'home' : imm5AShare >= 65 ? 'away' : 'balanced';
+
+  let trend: 'HOME_HEAVY_PRESSURE' | 'AWAY_HEAVY_PRESSURE' | 'BALANCED_CONTEST' = 'BALANCED_CONTEST';
+  let verdictZh = `攻势曲线相对胶着，近15分钟攻势占比 ${homeShare}% vs ${awayShare}%，近5分钟处于${dominantSide5 === 'home' ? '主队提速' : dominantSide5 === 'away' ? '客队提速' : '均势对抗'}。`;
+
+  if (homeShare >= 65) {
+    trend = 'HOME_HEAVY_PRESSURE';
+    verdictZh = `主队近15分钟攻势评分持续压制(${homeShare}% vs ${awayShare}%)，近5分钟保持强力压迫(${imm5HShare}%)，围攻态势明显。`;
+  } else if (awayShare >= 65) {
+    trend = 'AWAY_HEAVY_PRESSURE';
+    verdictZh = `客队近15分钟攻势评分持续压制(${awayShare}% vs ${homeShare}%)，近5分钟反客为主高压推进(${imm5AShare}%)。`;
+  }
+
+  // Tactical conversion synthesis
+  const goalConvertedWins = dominanceWindows.filter((w) => w.conversion_type === 'GOAL_CONVERTED');
+  const sterileWins = dominanceWindows.filter((w) => w.conversion_type === 'STERILE_PRESSURE');
+  let tacticalConversion = '攻守对抗推进中';
+  if (goalConvertedWins.length > 0) {
+    tacticalConversion = `攻势高潮具备极高杀伤力，已成功在强势窗口期实现破门(${goalConvertedWins.map(w => w.summary_zh).join('; ')})`;
+  } else if (sterileWins.length >= 2) {
+    tacticalConversion = '攻势波次虽多但雷声大雨点小，转化为绝对破门机会偏少，需警惕虚火与后防反击。';
+  } else if (dominanceWindows.length > 0) {
+    tacticalConversion = '攻势窗口期伴随角球与持续定位球威胁，不断向对方禁区施压。';
+  }
+
+  return {
+    recent_5min_momentum: {
+      home: imm5HShare,
+      away: imm5AShare,
+      dominant_side: dominantSide5,
+    },
+    recent_15min_pressure_share: { home: homeShare, away: awayShare },
+    continuous_dominance_windows: dominanceWindows.slice(-5),
+    momentum_trend: trend,
+    tactical_conversion_verdict: tacticalConversion,
+    momentum_verdict_zh: verdictZh,
+  };
+}
+
+/**
+ * 8. Goal Distribution Analyzer (进球时间分布分析)
+ * Extracts 15-minute goal timing propensities and late-game goal spike rates.
+ */
+export function analyzeGoalDistribution(
+  goalDistributionInput: any
+): {
+  first_half_goals_pct: number;
+  second_half_goals_pct: number;
+  late_game_75_plus_pct: number;
+  top_scoring_window_zh: string;
+  summary_zh: string;
+} | null {
+  if (!goalDistributionInput || typeof goalDistributionInput !== 'object') return null;
+
+  const home = goalDistributionInput.home || goalDistributionInput.home_team || {};
+  const away = goalDistributionInput.away || goalDistributionInput.away_team || {};
+
+  const getBucket = (data: any, key: string): number => {
+    if (!data || typeof data !== 'object') return 0;
+    return Number(data[key] ?? data[key.replace('-', '_')] ?? 0);
+  };
+
+  const buckets = ['0-15', '16-30', '31-45', '46-60', '61-75', '76-90'];
+  const totals: Record<string, number> = {};
+  let totalGoals = 0;
+
+  for (const b of buckets) {
+    const count = getBucket(home, b) + getBucket(away, b);
+    totals[b] = count;
+    totalGoals += count;
+  }
+
+  if (totalGoals === 0) return null;
+
+  const firstHalfGoals = totals['0-15'] + totals['16-30'] + totals['31-45'];
+  const secondHalfGoals = totals['46-60'] + totals['61-75'] + totals['76-90'];
+  const lateGoals = totals['76-90'];
+
+  const firstHalfPct = Number(((firstHalfGoals / totalGoals) * 100).toFixed(1));
+  const secondHalfPct = Number(((secondHalfGoals / totalGoals) * 100).toFixed(1));
+  const latePct = Number(((lateGoals / totalGoals) * 100).toFixed(1));
+
+  let maxBucket = '76-90';
+  let maxCount = 0;
+  for (const b of buckets) {
+    if (totals[b] > maxCount) {
+      maxCount = totals[b];
+      maxBucket = b;
+    }
+  }
+
+  const maxPct = Number(((maxCount / totalGoals) * 100).toFixed(1));
+  const topWindowZh = `高频进球窗口: ${maxBucket}分钟 (占历史总进球 ${maxPct}%)`;
+  const summaryZh = `进球时段特征: 上半场 ${firstHalfPct}% vs 下半场 ${secondHalfPct}%，终局76-90+分钟进球占比 ${latePct}%。`;
+
+  return {
+    first_half_goals_pct: firstHalfPct,
+    second_half_goals_pct: secondHalfPct,
+    late_game_75_plus_pct: latePct,
+    top_scoring_window_zh: topWindowZh,
+    summary_zh: summaryZh,
   };
 }

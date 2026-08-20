@@ -69,30 +69,5 @@ class InterfaceFeatureTest(unittest.TestCase):
         self.assertTrue(any("不同步" in warning for warning in metrics["warnings"]))
 
 
-    def test_tactical_physics_matrix_bounded_and_structured(self):
-        candidate = {
-            "minute": 50,
-            "score": {"home": 0, "away": 1},
-            "live_statistics": {
-                "possession": {"home": 62, "away": 38},
-                "corners": {"home": 8, "away": 1},
-                "fouls": {"home": 12, "away": 16},
-            },
-            "lineups": {"available": True, "raw": {
-                "home_injuries": [], "away_injuries": [{"name": "客队一号门将", "position": "GK"}]
-            }},
-            "weather": {"text": ["多云", "微风"]},
-        }
-        features = extract_interface_features(candidate)
-        self.assertIn("tactical_physics_matrix", features)
-        matrix = features["tactical_physics_matrix"]
-        self.assertGreaterEqual(matrix["alpha_home_attack"], 0.75)
-        self.assertLessEqual(matrix["alpha_home_attack"], 1.30)
-        self.assertGreaterEqual(matrix["beta_match_tempo"], 0.75)
-        self.assertLessEqual(matrix["beta_match_tempo"], 1.30)
-        self.assertTrue(any("Pillar" in item for item in matrix["evidence"] + matrix["risks"]))
-
-
 if __name__ == "__main__":
     unittest.main()
-

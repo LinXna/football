@@ -21,23 +21,18 @@ export function normalizeTeamName(name: string): string {
   if (str === '[object Object]') return '';
 
   // Standardize common female / youth / venue suffixes
-  str = str.replace(/\(女\)|女足|女子|（女）|Women|ladies|wfc/gi, '女足');
+  str = str.replace(/\(女\)|女足|（女）|Women/gi, '女足');
   str = str.replace(/\(中\)|（中）|\[中\]/g, '');
   str = str.replace(/\(主\)|（主）|\[主\]/g, '');
-  str = str.replace(/23岁以下|u-?23|u_23|u 23|\(u23\)|（u23）|u23岁以下/gi, 'u23');
-  str = str.replace(/22岁以下|u-?22|u_22|u 22|\(u22\)|（u22）|u22岁以下/gi, 'u22');
-  str = str.replace(/21岁以下|u-?21|u_21|u 21|\(u21\)|（u21）|u21岁以下/gi, 'u21');
-  str = str.replace(/20岁以下|u-?20|u_20|u 20|\(u20\)|（u20）|u20岁以下/gi, 'u20');
-  str = str.replace(/19岁以下|u-?19|u_19|u 19|\(u19\)|（u19）|u19岁以下/gi, 'u19');
-  str = str.replace(/18岁以下|u-?18|u_18|u 18|\(u18\)|（u18）|u18岁以下/gi, 'u18');
-  str = str.replace(/17岁以下|u-?17|u_17|u 17|\(u17\)|（u17）|u17岁以下/gi, 'u17');
-  str = str.replace(/16岁以下|u-?16|u_16|u 16|\(u16\)|（u16）|u16岁以下/gi, 'u16');
-  str = str.replace(/预备队|reserves?|b队|\bii\b/gi, '预备队');
-  str = str.replace(/青年队|青年|梯队|youth/gi, '青年队');
-  str = str.replace(/football club|fc|sc|俱乐部|体育|竞技|联合|联队/gi, '');
+  str = str.replace(/20岁以下|u-20|u_20|u 20|\(u20\)|u20岁以下|u20/gi, 'u20');
+  str = str.replace(/21岁以下|u-21|u_21|u 21|\(u21\)|u21岁以下|u21/gi, 'u21');
+  str = str.replace(/23岁以下|u-23|u_23|u 23|\(u23\)|u23岁以下|u23/gi, 'u23');
+  str = str.replace(/19岁以下|u-19|u_19|u 19|\(u19\)|u19岁以下|u19/gi, 'u19');
+  str = str.replace(/17岁以下|u-17|u_17|u 17|\(u17\)|u17岁以下|u17/gi, 'u17');
+  str = str.replace(/football club|fc|俱乐部|体育|竞技/gi, '');
 
   // Remove special symbols and extra spaces
-  str = str.replace(/[·\.\-\_\s\(\)（）\[\]]/g, '');
+  str = str.replace(/[·\.\-\_\s\(\)（）]/g, '');
 
   return str.toLowerCase();
 }

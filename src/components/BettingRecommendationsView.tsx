@@ -8,6 +8,7 @@ import { generateExtendedAnalysis } from '../lib/extendedRecommendation';
 import { analyzeDualConsensus, DualConsensusAnalysis, formatMarketLabel, formatBetOption } from '../lib/consensusArbitration';
 import { displayText } from '../lib/displayValue';
 import { extractMatchLiveStats } from '../lib/matchStats';
+import { AttackMomentumTimelineWidget } from './AttackMomentumTimelineWidget';
 import { 
   Trophy, 
   ShieldCheck, 
@@ -963,44 +964,31 @@ export const BettingRecommendationsView: React.FC<Props> = ({
 
     // Ticket 3: Over/Under Goal-Rush Ticket (2串1 进球大战/大小球)
     if (uniqueCandidates.length >= 2) {
-      const ticket1MatchSet = new Set(ticket1Legs.map((l) => l.match));
       const alreadyUsedDirections = new Set(
         tickets.flatMap((ticket) => ticket.legs.map((leg) => `${leg.match}|${leg.market}|${leg.line}`)),
       );
-      // Prefer matches not already in Ticket 1 to avoid duplicate 2-leg pairings
-      const ouCandidates = uniqueCandidates.filter((leg) => {
-        const direction = `${leg.match}|${leg.recommendation?.market}|${formatAsianLine(leg.recommendation?.line ?? '')}`;
-        return /大球|over/i.test(leg.recommendation?.market || '') && !alreadyUsedDirections.has(direction);
+      const ouLegs = selectDistinctMatches(
+        uniqueCandidates.filter((leg) => {
+          const direction = `${leg.match}|${leg.recommendation?.market}|${formatAsianLine(leg.recommendation?.line ?? '')}`;
+          return /大球|over/i.test(leg.recommendation?.market || '') && !alreadyUsedDirections.has(direction);
+        }),
+        2,
+      ).map(formatLegMarket);
+      if (ouLegs.length < 2) return tickets;
+      const ouOdds = Number(ouLegs.reduce((acc, l) => acc * l.odds, 1).toFixed(2));
+      const ouQuant = computeParlayQuantMetrics(ouLegs, ouOdds);
+      tickets.push({
+        ticketId: 'PARLAY_OU_SPECIAL',
+        title: ouLegs.every((leg) => leg.formalEligible) ? '⚽ 2串1 全场大球/进球大战专项' : '🔎 2串1 AI进球观察/回测组合',
+        tag: ouLegs.every((leg) => leg.formalEligible) ? '进球专项' : '非正式候选',
+        legsCount: 2,
+        totalOdds: ouOdds,
+        hasAGrade: ouLegs.some((l) => l.grade === 'A'),
+        formalEligible: ouLegs.every((l) => l.formalEligible),
+        legs: ouLegs,
+        quantMetrics: ouQuant,
+        strategyReason: '只组合已独立研究成立的全场大球方向，不临时改写盘口或赔率',
       });
-
-      // Try first with completely fresh matches not in Ticket 1
-      let filteredOu = ouCandidates.filter((c) => !ticket1MatchSet.has(c.match));
-      if (filteredOu.length < 2 && ouCandidates.length >= 2) {
-        // If not enough completely fresh matches, only allow at most 1 overlap with Ticket 1
-        filteredOu = ouCandidates;
-      }
-
-      const ouLegs = selectDistinctMatches(filteredOu, 2).map(formatLegMarket);
-      
-      // Strict deduplication check against Ticket 1: Cannot have exact same 2 matches
-      const isExactSameMatchesAsTicket1 = ouLegs.length === 2 && ouLegs.every((l) => ticket1MatchSet.has(l.match));
-
-      if (ouLegs.length >= 2 && !isExactSameMatchesAsTicket1) {
-        const ouOdds = Number(ouLegs.reduce((acc, l) => acc * l.odds, 1).toFixed(2));
-        const ouQuant = computeParlayQuantMetrics(ouLegs, ouOdds);
-        tickets.push({
-          ticketId: 'PARLAY_OU_SPECIAL',
-          title: ouLegs.every((leg) => leg.formalEligible) ? '⚽ 2串1 全场大球/进球大战专项' : '🔎 2串1 AI进球观察/回测组合',
-          tag: ouLegs.every((leg) => leg.formalEligible) ? '进球专项' : '非正式候选',
-          legsCount: 2,
-          totalOdds: ouOdds,
-          hasAGrade: ouLegs.some((l) => l.grade === 'A'),
-          formalEligible: ouLegs.every((l) => l.formalEligible),
-          legs: ouLegs,
-          quantMetrics: ouQuant,
-          strategyReason: '只组合已独立研究成立的全场大球方向，不临时改写盘口或赔率',
-        });
-      }
     }
 
     return tickets;
@@ -1667,6 +1655,9 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                             <span className="text-amber-400" title="黄牌 (主-客)">🟨 {legStats.yellowCards.text}</span>
                             <span className={legStats.redCards.hasRed ? 'text-rose-400 font-bold' : 'text-slate-400'} title="红牌 (主-客)">🟥 {legStats.redCards.text}</span>
                           </div>
+
+                          {/* ⚡ 攻势评分曲线 */}
+                          <AttackMomentumTimelineWidget match={legMatchItem || (leg as any)} compact />
                         </div>
                       );
                     })}
@@ -1911,14 +1902,14 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                   </div>
                 </div>
 
-                {/* Match Teams & AI Final Recommendation Grid (2-column row: 50% Details, 50% AI Recommendation) */}
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch">
-                  {/* Col 1 (50%): Match Teams, Score, and Live Stats */}
+                {/* Match Teams & Dual Perspectives Grid (Compact 3-column row) */}
+                <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">
+                  {/* Col 1: Teams & Score */}
                   {(() => {
                     const teams = getTeamDisplay(m);
                     const matchStats = extractMatchLiveStats(m);
                     return (
-                      <div className="flex flex-col justify-between bg-slate-950/70 p-3.5 rounded-lg border border-slate-800 space-y-2.5">
+                      <div className="flex flex-col justify-between bg-slate-950/70 p-3 rounded-lg border border-slate-800 space-y-2">
                         <div className="flex items-center justify-between border-b border-slate-800/70 pb-1.5 text-xs">
                           <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-950/90 text-purple-300 border border-purple-800/60 flex items-center gap-1" title="赛事联赛名称">
                             <Trophy className="w-3.5 h-3.5 text-purple-400 shrink-0" />
@@ -1931,13 +1922,13 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                         </div>
 
                         <div className="flex items-center justify-between">
-                          <div className="text-right flex-1 pr-3 space-y-0.5 min-w-0">
-                            <div className="text-base font-bold text-slate-100 truncate" title={teams.homeYbty}>{teams.homeYbty}</div>
+                          <div className="text-right flex-1 pr-2 space-y-0.5 min-w-0">
+                            <div className="text-sm font-bold text-slate-100 truncate" title={teams.homeYbty}>{teams.homeYbty}</div>
                             <div className="text-xs font-semibold text-purple-300 truncate" title={teams.homeLeisu}>{teams.homeLeisu}</div>
                           </div>
 
-                          <div className="px-3.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-center min-w-[84px] shrink-0 mx-1">
-                            <div className="text-xl font-mono font-bold text-emerald-400">
+                          <div className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-center min-w-[80px] shrink-0 mx-1">
+                            <div className="text-lg font-mono font-bold text-emerald-400">
                               {m.score ? `${m.score.home} - ${m.score.away}` : 'VS'}
                             </div>
                             <div className="text-[9px] text-slate-400 tracking-wider">
@@ -1945,14 +1936,14 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                             </div>
                           </div>
 
-                          <div className="text-left flex-1 pl-3 space-y-0.5 min-w-0">
-                            <div className="text-base font-bold text-slate-100 truncate" title={teams.awayYbty}>{teams.awayYbty}</div>
+                          <div className="text-left flex-1 pl-2 space-y-0.5 min-w-0">
+                            <div className="text-sm font-bold text-slate-100 truncate" title={teams.awayYbty}>{teams.awayYbty}</div>
                             <div className="text-xs font-semibold text-purple-300 truncate" title={teams.awayLeisu}>{teams.awayLeisu}</div>
                           </div>
                         </div>
 
                         {/* 🚩 现场实况统计 (控球率, 危险进攻, 角球, 射门/射正, 黄牌, 红牌) */}
-                        <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10.5px] bg-slate-900/90 rounded px-2.5 py-1.5 border border-slate-800 text-slate-300 font-mono mt-1">
+                        <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] bg-slate-900/90 rounded px-2 py-1 border border-slate-800 text-slate-300 font-mono mt-1">
                           <span className="text-amber-300" title="控球率 (主-客)">⏱️ {matchStats.possession.text}</span>
                           <span className="text-rose-300" title="危险进攻 (主-客)">⚡ {matchStats.dangerousAttacks.text}</span>
                           <span className="text-sky-300" title="角球 (主-客)">🚩 {matchStats.corners.text}</span>
@@ -1972,34 +1963,89 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                             )}
                           </div>
                         )}
+
+                        {/* ⚡ 攻势评分曲线 (Attack Momentum Timeline) */}
+                        <AttackMomentumTimelineWidget match={m} />
                       </div>
                     );
                   })()}
 
-                  {/* Col 2 (50%): AI 深度主选方案 (宽幅聚合卡片) */}
-                  <div className="bg-gradient-to-br from-sky-950/40 via-slate-900/90 to-slate-950 border border-sky-600/40 p-3.5 rounded-lg flex flex-col justify-between space-y-2.5 text-xs shadow-md">
-                    <div className="flex items-center justify-between text-xs pb-1 border-b border-sky-900/40">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sky-300 flex items-center gap-1.5 text-sm">
-                          <Sparkles className="w-4 h-4 text-sky-400" /> AI 深度主选推荐方案
-                        </span>
-                        {/* Pipeline Initial Screen Badge */}
-                        <span className="rounded bg-slate-900 border border-slate-700/80 px-2 py-0.5 text-[10px] text-slate-400 font-mono">
-                          初筛: {m.status || 'RESEARCH'}{Number(m.model_score || 0) > 0 ? ` (${m.model_score}分)` : ''}
-                        </span>
-                      </div>
+                  {/* Col 2: 原系统初筛建议 */}
+                  <div className="bg-emerald-950/30 border border-emerald-800/50 p-3 rounded-lg flex flex-col justify-between space-y-1.5 text-xs">
+                    <div className="text-slate-400 text-[11px] flex items-center justify-between">
+                      <span className="font-semibold text-emerald-300">原系统初筛建议:</span>
+                      {(() => {
+                        if (!hasPrimaryRecommendation) return <span className="text-[9px] text-slate-500">未形成</span>;
+                        const numLine = parseQuarterLine(m.recommendation!.line!);
+                        return Number.isFinite(numLine) && isQuarterLine(numLine) ? (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            1/4盘
+                          </span>
+                        ) : null;
+                      })()}
+                    </div>
+                    {(() => {
+                      const sysBet = formatBetOption(
+                        m.recommendation?.market,
+                        (m.recommendation as any)?.direction || m.recommendation?.market,
+                        m.recommendation?.line,
+                        m.ybty_home,
+                        m.ybty_away
+                      );
+                      return (
+                        <div className="text-sm font-bold text-emerald-300 flex items-center justify-between">
+                          <span className="truncate mr-1" title={sysBet.fullSummary}>
+                            {hasPrimaryRecommendation ? (sysBet.sideLabel ? `${sysBet.marketName} · ${sysBet.sideLabel}` : sysBet.marketName) : (m.status === 'RESEARCH' ? '等待AI深挖' : '无正式主选')}
+                          </span>
+                          <span className="text-emerald-400 font-mono text-sm shrink-0">
+                            {hasPrimaryRecommendation ? sysBet.lineStr || '--' : '--'}
+                          </span>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Quarter Line Split Info */}
+                    {(() => {
+                      if (!hasPrimaryRecommendation) return null;
+                      const numLine = parseQuarterLine(m.recommendation!.line!);
+                      if (Number.isFinite(numLine) && isQuarterLine(numLine)) {
+                        const { lineA, lineB } = getQuarterSplits(numLine);
+                        return (
+                          <div className="bg-slate-950/80 p-1 rounded border border-indigo-500/30 text-[9px] font-mono text-indigo-200 flex items-center justify-between">
+                            <span>拆分:</span>
+                            <span className="font-bold">
+                              [{lineA > 0 ? '+' : ''}{lineA}] + [{lineB > 0 ? '+' : ''}{lineB}]
+                            </span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
+                    <div className="text-[10px] text-slate-300 flex justify-between pt-1 border-t border-emerald-800/40">
+                      <span>
+                        {hasPrimaryRecommendation ? <>赔率: <strong className="text-amber-300 font-mono">@{m.recommendation!.odds}</strong></> : <>赔率: <strong className="text-slate-500">--</strong></>}
+                      </span>
+                      <span>模型分: <strong className="text-emerald-400 font-mono">{Number(m.model_score || 0) > 0 ? m.model_score : '--'}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Col 3: AI 深度量化评估 */}
+                  <div className="bg-sky-950/30 border border-sky-800/50 p-3 rounded-lg flex flex-col justify-between space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span className="font-semibold text-sky-300 flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5 text-sky-400" /> AI 深度主选建议:
+                      </span>
                       {latestAiEvaluation ? (
-                        <span className="rounded border border-sky-500/50 bg-sky-950/80 px-2 py-0.5 text-[10px] font-bold text-sky-200">
+                        <span className="rounded border border-sky-700/50 bg-sky-950 px-1.5 py-0.2 text-[9px] font-bold text-sky-300">
                           {latestAiEvaluation.grade || 'C'}级评估
                         </span>
                       ) : (
-                        <span className="rounded border border-slate-700 bg-slate-900 px-2 py-0.5 text-[10px] text-slate-500">
+                        <span className="rounded border border-slate-700 bg-slate-900 px-1.5 py-0.2 text-[9px] text-slate-500">
                           未评估
                         </span>
                       )}
                     </div>
-
-                    {/* Primary Bet Box */}
                     {(() => {
                       const aiBet = formatBetOption(
                         aiRecommendation?.category || aiRecommendation?.market,
@@ -2009,78 +2055,26 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                         m.ybty_away
                       );
                       return (
-                        <div className="bg-sky-950/40 border border-sky-500/30 rounded-lg p-2.5 flex items-center justify-between">
-                          <div className="space-y-0.5">
-                            <span className="text-[10px] text-sky-300 font-semibold block">推荐玩法与方向:</span>
-                            <span className="text-base font-extrabold text-sky-100 font-mono" title={aiBet.fullSummary}>
-                              {hasAiRecommendation ? (aiBet.sideLabel ? `${aiBet.marketName} · ${aiBet.sideLabel}` : aiBet.marketName) : latestAiEvaluation ? '本场无合格主选' : '初筛完成 · 待AI深挖'}
-                            </span>
-                          </div>
-                          <div className="text-right font-mono">
-                            <span className="text-[10px] text-slate-400 block">基准盘口</span>
-                            <span className="text-base font-extrabold text-amber-300">
-                              {hasAiRecommendation ? aiBet.lineStr || '--' : '--'}
-                            </span>
-                          </div>
+                        <div className="flex items-center justify-between text-sm font-bold text-sky-300">
+                          <span className="truncate mr-1" title={aiBet.fullSummary}>
+                            {hasAiRecommendation ? (aiBet.sideLabel ? `${aiBet.marketName} · ${aiBet.sideLabel}` : aiBet.marketName) : latestAiEvaluation ? '本场无合格主选' : '点击右上角深挖'}
+                          </span>
+                          <span className="font-mono text-sm text-sky-400 shrink-0">
+                            {hasAiRecommendation ? aiBet.lineStr || '--' : '--'}
+                          </span>
                         </div>
                       );
                     })()}
-
-                    {/* Key Metrics Row: Odds, Win Prob, Value Edge */}
-                    <div className="grid grid-cols-3 gap-2 bg-slate-950/80 p-2 rounded border border-slate-800 text-[11px] text-slate-300 font-mono">
-                      <div className="text-center border-r border-slate-800">
-                        <span className="text-[10px] text-slate-400 block font-sans">推荐水位</span>
-                        <strong className={hasAiRecommendation ? 'text-amber-300 text-xs font-bold' : 'text-slate-500'}>
-                          {hasAiRecommendation ? `@${aiRecommendation.odds}` : '--'}
-                        </strong>
-                      </div>
-                      <div className="text-center border-r border-slate-800">
-                        <span className="text-[10px] text-slate-400 block font-sans">隐含/公允胜率</span>
-                        <strong className="text-sky-300 text-xs font-bold">
-                          {hasAiRecommendation && Number.isFinite(Number(aiRecommendedAssessment?.probability)) ? `${aiRecommendedAssessment.probability}%` : '--'}
-                        </strong>
-                      </div>
-                      <div className="text-center">
-                        <span className="text-[10px] text-slate-400 block font-sans">期望值边际(EV)</span>
-                        <strong className="text-emerald-400 text-xs font-bold">
-                          {hasAiRecommendation && (latestAiEvaluation?.value_edge || aiRecommendation.value_edge) ? `+${latestAiEvaluation?.value_edge || aiRecommendation.value_edge}%` : '--'}
-                        </strong>
-                      </div>
+                    <div className="flex justify-between border-t border-sky-800/40 pt-1 text-[10px] text-slate-300">
+                      <span>赔率: <strong className={hasAiRecommendation ? 'font-mono text-amber-300' : 'text-slate-500'}>{hasAiRecommendation ? `@${aiRecommendation.odds}` : '--'}</strong></span>
+                      <span>胜率: <strong className="font-mono text-sky-300">{hasAiRecommendation && Number.isFinite(Number(aiRecommendedAssessment?.probability)) ? `${aiRecommendedAssessment.probability}%` : '--'}</strong></span>
+                      {hasAiRecommendation && (latestAiEvaluation?.value_edge || aiRecommendation.value_edge) && (
+                        <span>EV: <strong className="font-mono text-emerald-400">+{latestAiEvaluation?.value_edge || aiRecommendation.value_edge}%</strong></span>
+                      )}
                     </div>
-
-                    {/* 📊 战术引擎硬核证据链 (Tactical Evidence Chain) */}
-                    {(() => {
-                      const matchStats = extractMatchLiveStats(m);
-                      const min = Number(m.minute || 0);
-                      const timePhase = min >= 75 ? '75\'+ 终局搏命窗口' : min >= 55 ? '55\'-75\' 核心攻防转换与发力期' : min >= 30 ? '30\'-45\'+ 半场胶着期' : '0\'-30\' 开局试探期';
-                      return (
-                        <div className="bg-slate-950/90 rounded p-2 border border-slate-800 space-y-1.5 text-[10.5px]">
-                          <div className="text-[10px] text-sky-400 font-bold flex items-center justify-between border-b border-slate-800/80 pb-1">
-                            <span className="flex items-center gap-1">
-                              <Activity className="w-3 h-3 text-sky-400" /> 战术引擎硬核数据支撑链
-                            </span>
-                            <span className="text-amber-300 font-mono">⏱️ {timePhase}</span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-1.5 text-slate-300">
-                            <div className="bg-slate-900/80 px-2 py-1 rounded border border-slate-800/60 truncate" title={`角球: ${matchStats.corners.text} | 射正: ${matchStats.shotsOnTarget.text}`}>
-                              🚩 边路与射门: <strong className="text-sky-300 font-mono">{matchStats.corners.text}</strong> 角 | <strong className="text-amber-300 font-mono">{matchStats.shotsOnTarget.text}</strong> 射正
-                            </div>
-                            <div className="bg-slate-900/80 px-2 py-1 rounded border border-slate-800/60 truncate" title={`纪律犯规: 黄牌 ${matchStats.yellowCards.text} | 红牌 ${matchStats.redCards.text}`}>
-                              🟨 纪律与犯规: <strong className="text-amber-400 font-mono">{matchStats.yellowCards.text}</strong> 黄 {matchStats.redCards.hasRed ? <strong className="text-rose-400 font-mono">| 🟥 {matchStats.redCards.text}</strong> : ''}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {latestAiEvaluation?.summary ? (
-                      <div className="text-[10px] text-slate-300 bg-slate-950/50 p-1.5 rounded border border-slate-800/80 leading-relaxed line-clamp-2" title={displayText(latestAiEvaluation.summary)}>
-                        <span className="text-sky-400 font-semibold">研判摘要: </span>
+                    {latestAiEvaluation?.summary && (
+                      <div className="truncate text-[9px] text-slate-400" title={displayText(latestAiEvaluation.summary)}>
                         {displayText(latestAiEvaluation.summary)}
-                      </div>
-                    ) : (
-                      <div className="text-[10px] text-slate-500 text-right">
-                        点击卡片右上角【AI 协议深挖】可执行战意、首发与盘口去水精算
                       </div>
                     )}
                   </div>
@@ -2350,11 +2344,10 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                     </div>
                   )}
 
-                  {/* 1. Correct Score (波胆) & BTTS & Odd/Even Grid + Corner Forecasts */}
+                  {/* 1. Correct Score (波胆) & BTTS & Odd/Even Grid */}
                   {(marketViewTab === 'ALL_MARKETS' || marketViewTab === 'GOAL_PREDICTIONS') && (
                     <div className="space-y-3 text-xs">
-                      {/* Top Projections: 3 Goal Projections + 2 Corner Boards */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         {[
                           { label: '主队进球预测', category: '主队进球数', value: ext.goalProjection.homeMostLikely, alternative: ext.goalProjection.homeAlternative, confidence: ext.goalProjection.homeConfidence },
                           { label: '客队进球预测', category: '客队进球数', value: ext.goalProjection.awayMostLikely, alternative: ext.goalProjection.awayAlternative, confidence: ext.goalProjection.awayConfidence },
@@ -2375,110 +2368,6 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                             {renderAiInline(projection.category)}
                           </div>
                         ))}
-
-                        {/* Full Corner Total (Leisu Corner Board) */}
-                        <div className={`p-3 rounded-lg border flex flex-col justify-between ${ext.cornerTotal?.available ? 'bg-cyan-950/40 border-cyan-500/50 shadow-md ring-1 ring-cyan-500/20' : 'bg-slate-950/80 border-slate-800'}`}>
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between text-[11px] font-bold text-cyan-300">
-                              <span className="flex items-center gap-1">🚩 全场角球大小</span>
-                              <span className="rounded bg-cyan-950 px-1.5 py-0.5 text-[9px] text-cyan-300 border border-cyan-800">
-                                {ext.cornerTotal?.available ? ext.cornerTotal.source : '未开盘'}
-                              </span>
-                            </div>
-
-                            {ext.cornerTotal?.available ? (
-                              <>
-                                {/* Primary Recommended Direction */}
-                                <div className="bg-cyan-900/30 border border-cyan-500/30 rounded p-1.5 flex items-center justify-between">
-                                  <div>
-                                    <span className="text-[10px] text-cyan-200 block font-semibold">推荐方向:</span>
-                                    <span className="text-sm font-bold font-mono text-cyan-300">
-                                      {ext.cornerTotal.recommendedSelection}
-                                    </span>
-                                  </div>
-                                  <div className="text-right font-mono">
-                                    <span className="text-sm font-bold text-amber-300">@{ext.cornerTotal.recommendedOdds}</span>
-                                    <span className="text-[10px] text-cyan-300 block">胜率 {ext.cornerTotal.recommendedProb}%</span>
-                                  </div>
-                                </div>
-
-                                {/* Raw Market & Fair Odds Matrix */}
-                                <div className="grid grid-cols-2 gap-1 text-[10px] font-mono bg-slate-950/80 p-1.5 rounded border border-slate-800/80">
-                                  <div>
-                                    <span className="text-slate-400 block">雷速实时:</span>
-                                    <span className="text-slate-200">大@{ext.cornerTotal.overOdds} / 小@{ext.cornerTotal.underOdds}</span>
-                                  </div>
-                                  <div className="text-right">
-                                    <span className="text-slate-400 block">去水公允:</span>
-                                    <span className="text-amber-300">大@{ext.cornerTotal.fairOverOdds} / 小@{ext.cornerTotal.fairUnderOdds}</span>
-                                  </div>
-                                </div>
-
-                                <div className="h-1.5 overflow-hidden rounded-full bg-slate-800 mt-1">
-                                  <div className="h-full rounded-full bg-cyan-400 transition-all duration-300" style={{ width: `${ext.cornerTotal.confidence}%` }} />
-                                </div>
-                              </>
-                            ) : (
-                              <div className="bg-slate-900/60 p-2.5 rounded border border-slate-800 text-center space-y-1 my-1">
-                                <span className="text-xs font-mono text-slate-400 block font-semibold">暂无角球大小盘口</span>
-                                <span className="text-[10px] text-slate-500 block">雷速未提供本场角球大小盘口，按契约安全规则降级处理</span>
-                              </div>
-                            )}
-                          </div>
-                          {renderAiInline('全场角球大小')}
-                        </div>
-
-                        {/* Full Corner Spread (Leisu Corner Board) */}
-                        <div className={`p-3 rounded-lg border flex flex-col justify-between ${ext.cornerSpread?.available ? 'bg-teal-950/40 border-teal-500/50 shadow-md ring-1 ring-teal-500/20' : 'bg-slate-950/80 border-slate-800'}`}>
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between text-[11px] font-bold text-teal-300">
-                              <span className="flex items-center gap-1">🚩 全场角球让球</span>
-                              <span className="rounded bg-teal-950 px-1.5 py-0.5 text-[9px] text-teal-300 border border-teal-800">
-                                {ext.cornerSpread?.available ? ext.cornerSpread.source : '未开盘'}
-                              </span>
-                            </div>
-
-                            {ext.cornerSpread?.available ? (
-                              <>
-                                {/* Primary Recommended Direction */}
-                                <div className="bg-teal-900/30 border border-teal-500/30 rounded p-1.5 flex items-center justify-between">
-                                  <div>
-                                    <span className="text-[10px] text-teal-200 block font-semibold">推荐方向:</span>
-                                    <span className="text-sm font-bold font-mono text-teal-300">
-                                      {ext.cornerSpread.recommendedSelection}
-                                    </span>
-                                  </div>
-                                  <div className="text-right font-mono">
-                                    <span className="text-sm font-bold text-amber-300">@{ext.cornerSpread.recommendedOdds}</span>
-                                    <span className="text-[10px] text-teal-300 block">胜率 {ext.cornerSpread.recommendedProb}%</span>
-                                  </div>
-                                </div>
-
-                                {/* Raw Market & Fair Odds Matrix */}
-                                <div className="grid grid-cols-2 gap-1 text-[10px] font-mono bg-slate-950/80 p-1.5 rounded border border-slate-800/80">
-                                  <div>
-                                    <span className="text-slate-400 block">雷速实时:</span>
-                                    <span className="text-slate-200">主@{ext.cornerSpread.homeOdds} / 客@{ext.cornerSpread.awayOdds}</span>
-                                  </div>
-                                  <div className="text-right">
-                                    <span className="text-slate-400 block">去水公允:</span>
-                                    <span className="text-amber-300">主@{ext.cornerSpread.fairOverOdds} / 客@{ext.cornerSpread.fairUnderOdds}</span>
-                                  </div>
-                                </div>
-
-                                <div className="h-1.5 overflow-hidden rounded-full bg-slate-800 mt-1">
-                                  <div className="h-full rounded-full bg-teal-400 transition-all duration-300" style={{ width: `${ext.cornerSpread.confidence}%` }} />
-                                </div>
-                              </>
-                            ) : (
-                              <div className="bg-slate-900/60 p-2.5 rounded border border-slate-800 text-center space-y-1 my-1">
-                                <span className="text-xs font-mono text-slate-400 block font-semibold">暂无角球让球盘口</span>
-                                <span className="text-[10px] text-slate-500 block">雷速未提供本场角球让球盘口，按契约安全规则降级处理</span>
-                              </div>
-                            )}
-                          </div>
-                          {renderAiInline('全场角球让球')}
-                        </div>
                       </div>
                       <div className="text-[10px] text-slate-500">{ext.goalProjection.basis}</div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

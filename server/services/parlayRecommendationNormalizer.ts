@@ -9,7 +9,10 @@ const cleanTeam = (str: any): string => {
 export function normalizeParlayRecommendations(result: any, sanitizeLeg: (leg: any, candidates?: any[]) => any, candidates: any[] = []): any {
   if (!Array.isArray(result?.parlay_recommendations)) return result;
 
-  const normalizedTickets = result.parlay_recommendations.map((ticket: any) => {
+  const rawTickets = result.parlay_recommendations;
+
+  // Process individual tickets
+  const processedTickets = rawTickets.map((ticket: any, ticketIdx: number) => {
     const legs = Array.isArray(ticket?.legs) ? ticket.legs.map((leg: any) => {
       const sanitized = sanitizeLeg(leg, candidates);
       const normalize = (value: unknown) => String(value || '').toLowerCase().replace(/[\s._\-()（）]/g, '');
@@ -68,6 +71,26 @@ export function normalizeParlayRecommendations(result: any, sanitizeLeg: (leg: a
     if (calibratedMetrics.warnings.length > 0) {
       independenceScore -= (calibratedMetrics.warnings.length * 8);
     }
+
+    // Cross-ticket overlap check with earlier tickets (anti-nesting audit)
+    const legFingerprints = new Set(legs.map((l: any) => `${cleanTeam(l.match || `${l.ybty_home}_${l.ybty_away}`)}::${String(l.market || '')}::${String(l.line || '')}`));
+    let maxOverlapRatio = 0;
+    for (let prevIdx = 0; prevIdx < ticketIdx; prevIdx++) {
+      const prevTicket = rawTickets[prevIdx];
+      const prevLegs = Array.isArray(prevTicket?.legs) ? prevTicket.legs : [];
+      if (prevLegs.length === 0) continue;
+      const prevFingerprints = prevLegs.map((l: any) => `${cleanTeam(l.match || `${l.ybty_home}_${l.ybty_away}`)}::${String(l.market || '')}::${String(l.line || '')}`);
+      const intersection = prevFingerprints.filter((fp: string) => legFingerprints.has(fp));
+      const overlapRatio = intersection.length / Math.min(prevLegs.length, legs.length);
+      if (overlapRatio > maxOverlapRatio) maxOverlapRatio = overlapRatio;
+    }
+
+    if (maxOverlapRatio >= 0.8) {
+      independenceScore -= 25; // 严重嵌套照搬
+    } else if (maxOverlapRatio > 0.5) {
+      independenceScore -= 10; // 部分重叠偏高
+    }
+
     independenceScore = Math.max(20, Math.min(100, independenceScore));
 
     const correlationRiskCheck = independenceScore >= 70 ? 'passed' : 'warning';
@@ -75,8 +98,12 @@ export function normalizeParlayRecommendations(result: any, sanitizeLeg: (leg: a
       independence_score: independenceScore,
       tactical_synergy: ticket?.correlation_audit?.tactical_synergy || '各腿赛事独立性良好，具备跨盘口节奏互补性',
       correlation_risk_check: correlationRiskCheck,
-      notes: ticket?.correlation_audit?.notes || (correlationRiskCheck === 'passed' ? '通过独立性与反脆弱审查，无同质化爆仓风险' : '存在同联赛或高方差腿相关性风险，建议微调注码'),
+      notes: ticket?.correlation_audit?.notes || (correlationRiskCheck === 'passed' ? '通过独立性与反脆弱审查，无同质化爆仓风险' : '存在跨票高度同质化嵌套或高方差腿风险，建议执行组合对冲'),
     };
+
+    if (maxOverlapRatio >= 0.8 && !correlationAudit.notes.includes('嵌套同质化')) {
+      correlationAudit.notes += ` | 风控警告: 与其他串关票存在严重结构嵌套同质化(${Math.round(maxOverlapRatio * 100)}%重叠)，违背独立对冲原则！`;
+    }
 
     if (calibratedMetrics.warnings.length > 0 && !correlationAudit.notes.includes(calibratedMetrics.warnings[0])) {
       correlationAudit.notes += ` | 风控提示: ${calibratedMetrics.warnings.join('; ')}`;
@@ -114,44 +141,9 @@ export function normalizeParlayRecommendations(result: any, sanitizeLeg: (leg: a
     };
   });
 
-  // Cross-Ticket Signature Deduplication and Correlation Filter
-  const seenTicketSignatures = new Set<string>();
-  const deduplicatedTickets: any[] = [];
-
-  for (const ticket of normalizedTickets) {
-    if (!ticket.legs || ticket.legs.length === 0) continue;
-    
-    // Generate normalized signature: sorted list of (match_id + market + option)
-    const legSignatures = ticket.legs.map((l: any) => {
-      const matchKey = cleanTeam(l.match || `${l.ybty_home}_vs_${l.ybty_away}`);
-      const mktKey = String(l.market || '').toLowerCase().trim();
-      const optKey = String(l.option || l.pick || '').toLowerCase().trim();
-      return `${matchKey}::${mktKey}::${optKey}`;
-    }).sort();
-    
-    const signature = legSignatures.join('|||');
-    const matchOnlySignature = ticket.legs.map((l: any) => cleanTeam(l.match || `${l.ybty_home}_vs_${l.ybty_away}`)).sort().join('|||');
-
-    // 1. Exact identical ticket duplicate check
-    if (seenTicketSignatures.has(signature)) {
-      continue; // Skip exact duplicate ticket
-    }
-    seenTicketSignatures.add(signature);
-
-    // 2. Exact same match set with same leg count check (prevent duplicate 2-leg tickets on same 2 matches)
-    if (ticket.legs.length === 2 && seenTicketSignatures.has(`2leg_matches::${matchOnlySignature}`)) {
-      continue; // Skip duplicate 2-leg on same matches
-    }
-    if (ticket.legs.length === 2) {
-      seenTicketSignatures.add(`2leg_matches::${matchOnlySignature}`);
-    }
-
-    deduplicatedTickets.push(ticket);
-  }
-
   return {
     ...result,
-    parlay_recommendations: deduplicatedTickets,
+    parlay_recommendations: processedTickets,
   };
 }
 

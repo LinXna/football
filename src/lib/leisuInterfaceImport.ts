@@ -127,6 +127,14 @@ export function normalizeLeisuInterfaceExport(payload: unknown): JsonRecord[] | 
       raw: lineupRecord,
     };
     const textLiveEntries = Array.isArray(liveMatch.text_live) ? liveMatch.text_live : [];
+    const attackMomentum =
+      liveMatch.attack_momentum_timeline ||
+      formal.live_match?.attack_momentum_timeline ||
+      formal.attack_momentum_timeline ||
+      result.attack_momentum_timeline ||
+      (formal.trend?.data ? { available: true, source: 'LIVE_DETAIL_VUE.trend.data', data: formal.trend.data, raw: formal.trend } : null) ||
+      (liveMatch.trend?.data ? { available: true, source: 'LIVE_DETAIL_VUE.trend.data', data: liveMatch.trend.data, raw: liveMatch.trend } : null) ||
+      null;
 
     return {
       id: result.match_id ?? staticMatch.id,
@@ -154,6 +162,7 @@ export function normalizeLeisuInterfaceExport(payload: unknown): JsonRecord[] | 
       score_source: liveMatch.source || 'leisu_interface_api',
       score_verified: Boolean(liveMatch.match_id && Number.isFinite(Number(homeScores.score)) && Number.isFinite(Number(awayScores.score))),
       live_statistics: normalizedStatistics,
+      attack_momentum_timeline: attackMomentum,
       reference_odds: {
         ...odds,
         opening: initialMarkets,

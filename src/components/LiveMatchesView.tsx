@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { DecisionItem, PipelineStatus, getLeagueName, getTeamDisplay } from '../types';
 import { DataSupplementModal } from './DataSupplementModal';
 import { BatchSupplementModal } from './BatchSupplementModal';
 import { RecentFormModal } from './RecentFormModal';
 import { displayText, playerNames } from '../lib/displayValue';
 import { extractMatchLiveStats } from '../lib/matchStats';
-import { computeClientSnapshotDelta, recordClientSnapshots, MatchSnapshotDelta } from '../lib/snapshotDeltaEngine';
+import { AttackMomentumTimelineWidget } from './AttackMomentumTimelineWidget';
 import { 
   ShieldCheck, 
   ShieldAlert, 
@@ -29,10 +29,7 @@ import {
   Send,
   Trophy,
   Trash2,
-  BarChart3,
-  TrendingUp,
-  Zap,
-  Flame
+  BarChart3
 } from 'lucide-react';
 
 interface Props {
@@ -68,12 +65,6 @@ export const LiveMatchesView: React.FC<Props> = ({
   // Custom Clear Confirm Modal State
   const [confirmClearModal, setConfirmClearModal] = useState<{ open: boolean; selectedOnly: boolean } | null>(null);
   const [selectedFormMatch, setSelectedFormMatch] = useState<DecisionItem | null>(null);
-
-  useEffect(() => {
-    if (decisions && decisions.length > 0) {
-      recordClientSnapshots(decisions);
-    }
-  }, [decisions]);
 
   const matchesWithCustom = decisions.map((m) => customUpdatedMatches[m.match] || m);
 
@@ -396,7 +387,6 @@ export const LiveMatchesView: React.FC<Props> = ({
           {filteredMatches.map((m, idx) => {
             const isExpanded = expandedMatch === m.match;
             const isSelected = selectedMatchNames.includes(m.match);
-            const delta = computeClientSnapshotDelta(m);
 
             return (
               <div
@@ -458,34 +448,6 @@ export const LiveMatchesView: React.FC<Props> = ({
                       <Calendar className="w-3 h-3 text-indigo-400" />
                       <span>开赛: <strong className="text-indigo-200">{m.provider_start_time ? `${m.provider_start_time}（雷速）` : (m.ybty_start_time_beijing || m.commence_time || '时间未确认')}</strong></span>
                     </div>
-
-                    {/* Snapshot Delta Momentum Badge */}
-                    {delta && delta.momentum_signal !== 'INSUFFICIENT_DELTA' && (
-                      <span
-                        className={`flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded border ${
-                          delta.momentum_signal === 'GOLDEN_ENTRY_LINE_DROP'
-                            ? 'bg-rose-950/70 text-rose-300 border-rose-600 animate-pulse'
-                            : delta.momentum_signal === 'HIGH_ATTACK_ACCELERATION'
-                            ? 'bg-amber-950/70 text-amber-300 border-amber-500'
-                            : delta.momentum_signal === 'DISCIPLINE_COLLAPSE'
-                            ? 'bg-red-950/70 text-red-300 border-red-500'
-                            : 'bg-cyan-950/70 text-cyan-300 border-cyan-800/60'
-                        }`}
-                        title={delta.momentum_assessment}
-                      >
-                        {delta.momentum_signal === 'GOLDEN_ENTRY_LINE_DROP' && <Flame className="w-3.5 h-3.5 text-rose-400" />}
-                        {delta.momentum_signal === 'HIGH_ATTACK_ACCELERATION' && <Zap className="w-3.5 h-3.5 text-amber-400" />}
-                        {delta.momentum_signal === 'DISCIPLINE_COLLAPSE' && <AlertTriangle className="w-3.5 h-3.5 text-red-400" />}
-                        {delta.momentum_signal === 'PASSIVE_POSSESSION' && <TrendingUp className="w-3.5 h-3.5 text-slate-400" />}
-                        {delta.momentum_signal === 'BALANCED_STALEMATE' && <Activity className="w-3.5 h-3.5 text-cyan-400" />}
-                        <span>
-                          {delta.momentum_signal === 'GOLDEN_ENTRY_LINE_DROP' ? '🔥 黄金入场·盘口掉落' :
-                           delta.momentum_signal === 'HIGH_ATTACK_ACCELERATION' ? `⚡ 攻势爆发 (+${delta.stat_acceleration.dangerous_attacks_rate_per_min}/分)` :
-                           delta.momentum_signal === 'DISCIPLINE_COLLAPSE' ? '⚠️ 纪律红牌' :
-                           delta.momentum_signal === 'PASSIVE_POSSESSION' ? '✋ 无效倒脚' : '⏱️ 均势拉锯'}
-                        </span>
-                      </span>
-                    )}
 
                     {/* Score Verification */}
                     {m.score_verified ? (
@@ -572,6 +534,9 @@ export const LiveMatchesView: React.FC<Props> = ({
                           <span className="text-amber-400" title="黄牌 (主-客)">🟨 {stats.yellowCards.text}</span>
                           <span className={stats.redCards.hasRed ? 'text-rose-400 font-bold' : 'text-slate-400'} title="红牌 (主-客)">🟥 {stats.redCards.text}</span>
                         </div>
+
+                        {/* ⚡ 攻势评分曲线 (Attack Momentum Timeline) */}
+                        <AttackMomentumTimelineWidget match={m} />
                       </div>
                     );
                   })()}
@@ -647,63 +612,6 @@ export const LiveMatchesView: React.FC<Props> = ({
                           <div>
                             <span className="text-slate-200 font-medium">{m.lineups.away?.team}:</span>{' '}
                             {playerNames(m.lineups.away?.players || m.lineups.away?.starters).slice(0, 5).join('、') || '暂无球员名单'}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Snapshot Delta & Momentum Analysis */}
-                    {delta && (
-                      <div className="bg-slate-900/70 border border-slate-800 rounded-lg p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="font-semibold text-slate-200 flex items-center gap-1.5">
-                            <Activity className="w-4 h-4 text-teal-400" />
-                            <span>时序动能与盘口走势分析 (Snapshot Delta Engine)</span>
-                          </div>
-                          <span className="text-[10px] font-mono text-slate-400">
-                            {delta.has_history ? `跨度 ${delta.elapsed_minutes} 分钟 (采样 ${delta.sample_count} 次)` : '基准采样'}
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono">
-                          <div className="bg-slate-950/80 p-2 rounded border border-slate-800">
-                            <div className="text-slate-400 text-[10px]">危险进攻速率</div>
-                            <div className="text-sm font-bold text-amber-300">
-                              +{delta.stat_acceleration.dangerous_attacks_rate_per_min}/分
-                            </div>
-                            <div className="text-[10px] text-slate-500">
-                              净增: 主+{delta.stat_acceleration.dangerous_attacks_delta.home} / 客+{delta.stat_acceleration.dangerous_attacks_delta.away}
-                            </div>
-                          </div>
-
-                          <div className="bg-slate-950/80 p-2 rounded border border-slate-800">
-                            <div className="text-slate-400 text-[10px]">射门/射正增量</div>
-                            <div className="text-sm font-bold text-emerald-400">
-                              射门+{delta.stat_acceleration.shots_delta.total} (射正+{delta.stat_acceleration.shots_on_target_delta.total})
-                            </div>
-                            <div className="text-[10px] text-slate-500">
-                              角球净增: +{delta.stat_acceleration.corners_delta.total}
-                            </div>
-                          </div>
-
-                          <div className="bg-slate-950/80 p-2 rounded border border-slate-800">
-                            <div className="text-slate-400 text-[10px]">盘口衰减与水位</div>
-                            <div className={`text-sm font-bold ${delta.line_movement.status === 'LINE_DROP_DECAY' ? 'text-rose-400' : 'text-slate-200'}`}>
-                              {delta.line_movement.summary}
-                            </div>
-                            <div className="text-[10px] text-slate-500">
-                              {delta.line_movement.ou_line_drop !== null ? `大小球降 ${delta.line_movement.ou_line_drop} 球` : '大小球稳定'}
-                            </div>
-                          </div>
-
-                          <div className="bg-slate-950/80 p-2 rounded border border-slate-800">
-                            <div className="text-slate-400 text-[10px]">动能研判结论</div>
-                            <div className="text-xs font-bold text-teal-300">
-                              {delta.is_golden_entry_point ? '🔥 黄金入场点成立' : delta.siege_team !== 'NONE' ? `围攻方: ${delta.siege_team === 'HOME' ? '主队' : '客队'}` : '攻守均衡'}
-                            </div>
-                            <div className="text-[10px] text-slate-400 truncate" title={delta.momentum_assessment}>
-                              {delta.momentum_assessment}
-                            </div>
                           </div>
                         </div>
                       </div>

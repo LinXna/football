@@ -16,8 +16,6 @@ export const BETTABLE_CATEGORIES = [
   '全场让球',
   '半场让球',
   '全场独赢1X2',
-  '全场角球大小',
-  '全场角球让球',
 ] as const;
 
 export const ALL_CATEGORIES = BETTABLE_CATEGORIES;
