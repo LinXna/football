@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import itertools
 import json
+import math
 import statistics
 import hashlib
 from datetime import datetime, timezone
@@ -20,6 +21,95 @@ try:
     from scripts.python.interface_features import calculate_live_efficiency, extract_interface_features
 except ModuleNotFoundError:
     from interface_features import calculate_live_efficiency, extract_interface_features
+
+
+def poisson_pmf(k: int, lmbda: float) -> float:
+    if lmbda <= 0:
+        return 1.0 if k == 0 else 0.0
+    return (math.exp(-lmbda) * (lmbda ** k)) / math.factorial(k)
+
+
+def poisson_cdf(k: int, lmbda: float) -> float:
+    """Returns P(X <= k) for Poisson distribution."""
+    if lmbda <= 0:
+        return 1.0 if k >= 0 else 0.0
+    return sum(poisson_pmf(i, lmbda) for i in range(max(0, k) + 1))
+
+
+def non_linear_remaining_decay(minute: float) -> float:
+    """Calculates non-linear time factor taking into account fatigue and transition periods."""
+    # Weights for each phase:
+    # 0'-15': 0.85 (Tactical feeling out)
+    # 16'-45': 1.00 (Standard)
+    # 46'-55': 0.92 (Half-time tactical settling)
+    # 56'-75': 1.22 (Core substitution & high-transition push)
+    # 76'-90': 1.28 (Desperation & defensive fatigue variance)
+    cur = int(max(0, min(90, minute)))
+    effective_mins = 0.0
+    for m in range(cur + 1, 91):
+        if m <= 15:
+            w = 0.85
+        elif m <= 45:
+            w = 1.00
+        elif m <= 55:
+            w = 0.92
+        elif m <= 75:
+            w = 1.22
+        else:
+            w = 1.28
+        effective_mins += w
+    return effective_mins / 90.0
+
+
+def calculate_corner_pressure(stats: dict[str, Any], minute: float) -> dict[str, Any]:
+    corners = stats.get("corners", {}) or stats.get("corner_kicks", {})
+    home_c = number(corners.get("home")) or 0.0
+    away_c = number(corners.get("away")) or 0.0
+    total_c = home_c + away_c
+    diff = home_c - away_c
+    velocity = (total_c / max(minute, 1.0)) * 10.0  # corners per 10 min
+    
+    # Squeeze ratio
+    home_squeeze = (home_c / total_c) if total_c > 0 else 0.5
+    return {
+        "home": home_c,
+        "away": away_c,
+        "total": total_c,
+        "diff": diff,
+        "velocity_per_10min": round(velocity, 2),
+        "home_squeeze": round(home_squeeze, 2),
+        "xg_contribution": round(total_c * 0.048, 3),
+    }
+
+
+def calculate_red_cards(stats: dict[str, Any], incidents: list[Any], text_blob: str) -> dict[str, int]:
+    red_stats = stats.get("red_cards", {})
+    home_reds = int(number(red_stats.get("home")) or 0)
+    away_reds = int(number(red_stats.get("away")) or 0)
+    
+    for inc in incidents:
+        if isinstance(inc, dict):
+            inc_type = str(inc.get("type") or inc.get("text") or "").lower()
+            if "red" in inc_type or "红牌" in inc_type:
+                team = str(inc.get("team") or "").lower()
+                if "home" in team or "主" in team:
+                    home_reds = max(home_reds, 1)
+                elif "away" in team or "客" in team:
+                    away_reds = max(away_reds, 1)
+    return {"home": home_reds, "away": away_reds}
+
+
+def calculate_market_ev(option_odds: float, other_odds: list[float], model_prob: float) -> tuple[float, float, float]:
+    """Calculates Fair Probability, Expected Value (EV), and Value Edge."""
+    all_odds = [option_odds] + [o for o in other_odds if o and o > 1.0]
+    overround = sum(1.0 / o for o in all_odds if o > 1.0)
+    if overround <= 0:
+        overround = 1.08
+    implied_prob = (1.0 / option_odds) if option_odds > 1.0 else 0.5
+    fair_prob = implied_prob / overround
+    ev = (model_prob * option_odds) - 1.0
+    value_edge_pct = (model_prob - fair_prob) * 100.0
+    return round(value_edge_pct, 2), round(ev, 4), round(fair_prob, 4)
 
 
 SIMULATION_MARKERS = ("eafc", "电竞", "电子足球", "模拟", "vs世界杯", "panda")
@@ -368,35 +458,64 @@ def assess(candidate: dict[str, Any], now: datetime) -> dict[str, Any]:
     total_dangerous = (number(dangerous.get("home")) or 0) + (
         number(dangerous.get("away")) or 0
     )
-    if total_shots == 0 and total_on_target == 0 and total_dangerous == 0:
+
+    corner_metrics = calculate_corner_pressure(stats, float(minute or 1))
+    red_cards = calculate_red_cards(stats, candidate.get("incidents", []), text_blob)
+    home_reds, away_reds = red_cards["home"], red_cards["away"]
+    red_diff = away_reds - home_reds
+
+    if total_shots == 0 and total_on_target == 0 and total_dangerous == 0 and corner_metrics["total"] == 0:
         decision["stop_conditions"].append("实时技术统计全为0，疑似数据缺失")
         return decision
 
     assert minute
     remaining = max(0, 90 - minute)
-    base_rate = (total_on_target * 0.25 + total_shots * 0.03) / max(minute, 1)
+    remaining_decay_factor = non_linear_remaining_decay(minute)
+    
+    # Quantitative prior from H2H and venue form
+    prior_info = interface_features.get("quantitative_prior", {})
+    prior_total = reference["opening_line"] or prior_info.get("lambda_total_prior")
+    tactical_matrix = interface_features.get("tactical_physics_matrix", {})
+    beta_tempo = tactical_matrix.get("beta_match_tempo", 1.0)
+    alpha_h = tactical_matrix.get("alpha_home_attack", 1.0)
+    alpha_a = tactical_matrix.get("alpha_away_attack", 1.0)
+
+    # Corner and live shot xG integration
+    live_shot_xg = (total_on_target * 0.22) + ((total_shots - total_on_target) * 0.035) + (total_dangerous * 0.006)
+    corner_xg = corner_metrics["xg_contribution"]
+    base_rate = (live_shot_xg + corner_xg) / max(minute, 1)
+    
+    # Red card physical multiplier on remaining goal expectancy
+    red_pace_multiplier = 1.0 + (0.18 * (home_reds + away_reds))
+    
     recent_pressure, trend_evidence = trend_pressure(candidate)
-    observed_projection = base_rate * remaining + recent_pressure
-    # The pre-match total is a prior for the whole match. Blend its time-adjusted
-    # remainder with the noisy live sample so an early quiet spell cannot force
-    # the forecast unrealistically close to zero.
-    prior_total = reference["opening_line"]
+    
+    effective_scale = (remaining_decay_factor / (remaining / 90.0)) if remaining > 0 else 1.0
+    observed_projection = (base_rate * remaining * effective_scale + recent_pressure) * red_pace_multiplier * beta_tempo
+
     prior_remaining = (
-        max(0.25, prior_total * remaining / 90)
+        max(0.25, prior_total * remaining_decay_factor * beta_tempo)
         if prior_total is not None
         else None
     )
     projected_extra = (
-        observed_projection * 0.6 + prior_remaining * 0.4
+        observed_projection * 0.62 + prior_remaining * 0.38
         if prior_remaining is not None
         else observed_projection
     )
     projected_total = goals + projected_extra
+    
     evidence = [
-        f"累计射门{total_shots:.0f}、射正{total_on_target:.0f}",
-        f"模型预计剩余进球约{projected_extra:.2f}",
+        f"累计射门{total_shots:.0f}、射正{total_on_target:.0f}、角球{corner_metrics['total']:.0f} (主{corner_metrics['home']:.0f}-客{corner_metrics['away']:.0f})",
+        f"模型预计剩余进球约{projected_extra:.2f} (时段衰减因子{remaining_decay_factor:.2f})",
         f"模型预计全场总进球约{projected_total:.2f}",
     ]
+    if corner_metrics["total"] >= 3:
+        evidence.append(f"角球压制率：主队{corner_metrics['home_squeeze']:.0%}，角球速率{corner_metrics['velocity_per_10min']:.1f}个/10分钟")
+    if home_reds > 0 or away_reds > 0:
+        evidence.append(f"红牌纪律失衡：主队{home_reds}张红牌，客队{away_reds}张红牌 (进攻/防守系数已重校)")
+        risks.append(f"比赛出现红牌失衡(主{home_reds}-客{away_reds})，已启用少打多物理折算")
+
     weather_text = weather.get("text", []) if weather.get("available") else []
     if weather_text:
         evidence.append(f"当地天气：{'、'.join(map(str, weather_text[:6]))}")
@@ -429,10 +548,15 @@ def assess(candidate: dict[str, Any], now: datetime) -> dict[str, Any]:
     market_choices: list[dict[str, Any]] = []
     if total_active and total:
         line = total["line"]
-        # The displayed YBTY live total is a full-match total. Compare it with
-        # projected final goals, not merely the goals expected after the bet.
         edge_under = line - projected_total
         edge_over = projected_total - line
+        
+        # Poisson probability and +EV calculation for totals
+        # P(total_goals <= line)
+        int_line = int(math.floor(line))
+        prob_under_poisson = poisson_cdf(int_line, max(0.1, projected_extra + goals))
+        prob_over_poisson = 1.0 - prob_under_poisson
+        
         if (
             minute >= 30
             and trend_5_available
@@ -440,26 +564,36 @@ def assess(candidate: dict[str, Any], now: datetime) -> dict[str, Any]:
             and total["under_odds"]
             and 1.65 <= total["under_odds"] <= 3.5
         ):
+            val_edge_under, ev_under, fair_under = calculate_market_ev(
+                total["under_odds"], [total["over_odds"] or 1.9], prob_under_poisson
+            )
             market_choices.append(
                 {
                     "market": "全场小球",
                     "line": line,
                     "odds": total["under_odds"],
                     "edge": edge_under,
+                    "ev": ev_under,
+                    "value_edge_pct": val_edge_under,
                     "basis": "full_match_total",
                 }
             )
         if (
-        edge_over >= 0.55
-        and total["over_odds"]
-        and 1.65 <= total["over_odds"] <= 3.5
+            edge_over >= 0.55
+            and total["over_odds"]
+            and 1.65 <= total["over_odds"] <= 3.5
         ):
+            val_edge_over, ev_over, fair_over = calculate_market_ev(
+                total["over_odds"], [total["under_odds"] or 1.9], prob_over_poisson
+            )
             market_choices.append(
                 {
                     "market": "全场大球",
                     "line": line,
                     "odds": total["over_odds"],
                     "edge": edge_over,
+                    "ev": ev_over,
+                    "value_edge_pct": val_edge_over,
                     "basis": "full_match_total",
                 }
             )
@@ -468,15 +602,24 @@ def assess(candidate: dict[str, Any], now: datetime) -> dict[str, Any]:
     away_shots = number(shots.get("away")) or 0
     home_target = number(on_target.get("home")) or 0
     away_target = number(on_target.get("away")) or 0
+    
+    # Advanced Dominance incorporating corner siege, red card disparities, and tactical physics
+    corner_diff = corner_metrics["diff"]
+    tactical_tilt = (alpha_h - alpha_a) * 2.5
     dominance = (
         (home_target - away_target) * 1.8
         + (home_shots - away_shots) * 0.35
+        + (corner_diff) * 0.40  # Corner pressure directly boosts dominance
         + ((number(dangerous.get("home")) or 0) - (number(dangerous.get("away")) or 0)) * 0.04
         + ((number(attacks.get("home")) or 0) - (number(attacks.get("away")) or 0)) * 0.015
         + ((number(possession.get("home")) or 50) - (number(possession.get("away")) or 50)) * 0.025
+        + (red_diff * 6.5)  # 1 red card tilts dominance by 6.5
+        + tactical_tilt
     )
     score_margin = (number(score.get("home")) or 0) - (number(score.get("away")) or 0)
-    evidence.append(f"实时优势指数：主队{dominance:+.2f}")
+    evidence.append(
+        f"实时优势指数：主队{dominance:+.2f} (角球主{corner_metrics['home']:.0f}-客{corner_metrics['away']:.0f}，纪律主{home_reds}-客{away_reds})"
+    )
     if possession:
         evidence.append(
             "控球率："

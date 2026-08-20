@@ -58,11 +58,29 @@ export function calculateAttackConversion(statistics: unknown, score?: unknown):
 
   if (shotsH === 0 && shotsA === 0 && dangerH === 0 && dangerA === 0) return null;
 
+  // Pure in-play physical xG created by actual field play (Independent of bookmaker odds)
+  const physicalXgH = Number((onTargetH * 0.28 + (shotsH - onTargetH) * 0.05 + dangerH * 0.015).toFixed(2));
+  const physicalXgA = Number((onTargetA * 0.28 + (shotsA - onTargetA) * 0.05 + dangerA * 0.015).toFixed(2));
+  const totalPhysicalXg = Number((physicalXgH + physicalXgA).toFixed(2));
+
+  let tacticalDominanceVerdict = '双方场面势均力敌';
+  if (shotsH >= shotsA * 2 && dangerH >= dangerA * 1.5) {
+    tacticalDominanceVerdict = `主队全面压迫围攻 (射门${shotsH}-${shotsA}·危险进攻${dangerH}-${dangerA})`;
+  } else if (shotsA >= shotsH * 2 && dangerA >= dangerH * 1.5) {
+    tacticalDominanceVerdict = `客队反客为主全面压迫 (射门${shotsA}-${shotsH}·危险进攻${dangerA}-${dangerH})`;
+  } else if (onTargetH > onTargetA && fieldTiltH && fieldTiltH > 0.6) {
+    tacticalDominanceVerdict = `主队前场压迫占优 (压迫倾角${Math.round(fieldTiltH * 100)}%·射正${onTargetH}-${onTargetA})`;
+  } else if (onTargetA > onTargetH && fieldTiltA && fieldTiltA > 0.6) {
+    tacticalDominanceVerdict = `客队前场压迫占优 (压迫倾角${Math.round(fieldTiltA * 100)}%·射正${onTargetA}-${onTargetH})`;
+  }
+
   return {
     field_tilt_share: { home: fieldTiltH, away: fieldTiltA },
     dangerous_attack_to_shot_ratio: { home: dangerToShotH, away: dangerToShotA },
     shot_on_target_accuracy: { home: shotAccuracyH, away: shotAccuracyA },
     finishing_conversion: { home: finishingH, away: finishingA },
+    physical_xg_created: { home: physicalXgH, away: physicalXgA, total: totalPhysicalXg },
+    tactical_dominance_verdict: tacticalDominanceVerdict,
     summary_note: 'Dangerous attack to shot ratio measures penetrative threat vs empty possession. Field tilt measures territorial pressure in attacking third.',
   };
 }
@@ -79,7 +97,8 @@ export function calculateHandicapExpectancyMetrics(
 ): {
   projected_net_goal_margin: { home_minus_away: number; favored_side: 'home' | 'away' | 'even' };
   independent_poisson_distribution?: IndependentPoissonDistribution;
-  attack_dominance_ratio: { home: number; away: number };
+  attack_dominance_ratio?: { home: number; away: number };
+  projected_prior_dominance_ratio?: { home: number; away: number };
   game_state_tempo_drag?: string;
   handicap_sanity_notes: string[];
 } | null {

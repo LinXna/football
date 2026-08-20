@@ -399,6 +399,94 @@ function slimLineupDetails(lineupInput: any): any {
   };
 }
 
+export function pruneTacticalSynthesis(synthesis: any): any {
+  if (!synthesis || typeof synthesis !== 'object') return undefined;
+
+  const pruned: Record<string, any> = {};
+
+  // Always keep master tactical summary text
+  if (synthesis.master_tactical_summary_zh) {
+    pruned.master_tactical_summary_zh = synthesis.master_tactical_summary_zh;
+  }
+
+  for (const [key, val] of Object.entries(synthesis)) {
+    if (key === 'master_tactical_summary_zh') continue;
+    if (!val || typeof val !== 'object') continue;
+
+    const v = val as Record<string, any>;
+
+    // 1. Check for boolean flags indicating risk, hazard, surge, trap, etc.
+    const hasActiveBool = Object.entries(v).some(([k, b]) => {
+      if (typeof b !== 'boolean') return false;
+      if (
+        k.startsWith('is_') ||
+        k.endsWith('_active') ||
+        k.endsWith('_hazard') ||
+        k.endsWith('_risk') ||
+        k.endsWith('_flag') ||
+        k.includes('vulnerability') ||
+        k.includes('collapse') ||
+        k.includes('boiling') ||
+        k.includes('trap') ||
+        k.includes('surge') ||
+        k.includes('boost') ||
+        k.includes('cushion')
+      ) {
+        return b === true;
+      }
+      return false;
+    });
+
+    // 2. Check for active warning markers or special tactical callouts in strings
+    const hasActiveNote = Object.values(v).some((str) => {
+      if (typeof str !== 'string') return false;
+      return /⚠️|【|警报|陷阱|诱热|断崖|崩溃|爆发|死战|暴怒|雪崩|重挫|阻尼|突变|深开|倒挂|特异|抢开局/.test(str);
+    });
+
+    // 3. Domain-specific tactical alerts
+    const isNonNeutralDiscipline = key === 'red_card_discipline' && v.has_red_card === true;
+    const isNonNeutralAbsence = key === 'positional_absence' && (
+      (v.home_absences?.total_missing || 0) > 0 ||
+      (v.away_absences?.total_missing || 0) > 0 ||
+      v.home_absences?.gk_missing ||
+      v.away_absences?.gk_missing
+    );
+    const isNonNeutralParity = key === 'euro_asian_parity' && (
+      v.parity_verdict !== 'BALANCED_PARITY' ||
+      Math.abs(Number(v.spread_discrepancy || 0)) >= 0.5
+    );
+    const isNonNeutralJuice = key === 'late_juice_trap' && v.is_ultra_low_juice_trap === true;
+    const isNonNeutralQuarter = key === 'quarter_line_cushion' && v.is_quarter_line_market === true;
+    const isNonNeutralTimeDecay = key === 'non_linear_time_decay' && (
+      Number(v.current_minute || 0) > 0 ||
+      (v.current_game_phase && !v.current_game_phase.includes('EARLY_TACTICAL_FEELING'))
+    );
+    const isNonNeutralCorner = (key === 'corner_expectancy_and_pricing' || key === 'corner_conversion_threat') && Number(v.total_corners || 0) > 0;
+    const isNonNeutralWeather = key === 'weather_pitch_physics' && (
+      Number(v.goal_damping_delta_lambda || 0) !== 0 ||
+      Number(v.corner_inflation_multiplier || 1) !== 1 ||
+      v.extreme_heat_fatigue_early_flag === true
+    );
+
+    if (
+      hasActiveBool ||
+      hasActiveNote ||
+      isNonNeutralDiscipline ||
+      isNonNeutralAbsence ||
+      isNonNeutralParity ||
+      isNonNeutralJuice ||
+      isNonNeutralQuarter ||
+      isNonNeutralTimeDecay ||
+      isNonNeutralCorner ||
+      isNonNeutralWeather
+    ) {
+      pruned[key] = val;
+    }
+  }
+
+  return Object.keys(pruned).length > 0 ? pruned : undefined;
+}
+
 export function stripNullsAndEmpty(obj: any): any {
   if (obj === null || obj === undefined) return undefined;
   if (typeof obj === 'number') {
@@ -473,7 +561,7 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
         favored_side: prior.projected_baseline_margin > 0.2 ? 'home' : prior.projected_baseline_margin < -0.2 ? 'away' : 'even',
       },
       independent_poisson_distribution: poissonSim,
-      attack_dominance_ratio: {
+      projected_prior_dominance_ratio: {
         home: Number(((prior.lambda_home_prior / Math.max(0.1, prior.lambda_total_prior)) * 100).toFixed(1)),
         away: Number(((prior.lambda_away_prior / Math.max(0.1, prior.lambda_total_prior)) * 100).toFixed(1)),
       },
@@ -510,6 +598,35 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
     };
   }).filter(Boolean);
 
+  const fairOptionMap = new Map<string, { fair_prob_pct: number; fair_odds: number }>();
+  for (const fp of fairPricing) {
+    if (!fp) continue;
+    for (const fo of fp.fair_options) {
+      if (fo.option_id) {
+        fairOptionMap.set(fo.option_id, { fair_prob_pct: fo.fair_prob_pct, fair_odds: fo.fair_odds });
+      }
+    }
+  }
+
+  const enrichedVerifiedMarkets = verifiedMarkets.map((m: any) => ({
+    market: m.market,
+    options: m.options.map((opt: any) => {
+      const impliedProb = Number((100 / opt.odds).toFixed(2));
+      const fair = fairOptionMap.get(opt.option_id);
+      const fairProb = fair?.fair_prob_pct ?? null;
+      const valueEdge = fairProb !== null ? Number((fairProb - impliedProb).toFixed(2)) : null;
+      return {
+        side: opt.side,
+        line: opt.line,
+        odds: opt.odds,
+        option_id: opt.option_id,
+        implied_prob_pct: impliedProb,
+        machine_fair_prob_pct: fairProb,
+        machine_value_edge: valueEdge,
+      };
+    }),
+  }));
+
   const rawMatchId = String(
     item?.match_id ||
     item?.leisu_match_id ||
@@ -545,7 +662,7 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
       five_markets_coupling_audit: fiveMarketsCoupling || undefined,
       form_and_h2h_deep_metrics: formAndH2HDeep || undefined,
       corner_expectancy_and_pricing: cornerAnalysis || undefined,
-      master_tactical_synthesis: buildMasterTacticalSynthesis(item, minute, verifiedMarkets) || undefined,
+      master_tactical_synthesis: pruneTacticalSynthesis(buildMasterTacticalSynthesis(item, minute, verifiedMarkets)),
       lineup_transparency: lineupTransparency.tier !== 'unknown_or_unannounced' ? lineupTransparency : undefined,
       fair_market_pricing: fairPricing.length > 0 ? fairPricing : undefined,
     },
@@ -553,7 +670,7 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
     focused_incidents: focusedIncidents && (focusedIncidents.red_cards || focusedIncidents.cards_and_corners || focusedIncidents.match_events) ? focusedIncidents : undefined,
     reference_odds: slimReferenceOdds(item?.reference_odds),
     trend_summary: trendSummary(item),
-    verified_ybty_markets: verifiedMarkets,
+    verified_ybty_markets: enrichedVerifiedMarkets,
     verified_leisu_corner_markets: cornerAnalysis.markets.filter((m) => m.available).length > 0 ? cornerAnalysis.markets : undefined,
   };
 

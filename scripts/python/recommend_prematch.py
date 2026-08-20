@@ -151,11 +151,20 @@ def assess(candidate: dict[str, Any]) -> dict[str, Any]:
     elif lineups.get("status") == "squad_only_no_confirmed_match_lineup":
         risks.append("已有双方注册名单，但本场正式首发尚未确认")
 
+    prior = interface_features.get("quantitative_prior", {})
+    if prior and prior.get("lambda_total_prior"):
+        evidence.append(
+            f"基本面泊松先验总进球期望：{prior['lambda_total_prior']:.2f} (主队{prior.get('lambda_home_prior', 0):.2f} - 客队{prior.get('lambda_away_prior', 0):.2f})"
+        )
+        if total and total.get("line") is not None:
+            prior_gap = abs(total["line"] - prior["lambda_total_prior"])
+            if prior_gap <= 0.35:
+                market_alignment += 4
+
     evidence.extend(interface_features["evidence"])
     risks.extend(interface_features["risks"])
     completeness = candidate.get("candidate", {}).get("score", 0)
-    # Interface fundamentals are reported as research evidence. They do not
-    # alter the score until coefficients are fitted and validated on settled matches.
+    # Interface fundamentals are reported as research evidence with quantitative prior linkage
     score = round(min(79, completeness * 0.75 + market_alignment), 1)
     status = "RESEARCH" if not blockers and score >= 50 else "PASS"
     grade = "B" if status == "RESEARCH" and score >= 68 else "C"

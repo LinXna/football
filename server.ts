@@ -890,7 +890,13 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
    - 角球盘口（全场角球大小、全场角球让球）采用雷速真实盘口数据 (verified_leisu_corner_markets)；
    - 若雷速提供了角球盘口且有正向价值边际 (Value Edge > 0)，必须引用其 option_id 与实际赔率并结合 quantitative_analysis.corner_expectancy_and_pricing 进行严密推导；
    - 若本场比赛雷速未提供角球大小或让球盘口，必须在 market_assessments 中返回：
-     category="全场角球大小" / "全场角球让球", status="unavailable", grade="NO_BET", odds=null, line=null, market_option_id=null, reason="雷速未提供本场角球盘口，不予推荐"。`;
+     category="全场角球大小" / "全场角球让球", status="unavailable", grade="NO_BET", odds=null, line=null, market_option_id=null, reason="雷速未提供本场角球盘口，不予推荐"。
+17. 【AI 概率机器数学锚定与战术审计一票否决职责 (AI Probability Anchoring & Veto Power Protocol)】：
+   - 1. 机器数学锚定基准：verified_ybty_markets 各选项中已注入机器预计算的 implied_prob_pct、machine_fair_prob_pct（公允真实概率）与 machine_value_edge。AI 评估的 probability 必须严格以此为基础锚点，严禁脱离客观数学基准凭空捏造虚高胜率。
+   - 2. 战术微调容差范围 (±3% ~ ±5%)：只有当 AI 识别到明确的活跃战术特征（如：主力门将/核心中卫缺阵、红牌人数失衡、降雨湿滑物理阻尼、高温体能透支、欧亚倒挂深盘陷阱、四分之一盘口缓冲）时，才允许在机器公允概率上进行 ±3% ~ ±5% 的客观战术修正，并在 reason 中清晰说明微调理由。
+   - 3. AI 的核心职能——“战术质检与一票否决权 (Tactical Veto Power)”：
+     * 机器量化负责第一道数学初筛（是否存在正向期望值）；
+     * AI 负责第二道战术质检：专注于审查机器模型看不到的场外隐患（如杯赛大幅练兵轮换、联赛中游战意松懈、极端天气阻尼、机构断崖式低水诱热）。如果机器初筛给出了 +EV，但 AI 审查发现了致命隐患，AI 必须行使一票否决权，坚决将其降级为 watch (C级) 或直接判定为 avoid (NO_BET)，有效避免机器算法的机械死角！`;
 
   const verifiedOptionRule = `【真实选项白名单・最高优先级】
 全场/半场大小球、让球、独赢1X2禁止手工填写或改写投注盘口，必须从 verified_ybty_markets 选择真实 option 并原样返回 option_id。
@@ -1067,6 +1073,7 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
    - ⚠️【同一比赛不同玩法在串关中的科学多样化与对冲赋能 (Multi-Market Diversification)】：
      * 允许且鼓励根据同一场比赛各玩法独立的全维度数据支撑结果，在不同串关票中采用不同的最优玩法腿（例如：在激进高赔票中采用该场高 EV 的独赢主胜，在稳健防守票中采用该场高胜率的受让+0.5或总进球小球保底）；
      * 每一腿必须由其独立的全维度数据链条（现场攻防/发力期/纪律/历史/水位EV）严格支撑，单张串关票内不重复堆砌同一场，跨票组合通过不同玩法有效分散单点风险，绝不一种玩法走到底；
+     * 🚫【跨票组合严禁重复骨架 (Strict Multi-Ticket Non-Duplication)】：多张串关票之间严禁出现完全相同的 2 场比赛组合！若生成多张 2 串 1，每张票必须使用完全不同的比赛；2 串 1 与 3 串 1 之间最多允许重叠 1 场核心优质腿，绝不允许用完全相同的 2 场比赛作为两张票的相同骨架！
    - 操盘手必须充分利用当前比赛池中天然存在的不同比赛状态（如大比分领先场次 vs 0-0 焦灼场次 vs 对攻开放场次），客观推演下半场真实走势：
      * 剧本 1【下半场反击与攻防动能】（如 2串1）：针对下半场仍有强烈破门战意、射正转化率极高的强攻场次；
      * 剧本 2【攻势停滞与防守窒息】（如 3串1 或 4串1）：针对 30~45 分钟 0-0 且射正极少、三区压迫低效的场次，组合全场小球/半场小球，利用比赛时间流逝形成高确定性收割；
@@ -1369,6 +1376,11 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
    - 进攻威胁与场面倾斜: 参阅 quantitative_analysis.attack_conversion 中的 dangerous_attack_to_shot_ratio（危险进攻转化比）与 field_tilt_share（进攻三区压迫占比），识别无效控球。
    - 阵容透明度与杯赛轮换: 参阅 quantitative_analysis.lineup_transparency 与 tournament_risk。杯赛/友谊赛且阵容未确认时严禁 A 级正式推荐，最高限制 C 级。
    - 独赢 1X2 替代玩法引导: 当独赢赔率在 1.05~1.25 处于低收益鸡肋区间（缺乏安全边际）或 0-0/2-2 胶着时，评为 NO_BET / avoid，并在 reason 中明确引导转投具备退款/走盘保护的“让球 0（平手盘）/ 让球 -0.5”。
+   - 机器数学锚定与战术微调协议 (Machine Probability Anchoring & Tactical Veto Power Protocol · 核心约束):
+     * verified_ybty_markets 各选项中已注入机器精算的 machine_fair_prob_pct (公允去水概率) 与 implied_prob_pct (机构隐含概率)；
+     * AI 评估的 probability 必须以 machine_fair_prob_pct 为基础锚点，严禁脱离客观数学基准凭空虚标胜率；
+     * 战术微调容差 (±3% ~ ±5%): 仅在 master_tactical_synthesis 中出现真实活跃警报 (如主力伤停、红牌失衡、降雨物理阻尼、高温体能透支、欧亚倒挂深盘陷阱) 时，允许在机器公允概率上微调 ±3% ~ ±5% 并阐明原因；
+     * AI 一票否决权 (Tactical Veto Power): 若机器计算有 +EV 但存在场外隐患 (杯赛大幅轮换、中游战意松懈、极端天气、机构断崖式低水诱热)，AI 必须果断降级至 watch 或 avoid！
 
 3. Mandatory 5 Real Betting Markets (Each match's market_assessments MUST evaluate ALL 5 core markets across independent dimensions):
    - 全场大小球 (full_total): 基于总进球期望 λ_total、禁区压迫与射正转化独立定价。

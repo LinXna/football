@@ -536,7 +536,7 @@ test('normalizeMatchPredictionsAndAssessments keeps only 5 core real betting mar
     },
   };
   const normalized = normalizeMatchPredictionsAndAssessments(compactMatch);
-  assert.equal(normalized.market_assessments.length, 5); // 5 core bettable real markets only
+  assert.equal(normalized.market_assessments.length, 7); // 7 core bettable real markets (including corner markets)
   const scorePred = normalized.market_assessments.find((a: any) => a.category === '波胆');
   assert.equal(scorePred, undefined); // Prediction filtered out
   const bttsPred = normalized.market_assessments.find((a: any) => a.category === '双方是否进球');

@@ -963,31 +963,44 @@ export const BettingRecommendationsView: React.FC<Props> = ({
 
     // Ticket 3: Over/Under Goal-Rush Ticket (2串1 进球大战/大小球)
     if (uniqueCandidates.length >= 2) {
+      const ticket1MatchSet = new Set(ticket1Legs.map((l) => l.match));
       const alreadyUsedDirections = new Set(
         tickets.flatMap((ticket) => ticket.legs.map((leg) => `${leg.match}|${leg.market}|${leg.line}`)),
       );
-      const ouLegs = selectDistinctMatches(
-        uniqueCandidates.filter((leg) => {
-          const direction = `${leg.match}|${leg.recommendation?.market}|${formatAsianLine(leg.recommendation?.line ?? '')}`;
-          return /大球|over/i.test(leg.recommendation?.market || '') && !alreadyUsedDirections.has(direction);
-        }),
-        2,
-      ).map(formatLegMarket);
-      if (ouLegs.length < 2) return tickets;
-      const ouOdds = Number(ouLegs.reduce((acc, l) => acc * l.odds, 1).toFixed(2));
-      const ouQuant = computeParlayQuantMetrics(ouLegs, ouOdds);
-      tickets.push({
-        ticketId: 'PARLAY_OU_SPECIAL',
-        title: ouLegs.every((leg) => leg.formalEligible) ? '⚽ 2串1 全场大球/进球大战专项' : '🔎 2串1 AI进球观察/回测组合',
-        tag: ouLegs.every((leg) => leg.formalEligible) ? '进球专项' : '非正式候选',
-        legsCount: 2,
-        totalOdds: ouOdds,
-        hasAGrade: ouLegs.some((l) => l.grade === 'A'),
-        formalEligible: ouLegs.every((l) => l.formalEligible),
-        legs: ouLegs,
-        quantMetrics: ouQuant,
-        strategyReason: '只组合已独立研究成立的全场大球方向，不临时改写盘口或赔率',
+      // Prefer matches not already in Ticket 1 to avoid duplicate 2-leg pairings
+      const ouCandidates = uniqueCandidates.filter((leg) => {
+        const direction = `${leg.match}|${leg.recommendation?.market}|${formatAsianLine(leg.recommendation?.line ?? '')}`;
+        return /大球|over/i.test(leg.recommendation?.market || '') && !alreadyUsedDirections.has(direction);
       });
+
+      // Try first with completely fresh matches not in Ticket 1
+      let filteredOu = ouCandidates.filter((c) => !ticket1MatchSet.has(c.match));
+      if (filteredOu.length < 2 && ouCandidates.length >= 2) {
+        // If not enough completely fresh matches, only allow at most 1 overlap with Ticket 1
+        filteredOu = ouCandidates;
+      }
+
+      const ouLegs = selectDistinctMatches(filteredOu, 2).map(formatLegMarket);
+      
+      // Strict deduplication check against Ticket 1: Cannot have exact same 2 matches
+      const isExactSameMatchesAsTicket1 = ouLegs.length === 2 && ouLegs.every((l) => ticket1MatchSet.has(l.match));
+
+      if (ouLegs.length >= 2 && !isExactSameMatchesAsTicket1) {
+        const ouOdds = Number(ouLegs.reduce((acc, l) => acc * l.odds, 1).toFixed(2));
+        const ouQuant = computeParlayQuantMetrics(ouLegs, ouOdds);
+        tickets.push({
+          ticketId: 'PARLAY_OU_SPECIAL',
+          title: ouLegs.every((leg) => leg.formalEligible) ? '⚽ 2串1 全场大球/进球大战专项' : '🔎 2串1 AI进球观察/回测组合',
+          tag: ouLegs.every((leg) => leg.formalEligible) ? '进球专项' : '非正式候选',
+          legsCount: 2,
+          totalOdds: ouOdds,
+          hasAGrade: ouLegs.some((l) => l.grade === 'A'),
+          formalEligible: ouLegs.every((l) => l.formalEligible),
+          legs: ouLegs,
+          quantMetrics: ouQuant,
+          strategyReason: '只组合已独立研究成立的全场大球方向，不临时改写盘口或赔率',
+        });
+      }
     }
 
     return tickets;
