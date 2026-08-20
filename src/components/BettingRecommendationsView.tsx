@@ -8,6 +8,7 @@ import { generateExtendedAnalysis } from '../lib/extendedRecommendation';
 import { analyzeDualConsensus, DualConsensusAnalysis, formatMarketLabel, formatBetOption } from '../lib/consensusArbitration';
 import { displayText } from '../lib/displayValue';
 import { extractMatchLiveStats } from '../lib/matchStats';
+import { computeClientSnapshotDelta } from '../lib/snapshotDeltaEngine';
 import { AttackMomentumTimelineWidget } from './AttackMomentumTimelineWidget';
 import { 
   Trophy, 
@@ -1902,181 +1903,326 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                   </div>
                 </div>
 
-                {/* Match Teams & Dual Perspectives Grid (Compact 3-column row) */}
-                <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">
-                  {/* Col 1: Teams & Score */}
+                {/* Match Card Body: 比分面板单独一列，原系统初筛建议和AI 深度主选建议放到下面一列 */}
+                <div className="p-4 space-y-3.5">
+                  {/* Section 1: 比分与比赛现场面板 (Full-width Match Teams, Score, Live Stats & Incidents) */}
                   {(() => {
                     const teams = getTeamDisplay(m);
                     const matchStats = extractMatchLiveStats(m);
+                    const isScoreVerified = m.score_verified || (m.score && m.score_source && m.score_source !== 'unverified');
+
                     return (
-                      <div className="flex flex-col justify-between bg-slate-950/70 p-3 rounded-lg border border-slate-800 space-y-2">
-                        <div className="flex items-center justify-between border-b border-slate-800/70 pb-1.5 text-xs">
-                          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-950/90 text-purple-300 border border-purple-800/60 flex items-center gap-1" title="赛事联赛名称">
-                            <Trophy className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                            {getLeagueName(m)}
-                          </span>
-                          <span className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-slate-500" />
-                            {isLive ? `${m.minute ?? 0}' 滚球` : (m.ybty_start_time_beijing || m.provider_start_time || '待定')}
-                          </span>
+                      <div className="w-full bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-3 shadow-sm">
+                        {/* League & Time & Match Status Top Bar */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2 text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-purple-950/90 text-purple-300 border border-purple-800/60 flex items-center gap-1.5 shadow-xs" title="赛事联赛名称">
+                              <Trophy className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                              {getLeagueName(m)}
+                            </span>
+                            <span className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-slate-500" />
+                              {isLive ? `${m.minute ?? 0}' 滚球进行中` : (m.ybty_start_time_beijing || m.provider_start_time || '开赛时间待定')}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-medium border ${
+                                isScoreVerified
+                                  ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300'
+                                  : 'bg-amber-950/60 border-amber-500/40 text-amber-300'
+                              }`}
+                              title={isScoreVerified ? '比分已核验确认' : '比分未完全核验'}
+                            >
+                              {isScoreVerified ? '✓ 比分已核验' : '⚠️ 比分未核验'}
+                            </span>
+                            {m.score_source && (
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                来源: {m.score_source}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
-                        <div className="flex items-center justify-between">
-                          <div className="text-right flex-1 pr-2 space-y-0.5 min-w-0">
-                            <div className="text-sm font-bold text-slate-100 truncate" title={teams.homeYbty}>{teams.homeYbty}</div>
-                            <div className="text-xs font-semibold text-purple-300 truncate" title={teams.homeLeisu}>{teams.homeLeisu}</div>
-                          </div>
-
-                          <div className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-center min-w-[80px] shrink-0 mx-1">
-                            <div className="text-lg font-mono font-bold text-emerald-400">
-                              {m.score ? `${m.score.home} - ${m.score.away}` : 'VS'}
+                        {/* Teams & Centered Score Display */}
+                        <div className="grid grid-cols-1 md:grid-cols-7 gap-3 items-center py-1">
+                          {/* Home Team */}
+                          <div className="md:col-span-3 text-center md:text-right space-y-1">
+                            <div className="text-base font-bold text-slate-100 tracking-tight" title={teams.homeYbty}>
+                              {teams.homeYbty}
                             </div>
-                            <div className="text-[9px] text-slate-400 tracking-wider">
-                              {isLive ? (m.minute ? `${m.minute}' 滚球` : '滚球中') : '赛前盘口'}
+                            <div className="inline-block px-2 py-0.5 bg-purple-950/50 border border-purple-800/40 rounded text-xs font-semibold text-purple-300 truncate max-w-full" title={`雷速别名: ${teams.homeLeisu}`}>
+                              {teams.homeLeisu}
                             </div>
                           </div>
 
-                          <div className="text-left flex-1 pl-2 space-y-0.5 min-w-0">
-                            <div className="text-sm font-bold text-slate-100 truncate" title={teams.awayYbty}>{teams.awayYbty}</div>
-                            <div className="text-xs font-semibold text-purple-300 truncate" title={teams.awayLeisu}>{teams.awayLeisu}</div>
+                          {/* Center Score Board */}
+                          <div className="md:col-span-1 flex flex-col items-center justify-center">
+                            <div className="px-4 py-2 bg-slate-900 border border-slate-700/80 rounded-xl text-center shadow-inner min-w-[100px]">
+                              <div className="text-2xl md:text-3xl font-mono font-black text-emerald-400 tracking-wider">
+                                {m.score ? `${m.score.home} - ${m.score.away}` : 'VS'}
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-medium tracking-wider mt-0.5">
+                                {isLive ? (m.minute ? `${m.minute}' 滚球` : '滚球中') : '赛前对阵'}
+                              </div>
+                            </div>
+                            {m.ht_score && (
+                              <div className="text-[10px] text-slate-400 font-mono mt-1">
+                                半场 {m.ht_score.home}-{m.ht_score.away}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Away Team */}
+                          <div className="md:col-span-3 text-center md:text-left space-y-1">
+                            <div className="text-base font-bold text-slate-100 tracking-tight" title={teams.awayYbty}>
+                              {teams.awayYbty}
+                            </div>
+                            <div className="inline-block px-2 py-0.5 bg-purple-950/50 border border-purple-800/40 rounded text-xs font-semibold text-purple-300 truncate max-w-full" title={`雷速别名: ${teams.awayLeisu}`}>
+                              {teams.awayLeisu}
+                            </div>
                           </div>
                         </div>
 
                         {/* 🚩 现场实况统计 (控球率, 危险进攻, 角球, 射门/射正, 黄牌, 红牌) */}
-                        <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] bg-slate-900/90 rounded px-2 py-1 border border-slate-800 text-slate-300 font-mono mt-1">
-                          <span className="text-amber-300" title="控球率 (主-客)">⏱️ {matchStats.possession.text}</span>
-                          <span className="text-rose-300" title="危险进攻 (主-客)">⚡ {matchStats.dangerousAttacks.text}</span>
-                          <span className="text-sky-300" title="角球 (主-客)">🚩 {matchStats.corners.text}</span>
-                          <span className="text-emerald-300" title="射门(射正) (主-客)">🎯 {matchStats.shotsCombined.text}</span>
-                          <span className="text-amber-400" title="黄牌 (主-客)">🟨 {matchStats.yellowCards.text}</span>
-                          <span className={matchStats.redCards.hasRed ? 'text-rose-400 font-bold' : 'text-slate-400'} title="红牌 (主-客)">🟥 {matchStats.redCards.text}</span>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-[11px] bg-slate-900/90 rounded-lg p-2.5 border border-slate-800/80 text-slate-300 font-mono text-center shadow-xs">
+                          <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/60" title="控球率 (主-客)">
+                            <div className="text-[10px] text-slate-400 mb-0.5">⏱️ 控球率</div>
+                            <div className="font-bold text-amber-300">{matchStats.possession.text}</div>
+                          </div>
+                          <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/60" title="危险进攻 (主-客)">
+                            <div className="text-[10px] text-slate-400 mb-0.5">⚡ 危险进攻</div>
+                            <div className="font-bold text-rose-300">{matchStats.dangerousAttacks.text}</div>
+                          </div>
+                          <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/60" title="角球 (主-客)">
+                            <div className="text-[10px] text-slate-400 mb-0.5">🚩 角球</div>
+                            <div className="font-bold text-sky-300">{matchStats.corners.text}</div>
+                          </div>
+                          <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/60" title="射门/射正 (主-客)">
+                            <div className="text-[10px] text-slate-400 mb-0.5">🎯 射门(射正)</div>
+                            <div className="font-bold text-emerald-300">{matchStats.shotsCombined.text}</div>
+                          </div>
+                          <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/60" title="黄牌 (主-客)">
+                            <div className="text-[10px] text-slate-400 mb-0.5">🟨 黄牌</div>
+                            <div className="font-bold text-amber-400">{matchStats.yellowCards.text}</div>
+                          </div>
+                          <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/60" title="红牌 (主-客)">
+                            <div className="text-[10px] text-slate-400 mb-0.5">🟥 红牌</div>
+                            <div className={matchStats.redCards.hasRed ? 'font-bold text-rose-400' : 'font-bold text-slate-400'}>
+                              {matchStats.redCards.text}
+                            </div>
+                          </div>
                         </div>
 
-                        {/* 📈 跨批次时序快照增量 (Snapshot Delta & Momentum) */}
-                        {m.snapshot_delta?.has_history && (
-                          <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] bg-indigo-950/50 border border-indigo-500/40 rounded px-2 py-0.5 text-indigo-200 mt-1 font-mono">
-                            <span className="text-indigo-300 font-semibold">📈 距{m.snapshot_delta.elapsed_minutes}'前:</span>
-                            <span className="text-rose-300">⚡危攻 +{m.snapshot_delta.stat_acceleration.dangerous_attacks_delta.total} ({m.snapshot_delta.stat_acceleration.dangerous_attacks_rate_per_min}/分)</span>
-                            <span className="text-emerald-300">🎯射正 +{m.snapshot_delta.stat_acceleration.shots_on_target_delta.total}</span>
-                            {m.snapshot_delta.line_movement.ou_line_drop !== null && (
-                              <span className="text-sky-300">📉盘口 {m.snapshot_delta.line_movement.ou_line_drop <= 0 ? `掉落 ${Math.abs(m.snapshot_delta.line_movement.ou_line_drop)}` : `+${m.snapshot_delta.line_movement.ou_line_drop}`}</span>
-                            )}
-                          </div>
-                        )}
+                        {/* 📈 攻势动能与跨批次盘口合流 (Unified Momentum & Market Delta) */}
+                        {(() => {
+                          const delta = m.snapshot_delta || computeClientSnapshotDelta(m);
+                          if (!delta || !delta.has_history) return null;
 
-                        {/* ⚡ 攻势评分曲线 (Attack Momentum Timeline) */}
+                          if (delta.is_first_import) {
+                            return (
+                              <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] bg-slate-900/80 border border-indigo-500/30 rounded-lg px-3 py-1.5 text-indigo-200 font-mono">
+                                <span className="text-indigo-300 font-semibold flex items-center gap-1.5">
+                                  <span>⚡ 攻势时序基准 (首次导入已激活):</span>
+                                  {delta.momentum_report?.recent15m && (
+                                    <span className="text-amber-300 font-normal">
+                                      近15分【{delta.momentum_report.recent15m.directionZh}】
+                                    </span>
+                                  )}
+                                  {delta.momentum_report?.patternZh && (
+                                    <span className="text-slate-400 font-normal">
+                                      ({delta.momentum_report.patternZh})
+                                    </span>
+                                  )}
+                                </span>
+                                <div className="flex flex-wrap items-center gap-2.5 text-[10px]">
+                                  <span className="text-rose-300">
+                                    危攻场均 {delta.stat_acceleration.dangerous_attacks_rate_per_min}/分
+                                  </span>
+                                  <span className="text-slate-400">
+                                    盘口基准已锁定
+                                  </span>
+                                  {delta.is_golden_entry_point && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                      🔥 黄金起势点
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] bg-indigo-950/50 border border-indigo-500/40 rounded-lg px-3 py-1.5 text-indigo-200 font-mono">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-indigo-300 font-semibold flex items-center gap-1">
+                                  <span>📈 跨批次动能合流 (距{delta.elapsed_minutes}'前):</span>
+                                </span>
+                                {delta.momentum_report?.recent15m && (
+                                  <span className="text-indigo-200">
+                                    近15分【{delta.momentum_report.recent15m.directionZh}】
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2.5">
+                                {delta.stat_acceleration.dangerous_attacks_delta.total > 0 ? (
+                                  <span className="text-rose-300">
+                                    ⚡危攻 +{delta.stat_acceleration.dangerous_attacks_delta.total} ({delta.stat_acceleration.dangerous_attacks_rate_per_min}/分)
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">
+                                    ⚡危攻稳定 (+0)
+                                  </span>
+                                )}
+                                <span className="text-emerald-300">
+                                  🎯射正 +{delta.stat_acceleration.shots_on_target_delta.total}
+                                </span>
+                                {delta.line_movement.ou_line_drop !== null && (
+                                  <span className="text-sky-300">
+                                    📉大小球盘口 {delta.line_movement.ou_line_drop <= 0 ? `掉落 ${Math.abs(delta.line_movement.ou_line_drop)}` : `+${delta.line_movement.ou_line_drop}`}
+                                  </span>
+                                )}
+                                {delta.is_golden_entry_point && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                    🔥 黄金切入点
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* ⚡ 攻势评分曲线与事件流 (Attack Momentum Timeline & Events Stream) */}
                         <AttackMomentumTimelineWidget match={m} />
                       </div>
                     );
                   })()}
 
-                  {/* Col 2: 原系统初筛建议 */}
-                  <div className="bg-emerald-950/30 border border-emerald-800/50 p-3 rounded-lg flex flex-col justify-between space-y-1.5 text-xs">
-                    <div className="text-slate-400 text-[11px] flex items-center justify-between">
-                      <span className="font-semibold text-emerald-300">原系统初筛建议:</span>
-                      {(() => {
-                        if (!hasPrimaryRecommendation) return <span className="text-[9px] text-slate-500">未形成</span>;
-                        const numLine = parseQuarterLine(m.recommendation!.line!);
-                        return Number.isFinite(numLine) && isQuarterLine(numLine) ? (
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                            1/4盘
-                          </span>
-                        ) : null;
-                      })()}
-                    </div>
-                    {(() => {
-                      const sysBet = formatBetOption(
-                        m.recommendation?.market,
-                        (m.recommendation as any)?.direction || m.recommendation?.market,
-                        m.recommendation?.line,
-                        m.ybty_home,
-                        m.ybty_away
-                      );
-                      return (
-                        <div className="text-sm font-bold text-emerald-300 flex items-center justify-between">
-                          <span className="truncate mr-1" title={sysBet.fullSummary}>
-                            {hasPrimaryRecommendation ? (sysBet.sideLabel ? `${sysBet.marketName} · ${sysBet.sideLabel}` : sysBet.marketName) : (m.status === 'RESEARCH' ? '等待AI深挖' : '无正式主选')}
-                          </span>
-                          <span className="text-emerald-400 font-mono text-sm shrink-0">
-                            {hasPrimaryRecommendation ? sysBet.lineStr || '--' : '--'}
-                          </span>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Quarter Line Split Info */}
-                    {(() => {
-                      if (!hasPrimaryRecommendation) return null;
-                      const numLine = parseQuarterLine(m.recommendation!.line!);
-                      if (Number.isFinite(numLine) && isQuarterLine(numLine)) {
-                        const { lineA, lineB } = getQuarterSplits(numLine);
-                        return (
-                          <div className="bg-slate-950/80 p-1 rounded border border-indigo-500/30 text-[9px] font-mono text-indigo-200 flex items-center justify-between">
-                            <span>拆分:</span>
-                            <span className="font-bold">
-                              [{lineA > 0 ? '+' : ''}{lineA}] + [{lineB > 0 ? '+' : ''}{lineB}]
+                  {/* Section 2: 原系统初筛建议 和 AI 深度主选建议 放到下面一列 (2-column layout) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 items-stretch">
+                    {/* Col 1: 原系统初筛建议 */}
+                    <div className="bg-emerald-950/20 border border-emerald-800/60 p-3.5 rounded-xl flex flex-col justify-between space-y-2 text-xs shadow-xs">
+                      <div className="text-slate-400 text-xs flex items-center justify-between border-b border-emerald-900/50 pb-1.5">
+                        <span className="font-bold text-emerald-300 flex items-center gap-1">
+                          🖥️ 原系统初筛建议
+                        </span>
+                        {(() => {
+                          if (!hasPrimaryRecommendation) return <span className="text-[10px] text-slate-500">未形成初筛</span>;
+                          const numLine = parseQuarterLine(m.recommendation!.line!);
+                          return Number.isFinite(numLine) && isQuarterLine(numLine) ? (
+                            <span className="px-2 py-0.2 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                              1/4盘
                             </span>
+                          ) : null;
+                        })()}
+                      </div>
+
+                      {(() => {
+                        const sysBet = formatBetOption(
+                          m.recommendation?.market,
+                          (m.recommendation as any)?.direction || m.recommendation?.market,
+                          m.recommendation?.line,
+                          m.ybty_home,
+                          m.ybty_away
+                        );
+                        return (
+                          <div className="space-y-1">
+                            <div className="text-sm font-bold text-emerald-300 flex items-center justify-between gap-2">
+                              <span className="truncate" title={sysBet.fullSummary}>
+                                {hasPrimaryRecommendation ? (sysBet.sideLabel ? `${sysBet.marketName} · ${sysBet.sideLabel}` : sysBet.marketName) : (m.status === 'RESEARCH' ? '等待AI深挖' : '无正式初筛')}
+                              </span>
+                              <span className="text-emerald-400 font-mono text-base font-extrabold shrink-0">
+                                {hasPrimaryRecommendation ? sysBet.lineStr || '--' : '--'}
+                              </span>
+                            </div>
+                            {m.recommendation?.basis && (
+                              <div className="text-[10px] text-slate-400 truncate" title={m.recommendation.basis}>
+                                初筛依据: {m.recommendation.basis}
+                              </div>
+                            )}
                           </div>
                         );
-                      }
-                      return null;
-                    })()}
+                      })()}
 
-                    <div className="text-[10px] text-slate-300 flex justify-between pt-1 border-t border-emerald-800/40">
-                      <span>
-                        {hasPrimaryRecommendation ? <>赔率: <strong className="text-amber-300 font-mono">@{m.recommendation!.odds}</strong></> : <>赔率: <strong className="text-slate-500">--</strong></>}
-                      </span>
-                      <span>模型分: <strong className="text-emerald-400 font-mono">{Number(m.model_score || 0) > 0 ? m.model_score : '--'}</strong></span>
-                    </div>
-                  </div>
+                      {/* Quarter Line Split Info */}
+                      {(() => {
+                        if (!hasPrimaryRecommendation) return null;
+                        const numLine = parseQuarterLine(m.recommendation!.line!);
+                        if (Number.isFinite(numLine) && isQuarterLine(numLine)) {
+                          const { lineA, lineB } = getQuarterSplits(numLine);
+                          return (
+                            <div className="bg-slate-950/80 px-2 py-1 rounded border border-indigo-500/30 text-[10px] font-mono text-indigo-200 flex items-center justify-between">
+                              <span>四分之一盘拆分:</span>
+                              <span className="font-bold">
+                                [{lineA > 0 ? '+' : ''}{lineA}] + [{lineB > 0 ? '+' : ''}{lineB}]
+                              </span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
 
-                  {/* Col 3: AI 深度量化评估 */}
-                  <div className="bg-sky-950/30 border border-sky-800/50 p-3 rounded-lg flex flex-col justify-between space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400">
-                      <span className="font-semibold text-sky-300 flex items-center gap-1">
-                        <Sparkles className="w-3.5 h-3.5 text-sky-400" /> AI 深度主选建议:
-                      </span>
-                      {latestAiEvaluation ? (
-                        <span className="rounded border border-sky-700/50 bg-sky-950 px-1.5 py-0.2 text-[9px] font-bold text-sky-300">
-                          {latestAiEvaluation.grade || 'C'}级评估
+                      <div className="text-[11px] text-slate-300 flex justify-between pt-1.5 border-t border-emerald-900/50">
+                        <span>
+                          {hasPrimaryRecommendation ? <>盘口赔率: <strong className="text-amber-300 font-mono">@{m.recommendation!.odds}</strong></> : <>赔率: <strong className="text-slate-500">--</strong></>}
                         </span>
-                      ) : (
-                        <span className="rounded border border-slate-700 bg-slate-900 px-1.5 py-0.2 text-[9px] text-slate-500">
-                          未评估
-                        </span>
-                      )}
-                    </div>
-                    {(() => {
-                      const aiBet = formatBetOption(
-                        aiRecommendation?.category || aiRecommendation?.market,
-                        aiRecommendation?.direction,
-                        aiRecommendation?.line,
-                        m.ybty_home,
-                        m.ybty_away
-                      );
-                      return (
-                        <div className="flex items-center justify-between text-sm font-bold text-sky-300">
-                          <span className="truncate mr-1" title={aiBet.fullSummary}>
-                            {hasAiRecommendation ? (aiBet.sideLabel ? `${aiBet.marketName} · ${aiBet.sideLabel}` : aiBet.marketName) : latestAiEvaluation ? '本场无合格主选' : '点击右上角深挖'}
-                          </span>
-                          <span className="font-mono text-sm text-sky-400 shrink-0">
-                            {hasAiRecommendation ? aiBet.lineStr || '--' : '--'}
-                          </span>
-                        </div>
-                      );
-                    })()}
-                    <div className="flex justify-between border-t border-sky-800/40 pt-1 text-[10px] text-slate-300">
-                      <span>赔率: <strong className={hasAiRecommendation ? 'font-mono text-amber-300' : 'text-slate-500'}>{hasAiRecommendation ? `@${aiRecommendation.odds}` : '--'}</strong></span>
-                      <span>胜率: <strong className="font-mono text-sky-300">{hasAiRecommendation && Number.isFinite(Number(aiRecommendedAssessment?.probability)) ? `${aiRecommendedAssessment.probability}%` : '--'}</strong></span>
-                      {hasAiRecommendation && (latestAiEvaluation?.value_edge || aiRecommendation.value_edge) && (
-                        <span>EV: <strong className="font-mono text-emerald-400">+{latestAiEvaluation?.value_edge || aiRecommendation.value_edge}%</strong></span>
-                      )}
-                    </div>
-                    {latestAiEvaluation?.summary && (
-                      <div className="truncate text-[9px] text-slate-400" title={displayText(latestAiEvaluation.summary)}>
-                        {displayText(latestAiEvaluation.summary)}
+                        <span>模型初筛分: <strong className="text-emerald-400 font-mono">{Number(m.model_score || 0) > 0 ? m.model_score : '--'}</strong></span>
                       </div>
-                    )}
+                    </div>
+
+                    {/* Col 2: AI 深度主选建议 */}
+                    <div className="bg-sky-950/20 border border-sky-800/60 p-3.5 rounded-xl flex flex-col justify-between space-y-2 text-xs shadow-xs">
+                      <div className="flex items-center justify-between text-xs text-slate-400 border-b border-sky-900/50 pb-1.5">
+                        <span className="font-bold text-sky-300 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-sky-400" /> AI 深度主选建议
+                        </span>
+                        {latestAiEvaluation ? (
+                          <span className="rounded-md border border-sky-700/50 bg-sky-950/80 px-2 py-0.5 text-[10px] font-extrabold text-sky-300">
+                            {latestAiEvaluation.grade || 'C'}级评估
+                          </span>
+                        ) : (
+                          <span className="rounded-md border border-slate-700 bg-slate-900 px-2 py-0.5 text-[10px] text-slate-500">
+                            未评估
+                          </span>
+                        )}
+                      </div>
+
+                      {(() => {
+                        const aiBet = formatBetOption(
+                          aiRecommendation?.category || aiRecommendation?.market,
+                          aiRecommendation?.direction,
+                          aiRecommendation?.line,
+                          m.ybty_home,
+                          m.ybty_away
+                        );
+                        return (
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-sm font-bold text-sky-300 gap-2">
+                              <span className="truncate" title={aiBet.fullSummary}>
+                                {hasAiRecommendation ? (aiBet.sideLabel ? `${aiBet.marketName} · ${aiBet.sideLabel}` : aiBet.marketName) : latestAiEvaluation ? '本场无合格主选' : '点击右上角深挖'}
+                              </span>
+                              <span className="font-mono text-base font-extrabold text-sky-400 shrink-0">
+                                {hasAiRecommendation ? aiBet.lineStr || '--' : '--'}
+                              </span>
+                            </div>
+                            {latestAiEvaluation?.summary && (
+                              <div className="text-[10px] text-slate-300 line-clamp-2" title={displayText(latestAiEvaluation.summary)}>
+                                研判: {displayText(latestAiEvaluation.summary)}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-sky-900/50 pt-1.5 text-[11px] text-slate-300">
+                        <span>赔率: <strong className={hasAiRecommendation ? 'font-mono text-amber-300' : 'text-slate-500'}>{hasAiRecommendation ? `@${aiRecommendation.odds}` : '--'}</strong></span>
+                        <span>胜率: <strong className="font-mono text-sky-300">{hasAiRecommendation && Number.isFinite(Number(aiRecommendedAssessment?.probability)) ? `${aiRecommendedAssessment.probability}%` : '--'}</strong></span>
+                        {hasAiRecommendation && (latestAiEvaluation?.value_edge || aiRecommendation.value_edge) && (
+                          <span>EV: <strong className="font-mono text-emerald-400">+{latestAiEvaluation?.value_edge || aiRecommendation.value_edge}%</strong></span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
 

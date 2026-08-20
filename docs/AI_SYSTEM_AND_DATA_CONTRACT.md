@@ -1,16 +1,16 @@
 # CODEX 足球系统：AI 必读运行与数据契约
 
-> 状态：当前有效（2026-08-16）  
+> 状态：当前有效（2026-08-20 最新同步）  
 > 适用对象：首次接手本仓库的 AI、开发者、自动化审查工具  
 > 规范来源：当前 TypeScript、Python、React 和浏览器扩展实现  
-> 目标：读完本文件即可理解系统用途、运行链路、数据来源、导入导出格式和风控边界。
+> 目标：读完本文件即可理解系统用途、运行链路、数据来源、导入导出格式、动能与时序引擎和风控边界。
 
 ## 0. AI 接手本项目时的固定读取顺序
 
 1. 完整读取本文件。
 2. 完整读取根目录 `CUSTOM_INSTRUCTIONS_COMPLETE.md`，了解足球研究、推荐、结算和复盘协议。
 3. 按任务模式读取当前运行文件：
-   - 滚球：`output/pipeline_status.json`、`output/ybty_latest.json`、`output/leisu_latest.json`、`output/ybty_leisu_candidates.json`、`output/ybty_leisu_decisions.json`。
+   - 滚球：`output/pipeline_status.json`、`output/ybty_latest.json`、`output/leisu_latest.json`、`output/ybty_leisu_candidates.json`、`output/ybty_leisu_decisions.json`、`output/match_snapshot_history.json`。
    - 赛前：`output/prematch_pipeline_status.json`、`output/ybty_prematch_latest.json`、`output/leisu_prematch_latest.json`、`output/ybty_leisu_prematch_candidates.json`、`output/ybty_leisu_prematch_decisions.json`、`output/prematch_ai_brief.json`。
    - Gemini 评估：再读取 `output/ai_evaluation_history.json`。
    - 正式推荐/串关/复盘：再读取 `output/recommendation_ledger.json` 和归档文件。
@@ -24,6 +24,9 @@
 - Gemini 导入：`server/routes/aiReadRoutes.ts`
 - 市场校验：`server/services/verifiedMarketAssessment.ts`
 - 比分校验：`server/services/scoreValidation.ts`
+- 动能与时序增量引擎：`src/lib/snapshotDeltaEngine.ts`
+- 高阶战术量化与泊松先验：`src/lib/advancedTacticalQuantitativeEngines.ts`、`src/lib/formAndH2HDeepMining.ts`
+- 双重共识与四分之一盘口仲裁：`src/lib/consensusArbitration.ts`、`src/lib/quarterSettlement.ts`
 - AI 类型：`src/types.ts`
 
 ## 1. 系统是什么、做什么、不做什么
@@ -435,6 +438,19 @@ POST /api/ai/export-prompt
   "key_incidents":[],
   "reference_odds":null,
   "trend_summary":null,
+  "snapshot_delta":{
+    "has_history":true,
+    "elapsed_minutes":5,
+    "is_golden_entry_point":true,
+    "stat_acceleration":{
+      "dangerous_attacks_rate_per_min":1.4,
+      "dangerous_attacks_delta":{"home":5,"away":2,"total":7},
+      "shots_on_target_delta":{"home":1,"away":0,"total":1}
+    },
+    "line_movement":{"ou_line_drop":-0.25,"hdp_line_change":0,"odds_drift_home":-0.08},
+    "momentum_signal":"GOLDEN_ENTRY_LINE_DROP",
+    "momentum_assessment":"近15分主队持续起势，大小球掉落0.25形成黄金切入契机"
+  },
   "verified_ybty_markets":[]
 }
 ```

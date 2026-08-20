@@ -70,7 +70,7 @@ test('slim prompt payload removes mirrors, audits, weather, and non-key commenta
   }, 'live_eval');
   assert.equal(slim.match_info.match, 'Home vs Away');
   assert.equal(slim.match_info.score_verified, false);
-  assert.deepEqual(slim.focused_incidents.match_events, ["45' - 半场结束", "62' - 进球 - 0-1", "64' - VAR - 取消进球"]);
+  assert.deepEqual(slim.live_match_physical_facts.focused_incidents.match_events, ["45' - 半场结束", "62' - 进球 - 0-1", "64' - VAR - 取消进球"]);
   assert.equal(slim.verified_ybty_markets[0].options.length, 1);
   assert.equal(slim.verified_ybty_markets[0].options[0].option_id, 'full_h2h__1');
   assert.equal('interface_context' in slim, false);

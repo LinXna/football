@@ -1,5 +1,6 @@
 import { DecisionItem } from '../types';
 import { formatAsianLine } from './quarterSettlement';
+import { computeClientSnapshotDelta } from './snapshotDeltaEngine';
 
 export type ConsensusTier =
   | 'DUAL_STRONG_CONSENSUS'  // 🏆 双重强共识・顶级优选
@@ -338,19 +339,19 @@ export function analyzeDualConsensus(
     riskFlags.push('AI 评估显示全盘口期望值不足或处于庄家抽水陷阱');
   }
 
-  // 检查跨批次时序动能与盘口走势（Snapshot Delta）
-  const delta = (systemMatch as any).snapshot_delta;
+  // 检查攻势时序动能与跨批次盘口走势（Unified Momentum & Snapshot Delta）
+  const delta = (systemMatch as any).snapshot_delta || computeClientSnapshotDelta(systemMatch);
   let isGoldenEntry = false;
   if (delta && delta.has_history) {
     if (delta.is_golden_entry_point || delta.momentum_signal === 'GOLDEN_ENTRY_LINE_DROP') {
       isGoldenEntry = true;
-      consensusReasons.push(`🔥 跨批次时序契机：${delta.momentum_assessment}`);
+      consensusReasons.push(`🔥 攻势契机：${delta.momentum_assessment}`);
     } else if (delta.momentum_signal === 'HIGH_ATTACK_ACCELERATION') {
-      consensusReasons.push(`⚡ 攻防加速度高：${delta.momentum_assessment}`);
+      consensusReasons.push(`⚡ 攻防起势加速：${delta.momentum_assessment}`);
     } else if (delta.momentum_signal === 'PASSIVE_POSSESSION') {
-      riskFlags.push(`⚠️ 跨时段无效倒脚：${delta.momentum_assessment}`);
+      riskFlags.push(`⚠️ 攻势低效/中场缠斗：${delta.momentum_assessment}`);
     } else if (delta.momentum_signal === 'DISCIPLINE_COLLAPSE') {
-      riskFlags.push(`⚠️ 跨时段突发红牌：${delta.momentum_assessment}`);
+      riskFlags.push(`⚠️ 突发红牌失衡：${delta.momentum_assessment}`);
     }
   }
 

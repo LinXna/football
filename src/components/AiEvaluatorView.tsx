@@ -36,6 +36,8 @@ import {
 import ReactMarkdown from 'react-markdown';
 import { displayText } from '../lib/displayValue';
 import { buildValidParlayRequests } from '../lib/parlayRequests';
+import { AttackMomentumTimelineWidget } from './AttackMomentumTimelineWidget';
+import { MiniMomentumSparkline } from './MiniMomentumSparkline';
 
 export interface CustomSelectedLeg {
   id: string;
@@ -911,6 +913,11 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                     <span>分钟: {m.minute ? `${m.minute}'` : '赛前'}</span>
                     <span>比分: {m.score ? `${m.score.home}-${m.score.away}` : '0-0'}</span>
                   </div>
+                  {m.minute && m.minute > 0 && (
+                    <div className="mt-1.5">
+                      <MiniMomentumSparkline match={m} height={18} showBadges={false} />
+                    </div>
+                  )}
                   <div className="mt-2 border-t border-slate-800 pt-2 text-[10px] text-slate-500">选择比赛即可；具体玩法由系统从该场全部真实盘口中筛选。</div>
                 </div>
               );
@@ -1027,7 +1034,15 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                 return (
                   <label key={`${item.match}-${index}`} className={`flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-xs ${checked ? 'border-emerald-600/60 bg-emerald-950/30' : 'border-slate-800 bg-slate-950/60'}`}>
                     <input type="checkbox" checked={checked} onChange={() => toggleBatchMatch(item)} className="mt-0.5" />
-                    <span><strong className="text-slate-100">{teams.homeYbty} vs {teams.awayYbty}</strong><span className="mt-1 block text-slate-500">{getLeagueName(item)} · {item.minute ? `${item.minute}' ${item.score?.home ?? 0}-${item.score?.away ?? 0}` : '赛前'}</span></span>
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <strong className="text-slate-100">{teams.homeYbty} vs {teams.awayYbty}</strong>
+                        <span className="text-[10px] text-slate-500">{getLeagueName(item)} · {item.minute ? `${item.minute}' ${item.score?.home ?? 0}-${item.score?.away ?? 0}` : '赛前'}</span>
+                      </div>
+                      {item.minute && item.minute > 0 && (
+                        <MiniMomentumSparkline match={item} height={18} showBadges={false} />
+                      )}
+                    </div>
                   </label>
                 );
               })}
@@ -1130,6 +1145,19 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
               />
             </div>
           </div>
+
+          {/* Real-time Attack Momentum & Tactics Radar for the single match */}
+          {(() => {
+            const activeSingleMatch = allMatches.find((m) => m.match === matchName) || selectedMatch;
+            if (activeSingleMatch && (activeSingleMatch.minute || 0) > 0) {
+              return (
+                <div className="pt-2">
+                  <AttackMomentumTimelineWidget match={activeSingleMatch} />
+                </div>
+              );
+            }
+            return null;
+          })()}
 
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2">

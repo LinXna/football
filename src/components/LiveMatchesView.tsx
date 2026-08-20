@@ -497,42 +497,116 @@ export const LiveMatchesView: React.FC<Props> = ({
                   </div>
                 </div>
 
-                {/* Match Teams & Score Line */}
-                <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                {/* Match Teams & Score Line: 比分面板单独一列，市场与初筛建议放到下面一列 */}
+                <div className="p-4 space-y-3.5">
+                  {/* Row 1: 比分面板单独一列 */}
                   {(() => {
                     const teams = getTeamDisplay(m);
                     const stats = extractMatchLiveStats(m);
+                    const isScoreVerified = m.score_verified || (m.score && m.score_source && m.score_source !== 'unverified');
+
                     return (
-                      <div className="col-span-2 flex flex-col justify-between bg-slate-950/60 p-3 rounded-lg border border-slate-800/80 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="text-right flex-1 pr-4 space-y-0.5">
-                            <div className="text-sm font-bold text-slate-100">{teams.homeYbty}</div>
-                            <div className="text-xs font-semibold text-purple-300">{teams.homeLeisu}</div>
+                      <div className="w-full bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-3 shadow-sm">
+                        {/* League & Time & Score Verification */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2 text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-purple-950/90 text-purple-300 border border-purple-800/60 flex items-center gap-1.5 shadow-xs" title="赛事联赛名称">
+                              <Trophy className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                              {getLeagueName(m)}
+                            </span>
+                            <span className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-slate-500" />
+                              {m.minute ? `${m.minute}' 滚球中` : '进行中'}
+                            </span>
                           </div>
 
-                          <div className="px-4 py-1.5 bg-slate-900 border border-slate-700 rounded-md text-center min-w-[80px] shrink-0">
-                            <div className="text-xl font-mono font-bold text-emerald-400">
-                              {m.score ? `${m.score.home} - ${m.score.away}` : '0 - 0'}
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-medium border ${
+                                isScoreVerified
+                                  ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300'
+                                  : 'bg-amber-950/60 border-amber-500/40 text-amber-300'
+                              }`}
+                              title={isScoreVerified ? '比分已核验' : '比分待核验'}
+                            >
+                              {isScoreVerified ? '✓ 比分已核验' : '⚠️ 比分未核验'}
+                            </span>
+                            {m.score_source && (
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                来源: {m.score_source}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Teams & Center Score */}
+                        <div className="grid grid-cols-1 md:grid-cols-7 gap-3 items-center py-1">
+                          {/* Home Team */}
+                          <div className="md:col-span-3 text-center md:text-right space-y-1">
+                            <div className="text-base font-bold text-slate-100 tracking-tight" title={teams.homeYbty}>
+                              {teams.homeYbty}
                             </div>
-                            <div className="text-[10px] text-slate-400 tracking-wider">
-                              当前比分 {m.commence_time || m.ybty_start_time_beijing ? `(${m.commence_time || m.ybty_start_time_beijing})` : ''}
+                            <div className="inline-block px-2 py-0.5 bg-purple-950/50 border border-purple-800/40 rounded text-xs font-semibold text-purple-300 truncate max-w-full" title={`雷速别名: ${teams.homeLeisu}`}>
+                              {teams.homeLeisu}
                             </div>
                           </div>
 
-                          <div className="text-left flex-1 pl-4 space-y-0.5">
-                            <div className="text-sm font-bold text-slate-100">{teams.awayYbty}</div>
-                            <div className="text-xs font-semibold text-purple-300">{teams.awayLeisu}</div>
+                          {/* Center Score */}
+                          <div className="md:col-span-1 flex flex-col items-center justify-center">
+                            <div className="px-4 py-2 bg-slate-900 border border-slate-700/80 rounded-xl text-center shadow-inner min-w-[90px]">
+                              <div className="text-2xl md:text-3xl font-mono font-black text-emerald-400 tracking-wider">
+                                {m.score ? `${m.score.home} - ${m.score.away}` : '0 - 0'}
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-medium tracking-wider mt-0.5">
+                                {m.minute ? `${m.minute}' 比分` : '即时比分'}
+                              </div>
+                            </div>
+                            {m.ht_score && (
+                              <div className="text-[10px] text-slate-400 font-mono mt-1">
+                                半场 {m.ht_score.home}-{m.ht_score.away}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Away Team */}
+                          <div className="md:col-span-3 text-center md:text-left space-y-1">
+                            <div className="text-base font-bold text-slate-100 tracking-tight" title={teams.awayYbty}>
+                              {teams.awayYbty}
+                            </div>
+                            <div className="inline-block px-2 py-0.5 bg-purple-950/50 border border-purple-800/40 rounded text-xs font-semibold text-purple-300 truncate max-w-full" title={`雷速别名: ${teams.awayLeisu}`}>
+                              {teams.awayLeisu}
+                            </div>
                           </div>
                         </div>
 
                         {/* 🚩 现场实况统计 */}
-                        <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] bg-slate-900/90 rounded px-2 py-1 border border-slate-800 text-slate-300 font-mono mt-1">
-                          <span className="text-amber-300" title="控球率 (主-客)">⏱️ {stats.possession.text}</span>
-                          <span className="text-rose-300" title="危险进攻 (主-客)">⚡ {stats.dangerousAttacks.text}</span>
-                          <span className="text-sky-300" title="角球 (主-客)">🚩 {stats.corners.text}</span>
-                          <span className="text-emerald-300" title="射门(射正) (主-客)">🎯 {stats.shotsCombined.text}</span>
-                          <span className="text-amber-400" title="黄牌 (主-客)">🟨 {stats.yellowCards.text}</span>
-                          <span className={stats.redCards.hasRed ? 'text-rose-400 font-bold' : 'text-slate-400'} title="红牌 (主-客)">🟥 {stats.redCards.text}</span>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-[11px] bg-slate-900/90 rounded-lg p-2.5 border border-slate-800/80 text-slate-300 font-mono text-center shadow-xs">
+                          <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/60" title="控球率 (主-客)">
+                            <div className="text-[10px] text-slate-400 mb-0.5">⏱️ 控球率</div>
+                            <div className="font-bold text-amber-300">{stats.possession.text}</div>
+                          </div>
+                          <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/60" title="危险进攻 (主-客)">
+                            <div className="text-[10px] text-slate-400 mb-0.5">⚡ 危险进攻</div>
+                            <div className="font-bold text-rose-300">{stats.dangerousAttacks.text}</div>
+                          </div>
+                          <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/60" title="角球 (主-客)">
+                            <div className="text-[10px] text-slate-400 mb-0.5">🚩 角球</div>
+                            <div className="font-bold text-sky-300">{stats.corners.text}</div>
+                          </div>
+                          <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/60" title="射门/射正 (主-客)">
+                            <div className="text-[10px] text-slate-400 mb-0.5">🎯 射门(射正)</div>
+                            <div className="font-bold text-emerald-300">{stats.shotsCombined.text}</div>
+                          </div>
+                          <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/60" title="黄牌 (主-客)">
+                            <div className="text-[10px] text-slate-400 mb-0.5">🟨 黄牌</div>
+                            <div className="font-bold text-amber-400">{stats.yellowCards.text}</div>
+                          </div>
+                          <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/60" title="红牌 (主-客)">
+                            <div className="text-[10px] text-slate-400 mb-0.5">🟥 红牌</div>
+                            <div className={stats.redCards.hasRed ? 'font-bold text-rose-400' : 'font-bold text-slate-400'}>
+                              {stats.redCards.text}
+                            </div>
+                          </div>
                         </div>
 
                         {/* ⚡ 攻势评分曲线 (Attack Momentum Timeline) */}
@@ -541,17 +615,17 @@ export const LiveMatchesView: React.FC<Props> = ({
                     );
                   })()}
 
-                  {/* Recommendation Preview / Risk */}
-                  <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800/80 text-xs space-y-1">
-                    <div className="text-slate-400 flex justify-between">
-                      <span>市场与盘口:</span>
-                      <span className="font-semibold text-slate-200">
-                        {m.recommendation ? `${m.recommendation.market || '未指定'} (${m.recommendation.line ?? ''}) @ ${m.recommendation.odds ?? ''}` : '观察模式 (无直接市场)'}
+                  {/* Row 2: Recommendation Preview / Risk 下面一列 */}
+                  <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 text-xs space-y-2">
+                    <div className="text-slate-400 flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/70 pb-1.5">
+                      <span className="font-bold text-slate-300">市场与盘口配置:</span>
+                      <span className="font-bold text-emerald-400 font-mono">
+                        {m.recommendation ? `${m.recommendation.market || '未指定'} (${m.recommendation.line ?? ''}) @ ${m.recommendation.odds ?? ''}` : '观察模式 (无直接初筛)'}
                       </span>
                     </div>
                     {m.intercept_reason && (
-                      <div className="text-amber-400 text-[11px] flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3 shrink-0" />
+                      <div className="text-amber-400 text-[11px] flex items-center gap-1.5 bg-amber-950/30 border border-amber-800/40 p-2 rounded">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
                         <span>{m.intercept_reason}</span>
                       </div>
                     )}

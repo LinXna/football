@@ -50,17 +50,12 @@ The runtime-maintenance API deliberately operates only on re-generable `output/`
 - `ybty_export_extension/` 是独立可加载的浏览器扩展，不与 Web 构建产物混用。
 - `tests/` 只放自动化测试和测试夹具；缓存目录不得提交。
 
-## 已识别的结构风险
+## 已识别的结构风险与处置状态
 
-1. 后端入口过大，API、业务规则、AI 调用和 JSON 持久化集中在 `server.ts`。
-2. Python 脚本、PowerShell 启动器和业务数据全部位于根目录，职责不易区分。
-3. `output/` 曾提交大量历史运行结果，容易把临时状态误认为正式数据。
-4. 项目同时存在 `bun.lock` 与 `pnpm-lock.yaml`；当前 `package.json` 的脚本和 CI 应统一使用 pnpm。
-5. README 曾出现编码损坏并引用不存在的 `sample_live.json`，已在本次审查中修复。
+1. **后端架构模块化**：已将数据文件路径集中于 `server/dataFiles.ts`，数据路由拆分至 `server/routes/`，并引入 `server/jsonStore.ts` 跨进程文件锁与原子写入事务；`server.ts` 集中负责 Vite 整合、AI Prompt 构造与核心端点挂载。
+2. **算法与数学引擎全面对齐**：Node.js 端与 Python 算法已完成高阶战术量化、泊松分布先验、非线性时段加权、红牌乘数与 +EV 期望值门禁的逻辑同步，详见 `docs/SYSTEM_DIAGNOSIS_AND_OPTIMIZATION_REPORT.md`。
+3. **动能与跨批次时序引擎**：前端与服务端统一使用 `src/lib/snapshotDeltaEngine.ts`，消除单批次导入盲区，实现分钟级连续攻势波形与盘口异动（如大小球掉盘）的融合共振。
+4. **串关风控重构**：实现了组合签名去重（Signature Deduplication）与重叠率熔断（Overlap Gate），杜绝多串关重复包含相同核心腿的问题。
+5. **包管理器统一**：移除了冗余的 `bun.lock` 干扰，全系统统一基于 `npm` 进行构建与依赖管理。
+6. **目录与产物分层**：运行时动态产物严格限定在 `output/`，长期报告保存于 `reports/`，只读测试夹具保存于 `sources/`。
 
-## 后续重构顺序
-
-1. 先将 `server.ts` 拆为 `apps/api` 的路由、服务和存储模块，并保留兼容入口。
-2. 再将 Python 入口归入 `scripts/`，统一通过项目根目录解析输入输出路径。
-3. 将可复现样例与历史报告从运行时 `output/` 分离到 `fixtures/` 与 `reports/`。
-4. 最后清理旧入口和重复锁文件，并在 Windows 启动脚本、测试和构建全部通过后删除兼容层。

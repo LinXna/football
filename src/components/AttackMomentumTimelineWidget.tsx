@@ -1,9 +1,33 @@
 import React, { useState } from 'react';
-import { Activity, Flame, TrendingUp, ChevronDown, ChevronUp, Zap, Flag, Award, AlertCircle, ShieldAlert } from 'lucide-react';
+import { 
+  Activity, 
+  Flame, 
+  TrendingUp, 
+  ChevronDown, 
+  ChevronUp, 
+  Zap, 
+  Flag, 
+  Award, 
+  AlertCircle, 
+  ShieldAlert,
+  AlertTriangle,
+  Layers,
+  Compass,
+  Repeat,
+  Crosshair,
+  Copy,
+  Check,
+  Radar,
+  BarChart2
+} from 'lucide-react';
 import { DecisionItem } from '../types';
+import { renderIncidentIcons } from './IncidentIconsHelper';
+import { analyzeAttackMomentum } from '../utils/momentumAnalytics';
 
 export interface ParsedIncidentItem {
   min: number;
+  half: 1 | 2 | 0; // 1 = first half, 2 = second half, 0 = unknown
+  stoppageExtra: number; // e.g. 1, 2 for 45+1 or 90+2
   displayMin: string;
   text: string;
   shortText: string;
@@ -28,6 +52,9 @@ export interface TimelinePoint {
   eventIcon?: string;
   eventText?: string;
   eventSide?: 'home' | 'away' | 'neutral';
+  homeIncidents?: ParsedIncidentItem[];
+  awayIncidents?: ParsedIncidentItem[];
+  neutralIncidents?: ParsedIncidentItem[];
   matchedIncidents?: ParsedIncidentItem[];
 }
 
@@ -71,7 +98,10 @@ export interface ParsedTimelineData {
  * Extracts and cleans minute integer and display label from any format:
  * "12'", "45+1'", "45+2", 50, "53' - 第4个角球", "[53, 1, 2]"
  */
-function parseMinuteVal(rawTime: any, rawDataStr?: string): { min: number; displayMin: string } {
+function parseMinuteVal(
+  rawTime: any,
+  rawDataStr?: string
+): { min: number; half: 1 | 2 | 0; stoppageExtra: number; displayMin: string } {
   let str = String(rawTime ?? '').trim();
   if (!str && rawDataStr) {
     const matchLead = String(rawDataStr).match(/^(\d{1,3})(?:\+(\d{1,2}))?[']?/);
@@ -80,28 +110,44 @@ function parseMinuteVal(rawTime: any, rawDataStr?: string): { min: number; displ
     }
   }
 
-  if (!str) return { min: -1, displayMin: '' };
+  const rawContext = `${str} ${rawDataStr || ''}`;
+  const isExplicitHalf1 = /上半场|H1|1st/i.test(rawContext);
+  const isExplicitHalf2 = /下半场|H2|2nd/i.test(rawContext);
 
-  // Check stoppage format e.g. 45+2' or 90+4'
+  if (!str) return { min: -1, half: 0, stoppageExtra: 0, displayMin: '' };
+
+  // 1. Check stoppage format e.g. 45+2' or 90+4'
   const plusMatch = str.match(/^(\d{1,3})\+(\d{1,2})/);
   if (plusMatch) {
     const base = parseInt(plusMatch[1], 10);
     const extra = parseInt(plusMatch[2], 10);
-    return { min: base + extra, displayMin: `${base}+${extra}'` };
+    if (base <= 45) {
+      return { min: 45, half: 1, stoppageExtra: extra, displayMin: `${base}+${extra}'` };
+    } else {
+      return { min: 90, half: 2, stoppageExtra: extra, displayMin: `${base}+${extra}'` };
+    }
   }
 
+  // 2. Regular integer minute
   const numMatch = str.match(/^(\d{1,3})/);
   if (numMatch) {
     const m = parseInt(numMatch[1], 10);
-    return { min: m, displayMin: `${m}'` };
+    let half: 1 | 2 | 0 = 0;
+    if (isExplicitHalf1) half = 1;
+    else if (isExplicitHalf2) half = 2;
+    else {
+      half = m <= 45 ? 1 : 2;
+    }
+    return { min: m, half, stoppageExtra: 0, displayMin: `${m}'` };
   }
 
   const directNum = Number(rawTime);
   if (Number.isFinite(directNum) && directNum >= 0 && directNum <= 130) {
-    return { min: directNum, displayMin: `${directNum}'` };
+    const half: 1 | 2 | 0 = isExplicitHalf1 ? 1 : isExplicitHalf2 ? 2 : directNum <= 45 ? 1 : 2;
+    return { min: directNum, half, stoppageExtra: 0, displayMin: `${directNum}'` };
   }
 
-  return { min: -1, displayMin: '' };
+  return { min: -1, half: 0, stoppageExtra: 0, displayMin: '' };
 }
 
 export function parseMatchIncidents(match?: any): ParsedIncidentItem[] {
@@ -161,27 +207,42 @@ export function parseMatchIncidents(match?: any): ParsedIncidentItem[] {
       position = Number(item.position ?? item.team ?? item.side ?? 0);
     }
 
-    const { min, displayMin } = parseMinuteVal(rawTime, rawText);
+    const { min, half, stoppageExtra, displayMin } = parseMinuteVal(rawTime, rawText);
     if (min < 0 && !rawText) continue;
 
-    // Filter out generic boilerplate like "大家好，欢迎收看" or "比赛即将开始"
-    if (rawType === 0 && (/大家好|欢迎收看|热身|天气|良好|多云|晴/i.test(rawText) && !/角球|进球|黄牌|红牌|点球/i.test(rawText))) {
-      continue;
-    }
-    // Half time whistle / match start
-    if (rawType === 10 || rawType === 11 || /上半场开始|下半场开始|上半场结束|全场结束/i.test(rawText)) {
+    // Filter out generic commentary / weather / match start / half whistle
+    if (rawType === 10 || rawType === 11 || /上半场开始|下半场开始|上半场结束|全场结束|比赛即将开始|场地情况|天气情况|欢迎收看/i.test(rawText)) {
       continue;
     }
 
-    const isGoal = rawType === 1 || rawType === 9 || /进球|破门|点球进|得分|球进了|自摆乌龙|乌龙球|goal/i.test(rawText);
-    const isCorner = rawType === 2 || /角球|获得角球|第\d+个角球|corner/i.test(rawText);
-    const isRed = rawType === 4 || /红牌|两黄变红|被罚下|red card/i.test(rawText);
-    const isYellow = rawType === 3 || /黄牌|吃到黄牌|yellow card/i.test(rawText);
-    const isSub = rawType === 8 || /换人|替补登场|换下|substitution/i.test(rawText);
-    const isDanger = /中框|门柱|横梁|扑救|险情|射正/i.test(rawText);
+    // Accurately determine incident type based on keywords and schema
+    const isSubText = /换人|替补|换下|换上|[↑↓]|substitution/i.test(rawText);
+    const isCornerText = /角球|获得角球|第\d+个角球|corner/i.test(rawText);
+    const isRedText = /红牌|两黄变红|被罚下|red card/i.test(rawText);
+    const isYellowText = /黄牌|吃到黄牌|yellow card/i.test(rawText);
+    const isGoalText = /进球|破门|点球进|球进了|自摆乌龙|乌龙球|goal/i.test(rawText) && !/球门球|进球无效|越位/i.test(rawText);
+    const isDangerText = /中框|门柱|横梁|扑救|险情|射正/i.test(rawText);
 
-    // Only keep real, valuable football incidents
-    if (!isGoal && !isCorner && !isRed && !isYellow && !isSub && !isDanger) {
+    let isSub = false;
+    let isCorner = false;
+    let isRed = false;
+    let isYellow = false;
+    let isGoal = false;
+    let isDanger = false;
+
+    if (isSubText || rawType === 8 || (rawType === 9 && !isGoalText)) {
+      isSub = true;
+    } else if (isCornerText || rawType === 2) {
+      isCorner = true;
+    } else if (isRedText || rawType === 4) {
+      isRed = true;
+    } else if (isYellowText || rawType === 3) {
+      isYellow = true;
+    } else if (isGoalText || (rawType === 1 && /进球|球进|破门/i.test(rawText))) {
+      isGoal = true;
+    } else if (isDangerText) {
+      isDanger = true;
+    } else {
       continue;
     }
 
@@ -203,19 +264,58 @@ export function parseMatchIncidents(match?: any): ParsedIncidentItem[] {
 
     const sideTeamName = side === 'home' ? (homeName || homeLeisu || '主队') : side === 'away' ? (awayName || awayLeisu || '客队') : '';
 
-    // Create concise summary text
-    let shortText = rawText;
-    if (isGoal) shortText = `进球 ⚽ ${sideTeamName ? `(${sideTeamName})` : ''}`;
-    else if (isCorner) shortText = `角球 🚩 ${sideTeamName ? `(${sideTeamName})` : ''}`;
-    else if (isRed) shortText = `红牌 🟥 ${sideTeamName ? `(${sideTeamName})` : ''}`;
-    else if (isYellow) shortText = `黄牌 🟨 ${sideTeamName ? `(${sideTeamName})` : ''}`;
-    else if (isSub) shortText = `换人 🔄 ${sideTeamName ? `(${sideTeamName})` : ''}`;
+    // Extract detail parameters for precise deduplication:
+    const cornerNumMatch = rawText.match(/第(\d+)个角球/);
+    const cornerNum = cornerNumMatch ? cornerNumMatch[1] : '';
 
-    const dedupeKey = `${min}_${icon}_${side}_${rawText.slice(0, 15)}`;
+    const cardNumMatch = rawText.match(/第(\d+)张黄牌/);
+    const cardNum = cardNumMatch ? cardNumMatch[1] : '';
+
+    // Extract substitution player swaps, e.g. "科纳特↑ 维特森↓" or "贾尔加德↑ 马祖雷克↓"
+    const subPlayersMatch = rawText.match(/([\u4e00-\u9fa5\w·•\s]+[↑])\s*([\u4e00-\u9fa5\w·•\s]+[↓])/);
+    const subPlayers = subPlayersMatch ? `${subPlayersMatch[1].trim()} ${subPlayersMatch[2].trim()}` : '';
+
+    // Create concise shortText
+    let shortText = rawText;
+    if (isGoal) {
+      const goalScorerMatch = rawText.match(/[-–]\s*([\u4e00-\u9fa5\w·•\s]+)(?:\(|\s*进球|\s*破门|$)/);
+      const scorer = goalScorerMatch ? goalScorerMatch[1].trim() : '';
+      shortText = `进球 ⚽ ${scorer || sideTeamName ? `(${scorer || sideTeamName})` : ''}`;
+    } else if (isCorner) {
+      shortText = cornerNum ? `第${cornerNum}角球 🚩 ${sideTeamName ? `(${sideTeamName})` : ''}` : `角球 🚩 ${sideTeamName ? `(${sideTeamName})` : ''}`;
+    } else if (isRed) {
+      shortText = `红牌 🟥 ${sideTeamName ? `(${sideTeamName})` : ''}`;
+    } else if (isYellow) {
+      shortText = cardNum ? `第${cardNum}张黄牌 🟨 ${sideTeamName ? `(${sideTeamName})` : ''}` : `黄牌 🟨 ${sideTeamName ? `(${sideTeamName})` : ''}`;
+    } else if (isSub) {
+      shortText = subPlayers ? `换人 🔄 ${subPlayers}` : `换人 🔄 ${sideTeamName}`;
+    }
+
+    // Precise deduplication keys with half prefix to eliminate duplicate corners, cards, substitutions and text duplicates:
+    const halfKey = half === 1 ? 'H1' : half === 2 ? 'H2' : 'HX';
+    let dedupeKey = '';
+    if (isCorner) {
+      // Deduplicate corner kicks by half, minute and team (at most 1 corner per minute per side)
+      dedupeKey = `${halfKey}_${min}_${stoppageExtra}_corner_${side}`;
+    } else if (isYellow) {
+      dedupeKey = `${halfKey}_${min}_${stoppageExtra}_yellow_${side}`;
+    } else if (isRed) {
+      dedupeKey = `${halfKey}_${min}_${stoppageExtra}_red_${side}`;
+    } else if (isSub) {
+      const normSub = subPlayers.replace(/[\s↑↓]/g, '') || rawText.replace(/\d+[']?\s*[-–]?\s*/, '').slice(0, 20);
+      dedupeKey = `${halfKey}_${min}_${stoppageExtra}_sub_${side}_${normSub}`;
+    } else if (isGoal) {
+      dedupeKey = `${halfKey}_${min}_${stoppageExtra}_goal_${side}`;
+    } else {
+      dedupeKey = `${halfKey}_${min}_${stoppageExtra}_${icon}_${side}_${rawText.slice(0, 15)}`;
+    }
+
     if (!seen.has(dedupeKey)) {
       seen.add(dedupeKey);
       results.push({
         min,
+        half,
+        stoppageExtra,
         displayMin: displayMin || `${min}'`,
         text: rawText,
         shortText,
@@ -334,13 +434,39 @@ export function extractAttackMomentumTimeline(match?: DecisionItem | any): Parse
 
     const commitWindow = (side: 'home' | 'away', startIdx: number, endIdx: number, streakCount: number) => {
       if (streakCount < 4) return;
-      const startMin = segIdx === 0 ? startIdx : nominalMinutes + 1 + startIdx;
-      const endMin = segIdx === 0 ? endIdx : nominalMinutes + 1 + endIdx;
+      const startMin = segIdx === 0 ? (startIdx <= 45 ? startIdx : 45) : (startIdx <= 44 ? 46 + startIdx : 90);
+      const endMin = segIdx === 0 ? (endIdx <= 45 ? endIdx : 45) : (endIdx <= 44 ? 46 + endIdx : 90);
       const sideTeamName = side === 'home' ? homeName : awayName;
 
-      // Correlate with incidents occurring in [startMin - 1, endMin + 1]
+      let startLabel = '';
+      let endLabel = '';
+      if (segIdx === 0) {
+        const sM = startIdx + 1;
+        const eM = endIdx + 1;
+        startLabel = sM <= 45 ? `${sM}'` : `45+${sM - 45}'`;
+        endLabel = eM <= 45 ? `${eM}'` : `45+${eM - 45}'`;
+      } else if (segIdx === 1) {
+        startLabel = startIdx <= 44 ? `${46 + startIdx}'` : `90+${startIdx - 44}'`;
+        endLabel = endIdx <= 44 ? `${46 + endIdx}'` : `90+${endIdx - 44}'`;
+      } else {
+        startLabel = `${baseOffset + startIdx}'`;
+        endLabel = `${baseOffset + endIdx}'`;
+      }
+
+      // Correlate with incidents occurring in this segment window
       const correlated = incidents
-        .filter((inc) => inc.min >= Math.max(0, startMin - 1) && inc.min <= endMin + 1)
+        .filter((inc) => {
+          if (segIdx === 0) {
+            if (inc.half === 2) return false;
+            const incIdx = inc.stoppageExtra > 0 ? 44 + inc.stoppageExtra : inc.min - 1;
+            return incIdx >= Math.max(0, startIdx - 1) && incIdx <= endIdx + 1;
+          } else if (segIdx === 1) {
+            if (inc.half === 1) return false;
+            const incIdx = inc.stoppageExtra > 0 ? 44 + inc.stoppageExtra : inc.min - 46;
+            return incIdx >= Math.max(0, startIdx - 1) && incIdx <= endIdx + 1;
+          }
+          return inc.min >= Math.max(0, startMin - 1) && inc.min <= endMin + 1;
+        })
         .map((inc) => `${inc.displayMin} ${inc.icon} ${inc.text}`);
 
       let convType: DominanceWindowDetail['conversionType'] = 'STERILE_PRESSURE';
@@ -358,7 +484,7 @@ export function extractAttackMomentumTimeline(match?: DecisionItem | any): Parse
         convType === 'DANGER_CONVERTED' ? '【造角球/险情 🚩】' :
         convType === 'CARD_FORCED' ? '【造牌/犯规受压 🟨】' : '【持续压迫/无关键转化】';
 
-      const windowDesc = `[${segName}] ${startMin}'-${endMin}' ${side === 'home' ? '主队' : '客队'}(${sideTeamName})持续压制高潮(连续${streakCount}分钟攻势占优) ${convNote}`;
+      const windowDesc = `[${segName}] ${startLabel}-${endLabel} ${side === 'home' ? '主队' : '客队'}(${sideTeamName})持续压制高潮(连续${streakCount}分钟攻势占优) ${convNote}`;
 
       dominanceWindows.push({
         segmentName: segName,
@@ -377,29 +503,66 @@ export function extractAttackMomentumTimeline(match?: DecisionItem | any): Parse
       const score = Number(scoreVal) || 0;
       const h = score > 0 ? score : 0;
       const a = score < 0 ? Math.abs(score) : 0;
-      const approxMin = baseOffset + idx;
 
       let displayLabel = '';
+      let approxMin = 0;
+
       if (segIdx === 0) {
-        displayLabel = idx > nominalMinutes ? `${nominalMinutes}+${idx - nominalMinutes}'` : `${idx}'`;
+        const curM = idx + 1;
+        if (curM <= 45) {
+          displayLabel = `${curM}'`;
+          approxMin = curM;
+        } else {
+          const extra = curM - 45;
+          displayLabel = `45+${extra}'`;
+          approxMin = 45;
+        }
       } else if (segIdx === 1) {
-        const standardMin = nominalMinutes + idx + 1;
-        displayLabel = standardMin > 90 ? `90+${standardMin - 90}'` : `${standardMin}'`;
+        if (idx <= 44) {
+          const curM = 46 + idx;
+          displayLabel = `${curM}'`;
+          approxMin = curM;
+        } else {
+          const extra = idx - 44;
+          displayLabel = `90+${extra}'`;
+          approxMin = 90;
+        }
       } else {
+        approxMin = baseOffset + idx;
         displayLabel = `${approxMin}'`;
       }
 
-      // Check if any key incident occurred on this minute (matching both absolute minute and segment relative minute)
+      // Check if any key incident occurred strictly on this minute/stoppage slot in this half
       const matched = incidents.filter((inc) => {
         if (segIdx === 0) {
-          return inc.min === approxMin || inc.min === idx || Math.abs(inc.min - approxMin) <= 0.5;
+          if (inc.half === 2) return false;
+          if (inc.stoppageExtra > 0) {
+            const targetIdx = 44 + inc.stoppageExtra; // e.g. 45+1 is targetIdx 45 (which is 46th item, idx 45)
+            if (targetIdx < segScores.length) {
+              return idx === targetIdx;
+            } else {
+              return idx === segScores.length - 1;
+            }
+          }
+          return idx === (inc.min - 1);
         } else if (segIdx === 1) {
-          const standardMin = nominalMinutes + 1 + idx;
-          return inc.min === approxMin || inc.min === standardMin || (inc.min > 45 && inc.min - 45 === idx) || Math.abs(inc.min - standardMin) <= 0.5;
+          if (inc.half === 1) return false;
+          if (inc.stoppageExtra > 0) {
+            const targetIdx = 44 + inc.stoppageExtra; // e.g. 90+1 is targetIdx 45 (which is 46th item in H2, idx 45)
+            if (targetIdx < segScores.length) {
+              return idx === targetIdx;
+            } else {
+              return idx === segScores.length - 1;
+            }
+          }
+          return idx === (inc.min - 46);
         }
         return inc.min === approxMin;
       });
 
+      const homeIncs = matched.filter(inc => inc.side === 'home');
+      const awayIncs = matched.filter(inc => inc.side === 'away');
+      const neutralIncs = matched.filter(inc => inc.side === 'neutral');
       const firstIncident = matched[0];
 
       const point: TimelinePoint = {
@@ -414,6 +577,9 @@ export function extractAttackMomentumTimeline(match?: DecisionItem | any): Parse
         eventIcon: firstIncident?.icon,
         eventText: firstIncident ? `${firstIncident.displayMin} ${firstIncident.text}` : undefined,
         eventSide: firstIncident?.side,
+        homeIncidents: homeIncs,
+        awayIncidents: awayIncs,
+        neutralIncidents: neutralIncs,
         matchedIncidents: matched,
       };
 
@@ -440,8 +606,8 @@ export function extractAttackMomentumTimeline(match?: DecisionItem | any): Parse
 
     // Segment specific incidents
     const segIncidents = incidents.filter((inc) => {
-      if (segIdx === 0) return inc.min <= nominalMinutes + 5;
-      if (segIdx === 1) return inc.min > nominalMinutes;
+      if (segIdx === 0) return inc.half === 1 || (inc.half === 0 && inc.min <= 45);
+      if (segIdx === 1) return inc.half === 2 || (inc.half === 0 && inc.min >= 46);
       return true;
     });
 
@@ -533,6 +699,8 @@ export function extractAttackMomentumTimeline(match?: DecisionItem | any): Parse
   };
 }
 
+export const parseAttackMomentumData = extractAttackMomentumTimeline;
+
 interface WidgetProps {
   match: DecisionItem;
   compact?: boolean;
@@ -540,8 +708,11 @@ interface WidgetProps {
 
 export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, compact = false }) => {
   const [showFullTimeline, setShowFullTimeline] = useState(true);
-  const [selectedSegIdx, setSelectedSegIdx] = useState<number | null>(null); // null = all segments
+  const [activeTab, setActiveTab] = useState<'timeline' | 'analytics' | 'shifts' | 'divergence' | 'ai_brief'>('timeline');
+  const [selectedSegIdx, setSelectedSegIdx] = useState<number | null>(null); // null = all segments side-by-side
   const [hoveredPoint, setHoveredPoint] = useState<TimelinePoint | null>(null);
+  const [copiedSnippet, setCopiedSnippet] = useState(false);
+
   const parsed = extractAttackMomentumTimeline(match);
 
   if (parsed.isPrematch) {
@@ -550,16 +721,17 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
 
   if (!parsed.hasTimeline) {
     return (
-      <div className="flex items-center justify-between text-[10px] bg-slate-900/60 rounded px-2 py-1 border border-slate-800/80 text-slate-400 font-mono">
-        <span className="flex items-center gap-1 text-slate-400">
-          <Activity className="w-3 h-3 text-slate-500" />
-          <span>攻势评分曲线: 暂无即时数据</span>
+      <div className="flex items-center justify-between text-[10px] bg-slate-900/60 rounded px-2.5 py-1.5 border border-slate-800/80 text-slate-400 font-mono">
+        <span className="flex items-center gap-1.5 text-slate-400">
+          <Activity className="w-3.5 h-3.5 text-slate-500" />
+          <span>攻势评分与事件流: 暂无即时数据</span>
         </span>
         <span className="text-[9px] text-slate-500">待雷速时序同步</span>
       </div>
     );
   }
 
+  const analysis = analyzeAttackMomentum(parsed, match);
   const { recent5Share, recentShare, dominanceWindows, trend, segments, allIncidents, tacticalConversionZh } = parsed;
 
   const trendBadge =
@@ -569,21 +741,25 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
       ? { label: '客队高压围攻', color: 'bg-purple-950/80 border-purple-500/50 text-purple-300' }
       : { label: '攻势相对胶着', color: 'bg-slate-900 border-slate-700 text-slate-400' };
 
+  const handleCopyAiSnippet = () => {
+    navigator.clipboard.writeText(analysis.aiPromptSnippet);
+    setCopiedSnippet(true);
+    setTimeout(() => setCopiedSnippet(false), 2000);
+  };
+
   return (
     <div className="bg-slate-950/95 border border-indigo-900/40 rounded-lg p-3 space-y-2.5 font-mono text-[11px] shadow-sm">
       {/* Header bar: Title, Share & Status */}
-      <div className="flex items-center justify-between gap-1">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 font-bold text-slate-200">
           <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-          <span className="text-[11.5px] font-sans">攻势时序波形与事件标记 (Attack Momentum & Events)</span>
-          {segments.length > 1 && (
-            <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-950 border border-indigo-700/50 text-indigo-300">
-              {segments.length}个半场分段
-            </span>
-          )}
+          <span className="text-[11.5px] font-sans">高频攻势时序与战术决策罗盘</span>
+          <span className="text-[9.5px] px-1.5 py-0.2 rounded bg-indigo-950/90 border border-indigo-700/60 text-indigo-300 font-bold" title={analysis.patternDesc}>
+            {analysis.patternZh}
+          </span>
           {allIncidents.length > 0 && (
             <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-950/80 border border-amber-600/50 text-amber-300 font-bold">
-              {allIncidents.length}个事件标记
+              {allIncidents.length}项事件
             </span>
           )}
         </div>
@@ -630,7 +806,7 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
         <div className="space-y-1">
           <div className="flex justify-between text-[10px]">
             <span className="text-emerald-400 font-semibold">主 {recentShare.home}%</span>
-            <span className="text-[9px] text-slate-300 font-medium">近15分钟攻势占比</span>
+            <span className="text-[9px] text-slate-300 font-medium">近15分钟攻势占比 (斜率: {analysis.recent15m.slope > 0 ? '+' : ''}{analysis.recent15m.slope})</span>
             <span className="text-purple-400 font-semibold">客 {recentShare.away}%</span>
           </div>
           <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden flex border border-slate-800 shadow-inner">
@@ -648,9 +824,82 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
         </div>
       </div>
 
-      {/* Segmented Minute-by-Minute Waveform with Half-Time Dividing Boundaries & Clear Event Markers */}
-      {segments.length > 0 && showFullTimeline && (
-        <div className="mt-1 pt-1 border-t border-slate-800/80 space-y-2">
+      {/* Navigation Tabs for In-depth Tactical Exploration */}
+      <div className="flex flex-wrap items-center justify-between gap-1 border-b border-slate-800 pb-1 text-[10px]">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setActiveTab('timeline')}
+            className={`px-2 py-1 rounded font-medium flex items-center gap-1 transition-all ${
+              activeTab === 'timeline'
+                ? 'bg-indigo-600 text-white font-bold shadow'
+                : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Activity className="w-3 h-3" />
+            <span>时序波形与事件</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`px-2 py-1 rounded font-medium flex items-center gap-1 transition-all ${
+              activeTab === 'analytics'
+                ? 'bg-indigo-600 text-white font-bold shadow'
+                : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <BarChart2 className="w-3 h-3" />
+            <span>战术量化与形态分型</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('shifts')}
+            className={`px-2 py-1 rounded font-medium flex items-center gap-1 transition-all ${
+              activeTab === 'shifts'
+                ? 'bg-indigo-600 text-white font-bold shadow'
+                : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Repeat className="w-3 h-3" />
+            <span>战术突变响应</span>
+            {analysis.tacticalShifts.length > 0 && (
+              <span className="px-1 py-0.2 rounded-full text-[8.5px] bg-amber-500 text-slate-950 font-black">
+                {analysis.tacticalShifts.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('divergence')}
+            className={`px-2 py-1 rounded font-medium flex items-center gap-1 transition-all ${
+              activeTab === 'divergence'
+                ? 'bg-indigo-600 text-white font-bold shadow'
+                : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Radar className="w-3 h-3" />
+            <span>盘口背离与陷阱</span>
+            {analysis.divergenceSignals.length > 0 && (
+              <span className="px-1 py-0.2 rounded-full text-[8.5px] bg-rose-500 text-white font-black animate-pulse">
+                {analysis.divergenceSignals.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        <button
+          onClick={() => setActiveTab('ai_brief')}
+          className={`px-2 py-1 rounded font-medium flex items-center gap-1 transition-all text-emerald-300 border border-emerald-500/30 ${
+            activeTab === 'ai_brief' ? 'bg-emerald-950 text-emerald-200 font-bold border-emerald-400' : 'bg-slate-900/60 hover:bg-slate-800'
+          }`}
+        >
+          <Crosshair className="w-3 h-3 text-emerald-400" />
+          <span>AI 量化简报</span>
+        </button>
+      </div>
+
+      {/* TAB 1: Minute-by-Minute Waveform & Dominance Windows */}
+      {activeTab === 'timeline' && (
+        <div className="space-y-2 animate-fadeIn">
           {/* Segment Selector Tabs if multiple segments */}
           {segments.length > 1 && (
             <div className="flex items-center gap-1.5 text-[9.5px]">
@@ -660,7 +909,7 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
                   selectedSegIdx === null ? 'bg-indigo-600 text-white font-bold' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
                 }`}
               >
-                全场全景 ({parsed.points.length}分钟)
+                上下半场并排 ({parsed.points.length}分钟)
               </button>
               {segments.map((seg) => (
                 <button
@@ -670,40 +919,41 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
                     selectedSegIdx === seg.segmentIndex ? 'bg-indigo-600 text-white font-bold' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  {seg.segmentName} ({seg.points.length}分 · {seg.segmentIncidents.length}事件)
+                  {seg.segmentName} ({seg.points.length}分)
                 </button>
               ))}
             </div>
           )}
 
-          {/* Render Segments */}
-          <div className="space-y-2">
+          {/* Render Segments: 2 halves side-by-side in a 2-column grid */}
+          <div className={selectedSegIdx === null && segments.length >= 2 ? "grid grid-cols-1 md:grid-cols-2 gap-2.5" : "space-y-2"}>
             {segments
               .filter((seg) => selectedSegIdx === null || seg.segmentIndex === selectedSegIdx)
               .map((seg) => {
-                const firstLabel = seg.points[0]?.displayLabel || "0'";
+                const firstLabel = seg.points[0]?.displayLabel || (seg.segmentIndex === 0 ? "1'" : "46'");
                 const lastLabel = seg.points[seg.points.length - 1]?.displayLabel || `${seg.points.length}'`;
 
                 return (
-                  <div key={seg.segmentIndex} className="bg-slate-900/80 border border-slate-800 rounded-md p-2 space-y-1">
-                    <div className="text-[9.5px] text-slate-400 flex items-center justify-between pb-1 font-sans">
+                  <div key={seg.segmentIndex} className="bg-slate-900/80 border border-slate-800 rounded-md p-2 space-y-1.5 flex flex-col justify-between">
+                    <div className="text-[9.5px] text-slate-400 flex items-center justify-between pb-0.5 font-sans">
                       <span className="text-indigo-300 font-bold">【{seg.segmentName}】{firstLabel}</span>
                       <span className="text-slate-400 text-[9px] flex items-center gap-2">
-                        <span>主攻势 🟢</span>
-                        <span>客攻势 🟣</span>
-                        <span className="text-amber-300">事件 ⚽/🚩/🟨/🟥/🔄</span>
+                        <span className="text-emerald-400">主场事件 🟢(上方)</span>
+                        <span className="text-purple-400">客场事件 🟣(下方)</span>
                       </span>
                       <span className="text-indigo-300 font-bold">{lastLabel}</span>
                     </div>
 
-                    {/* Waveform Track + Pins: Height increased for clear event markers */}
-                    <div className="h-14 w-full bg-slate-950 rounded border border-slate-800/80 flex items-stretch justify-between px-1 gap-[1px] relative pt-3.5 pb-0.5">
+                    {/* Waveform Track: Height 72px with ample top (pt-4.5) and bottom (pb-4.5) padding for clean event pins */}
+                    <div className="h-18 w-full bg-slate-950 rounded border border-slate-800/80 flex items-stretch justify-between px-1 gap-[1px] relative pt-4.5 pb-4.5 select-none">
                       {seg.points.map((p, idx) => {
                         const hHeight = Math.min(100, (p.h / 100) * 100);
                         const aHeight = Math.min(100, (p.a / 100) * 100);
                         const isDominantHome = p.score > 0;
                         const isDominantAway = p.score < 0;
-                        const hasEvent = !!p.eventIcon;
+                        const hasHomeEvent = (p.homeIncidents && p.homeIncidents.length > 0) || (p.neutralIncidents && p.neutralIncidents.length > 0 && p.score >= 0);
+                        const hasAwayEvent = (p.awayIncidents && p.awayIncidents.length > 0) || (p.neutralIncidents && p.neutralIncidents.length > 0 && p.score < 0);
+                        const hasAnyEvent = hasHomeEvent || hasAwayEvent;
 
                         return (
                           <div
@@ -711,20 +961,11 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
                             onMouseEnter={() => setHoveredPoint(p)}
                             onMouseLeave={() => setHoveredPoint(null)}
                             className={`flex-1 flex flex-col justify-between items-center h-full group relative cursor-pointer ${
-                              hasEvent ? 'z-20' : 'hover:z-10'
+                              hasAnyEvent ? 'z-20' : 'hover:z-10'
                             }`}
                           >
-                            {/* Incident Icon Marker at top of the bar column */}
-                            {p.eventIcon && (
-                              <div
-                                className="absolute -top-3.5 flex flex-col items-center animate-bounce duration-1000"
-                                title={p.eventText || `${p.displayLabel} 事件`}
-                              >
-                                <span className="text-[11px] leading-none drop-shadow-md select-none">
-                                  {p.eventIcon}
-                                </span>
-                              </div>
-                            )}
+                            {/* Top Pin: Home Team Incident Marker (Placed strictly on TOP) */}
+                            {hasHomeEvent && renderIncidentIcons(p.homeIncidents || p.neutralIncidents, true)}
 
                             {/* Upper Half: Home Attack Bar */}
                             <div className="w-full flex flex-col items-center justify-end h-1/2">
@@ -732,7 +973,7 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
                                 style={{ height: `${p.h > 0 ? Math.max(12, hHeight) : 0}%` }}
                                 className={`w-full max-w-[5px] rounded-t-xs transition-all ${
                                   isDominantHome
-                                    ? hasEvent
+                                    ? hasHomeEvent
                                       ? 'bg-emerald-300 ring-1 ring-amber-400'
                                       : 'bg-emerald-400 group-hover:bg-emerald-300'
                                     : 'bg-transparent'
@@ -740,7 +981,7 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
                               />
                             </div>
 
-                            {/* Center Line */}
+                            {/* Center Zero Line */}
                             <div className="w-full h-[1px] bg-slate-800 group-hover:bg-slate-600" />
 
                             {/* Lower Half: Away Attack Bar */}
@@ -749,13 +990,16 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
                                 style={{ height: `${p.a > 0 ? Math.max(12, aHeight) : 0}%` }}
                                 className={`w-full max-w-[5px] rounded-b-xs transition-all ${
                                   isDominantAway
-                                    ? hasEvent
+                                    ? hasAwayEvent
                                       ? 'bg-purple-300 ring-1 ring-amber-400'
                                       : 'bg-purple-400 group-hover:bg-purple-300'
                                     : 'bg-transparent'
                                 }`}
                               />
                             </div>
+
+                            {/* Bottom Pin: Away Team Incident Marker (Placed strictly on BOTTOM) */}
+                            {hasAwayEvent && renderIncidentIcons(p.awayIncidents || p.neutralIncidents, false)}
                           </div>
                         );
                       })}
@@ -763,14 +1007,14 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
 
                     {/* Hover Info Tooltip Bar */}
                     {hoveredPoint && hoveredPoint.segmentIndex === seg.segmentIndex && (
-                      <div className="text-[9.5px] bg-slate-950 border border-indigo-700/60 rounded px-2 py-0.5 text-slate-200 flex items-center justify-between animate-fadeIn">
+                      <div className="text-[9px] bg-slate-950 border border-indigo-700/60 rounded px-2 py-0.5 text-slate-200 flex flex-wrap items-center justify-between animate-fadeIn gap-1">
                         <span className="font-bold text-indigo-300">{seg.segmentName} {hoveredPoint.displayLabel}</span>
                         <span className="font-mono">
-                          主队攻势: <strong className="text-emerald-400">+{hoveredPoint.h}</strong> | 客队攻势: <strong className="text-purple-400">-{hoveredPoint.a}</strong>
+                          主攻: <strong className="text-emerald-400">+{hoveredPoint.h}</strong> | 客攻: <strong className="text-purple-400">-{hoveredPoint.a}</strong>
                         </span>
-                        {hoveredPoint.eventText && (
-                          <span className="text-amber-300 font-medium">
-                            【事件】{hoveredPoint.eventText}
+                        {hoveredPoint.matchedIncidents && hoveredPoint.matchedIncidents.length > 0 && (
+                          <span className="text-amber-300 font-medium truncate max-w-full">
+                            【事件】{hoveredPoint.matchedIncidents.map(i => `${i.displayMin} ${i.shortText || i.text}`).join(' · ')}
                           </span>
                         )}
                       </div>
@@ -780,39 +1024,54 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
               })}
           </div>
 
-          {/* Explicit Key Incidents Stream / Badges */}
-          {allIncidents.length > 0 && (
-            <div className="bg-slate-900/90 border border-slate-800 rounded-md p-2 space-y-1.5">
-              <div className="text-[10px] text-slate-300 flex items-center justify-between font-sans">
-                <span className="font-semibold text-amber-300 flex items-center gap-1">
-                  <Flag className="w-3 h-3 text-amber-400" />
-                  <span>比赛关键事件轴 (Key Incidents Stream)</span>
-                </span>
-                <span className="text-[9px] text-slate-500">共 {allIncidents.length} 项核验事件</span>
+          {/* Continuous Dominance Windows */}
+          {dominanceWindows.length > 0 && (
+            <div className="space-y-1.5 pt-1">
+              <div className="text-[10px] text-slate-300 flex items-center gap-1 font-semibold font-sans">
+                <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
+                <span>连续强势压制区间与事件流核验：</span>
               </div>
 
-              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
-                {allIncidents.map((inc, iIdx) => {
-                  const sideStyle =
-                    inc.side === 'home'
-                      ? 'bg-emerald-950/70 border-emerald-600/40 text-emerald-200'
-                      : inc.side === 'away'
-                      ? 'bg-purple-950/70 border-purple-600/40 text-purple-200'
-                      : 'bg-slate-950 border-slate-700 text-slate-300';
-
-                  const isImportant = inc.isGoal || inc.isCard;
+              <div className="space-y-1">
+                {dominanceWindows.map((win, wIdx) => {
+                  const badgeStyle =
+                    win.conversionType === 'GOAL_CONVERTED'
+                      ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-200'
+                      : win.conversionType === 'DANGER_CONVERTED'
+                      ? 'bg-sky-950/60 border-sky-500/50 text-sky-200'
+                      : win.conversionType === 'CARD_FORCED'
+                      ? 'bg-amber-950/60 border-amber-500/50 text-amber-200'
+                      : 'bg-slate-900/70 border-slate-800 text-slate-300';
 
                   return (
                     <div
-                      key={iIdx}
-                      className={`text-[9px] px-2 py-0.5 rounded border flex items-center gap-1 shadow-xs transition-colors ${sideStyle} ${
-                        isImportant ? 'ring-1 ring-amber-500/40 font-bold' : ''
-                      }`}
-                      title={inc.text}
+                      key={wIdx}
+                      className={`text-[9.5px] border rounded p-1.5 space-y-0.5 ${badgeStyle}`}
                     >
-                      <span className="font-mono text-amber-300 font-bold">{inc.displayMin}</span>
-                      <span className="text-[11px]">{inc.icon}</span>
-                      <span className="truncate max-w-[180px]">{inc.shortText || inc.text}</span>
+                      <div className="flex items-center justify-between gap-1 font-medium">
+                        <span className="flex items-center gap-1">
+                          {win.conversionType === 'GOAL_CONVERTED' && <span>⚽</span>}
+                          {win.conversionType === 'DANGER_CONVERTED' && <span>🚩</span>}
+                          {win.conversionType === 'CARD_FORCED' && <span>🟨</span>}
+                          {win.conversionType === 'STERILE_PRESSURE' && <span>⚡</span>}
+                          <span>{win.summaryZh}</span>
+                        </span>
+                        <span className="text-[8.5px] px-1.5 py-0.2 rounded bg-slate-950/60 border border-slate-700/50">
+                          {win.dominantSide === 'home' ? '主势能' : '客势能'}
+                        </span>
+                      </div>
+
+                      {/* Correlated Incidents List */}
+                      {win.correlatedIncidents.length > 0 && (
+                        <div className="text-[8.5px] text-slate-300 pl-3 border-l border-slate-700/60 space-y-0.2">
+                          <span className="text-slate-400">➔ 同期事件: </span>
+                          {win.correlatedIncidents.map((inc, iIdx) => (
+                            <span key={iIdx} className="mr-1.5 text-amber-200/90 font-mono">
+                              [{inc}]
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -822,68 +1081,220 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
         </div>
       )}
 
-      {/* Continuous Dominance Windows Aligned with Text Live Incidents */}
-      {dominanceWindows.length > 0 ? (
-        <div className="space-y-1.5">
-          <div className="text-[10px] text-slate-300 flex items-center gap-1 font-semibold font-sans">
-            <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
-            <span>连续强势压制区间与事件流核验：</span>
-          </div>
+      {/* TAB 2: Tactical Analytics & Archetypes 4-Quadrant KPIs */}
+      {activeTab === 'analytics' && (
+        <div className="space-y-2.5 animate-fadeIn">
+          {/* 4 Quadrants */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {/* KPI 1: Pattern Archetype */}
+            <div className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400 font-sans flex items-center gap-1">
+                  <Compass className="w-3.5 h-3.5 text-indigo-400" /> 攻势形态学分型
+                </span>
+                <span className="font-bold text-indigo-300 px-2 py-0.5 bg-indigo-950/80 rounded border border-indigo-800/60">
+                  {analysis.patternZh}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-300 font-sans leading-relaxed">
+                {analysis.patternDesc}
+              </p>
+            </div>
 
-          <div className="space-y-1">
-            {dominanceWindows.map((win, wIdx) => {
-              const badgeStyle =
-                win.conversionType === 'GOAL_CONVERTED'
-                  ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-200'
-                  : win.conversionType === 'DANGER_CONVERTED'
-                  ? 'bg-sky-950/60 border-sky-500/50 text-sky-200'
-                  : win.conversionType === 'CARD_FORCED'
-                  ? 'bg-amber-950/60 border-amber-500/50 text-amber-200'
-                  : 'bg-slate-900/70 border-slate-800 text-slate-300';
+            {/* KPI 2: Recent 15m Momentum & Slope */}
+            <div className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400 font-sans flex items-center gap-1">
+                  <TrendingUp className="w-3.5 h-3.5 text-amber-400" /> 近15分钟攻势斜率
+                </span>
+                <span className={`font-bold px-2 py-0.5 rounded border ${
+                  analysis.recent15m.direction === 'HOME_SURGING' ? 'bg-emerald-950 text-emerald-300 border-emerald-600'
+                  : analysis.recent15m.direction === 'AWAY_SURGING' ? 'bg-purple-950 text-purple-300 border-purple-600'
+                  : 'bg-slate-950 text-slate-300 border-slate-700'
+                }`}>
+                  {analysis.recent15m.directionZh}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-300 font-sans leading-relaxed">
+                {analysis.recent15m.summaryZh}
+              </p>
+            </div>
 
-              return (
-                <div
-                  key={wIdx}
-                  className={`text-[9.5px] border rounded p-1.5 space-y-0.5 ${badgeStyle}`}
-                >
-                  <div className="flex items-center justify-between gap-1 font-medium">
-                    <span className="flex items-center gap-1">
-                      {win.conversionType === 'GOAL_CONVERTED' && <span>⚽</span>}
-                      {win.conversionType === 'DANGER_CONVERTED' && <span>🚩</span>}
-                      {win.conversionType === 'CARD_FORCED' && <span>🟨</span>}
-                      {win.conversionType === 'STERILE_PRESSURE' && <span>⚡</span>}
-                      <span>{win.summaryZh}</span>
-                    </span>
-                    <span className="text-[8.5px] px-1.5 py-0.2 rounded bg-slate-950/60 border border-slate-700/50">
-                      {win.dominantSide === 'home' ? '主势能' : '客势能'}
-                    </span>
+            {/* KPI 3: Home & Away Conversion Efficiency */}
+            <div className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg space-y-1.5">
+              <div className="text-xs font-sans text-slate-400 flex items-center gap-1">
+                <Award className="w-3.5 h-3.5 text-emerald-400" /> 攻势实际转化效率 (Conversion)
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                <div className="bg-slate-950 p-1.5 rounded border border-emerald-900/40 space-y-0.5">
+                  <div className="text-emerald-400 font-bold flex items-center justify-between">
+                    <span>{analysis.homeConversion.sideName}</span>
+                    <span className="text-[9px] px-1 rounded bg-emerald-950 border border-emerald-700">{analysis.homeConversion.efficiencyZh}</span>
                   </div>
-
-                  {/* Correlated Incidents List */}
-                  {win.correlatedIncidents.length > 0 && (
-                    <div className="text-[8.5px] text-slate-300 pl-3 border-l border-slate-700/60 space-y-0.2">
-                      <span className="text-slate-400">➔ 同期事件: </span>
-                      {win.correlatedIncidents.map((inc, iIdx) => (
-                        <span key={iIdx} className="mr-1.5 text-amber-200/90 font-mono">
-                          [{inc}]
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <div className="text-slate-400 text-[9px]">
+                    进球: {analysis.homeConversion.goals} | 角球: {analysis.homeConversion.corners} | 造牌: {analysis.homeConversion.cardsForced}
+                  </div>
                 </div>
-              );
-            })}
+
+                <div className="bg-slate-950 p-1.5 rounded border border-purple-900/40 space-y-0.5">
+                  <div className="text-purple-400 font-bold flex items-center justify-between">
+                    <span>{analysis.awayConversion.sideName}</span>
+                    <span className="text-[9px] px-1 rounded bg-purple-950 border border-purple-700">{analysis.awayConversion.efficiencyZh}</span>
+                  </div>
+                  <div className="text-slate-400 text-[9px]">
+                    进球: {analysis.awayConversion.goals} | 角球: {analysis.awayConversion.corners} | 造牌: {analysis.awayConversion.cardsForced}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* KPI 4: Crunch Time & Critical Window Indices */}
+            <div className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg space-y-1">
+              <div className="text-xs font-sans text-slate-400 flex items-center gap-1">
+                <Flame className="w-3.5 h-3.5 text-rose-400" /> 决胜时段加权热度 (Critical Windows)
+              </div>
+              <div className="space-y-1 text-[10px] text-slate-300">
+                <div className="flex items-center justify-between bg-slate-950 px-2 py-1 rounded border border-slate-800">
+                  <span className="text-slate-400">半场末段(35'-45+')</span>
+                  <span className="font-bold text-amber-300">{analysis.criticalWindowLateH1.desc}</span>
+                </div>
+                <div className="flex items-center justify-between bg-slate-950 px-2 py-1 rounded border border-slate-800">
+                  <span className="text-slate-400">全场末段(75'-90+')</span>
+                  <span className="font-bold text-rose-300">{analysis.criticalWindowLateH2.desc}</span>
+                </div>
+              </div>
+            </div>
           </div>
+
+          {/* Peak Periods Detailed Timeline List */}
+          {analysis.peakPeriods.length > 0 && (
+            <div className="bg-slate-900/70 border border-slate-800 p-2 rounded-lg space-y-1">
+              <div className="text-[10px] font-bold text-slate-300 flex items-center gap-1 font-sans">
+                <Zap className="w-3 h-3 text-amber-400" /> 极强压制高潮(≥65分) 详细记录：
+              </div>
+              <div className="space-y-1 text-[9.5px]">
+                {analysis.peakPeriods.map((peak, idx) => (
+                  <div key={idx} className="bg-slate-950/80 px-2 py-1 rounded border border-slate-800 flex items-center justify-between gap-1">
+                    <span className="text-slate-200 font-sans">{peak.summaryZh}</span>
+                    <span className="text-amber-400 font-mono font-bold shrink-0">{peak.peakScore}分</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="text-[9.5px] text-slate-400 truncate" title={parsed.verdictZh}>
-          {parsed.verdictZh}
+      )}
+
+      {/* TAB 3: Tactical Event Response (Substitutions, Cards, Goals) */}
+      {activeTab === 'shifts' && (
+        <div className="space-y-2 animate-fadeIn">
+          {analysis.tacticalShifts.length === 0 ? (
+            <div className="text-center py-6 bg-slate-900/60 rounded border border-slate-800 text-slate-400 text-xs font-sans">
+              <Repeat className="w-5 h-5 text-slate-500 mx-auto mb-1" />
+              <span>暂无已识别的换人或红牌战术突变记录</span>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {analysis.tacticalShifts.map((shift, idx) => {
+                const isPositive = shift.shiftMagnitude > 0;
+                return (
+                  <div
+                    key={idx}
+                    className="bg-slate-900/90 border border-slate-800 rounded-lg p-2.5 space-y-1 font-sans"
+                  >
+                    <div className="flex items-center justify-between text-xs font-bold">
+                      <span className="flex items-center gap-1.5 text-slate-200">
+                        <span className="text-sm">{shift.eventIcon}</span>
+                        <span>{shift.displayMin} {shift.sideName} ({shift.text})</span>
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
+                        前10分均值: {shift.momentumBefore10} ➔ 后10分: {shift.momentumAfter10} (Δ{isPositive ? `+${shift.shiftMagnitude}` : shift.shiftMagnitude})
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-slate-300 leading-relaxed">
+                      {shift.summaryZh}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 4: Odds Traps & Divergence Signals */}
+      {activeTab === 'divergence' && (
+        <div className="space-y-2 animate-fadeIn">
+          {analysis.divergenceSignals.length === 0 ? (
+            <div className="text-center py-6 bg-slate-900/60 rounded border border-slate-800 text-slate-400 text-xs font-sans">
+              <Radar className="w-5 h-5 text-slate-500 mx-auto mb-1" />
+              <span>攻势走势与当前盘口水位暂未出现显著负背离，场面平稳。</span>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {analysis.divergenceSignals.map((sig, idx) => {
+                const colorMap = {
+                  emerald: 'bg-emerald-950/70 border-emerald-600/60 text-emerald-200',
+                  amber: 'bg-amber-950/70 border-amber-600/60 text-amber-200',
+                  rose: 'bg-rose-950/70 border-rose-600/60 text-rose-200',
+                  indigo: 'bg-indigo-950/70 border-indigo-600/60 text-indigo-200',
+                  purple: 'bg-purple-950/70 border-purple-600/60 text-purple-200'
+                };
+
+                return (
+                  <div
+                    key={idx}
+                    className={`border rounded-lg p-2.5 space-y-1 font-sans ${colorMap[sig.color]}`}
+                  >
+                    <div className="flex items-center justify-between text-xs font-bold">
+                      <span className="flex items-center gap-1.5">
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                        <span>{sig.tag} {sig.title}</span>
+                      </span>
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-950/80 border border-slate-700 uppercase">
+                        {sig.level}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] leading-relaxed text-slate-100">
+                      {sig.desc}
+                    </p>
+                    <div className="text-[9.5px] text-slate-300 font-mono pt-0.5 border-t border-slate-800/60">
+                      依据: {sig.basis}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 5: AI Quant Brief Snippet */}
+      {activeTab === 'ai_brief' && (
+        <div className="space-y-2 animate-fadeIn">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-300 font-sans font-bold flex items-center gap-1">
+              <Crosshair className="w-3.5 h-3.5 text-emerald-400" />
+              <span>AI 决策引擎注入特征简报</span>
+            </span>
+            <button
+              onClick={handleCopyAiSnippet}
+              className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow"
+            >
+              {copiedSnippet ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+              <span>{copiedSnippet ? '已复制到剪贴板' : '一键复制特征'}</span>
+            </button>
+          </div>
+
+          <pre className="text-[10px] bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-slate-300 font-mono whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto">
+            {analysis.aiPromptSnippet}
+          </pre>
         </div>
       )}
 
       {/* Tactical Conversion & Valuation Verdict Footer */}
       {tacticalConversionZh && (
-        <div className="text-[9.5px] text-indigo-200 bg-indigo-950/40 border border-indigo-800/40 rounded px-2 py-1.5 flex items-start gap-1.5">
+        <div className="text-[9.5px] text-indigo-200 bg-indigo-950/40 border border-indigo-800/40 rounded px-2 py-1.5 flex items-start gap-1.5 font-sans">
           <Award className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
           <span>{tacticalConversionZh}</span>
         </div>
@@ -891,3 +1302,5 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
     </div>
   );
 };
+
+

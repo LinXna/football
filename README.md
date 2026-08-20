@@ -5,11 +5,12 @@
 ## 启动 Web 应用
 
 ```powershell
-pnpm install
-pnpm dev
+npm install
+npm run dev
 ```
 
-生产构建：`pnpm build`，启动：`pnpm start`。
+生产构建：`npm run build`，启动：`npm start`。
+代码与类型检查：`npm run lint`，单元测试：`npm run test:ts`。
 
 ## 数据流水线
 
@@ -23,4 +24,5 @@ pnpm dev
 
 `team_aliases.json` 为人工维护别名库，`team_aliases_auto.json` 为自动学习结果，`team_aliases_suppressed.json` 为抑制列表。
 
-后续AI和开发者必须先阅读 [系统与数据契约](docs/AI_SYSTEM_AND_DATA_CONTRACT.md)，其中完整定义YBTY/雷速滚球与赛前导入、三种Prompt导出及Gemini结果导入格式。启动说明见 [LOCAL_STARTUP.md](LOCAL_STARTUP.md)，架构约束见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。本项目只提供分析和决策辅助，不自动下注。
+后续AI和开发者必须先阅读 [系统与数据契约](docs/AI_SYSTEM_AND_DATA_CONTRACT.md)，其中完整定义YBTY/雷速滚球与赛前导入、三种Prompt导出、动能时序引擎以及Gemini结果导入格式。算法与系统诊断报告见 [系统诊断与优化报告](docs/SYSTEM_DIAGNOSIS_AND_OPTIMIZATION_REPORT.md)，启动说明见 [LOCAL_STARTUP.md](LOCAL_STARTUP.md)，架构约束见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。本项目只提供分析和决策辅助，不自动下注。
+
