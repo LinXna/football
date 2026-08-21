@@ -92,7 +92,6 @@ function parseScore(item: any): { home: number; away: number; text: string } {
 }
 
 function parseLiveStats(item: any): any {
-  const raw = item.live_statistics || item.detail_context?.formal?.live_match?.confirmed_statistics || {};
   const parsePair = (val: any) => {
     if (!val) return { home: 0, away: 0, total: 0 };
     let h = 0, a = 0;
@@ -106,6 +105,22 @@ function parseLiveStats(item: any): any {
     }
     return { home: h, away: a, total: h + a };
   };
+
+  const u = item.unified_stats;
+  if (u) {
+    return {
+      possession: parsePair(u.possession),
+      dangerous_attacks: parsePair(u.dangerous_attacks),
+      attacks: parsePair(u.dangerous_attacks),
+      shots: parsePair(u.shots),
+      shots_on_target: parsePair(u.shots_on_target),
+      corners: parsePair(u.corners),
+      yellow_cards: parsePair(u.yellow_cards),
+      red_cards: parsePair(u.red_cards),
+    };
+  }
+
+  const raw = item.live_statistics || item.detail_context?.formal?.live_match?.confirmed_statistics || {};
 
   return {
     possession: parsePair(raw.possession || item.possession),

@@ -4,6 +4,7 @@ import { generateExtendedAnalysis } from '../lib/extendedRecommendation';
 import { scoreDisplay } from '../lib/scoreDisplay';
 import { extractMatchLiveStats } from '../lib/matchStats';
 import { RecentFormModal } from './RecentFormModal';
+import { FormationClashModal } from './FormationClashModal';
 import { ErrorBoundary } from './ErrorBoundary';
 import { 
   Sparkles, 
@@ -31,7 +32,8 @@ import {
   Shuffle,
   Clock,
   Activity,
-  BarChart3
+  BarChart3,
+  Swords
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { displayText } from '../lib/displayValue';
@@ -173,6 +175,15 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
 
   const [showClearHistoryConfirmModal, setShowClearHistoryConfirmModal] = useState(false);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
+
+  // Formation Clash Modal
+  const [isFormationModalOpen, setIsFormationModalOpen] = useState(false);
+  const [formationModalData, setFormationModalData] = useState<{
+    homeFormation?: string;
+    awayFormation?: string;
+    homeTeamName?: string;
+    awayTeamName?: string;
+  } | null>(null);
   const [selectedFormMatch, setSelectedFormMatch] = useState<DecisionItem | null>(null);
 
   // Hover Popover State for Machine 5 vs AI 5
@@ -809,7 +820,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
   return (
     <div className="space-y-6">
       {/* Header Info Banner */}
-      <div className="bg-gradient-to-r from-emerald-950/60 via-slate-900 to-indigo-950/60 border border-emerald-800/40 rounded-xl p-5 shadow-xl">
+      <div className="bg-gradient-to-r from-emerald-950/60 via-slate-900 to-indigo-950/60 border border-emerald-800/40 rounded-xl p-5 shadow-xl flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center space-x-3">
           <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
             <Sparkles className="w-6 h-6 animate-pulse" />
@@ -823,6 +834,26 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
             </p>
           </div>
         </div>
+
+        <button
+          onClick={() => {
+            const stored = allMatches.find((item) => item.match === matchName);
+            const lineups = (stored as any)?.lineups || (stored as any)?.match?.lineups;
+            const homeF = lineups?.home_formation || lineups?.home_formation_detected || '4-3-3';
+            const awayF = lineups?.away_formation || lineups?.away_formation_detected || '4-4-2';
+            setFormationModalData({
+              homeFormation: homeF,
+              awayFormation: awayF,
+              homeTeamName: ybtyHome || '主队',
+              awayTeamName: ybtyAway || '客队',
+            });
+            setIsFormationModalOpen(true);
+          }}
+          className="px-3.5 py-2 bg-slate-800/90 hover:bg-slate-700 border border-emerald-500/40 text-emerald-300 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-md"
+        >
+          <Swords className="w-4 h-4 text-emerald-400" />
+          <span>⚔️ 阵型战术克制与空间博弈百科</span>
+        </button>
       </div>
 
       {/* Mode Selector */}
@@ -2383,6 +2414,19 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
           </div>
         )}
       </div>
+
+      {/* Formation Clash Modal */}
+      <FormationClashModal
+        isOpen={isFormationModalOpen}
+        onClose={() => {
+          setIsFormationModalOpen(false);
+          setFormationModalData(null);
+        }}
+        initialHomeFormation={formationModalData?.homeFormation || '4-3-3'}
+        initialAwayFormation={formationModalData?.awayFormation || '4-4-2'}
+        homeTeamName={formationModalData?.homeTeamName || '主队'}
+        awayTeamName={formationModalData?.awayTeamName || '客队'}
+      />
 
       {/* Recent Form Popup Modal */}
       <RecentFormModal

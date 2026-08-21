@@ -52,6 +52,39 @@ const percent = (value: number): number => Math.round(value * 1000) / 10;
 
 function verifiedMarket(item: DecisionItem | null | undefined, marketType: string): RawMarket | null {
   if (!item) return null;
+
+  // 1. Prioritize StandardMatchData market_snapshots
+  if (Array.isArray(item.market_snapshots) && item.market_snapshots.length > 0) {
+    if (marketType === 'full_total') {
+      const tot = item.market_snapshots.find((m) => m.market_type === 'total');
+      if (tot && (tot.home_or_over_odds || tot.away_or_under_odds)) {
+        const opts: RawOption[] = [];
+        const lineVal = tot.line ?? undefined;
+        if (tot.home_or_over_odds) opts.push({ selection: String(tot.line ?? ''), line: lineVal, odds: tot.home_or_over_odds, side: 'over', suspended: !tot.is_verified });
+        if (tot.away_or_under_odds) opts.push({ selection: String(tot.line ?? ''), line: lineVal, odds: tot.away_or_under_odds, side: 'under', suspended: !tot.is_verified });
+        if (opts.length) return { market: 'full_total', options: opts };
+      }
+    } else if (marketType === 'full_spread') {
+      const sp = item.market_snapshots.find((m) => m.market_type === 'spread');
+      if (sp && (sp.home_or_over_odds || sp.away_or_under_odds)) {
+        const opts: RawOption[] = [];
+        const lineVal = sp.line ?? undefined;
+        if (sp.home_or_over_odds) opts.push({ selection: String(sp.line ?? ''), line: lineVal, odds: sp.home_or_over_odds, side: 'home', suspended: !sp.is_verified });
+        if (sp.away_or_under_odds) opts.push({ selection: String(sp.line ?? ''), line: lineVal, odds: sp.away_or_under_odds, side: 'away', suspended: !sp.is_verified });
+        if (opts.length) return { market: 'full_spread', options: opts };
+      }
+    } else if (marketType === 'full_h2h') {
+      const h = item.market_snapshots.find((m) => m.market_type === 'h2h');
+      if (h && (h.home_or_over_odds || h.away_or_under_odds || h.draw_odds)) {
+        const opts: RawOption[] = [];
+        if (h.home_or_over_odds) opts.push({ selection: '主', odds: h.home_or_over_odds, side: 'home', suspended: !h.is_verified });
+        if (h.away_or_under_odds) opts.push({ selection: '客', odds: h.away_or_under_odds, side: 'away', suspended: !h.is_verified });
+        if (h.draw_odds) opts.push({ selection: '平', odds: h.draw_odds, side: 'draw', suspended: !h.is_verified });
+        if (opts.length) return { market: 'full_h2h', options: opts };
+      }
+    }
+  }
+
   const rows = Array.isArray(item.ybty_raw_markets) ? (item.ybty_raw_markets as RawMarket[]) : [];
 
   // Exact or semantic match in raw markets

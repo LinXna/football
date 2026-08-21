@@ -61,6 +61,33 @@ export function extractMatchLiveStats(matchItem?: any, leg?: any): MatchLiveStat
   const isPrematch = (item.minute === undefined || Number(item.minute) === 0) &&
     (item.export_mode === 'prematch' || item.status === 'notstarted' || item.status === 'PREMATCH' || String(item.status || '').toLowerCase().includes('pre'));
 
+  // 0. Prioritize standard unified_stats from StandardMatchData if present
+  if (item.unified_stats) {
+    const u = item.unified_stats;
+    const corners = { home: u.corners?.home ?? 0, away: u.corners?.away ?? 0 };
+    const yellow = { home: u.yellow_cards?.home ?? 0, away: u.yellow_cards?.away ?? 0 };
+    const red = { home: u.red_cards?.home ?? 0, away: u.red_cards?.away ?? 0 };
+    const shots = { home: u.shots?.home ?? 0, away: u.shots?.away ?? 0 };
+    const onTarget = { home: u.shots_on_target?.home ?? 0, away: u.shots_on_target?.away ?? 0 };
+    const pos = { home: u.possession?.home ?? 50, away: u.possession?.away ?? 50 };
+    const dang = { home: u.dangerous_attacks?.home ?? 0, away: u.dangerous_attacks?.away ?? 0 };
+    const hasStats = Boolean(corners.home || corners.away || shots.home || shots.away || dang.home || dang.away || pos.home !== 50);
+
+    return {
+      hasStats,
+      isPrematch,
+      yellowCards: { home: yellow.home, away: yellow.away, text: `${yellow.home}-${yellow.away}` },
+      redCards: { home: red.home, away: red.away, text: `${red.home}-${red.away}`, hasRed: red.home > 0 || red.away > 0 },
+      corners: { home: corners.home, away: corners.away, text: `${corners.home}-${corners.away}` },
+      shots: { home: shots.home, away: shots.away, text: `${shots.home}-${shots.away}` },
+      shotsOnTarget: { home: onTarget.home, away: onTarget.away, text: `${onTarget.home}-${onTarget.away}` },
+      shotsCombined: { home: `${onTarget.home}/${shots.home}`, away: `${onTarget.away}/${shots.away}`, text: `${onTarget.home}/${shots.home} - ${onTarget.away}/${shots.away}` },
+      possession: { home: pos.home, away: pos.away, text: `${pos.home}%-${pos.away}%`, valid: true },
+      dangerousAttacks: { home: dang.home, away: dang.away, text: `${dang.home}-${dang.away}`, valid: dang.home > 0 || dang.away > 0 },
+      attacks: { home: dang.home, away: dang.away, text: `${dang.home}-${dang.away}`, valid: dang.home > 0 || dang.away > 0 },
+    };
+  }
+
   // Look for stats across common data contract paths
   const statsObj = item.live_statistics ||
     item._statistics ||

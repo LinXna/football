@@ -1,9 +1,11 @@
 import React, { lazy, Suspense, useEffect, useState, useMemo } from 'react';
 import { 
+  StandardMatchData,
   DecisionItem, 
   PipelineStatus, 
   LedgerItem, 
-  TeamAliasMap 
+  TeamAliasMap,
+  toStandardMatchData 
 } from './types';
 import { BettingRecommendationsView } from './components/BettingRecommendationsView';
 import { requestJson } from './lib/apiClient';
@@ -65,7 +67,7 @@ export default function App() {
     try {
       const data = await requestJson<any>('/api/pipeline/live');
       setLivePipeline(data.status || {});
-      setLiveDecisions(data.decisions || []);
+      setLiveDecisions((data.decisions || []).map(toStandardMatchData));
       setLiveSummary(data.summary || {});
     } catch (err) {
       console.error('Failed to fetch live data', err);
@@ -76,7 +78,7 @@ export default function App() {
     try {
       const data = await requestJson<any>('/api/pipeline/prematch');
       setPrematchPipeline(data.status || {});
-      setPrematchDecisions(data.decisions || []);
+      setPrematchDecisions((data.decisions || []).map(toStandardMatchData));
       setPrematchSummary(data.summary || {});
       setPrematchBrief(data.brief || {});
     } catch (err) {

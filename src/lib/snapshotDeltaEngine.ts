@@ -89,7 +89,6 @@ export function createClientSnapshotPoint(item: any): MatchSnapshotPoint {
   const s = item.score || item.score_at_recommendation || {};
   const h = Number(s.home ?? item.home_score ?? 0);
   const a = Number(s.away ?? item.away_score ?? 0);
-  const rawStats = item.live_statistics || item.detail_context?.formal?.live_match?.confirmed_statistics || {};
 
   const parsePair = (val: any) => {
     if (!val) return { home: 0, away: 0, total: 0 };
@@ -105,25 +104,62 @@ export function createClientSnapshotPoint(item: any): MatchSnapshotPoint {
     return { home: homeVal, away: awayVal, total: homeVal + awayVal };
   };
 
-  // Extract OU and Handicap lines if present in markets
+  // 1. Prioritize StandardMatchData market_snapshots
   let ouLine: number | string | null = null;
   let ouOdds: number | string | null = null;
   let ahLine: number | string | null = null;
   let ahOdds: number | string | null = null;
 
-  const markets = item.markets || item.all_markets || item.handicap_items || [];
-  if (Array.isArray(markets)) {
-    const ou = markets.find((m: any) => m.market === 'OU' || m.market_type === 'OU' || m.market_name?.includes('大小'));
-    if (ou) {
-      ouLine = ou.line ?? ou.handicap ?? null;
-      ouOdds = ou.odds ?? ou.over_odds ?? null;
+  if (Array.isArray(item.market_snapshots)) {
+    const totalM = item.market_snapshots.find((m: any) => m.market_type === 'total');
+    if (totalM) {
+      ouLine = totalM.line ?? null;
+      ouOdds = totalM.home_or_over_odds ?? null;
     }
-    const ah = markets.find((m: any) => m.market === 'AH' || m.market_type === 'AH' || m.market_name?.includes('让球'));
-    if (ah) {
-      ahLine = ah.line ?? ah.handicap ?? null;
-      ahOdds = ah.odds ?? ah.home_odds ?? null;
+    const spreadM = item.market_snapshots.find((m: any) => m.market_type === 'spread');
+    if (spreadM) {
+      ahLine = spreadM.line ?? null;
+      ahOdds = spreadM.home_or_over_odds ?? null;
+    }
+  } else {
+    const markets = item.markets || item.all_markets || item.handicap_items || [];
+    if (Array.isArray(markets)) {
+      const ou = markets.find((m: any) => m.market === 'OU' || m.market_type === 'OU' || m.market_name?.includes('大小'));
+      if (ou) {
+        ouLine = ou.line ?? ou.handicap ?? null;
+        ouOdds = ou.odds ?? ou.over_odds ?? null;
+      }
+      const ah = markets.find((m: any) => m.market === 'AH' || m.market_type === 'AH' || m.market_name?.includes('让球'));
+      if (ah) {
+        ahLine = ah.line ?? ah.handicap ?? null;
+        ahOdds = ah.odds ?? ah.home_odds ?? null;
+      }
     }
   }
+
+  // 2. Prioritize StandardMatchData unified_stats
+  const u = item.unified_stats;
+  const rawStats = item.live_statistics || item.detail_context?.formal?.live_match?.confirmed_statistics || {};
+
+  const statsObj = u ? {
+    possession: parsePair(u.possession),
+    dangerous_attacks: parsePair(u.dangerous_attacks),
+    attacks: parsePair(u.dangerous_attacks),
+    shots: parsePair(u.shots),
+    shots_on_target: parsePair(u.shots_on_target),
+    corners: parsePair(u.corners),
+    yellow_cards: parsePair(u.yellow_cards),
+    red_cards: parsePair(u.red_cards),
+  } : {
+    possession: parsePair(rawStats.possession || item.possession),
+    dangerous_attacks: parsePair(rawStats.dangerous_attacks || item.dangerous_attacks),
+    attacks: parsePair(rawStats.attacks || item.attacks),
+    shots: parsePair(rawStats.shots || rawStats.shots_total || item.shots),
+    shots_on_target: parsePair(rawStats.shots_on_target || item.shots_on_target),
+    corners: parsePair(rawStats.corners || item.corners),
+    yellow_cards: parsePair(rawStats.yellow_cards || item.yellow_cards),
+    red_cards: parsePair(rawStats.red_cards || item.red_cards),
+  };
 
   return {
     captured_at: new Date().toISOString(),
@@ -131,16 +167,7 @@ export function createClientSnapshotPoint(item: any): MatchSnapshotPoint {
     score: { home: h, away: a, text: `${h}-${a}` },
     ou_market: { line: ouLine, odds: ouOdds },
     handicap_market: { line: ahLine, odds: ahOdds },
-    live_statistics: {
-      possession: parsePair(rawStats.possession || item.possession),
-      dangerous_attacks: parsePair(rawStats.dangerous_attacks || item.dangerous_attacks),
-      attacks: parsePair(rawStats.attacks || item.attacks),
-      shots: parsePair(rawStats.shots || rawStats.shots_total || item.shots),
-      shots_on_target: parsePair(rawStats.shots_on_target || item.shots_on_target),
-      corners: parsePair(rawStats.corners || item.corners),
-      yellow_cards: parsePair(rawStats.yellow_cards || item.yellow_cards),
-      red_cards: parsePair(rawStats.red_cards || item.red_cards),
-    },
+    live_statistics: statsObj,
   };
 }
 

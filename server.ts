@@ -880,13 +880,15 @@ function buildPromptData(body: any, isExportPrompt: boolean = false) {
      * 历史交锋克制属性 (head_to_head_deep): 深入分析近 1-2 年双方直接交锋场均总进球、大球率、主场迎战净胜球历史与球风相克特征 (tactical_matchup_note_zh)。
      * 战绩加权先验期望进球 (form_weighted_poisson_prior): 融合主队主场进球能力与客队客场防守丢球率，计算 baseline 期望进球 λ_home_prior 与 λ_away_prior，并在 reason 中明确引用战绩支撑依据！
 15. 【高级战术量化合成引擎全流程实战利用 (Master Tactical Synthesis & Execution)】：
-   - 必须深度调用 quantitative_analysis.master_tactical_synthesis 中的6项精算成果：
+   - 必须深度调用 quantitative_analysis.master_tactical_synthesis 中的各项精算成果：
      * 1. 阵容位置折损 (positional_absence): 门将/主力中卫缺阵防守期望 GA 增加 0.35~0.7 球；头号射手缺阵进攻期望 GF 下滑 0.3~0.6 球。
-     * 2. 角球动能与禁区挤压 (corner_squeeze): 10分钟角球爆发速率 (velocity_per_10min ≥ 1.5) 代表禁区被高压围攻，破门高发。
-     * 3. 红牌人数失衡物理模型 (red_card_discipline): 上半场红牌失球乘数高达 2.15x (体能防线双崩塌)；终局 78'+ 红牌则转入低位摆大巴。
-     * 4. 欧亚指数倒挂与诱盘审计 (euro_asian_parity): 欧赔换算理论让球线 vs 实际亚盘深度，精准识别深开诱上 (DEEP_SPREAD_TRAP) 与浅开阻上。
-     * 5. 积分榜战意差值 (strategic_motivation): 保级生死战或争冠冲刺期战意加权，面对中游无欲无求球队具备战意压制。
-     * 6. 非线性进球时段 (non_linear_time_decay): 30-45'+ 半场体能节点 (权重 1.30) 与 75-90'+ 终局搏命期 (权重 1.55) 为进球最高发窗口。`;
+     * 2. 阵型克制与战术博弈 (formation_clash): 4-3-3 三角传控压制 4-4-2 双中场，但易遭 5-3-2/5-4-1 低位大巴防反绞杀；3-5-2 五中场压制双中场且三中卫包夹双前锋；4-2-3-1 双后腰稳固防线且前腰直插单后腰身侧软肋；3-4-3 对攻 4-3-3 两翼全开大球动能充沛。
+     * 3. 角球动能与禁区挤压 (corner_squeeze): 10分钟角球爆发速率 (velocity_per_10min ≥ 1.5) 代表禁区被高压围攻，破门高发。
+     * 4. 红牌人数失衡物理模型 (red_card_discipline): 上半场红牌失球乘数高达 2.15x (体能防线双崩塌)；终局 78'+ 红牌则转入低位摆大巴。
+     * 5. 欧亚指数倒挂与诱盘审计 (euro_asian_parity): 欧赔换算理论让球线 vs 实际亚盘深度，精准识别深开诱上 (DEEP_SPREAD_TRAP) 与浅开阻上。
+     * 6. 积分榜战意差值 (strategic_motivation): 保级生死战或争冠冲刺期战意加权，面对中游无欲无求球队具备战意压制。
+     * 7. 非线性进球时段与实战终结能力综合研判 (non_linear_time_decay): 严禁将 30-45'+ 或 75-90'+ 机械当作进球公式！宏观时段权重仅作为时间背景先验。必须深度结合【球队真实进攻终结能力 (累计射正数、三区危攻转化速率、得分手段多样性如定位球/边路高空/反击直塞/核心射手在场)】与【比分战意催化 (1球分差搏杀 vs 3球差距垃圾时间)】。若进攻便秘、全场 0 射正或双方鸣金收兵，即便处于 85' 终局时段，也必须判定为小球/防守僵局 (STERILE_POSSESSION / DEFENSIVE_STALEMATE)，绝不得盲目追大！
+     * 8. 联赛层级与地域技战术基因库 (league_regional_dna): 必须区分不同联赛与赛制的天然风格特征（如荷乙/德乙全攻全守大球高发、南美阿甲/哥伦甲哨碎肉搏小球胶着、北欧长传冲吊角球极高、日职韩K阵型严明擅长控节奏保小胜）。杯赛与青年赛/友谊赛轮换大、战意飘忽，阵容未确认前严禁盲目按豪门名气推让深盘！`;
 
   const verifiedOptionRule = `【YBTY真实选项白名单・最高优先级】
 全场/半场大小球、让球、独赢1X2禁止手工填写或改写投注盘口。必须先从本场 verified_ybty_markets 选择一个真实 option，并原样返回它的 option_id 到 market_option_id。系统将根据 option_id 自动回填并锁定 direction、line、odds，AI填写的同名字段不作为投注依据。严禁把 reference_odds 当作投注赔率；严禁自行换盘、猜盘或生成YBTY未提供的半场盘口。某市场不在 verified_ybty_markets 时必须返回 market_option_id=null、status=unavailable、odds=null、line=null。概率必须针对该 option_id 对应的真实盘口单独评估，不得把其他盘口概率套用过来。`;
@@ -1092,76 +1094,9 @@ ${oddsSourceRoles}
 ${candidatesInfoText || '无比赛数据'}
 ---【用户要求生成的串关规格】---
 ${JSON.stringify(requests)}
----【历史台账反馈】---
-${JSON.stringify(historicalFeedback)}
+`;
 
----【串关 Legs 字段命名与比分规范（极其重要）】---
-1. market 必须填写中文标准玩法名称，例如 "全场大小球", "全场让球", "全场独赢1X2", "半场大小球", "半场让球"。严禁输出 full_total, full_spread, full_h2h 等英文键名！
-2. line 必须明确注明的投注方向与盘口值（大小球带大/小，让球盘带球队名与盘口，独赢盘写主胜/客胜/平局）。
-3. 每条腿必须附带当时比分 (score: {home, away}) 与分钟 (minute)，以及操盘策略建议 (pro_strategy)。
-4. 整单量化指标计算：必须计算 joint_probability（联合胜率 %）、combined_ev_pct（整单预期价值边际 %）、kelly_fraction_pct（1/4 凯利建议注码 %）和 correlation_audit（反脆弱独立性审计）。
-
-请从每场比赛的 5 大真实盘口（verified_ybty_markets）与多维数据中，结合单场初评参考，动态选择胜率扎实且赔率合理的最佳方向，按要求生成串关。输出严格的 JSON 结构：
-{
-  "summary": "本次多规格串关生成总结",
-  "grade": "A | B | C",
-  "recommendation": {
-    "market": "串关组合核对结论",
-    "line": "N/A",
-    "odds": 1.85,
-    "best_timing_tip": "串关下注建议"
-  },
-  "score_verified": false,
-  "score_source": "ybty_market",
-  "verification_passed": true,
-  "evidence": ["串关安全点1"],
-  "risks": ["串关风险拦截项1"],
-  "timing_strategy": "串关资金策略",
-  "parlay_safety_check": {
-    "is_valid_parlay": true,
-    "allow_max_parlay_tickets": 1,
-    "reasons": ["分析说明"]
-  },
-  "parlay_recommendations": [
-    {
-      "size": 2,
-      "ticket_index": 1,
-      "grade": "A|B|C",
-      "estimated_total_odds": 3.65,
-      "joint_probability": 31.2,
-      "combined_ev_pct": 13.9,
-      "kelly_fraction_pct": 0.95,
-      "sharpe_assessment": "HIGH_EDGE_CORE",
-      "correlation_audit": {
-        "independence_score": 90,
-        "tactical_synergy": "半场压迫抢先机与全场大球形成节奏联动",
-        "correlation_risk_check": "passed",
-        "notes": "两场比赛分属不同联赛，战术剧本无冲突，不存在同质化轮换爆仓风险"
-      },
-      "reason": "选单理由与正期望值论证",
-      "legs": [
-        {
-          "match": "比赛名",
-          "ybty_home": "主队",
-          "ybty_away": "客队",
-          "minute": 45,
-          "score": { "home": 0, "away": 0 },
-          "market": "全场让球",
-          "market_option_id": "full_spread__1",
-          "line": "主队 -0.5",
-          "odds": 1.88,
-          "odds_source": "ybty_verified",
-          "probability": 65,
-          "grade": "A|B|C",
-          "pro_strategy": "策略A：半场确认攻势后追加全场大球",
-          "reference_odds_usage": "雷速赔率轨迹如何辅助判断"
-        }
-      ]
-    }
-  ]
-}`;
-
-    const parlayPrompts = isExportPrompt && parlayDataChunks.length > 1
+    const parlayPrompts = parlayDataChunks.length > 1
       ? parlayDataChunks.map((chunk, index) => {
           const chunkText = formatParlayChunkText(chunk, index, parlayDataChunks.length);
           if (index < parlayDataChunks.length - 1) {
@@ -1425,10 +1360,11 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
 5. Live Score Verification:
    - If score_verified is false, DO NOT give any A/B grade real market recommendations. All 5 real markets must be status="avoid" / grade="NO_BET".
 
-6. Completeness & Identity Preservation Constraint:
-   - CRITICAL: You MUST output all ${chunkData.length} matches in the "matches" array.
+6. Completeness, Compact Reason & Output Token Risk Control Constraint:
+   - CRITICAL: You MUST output all ${chunkData.length} matches in the "matches" array without omitting any match.
    - ⚠️ MUST PRESERVE IDENTIFIERS VERBATIM: You must preserve match_id, leisu_match_id, match, ybty_home, and ybty_away exactly as provided in the input. Do NOT translate, modify, transliterate, or omit them.
    - For every match, market_assessments must include all 5 core real markets.
+   - ⚠️【输出紧凑精炼约束 · 防止长文本截断】: 每个玩法的 reason 必须精简为 1~2 句话 (现场物理数据事实 + 战术推演 + 真实EV判定)，严禁长篇大论，确保完整输出全部 ${chunkData.length} 场比赛的合法有效 JSON 且末尾正常闭合。
 
 [Output JSON Schema Template]
 {

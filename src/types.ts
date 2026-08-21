@@ -42,13 +42,66 @@ export interface LineupData {
     players?: string[];
     starters?: string[];
     substitutes?: string[];
+    formation?: string;
   };
   away?: {
     team?: string;
     players?: string[];
     starters?: string[];
     substitutes?: string[];
+    formation?: string;
   };
+  home_formation?: string;
+  away_formation?: string;
+}
+
+export type FormationType = 
+  | '4-3-3'
+  | '4-2-3-1'
+  | '4-4-2'
+  | '4-4-2-diamond'
+  | '3-5-2'
+  | '3-4-3'
+  | '5-3-2'
+  | '5-4-1'
+  | '4-1-4-1'
+  | '3-4-2-1'
+  | '5-2-3'
+  | '4-2-2-2';
+
+export interface FormationClashResult {
+  home_formation: FormationType;
+  away_formation: FormationType;
+  home_formation_name: string;
+  away_formation_name: string;
+  clash_verdict: 'ADVANTAGE_HOME' | 'ADVANTAGE_AWAY' | 'TACTICAL_STALEMATE' | 'OPEN_GOAL_FEST' | 'DEFENSIVE_ATTRITION';
+  clash_verdict_zh: string;
+  formation_clash_score: number;
+  midfield_battle: {
+    winner: 'HOME' | 'AWAY' | 'EVEN';
+    home_midfielders: number;
+    away_midfielders: number;
+    analysis_zh: string;
+  };
+  flank_battle: {
+    winner: 'HOME' | 'AWAY' | 'EVEN';
+    analysis_zh: string;
+  };
+  box_and_backline_battle: {
+    home_attack_vs_away_defense_zh: string;
+    away_attack_vs_home_defense_zh: string;
+  };
+  home_exploit_points_zh: string[];
+  away_exploit_points_zh: string[];
+  expected_pace_and_goals: 'HIGH_GOAL_TREND' | 'LOW_GOAL_ATTRITION' | 'ONE_SIDED_DOMINANCE' | 'COUNTER_ATTACK_TRAP';
+  expected_pace_zh: string;
+  betting_implications: {
+    handicap_angle_zh: string;
+    total_goals_angle_zh: string;
+    corner_threat_angle_zh: string;
+    recommended_play_focus: string[];
+  };
+  master_tactical_breakdown_zh: string;
 }
 
 export interface BankrollGuidance {
@@ -58,7 +111,59 @@ export interface BankrollGuidance {
   guidance_text: string;
 }
 
-export interface DecisionItem {
+/**
+ * 1. 标准化核心技术统计 (统一数值化，彻底杜绝字符串解析与多源冲突)
+ */
+export interface UnifiedMatchStats {
+  possession: { home: number; away: number };
+  shots: { home: number; away: number };
+  shots_on_target: { home: number; away: number };
+  corners: { home: number; away: number };
+  dangerous_attacks: { home: number; away: number };
+  yellow_cards: { home: number; away: number };
+  red_cards: { home: number; away: number };
+  momentum_index?: { home: number; away: number };
+}
+
+/**
+ * 2. 战术与基本面上下文 (精炼提炼，杜绝深层杂乱嵌套)
+ */
+export interface TacticalContext {
+  formation: { home: string; away: string };
+  formation_clash_verdict?: string;
+  formation_clash_summary?: string;
+  standings_summary?: string;
+  home_form?: string;
+  away_form?: string;
+  h2h_summary?: string;
+  lineup_status: 'CONFIRMED' | 'PROJECTED' | 'UNKNOWN';
+  key_absences_count: { home: number; away: number };
+  corner_danger_level?: string;
+  effective_late_goal_risk?: string;
+  h2h_matches?: any[];
+  home_recent_matches?: any[];
+  away_recent_matches?: any[];
+}
+
+/**
+ * 3. 真实可投盘口快照 (白名单过滤，清晰易读)
+ */
+export interface MarketSnapshot {
+  market_type: 'spread' | 'total' | 'h2h' | string;
+  line?: string | number | null;
+  home_or_over_odds?: number;
+  away_or_under_odds?: number;
+  draw_odds?: number;
+  is_verified: boolean;
+  raw_option_ids?: string[];
+}
+
+/**
+ * 4. 全局标准比赛对象 (StandardMatchData)
+ * 统一替换旧有冗余结构，成为全系统唯一事实来源
+ */
+export interface StandardMatchData {
+  id: string;
   match: string;
   match_id?: string | number;
   leisu_match_id?: string | number;
@@ -66,24 +171,36 @@ export interface DecisionItem {
   ybty_league?: string;
   leisu_league?: string;
   ybty_match?: string;
-  ybty_home?: string;
-  ybty_away?: string;
+  ybty_home: string;
+  ybty_away: string;
+  home_team: string;
+  away_team: string;
   leisu_match?: string;
   leisu_home?: string;
   leisu_away?: string;
   ybty_start_time?: string | null;
   ybty_start_time_beijing?: string | null;
+  start_time_beijing?: string | null;
   commence_time?: string | null;
   provider_start_time?: string | null;
   captured_at?: string;
-  minute?: number;
-  score?: Score;
+  minute: number;
+  score: Score;
   ht_score?: Score | null;
+  half_time_score?: Score | null;
   score_source?: string;
   score_verified?: boolean;
   status: 'WATCH' | 'PASS' | 'RESEARCH' | string;
   grade?: 'A' | 'B' | 'C' | string;
   model_score?: number;
+  
+  // 核心精简标准化字段 (统一事实源)
+  unified_stats: UnifiedMatchStats;
+  tactical_context: TacticalContext;
+  market_snapshots: MarketSnapshot[];
+  timeline_events?: any[];
+  attack_momentum_timeline?: any;
+
   recommendation?: {
     market?: string;
     line?: number | string;
@@ -115,8 +232,286 @@ export interface DecisionItem {
   };
   risks?: string[];
   evidence?: string[];
+  formation_clash?: FormationClashResult;
+  home_formation?: FormationType;
+  away_formation?: FormationType;
   intercept_reason?: string;
   snapshot_delta?: any;
+}
+
+// 统一别名，确保全局已有引用平滑无缝升级
+export type DecisionItem = StandardMatchData;
+
+/**
+ * 数据标准化转换函数：确保所有源数据（雷速/YBTY）均经过此接口转换，消除冗余和空字段
+ */
+export function toStandardMatchData(raw: any): StandardMatchData {
+  if (!raw) {
+    return {
+      id: '',
+      match: '',
+      ybty_home: '',
+      ybty_away: '',
+      home_team: '',
+      away_team: '',
+      minute: 0,
+      score: { home: 0, away: 0 },
+      status: 'WATCH',
+      unified_stats: {
+        possession: { home: 50, away: 50 },
+        shots: { home: 0, away: 0 },
+        shots_on_target: { home: 0, away: 0 },
+        corners: { home: 0, away: 0 },
+        dangerous_attacks: { home: 0, away: 0 },
+        yellow_cards: { home: 0, away: 0 },
+        red_cards: { home: 0, away: 0 },
+      },
+      tactical_context: {
+        formation: { home: '4-2-3-1', away: '4-2-3-1' },
+        lineup_status: 'UNKNOWN',
+        key_absences_count: { home: 0, away: 0 },
+        h2h_matches: [],
+        home_recent_matches: [],
+        away_recent_matches: [],
+      },
+      market_snapshots: [],
+      timeline_events: [],
+    };
+  }
+
+  // If already standard with pure fields, return as is
+  if (raw.unified_stats && raw.tactical_context && raw.market_snapshots && raw.timeline_events !== undefined) {
+    return raw as StandardMatchData;
+  }
+
+  const matchId = String(raw.match_id || raw.id || raw.leisu_match_id || '');
+  const homeTeam = String(raw.ybty_home || raw.home || raw.home_team || raw.leisu_home || '主队');
+  const awayTeam = String(raw.ybty_away || raw.away || raw.away_team || raw.leisu_away || '客队');
+  const league = String(raw.league || raw.ybty_league || raw.leisu_league || '常规赛事');
+
+  let scoreHome = 0;
+  let scoreAway = 0;
+  if (typeof raw.score === 'object' && raw.score !== null) {
+    scoreHome = Number(raw.score.home ?? 0);
+    scoreAway = Number(raw.score.away ?? 0);
+  } else if (typeof raw.score === 'string' && raw.score.includes('-')) {
+    const parts = raw.score.split('-');
+    scoreHome = parseInt(parts[0], 10) || 0;
+    scoreAway = parseInt(parts[1], 10) || 0;
+  }
+
+  const liveStats = raw.live_statistics || raw.liveStats || raw.detail_context?.formal?.live_match?.confirmed_statistics || {};
+  const incidents = raw.focused_incidents || raw.detail_context?.focused_incidents || {};
+
+  const parseSideStat = (statVal: any, side: 'home' | 'away', fallback = 0): number => {
+    if (statVal === null || statVal === undefined) return fallback;
+    if (typeof statVal === 'number') return isNaN(statVal) ? fallback : statVal;
+    if (typeof statVal === 'object') {
+      const v = statVal[side] ?? (side === 'home' ? statVal.home_team : statVal.away_team);
+      const num = Number(v);
+      return isNaN(num) ? fallback : num;
+    }
+    if (typeof statVal === 'string') {
+      if (statVal.includes('-') || statVal.includes(':') || statVal.includes('/')) {
+        const parts = statVal.split(/[-:\/]/);
+        const num = parseInt(side === 'home' ? parts[0] : parts[1], 10);
+        return isNaN(num) ? fallback : num;
+      }
+      const num = Number(statVal);
+      return isNaN(num) ? fallback : num;
+    }
+    return fallback;
+  };
+
+  const cornersHome = parseSideStat(incidents?.cards_and_corners?.corners, 'home',
+    parseSideStat(liveStats?.corners, 'home',
+      Number(liveStats?.corners_home ?? liveStats?.home?.corners ?? liveStats?.home?.corner_kicks ?? 0)
+    )
+  );
+  const cornersAway = parseSideStat(incidents?.cards_and_corners?.corners, 'away',
+    parseSideStat(liveStats?.corners, 'away',
+      Number(liveStats?.corners_away ?? liveStats?.away?.corners ?? liveStats?.away?.corner_kicks ?? 0)
+    )
+  );
+
+  const posHome = parseSideStat(liveStats?.possession, 'home',
+    Number(liveStats?.possession_home ?? liveStats?.home?.possession ?? 50)
+  );
+  const posAway = parseSideStat(liveStats?.possession, 'away',
+    Number(liveStats?.possession_away ?? liveStats?.away?.possession ?? 50)
+  );
+
+  const shotsHome = parseSideStat(liveStats?.shots, 'home',
+    Number(liveStats?.shots_home ?? liveStats?.home?.shots ?? 0)
+  );
+  const shotsAway = parseSideStat(liveStats?.shots, 'away',
+    Number(liveStats?.shots_away ?? liveStats?.away?.shots ?? 0)
+  );
+
+  const targetHome = parseSideStat(liveStats?.shots_on_target, 'home',
+    Number(liveStats?.shots_on_target_home ?? liveStats?.home?.shots_on_target ?? 0)
+  );
+  const targetAway = parseSideStat(liveStats?.shots_on_target, 'away',
+    Number(liveStats?.shots_on_target_away ?? liveStats?.away?.shots_on_target ?? 0)
+  );
+
+  const dangHome = parseSideStat(liveStats?.dangerous_attacks, 'home',
+    Number(liveStats?.dangerous_attacks_home ?? liveStats?.home?.dangerous_attacks ?? 0)
+  );
+  const dangAway = parseSideStat(liveStats?.dangerous_attacks, 'away',
+    Number(liveStats?.dangerous_attacks_away ?? liveStats?.away?.dangerous_attacks ?? 0)
+  );
+
+  const yellowHome = parseSideStat(incidents?.cards_and_corners?.yellow_cards, 'home',
+    parseSideStat(liveStats?.yellow_cards, 'home',
+      Number(liveStats?.yellow_cards_home ?? liveStats?.home?.yellow_cards ?? 0)
+    )
+  );
+  const yellowAway = parseSideStat(incidents?.cards_and_corners?.yellow_cards, 'away',
+    parseSideStat(liveStats?.yellow_cards, 'away',
+      Number(liveStats?.yellow_cards_away ?? liveStats?.away?.yellow_cards ?? 0)
+    )
+  );
+
+  const redHome = parseSideStat(incidents?.cards_and_corners?.red_cards, 'home',
+    parseSideStat(liveStats?.red_cards, 'home',
+      Number(liveStats?.red_cards_home ?? liveStats?.home?.red_cards ?? 0)
+    )
+  );
+  const redAway = parseSideStat(incidents?.cards_and_corners?.red_cards, 'away',
+    parseSideStat(liveStats?.red_cards, 'away',
+      Number(liveStats?.red_cards_away ?? liveStats?.away?.red_cards ?? 0)
+    )
+  );
+
+  const unified_stats: UnifiedMatchStats = {
+    possession: { home: posHome, away: posAway },
+    shots: { home: shotsHome, away: shotsAway },
+    shots_on_target: { home: targetHome, away: targetAway },
+    corners: { home: cornersHome, away: cornersAway },
+    dangerous_attacks: { home: dangHome, away: dangAway },
+    yellow_cards: { home: yellowHome, away: yellowAway },
+    red_cards: { home: redHome, away: redAway },
+  };
+
+  const lineups = raw.lineups || raw.detail_context?.formal?.lineup || raw.detail_context?.lineup;
+  const formationClash = raw.formation_clash;
+  
+  // Extract Historical Matches & Form Lists cleanly
+  const ctx = raw.detail_context || {};
+  const hist = raw.recent_trends?.historical_analysis || ctx.formal?.historical_analysis || ctx.formal?.history || {};
+  const trends = raw.recent_trends || raw.trend_summary || {};
+  const h2hMatches = Array.isArray(raw.h2h) ? raw.h2h : Array.isArray(hist.head_to_head) ? hist.head_to_head : Array.isArray(trends.h2h) ? trends.h2h : Array.isArray(ctx.h2h) ? ctx.h2h : [];
+  const homeRecent = Array.isArray(trends?.home?.matches) ? trends.home.matches : Array.isArray(trends?.home_recent_form?.matches) ? trends.home_recent_form.matches : Array.isArray(hist?.home_recent_form?.matches) ? hist.home_recent_form.matches : Array.isArray(ctx.home_recent) ? ctx.home_recent : Array.isArray(ctx.recent_matches?.home) ? ctx.recent_matches.home : [];
+  const awayRecent = Array.isArray(trends?.away?.matches) ? trends.away.matches : Array.isArray(trends?.away_recent_form?.matches) ? trends.away_recent_form.matches : Array.isArray(hist?.away_recent_form?.matches) ? hist.away_recent_form.matches : Array.isArray(ctx.away_recent) ? ctx.away_recent : Array.isArray(ctx.recent_matches?.away) ? ctx.recent_matches.away : [];
+
+  const tactical_context: TacticalContext = {
+    formation: {
+      home: String(raw.home_formation || formationClash?.home_formation || lineups?.home_formation || '4-2-3-1'),
+      away: String(raw.away_formation || formationClash?.away_formation || lineups?.away_formation || '4-2-3-1'),
+    },
+    formation_clash_verdict: formationClash?.clash_verdict,
+    formation_clash_summary: formationClash?.clash_verdict_zh || formationClash?.master_tactical_breakdown_zh,
+    standings_summary: raw.recent_trends?.standings || raw.trend_summary?.standings || raw.tactical_context?.standings_summary,
+    home_form: raw.trend_summary?.home_form || raw.tactical_context?.home_form,
+    away_form: raw.trend_summary?.away_form || raw.tactical_context?.away_form,
+    h2h_summary: raw.trend_summary?.h2h_summary || raw.tactical_context?.h2h_summary,
+    lineup_status: lineups?.status === 'confirmed' || lineups?.status === 'CONFIRMED' ? 'CONFIRMED' : 'PROJECTED',
+    key_absences_count: { home: 0, away: 0 },
+    h2h_matches: h2hMatches,
+    home_recent_matches: homeRecent,
+    away_recent_matches: awayRecent,
+  };
+
+  const market_snapshots: MarketSnapshot[] = [];
+  if (Array.isArray(raw.market_snapshots) && raw.market_snapshots.length > 0) {
+    market_snapshots.push(...raw.market_snapshots);
+  } else {
+    if (raw.ybty_markets?.spread) {
+      market_snapshots.push({
+        market_type: 'spread',
+        line: raw.ybty_markets.spread.home_line ?? raw.ybty_markets.spread.away_line,
+        home_or_over_odds: raw.ybty_markets.spread.home_odds,
+        away_or_under_odds: raw.ybty_markets.spread.away_odds,
+        is_verified: !raw.ybty_markets.spread.home_suspended,
+      });
+    }
+    if (raw.ybty_markets?.total) {
+      market_snapshots.push({
+        market_type: 'total',
+        line: raw.ybty_markets.total.line,
+        home_or_over_odds: raw.ybty_markets.total.over_odds,
+        away_or_under_odds: raw.ybty_markets.total.under_odds,
+        is_verified: !raw.ybty_markets.total.over_suspended,
+      });
+    }
+    if (raw.ybty_markets?.h2h) {
+      market_snapshots.push({
+        market_type: 'h2h',
+        home_or_over_odds: raw.ybty_markets.h2h.home_odds,
+        away_or_under_odds: raw.ybty_markets.h2h.away_odds,
+        draw_odds: raw.ybty_markets.h2h.draw_odds,
+        is_verified: !raw.ybty_markets.h2h.home_suspended,
+      });
+    }
+  }
+
+  // Extract Timeline Events cleanly
+  const rawTimelineEvents = [
+    ...(Array.isArray(raw.timeline_events) ? raw.timeline_events : []),
+    ...(Array.isArray(raw.text_live) ? raw.text_live : []),
+    ...(Array.isArray(raw.focused_incidents?.match_events) ? raw.focused_incidents.match_events : []),
+    ...(Array.isArray(raw.detail_context?.formal?.live_match?.text_live) ? raw.detail_context.formal.live_match.text_live : []),
+    ...(Array.isArray(raw.detail_context?.formal?.live_match?.incidents) ? raw.detail_context.formal.live_match.incidents : []),
+  ];
+
+  // Extract Momentum Timeline
+  const attackMomentumTimeline = raw.attack_momentum_timeline ||
+    raw.detail_context?.formal?.live_match?.attack_momentum_timeline ||
+    raw.detail_context?.formal?.attack_momentum_timeline ||
+    raw.live_match_physical_facts?.attack_momentum_timeline ||
+    null;
+
+  return {
+    id: matchId || `${homeTeam}_vs_${awayTeam}`,
+    match: raw.match || `${homeTeam} vs ${awayTeam}`,
+    match_id: matchId,
+    leisu_match_id: String(raw.leisu_match_id || raw.detail_context?.formal?.static_match?.id || raw.detail_context?.formal?.live_match?.match_id || matchId),
+    league,
+    ybty_league: String(raw.ybty_league || league),
+    leisu_league: String(raw.leisu_league || league),
+    ybty_match: String(raw.ybty_match || raw.match || `${homeTeam} vs ${awayTeam}`),
+    ybty_home: homeTeam,
+    ybty_away: awayTeam,
+    home_team: homeTeam,
+    away_team: awayTeam,
+    leisu_home: String(raw.leisu_home || raw.detail_context?.formal?.live_match?.home || homeTeam),
+    leisu_away: String(raw.leisu_away || raw.detail_context?.formal?.live_match?.away || awayTeam),
+    start_time_beijing: raw.start_time_beijing || raw.ybty_start_time_beijing || raw.time || null,
+    ybty_start_time_beijing: raw.ybty_start_time_beijing || raw.start_time_beijing || null,
+    ybty_start_time: raw.ybty_start_time || null,
+    captured_at: raw.captured_at || new Date().toISOString(),
+    minute: Number(raw.minute || 0),
+    score: { home: scoreHome, away: scoreAway },
+    score_source: String(raw.score_source || (raw.score_verified ? 'ybty+leisu_api' : 'machine_detected')),
+    score_verified: Boolean(raw.score_verified),
+    status: raw.status || 'WATCH',
+    grade: raw.grade || 'C',
+    model_score: Number(raw.model_score || 0),
+    unified_stats,
+    tactical_context,
+    market_snapshots,
+    timeline_events: rawTimelineEvents,
+    attack_momentum_timeline: attackMomentumTimeline,
+    recommendation: raw.recommendation || null,
+    risks: Array.isArray(raw.risks) ? raw.risks : [],
+    evidence: Array.isArray(raw.evidence) ? raw.evidence : [],
+    intercept_reason: raw.intercept_reason || '',
+    snapshot_delta: raw.snapshot_delta || null,
+    formation_clash: raw.formation_clash || undefined,
+    home_formation: raw.home_formation || undefined,
+    away_formation: raw.away_formation || undefined,
+  };
 }
 
 export interface DecisionsPayload {
@@ -324,6 +719,9 @@ export interface AIAnalysisResponse {
   };
   bankroll_guidance?: BankrollGuidance;
   game_momentum_phase?: string; // e.g. '0-15开局试探' | '15-45半场攻坚' | '45-60战术重组' | '75-90+终局反扑'
+  formation_clash?: FormationClashResult;
+  home_formation?: FormationType;
+  away_formation?: FormationType;
   score_verified: boolean;
   score_source: string;
   verification_passed: boolean;

@@ -421,7 +421,12 @@ export function stripNullsAndEmpty(obj: any): any {
   return obj;
 }
 
+import { CanonicalMatchData, canonicalizeRawMatchData } from './canonicalMatchModel';
+
 export function buildSlimPromptMatch(item: any, mode: string): any {
+  // 1. Convert any input to CanonicalMatchData single source of truth
+  const cData: CanonicalMatchData = item?.live_facts?.stats ? (item as CanonicalMatchData) : canonicalizeRawMatchData(item);
+
   const normalizedMarkets = normalizeYbtyMarketTypes(item?.ybty_raw_markets || item?.verified_ybty_markets || []);
   const verifiedMarkets = withVerifiedYbtyOptionIds(normalizedMarkets
     .filter((market: any) => BETTABLE_MARKET.test(String(market?.market || '')) && market?.market_type_verified !== false)
@@ -439,22 +444,36 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
     .filter((market: any) => market.options.length));
 
   const scoreVerification = resolveScoreVerification(item, mode === 'prematch_eval');
-  let liveStatistics = item?.live_statistics || item?.detail_context?.formal?.live_match?.confirmed_statistics || null;
-  if (liveStatistics && typeof liveStatistics === 'object') {
-    const { efficiency, ...cleanStats } = liveStatistics;
-    liveStatistics = cleanStats;
-  }
+  
+  // Use canonical stats
+  const liveStatsObj = {
+    possession_home: cData.live_facts.stats.possession.home,
+    possession_away: cData.live_facts.stats.possession.away,
+    shots_home: cData.live_facts.stats.shots.home,
+    shots_away: cData.live_facts.stats.shots.away,
+    shots_on_target_home: cData.live_facts.stats.shots_on_target.home,
+    shots_on_target_away: cData.live_facts.stats.shots_on_target.away,
+    corners_home: cData.live_facts.stats.corners.home,
+    corners_away: cData.live_facts.stats.corners.away,
+    dangerous_attacks_home: cData.live_facts.stats.dangerous_attacks.home,
+    dangerous_attacks_away: cData.live_facts.stats.dangerous_attacks.away,
+    yellow_cards_home: cData.live_facts.stats.yellow_cards.home,
+    yellow_cards_away: cData.live_facts.stats.yellow_cards.away,
+    red_cards_home: cData.live_facts.stats.red_cards.home,
+    red_cards_away: cData.live_facts.stats.red_cards.away,
+  };
 
-  const minute = Number(item?.minute || 0);
+  const minute = cData.live_facts.minute || Number(item?.minute || 0);
+  const scoreObj = cData.live_facts.score;
   const focusedIncidents = mode === 'prematch_eval' ? null : extractFocusedIncidents(item);
-  const pressureSummary = buildAttackPressureSummary(liveStatistics, item?.score);
+  const pressureSummary = buildAttackPressureSummary(liveStatsObj, scoreObj);
 
-  const league = item?.league || item?.ybty_league || item?.leisu_league || '';
-  const homeTeam = item?.ybty_home || item?.home || item?.home_team || '';
-  const awayTeam = item?.ybty_away || item?.away || item?.away_team || '';
-  const attackConversion = calculateAttackConversion(liveStatistics, item?.score);
+  const league = cData.meta.league_name;
+  const homeTeam = cData.meta.home_team;
+  const awayTeam = cData.meta.away_team;
+  const attackConversion = calculateAttackConversion(liveStatsObj, scoreObj);
   const formAndH2HDeep = deepMineFormAndH2H(item);
-  let handicapCalibration = mode === 'prematch_eval' ? null : calculateHandicapExpectancyMetrics(liveStatistics, item?.score, minute);
+  let handicapCalibration = mode === 'prematch_eval' ? null : calculateHandicapExpectancyMetrics(liveStatsObj, scoreObj, minute);
 
   // If live handicap calibration is absent (e.g. pre-match or before in-play statistics), calibrate baseline Poisson via Form & H2H Deep Mining
   if (!handicapCalibration && formAndH2HDeep?.form_weighted_poisson_prior) {
@@ -478,10 +497,9 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
     };
   }
 
-  const fiveMarketsCoupling = evaluateFiveMarketsSanityAndCoupling(verifiedMarkets, liveStatistics, item?.score);
+  const fiveMarketsCoupling = evaluateFiveMarketsSanityAndCoupling(verifiedMarkets, liveStatsObj, scoreObj);
   const lineupData = item?.lineups || item?.detail_context?.formal?.lineup || item?.detail_context?.lineup || item?.detail_context?.formal?.static_match?.lineup;
   const lineupTransparency = classifyLineupTransparency(lineupData);
-  const slimLineups = slimLineupDetails(lineupData);
   const tournamentRisk = detectTournamentRisk(league, lineupTransparency, homeTeam, awayTeam);
   const historicalH2HList = asArray(item?.recent_trends?.historical_analysis?.head_to_head || item?.head_to_head || item?.trend_summary?.h2h);
   const h2hRecencyAnalysis = analyzeH2HRecency(historicalH2HList);
@@ -503,23 +521,11 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
     };
   }).filter(Boolean);
 
-  const rawMatchId = String(
-    item?.match_id ||
-    item?.leisu_match_id ||
-    item?.id ||
-    item?.matched_leisu?.match_id ||
-    item?.matched_leisu_id ||
-    item?.candidate?.match_id ||
-    item?.candidate?.id ||
-    item?.detail_context?.formal?.static_match?.id ||
-    item?.detail_context?.formal?.live_match?.match_id ||
-    ''
-  ).trim();
-  const matchId = rawMatchId || undefined;
+  const matchId = cData.meta.match_id || undefined;
 
   const purePhysicalModel = calculatePurePhysicalMatchModel(
-    liveStatistics,
-    item?.score,
+    liveStatsObj,
+    scoreObj,
     minute,
     verifiedMarkets,
     formAndH2HDeep?.form_weighted_poisson_prior
@@ -547,15 +553,15 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
 
   const rawPayload = {
     match_info: {
-      match: item?.match || `${homeTeam} vs ${awayTeam}`,
+      match: `${homeTeam} vs ${awayTeam}`,
       match_id: matchId,
-      leisu_match_id: matchId,
+      leisu_match_id: cData.meta.leisu_match_id || matchId,
       league,
       ybty_home: homeTeam,
       ybty_away: awayTeam,
-      start_time_beijing: item?.ybty_start_time_beijing || item?.provider_start_time || '',
+      start_time_beijing: cData.meta.start_time_beijing || item?.ybty_start_time_beijing || item?.provider_start_time || '',
       minute: minute > 0 ? minute : undefined,
-      score: item?.score || null,
+      score: scoreObj,
       score_verified: scoreVerification.verified,
       score_source: scoreVerification.source,
       score_unverified_warning: (mode !== 'prematch_eval' && !scoreVerification.verified) ? '比分未交叉核验，严禁A/B级正式推荐' : undefined,
@@ -575,7 +581,7 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
         ...formAndH2HDeep,
         goal_distribution: goalDistribution || undefined,
       },
-      master_tactical_synthesis: buildMasterTacticalSynthesis(item, minute, verifiedMarkets) || undefined,
+      master_tactical_synthesis: buildMasterTacticalSynthesis(cData, minute, verifiedMarkets) || undefined,
       lineup_transparency: lineupTransparency.tier !== 'unknown_or_unannounced' ? lineupTransparency : undefined,
       fair_market_pricing: fairPricing.length > 0 ? fairPricing : undefined,
     },

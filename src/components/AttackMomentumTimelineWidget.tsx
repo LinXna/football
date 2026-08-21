@@ -153,30 +153,19 @@ function parseMinuteVal(
 export function parseMatchIncidents(match?: any): ParsedIncidentItem[] {
   if (!match) return [];
   const rawList = [
+    ...(Array.isArray(match.timeline_events) ? match.timeline_events : []),
     ...(Array.isArray(match.incidents) ? match.incidents : []),
     ...(Array.isArray(match.key_incidents) ? match.key_incidents : []),
     ...(Array.isArray(match.text_live) ? match.text_live : []),
     ...(Array.isArray(match.events) ? match.events : []),
     ...(Array.isArray(match.live_events) ? match.live_events : []),
     ...(Array.isArray(match.focused_incidents?.match_events) ? match.focused_incidents.match_events : []),
-    ...(Array.isArray(match.focused_incidents?.key_events) ? match.focused_incidents.key_events : []),
     ...(Array.isArray(match.detail_context?.formal?.live_match?.text_live) ? match.detail_context.formal.live_match.text_live : []),
     ...(Array.isArray(match.detail_context?.formal?.live_match?.incidents) ? match.detail_context.formal.live_match.incidents : []),
-    ...(Array.isArray(match.detail_context?.live_match?.text_live) ? match.detail_context.live_match.text_live : []),
-    ...(Array.isArray(match.detail_context?.live_match?.incidents) ? match.detail_context.live_match.incidents : []),
-    ...(Array.isArray(match.detail_context?.text_live) ? match.detail_context.text_live : []),
-    ...(Array.isArray(match.detail_context?.incidents) ? match.detail_context.incidents : []),
-    ...(Array.isArray(match.candidate?.detail_context?.formal?.live_match?.text_live) ? match.candidate.detail_context.formal.live_match.text_live : []),
-    ...(Array.isArray(match.candidate?.detail_context?.formal?.live_match?.incidents) ? match.candidate.detail_context.formal.live_match.incidents : []),
-    ...(Array.isArray(match.candidate?.incidents) ? match.candidate.incidents : []),
-    ...(Array.isArray(match.candidate?.text_live) ? match.candidate.text_live : []),
-    ...(Array.isArray(match.raw_data?.incidents) ? match.raw_data.incidents : []),
-    ...(Array.isArray(match.raw_data?.text_live) ? match.raw_data.text_live : []),
-    ...(Array.isArray(match._incidents) ? match._incidents : []),
   ];
 
-  const homeName = String(match?.ybty_home || match?.home || match?.home_team || '').trim();
-  const awayName = String(match?.ybty_away || match?.away || match?.away_team || '').trim();
+  const homeName = String(match?.home_team || match?.ybty_home || match?.home || '').trim();
+  const awayName = String(match?.away_team || match?.ybty_away || match?.away || '').trim();
   const homeLeisu = String(match?.leisu_home || match?.detail_context?.formal?.live_match?.home || '').trim();
   const awayLeisu = String(match?.leisu_away || match?.detail_context?.formal?.live_match?.away || '').trim();
 
@@ -342,16 +331,6 @@ export function extractAttackMomentumTimeline(match?: DecisionItem | any): Parse
     match?.attack_momentum_timeline ||
     match?.live_match_physical_facts?.attack_momentum_timeline ||
     match?.detail_context?.formal?.live_match?.attack_momentum_timeline ||
-    match?.detail_context?.formal?.attack_momentum_timeline ||
-    match?.detail_context?.live_match?.attack_momentum_timeline ||
-    match?.detail_context?.attack_momentum_timeline ||
-    match?.recent_trends?.attack_momentum_timeline ||
-    match?.live_statistics?.attack_momentum_timeline ||
-    match?.candidate?.attack_momentum_timeline ||
-    match?.candidate?.detail_context?.formal?.live_match?.attack_momentum_timeline ||
-    match?.raw?.attack_momentum_timeline ||
-    match?.raw_data?.attack_momentum_timeline ||
-    match?._detail_context?.formal?.live_match?.attack_momentum_timeline ||
     null;
 
   const incidents = parseMatchIncidents(match);

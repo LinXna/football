@@ -254,24 +254,21 @@ function generateDeterministicH2H(homeTeam: string, awayTeam: string, league: st
 }
 
 export function extractMatchRecentForm(match: DecisionItem): MatchRecentFormData {
-  const homeName = match.ybty_home || match.leisu_home || match.match.split('vs')[0]?.trim() || '主队';
-  const awayName = match.ybty_away || match.leisu_away || match.match.split('vs')[1]?.trim() || '客队';
+  const homeName = match.home_team || match.ybty_home || match.leisu_home || match.match.split('vs')[0]?.trim() || '主队';
+  const awayName = match.away_team || match.ybty_away || match.leisu_away || match.match.split('vs')[1]?.trim() || '客队';
   const league = match.league || match.ybty_league || match.leisu_league || '足球赛事';
 
-  // 1. Try to extract raw structured items if present
-  const ctx = match.detail_context || {};
-  const hist = match.recent_trends?.historical_analysis || ctx.formal?.historical_analysis || ctx.formal?.history || {};
-  const trends = match.recent_trends || (match as any).trend_summary || {};
-  
-  const rawH2H = (match as any).h2h || hist.head_to_head || trends.h2h || ctx.h2h || ctx.head_to_head;
-  const rawHomeMatches = trends?.home?.matches || trends?.home_recent_form?.matches || hist?.home_recent_form?.matches || ctx.home_recent || ctx.recent_matches?.home;
-  const rawAwayMatches = trends?.away?.matches || trends?.away_recent_form?.matches || hist?.away_recent_form?.matches || ctx.away_recent || ctx.recent_matches?.away;
+  // 1. Prioritize StandardMatchData tactical_context lists
+  const t = match.tactical_context || {} as any;
+  const rawH2H = Array.isArray(t.h2h_matches) && t.h2h_matches.length > 0 ? t.h2h_matches : null;
+  const rawHomeMatches = Array.isArray(t.home_recent_matches) && t.home_recent_matches.length > 0 ? t.home_recent_matches : null;
+  const rawAwayMatches = Array.isArray(t.away_recent_matches) && t.away_recent_matches.length > 0 ? t.away_recent_matches : null;
 
   let homeMatches: RecentMatchRecord[] = [];
   let awayMatches: RecentMatchRecord[] = [];
   let h2hMatches: RecentMatchRecord[] = [];
 
-  if (Array.isArray(rawHomeMatches) && rawHomeMatches.length > 0) {
+  if (rawHomeMatches && rawHomeMatches.length > 0) {
     homeMatches = rawHomeMatches.map((m: any, idx: number) => ({
       id: m.id || `raw_h_${idx}`,
       date: m.date || '近期',
@@ -293,7 +290,7 @@ export function extractMatchRecentForm(match: DecisionItem): MatchRecentFormData
     homeMatches = generateDeterministicMatches(homeName, league, false, awayName);
   }
 
-  if (Array.isArray(rawAwayMatches) && rawAwayMatches.length > 0) {
+  if (rawAwayMatches && rawAwayMatches.length > 0) {
     awayMatches = rawAwayMatches.map((m: any, idx: number) => ({
       id: m.id || `raw_a_${idx}`,
       date: m.date || '近期',
@@ -315,7 +312,7 @@ export function extractMatchRecentForm(match: DecisionItem): MatchRecentFormData
     awayMatches = generateDeterministicMatches(awayName, league, true, homeName);
   }
 
-  if (Array.isArray(rawH2H) && rawH2H.length > 0) {
+  if (rawH2H && rawH2H.length > 0) {
     h2hMatches = rawH2H.map((m: any, idx: number) => ({
       id: m.id || `raw_h2h_${idx}`,
       date: m.date || '往绩',

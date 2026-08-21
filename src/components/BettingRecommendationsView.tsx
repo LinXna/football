@@ -3,6 +3,7 @@ import { DecisionItem, getLeagueName, getTeamDisplay } from '../types';
 import { DataSupplementModal } from './DataSupplementModal';
 import { BatchSupplementModal } from './BatchSupplementModal';
 import { RecentFormModal } from './RecentFormModal';
+import { FormationClashModal } from './FormationClashModal';
 import { isQuarterLine, parseQuarterLine, getQuarterSplits, formatAsianLine } from '../lib/quarterSettlement';
 import { generateExtendedAnalysis } from '../lib/extendedRecommendation';
 import { analyzeDualConsensus, DualConsensusAnalysis, formatMarketLabel, formatBetOption } from '../lib/consensusArbitration';
@@ -42,6 +43,7 @@ import {
   Scale,
   ShieldX,
   Flame,
+  Swords,
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
@@ -95,6 +97,15 @@ export const BettingRecommendationsView: React.FC<Props> = ({
   const [isSingleModalOpen, setIsSingleModalOpen] = useState(false);
   const [selectedFormMatch, setSelectedFormMatch] = useState<DecisionItem | null>(null);
   const [customUpdatedMatches, setCustomUpdatedMatches] = useState<Record<string, DecisionItem>>({});
+  
+  // Formation Clash Modal State
+  const [isFormationModalOpen, setIsFormationModalOpen] = useState(false);
+  const [formationModalData, setFormationModalData] = useState<{
+    homeFormation?: string;
+    awayFormation?: string;
+    homeTeamName?: string;
+    awayTeamName?: string;
+  } | null>(null);
 
   // Batch Operations State
   const [selectedMatchNames, setSelectedMatchNames] = useState<string[]>([]);
@@ -452,35 +463,69 @@ export const BettingRecommendationsView: React.FC<Props> = ({
       }
     }
 
-    const h2h = m.ybty_markets?.h2h;
-    if (h2h) {
-      const options = [
-        { line: '主胜', odds: h2h.home_odds, suspended: h2h.home_suspended },
-        { line: '平局', odds: h2h.draw_odds, suspended: h2h.draw_suspended },
-        { line: '客胜', odds: h2h.away_odds, suspended: h2h.away_suspended },
-      ].filter((option) => !option.suspended && Number(option.odds) > 1);
-      options.sort((a, b) => Number(a.odds) - Number(b.odds));
-      if (options[0]) addRow('全场独赢（市场基准）', options[0].line, options[0].odds, '取自本次YBTY独赢盘真实赔率的最低赔率方向');
-    }
+    // 1. Prioritize StandardMatchData market_snapshots
+    if (Array.isArray(m.market_snapshots) && m.market_snapshots.length > 0) {
+      const h2hSnap = m.market_snapshots.find((s) => s.market_type === 'h2h');
+      if (h2hSnap) {
+        const options = [
+          { line: '主胜', odds: h2hSnap.home_or_over_odds },
+          { line: '平局', odds: h2hSnap.draw_odds },
+          { line: '客胜', odds: h2hSnap.away_or_under_odds },
+        ].filter((opt) => Number(opt.odds) > 1);
+        options.sort((a, b) => Number(a.odds) - Number(b.odds));
+        if (options[0]) addRow('全场独赢（市场基准）', options[0].line, options[0].odds, '取自本次YBTY独赢盘真实赔率的最低赔率方向');
+      }
 
-    const spread = m.ybty_markets?.spread;
-    if (spread) {
-      const options = [
-        { side: '主队', line: spread.home_line, odds: spread.home_odds, suspended: spread.home_suspended },
-        { side: '客队', line: spread.away_line, odds: spread.away_odds, suspended: spread.away_suspended },
-      ].filter((option) => !option.suspended && option.line !== undefined && Number(option.odds) > 1);
-      options.sort((a, b) => Number(a.odds) - Number(b.odds));
-      if (options[0]) addRow('全场让球（市场基准）', `${options[0].side} ${formatAsianLine(options[0].line!)}`, options[0].odds, '取自本次YBTY让球盘真实盘口和赔率');
-    }
+      const spreadSnap = m.market_snapshots.find((s) => s.market_type === 'spread');
+      if (spreadSnap && spreadSnap.line !== undefined) {
+        const options = [
+          { side: '主队', line: spreadSnap.line, odds: spreadSnap.home_or_over_odds },
+          { side: '客队', line: spreadSnap.line, odds: spreadSnap.away_or_under_odds },
+        ].filter((opt) => Number(opt.odds) > 1);
+        options.sort((a, b) => Number(a.odds) - Number(b.odds));
+        if (options[0]) addRow('全场让球（市场基准）', `${options[0].side} ${formatAsianLine(options[0].line!)}`, options[0].odds, '取自本次YBTY让球盘真实盘口和赔率');
+      }
 
-    const total = m.ybty_markets?.total;
-    if (total?.line !== undefined) {
-      const options = [
-        { side: '大球', odds: total.over_odds, suspended: total.over_suspended },
-        { side: '小球', odds: total.under_odds, suspended: total.under_suspended },
-      ].filter((option) => !option.suspended && Number(option.odds) > 1);
-      options.sort((a, b) => Number(a.odds) - Number(b.odds));
-      if (options[0]) addRow(`全场${options[0].side}（市场基准）`, formatAsianLine(total.line), options[0].odds, '取自本次YBTY大小球盘真实盘口和赔率');
+      const totalSnap = m.market_snapshots.find((s) => s.market_type === 'total');
+      if (totalSnap && totalSnap.line !== undefined && totalSnap.line !== null) {
+        const options = [
+          { side: '大球', odds: totalSnap.home_or_over_odds },
+          { side: '小球', odds: totalSnap.away_or_under_odds },
+        ].filter((opt) => Number(opt.odds) > 1);
+        options.sort((a, b) => Number(a.odds) - Number(b.odds));
+        if (options[0]) addRow(`全场${options[0].side}（市场基准）`, formatAsianLine(totalSnap.line), options[0].odds, '取自本次YBTY大小球盘真实盘口和赔率');
+      }
+    } else {
+      const h2h = m.ybty_markets?.h2h;
+      if (h2h) {
+        const options = [
+          { line: '主胜', odds: h2h.home_odds, suspended: h2h.home_suspended },
+          { line: '平局', odds: h2h.draw_odds, suspended: h2h.draw_suspended },
+          { line: '客胜', odds: h2h.away_odds, suspended: h2h.away_suspended },
+        ].filter((option) => !option.suspended && Number(option.odds) > 1);
+        options.sort((a, b) => Number(a.odds) - Number(b.odds));
+        if (options[0]) addRow('全场独赢（市场基准）', options[0].line, options[0].odds, '取自本次YBTY独赢盘真实赔率的最低赔率方向');
+      }
+
+      const spread = m.ybty_markets?.spread;
+      if (spread) {
+        const options = [
+          { side: '主队', line: spread.home_line, odds: spread.home_odds, suspended: spread.home_suspended },
+          { side: '客队', line: spread.away_line, odds: spread.away_odds, suspended: spread.away_suspended },
+        ].filter((option) => !option.suspended && option.line !== undefined && Number(option.odds) > 1);
+        options.sort((a, b) => Number(a.odds) - Number(b.odds));
+        if (options[0]) addRow('全场让球（市场基准）', `${options[0].side} ${formatAsianLine(options[0].line!)}`, options[0].odds, '取自本次YBTY让球盘真实盘口和赔率');
+      }
+
+      const total = m.ybty_markets?.total;
+      if (total?.line !== undefined) {
+        const options = [
+          { side: '大球', odds: total.over_odds, suspended: total.over_suspended },
+          { side: '小球', odds: total.under_odds, suspended: total.under_suspended },
+        ].filter((option) => !option.suspended && Number(option.odds) > 1);
+        options.sort((a, b) => Number(a.odds) - Number(b.odds));
+        if (options[0]) addRow(`全场${options[0].side}（市场基准）`, formatAsianLine(total.line), options[0].odds, '取自本次YBTY大小球盘真实盘口和赔率');
+      }
     }
 
     const seen = new Set<string>();
@@ -1177,13 +1222,27 @@ export const BettingRecommendationsView: React.FC<Props> = ({
             </div>
           </div>
 
-          <button
-            onClick={() => setShowExplanation(!showExplanation)}
-            className="px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-300 rounded-lg border border-slate-700 flex items-center gap-1.5 transition-colors"
-          >
-            <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{showExplanation ? '隐藏协议解析' : '显示 WATCH / PASS 解析'}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setFormationModalData(null);
+                setIsFormationModalOpen(true);
+              }}
+              className="px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-emerald-300 rounded-lg border border-emerald-500/40 flex items-center gap-1.5 transition-colors shadow-sm"
+              title="查看主流阵型战术克制法则与百科"
+            >
+              <Swords className="w-3.5 h-3.5 text-emerald-400" />
+              <span>⚔️ 阵型克制百科</span>
+            </button>
+
+            <button
+              onClick={() => setShowExplanation(!showExplanation)}
+              className="px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-300 rounded-lg border border-slate-700 flex items-center gap-1.5 transition-colors"
+            >
+              <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{showExplanation ? '隐藏协议解析' : '显示 WATCH / PASS 解析'}</span>
+            </button>
+          </div>
         </div>
 
         {/* WATCH & PASS Protocol Explanation Box */}
@@ -1846,6 +1905,27 @@ export const BettingRecommendationsView: React.FC<Props> = ({
 
                   {/* Actions */}
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const lineups = (m as any).lineups || (m as any).match?.lineups;
+                        const homeF = lineups?.home_formation || lineups?.home_formation_detected || '4-3-3';
+                        const awayF = lineups?.away_formation || lineups?.away_formation_detected || '4-4-2';
+                        const teams = getTeamDisplay(m);
+                        setFormationModalData({
+                          homeFormation: homeF,
+                          awayFormation: awayF,
+                          homeTeamName: teams.displayHome || teams.homeYbty || '主队',
+                          awayTeamName: teams.displayAway || teams.awayYbty || '客队',
+                        });
+                        setIsFormationModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shadow"
+                      title="演算双方阵型战术克制与空间博弈"
+                    >
+                      <Swords className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>⚔️ 阵型克制</span>
+                    </button>
+
                     <button
                       onClick={() => setSelectedFormMatch(m)}
                       className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shadow"
@@ -2657,6 +2737,19 @@ export const BettingRecommendationsView: React.FC<Props> = ({
           })}
         </div>
       )}
+
+      {/* Formation Clash Modal */}
+      <FormationClashModal
+        isOpen={isFormationModalOpen}
+        onClose={() => {
+          setIsFormationModalOpen(false);
+          setFormationModalData(null);
+        }}
+        initialHomeFormation={formationModalData?.homeFormation || '4-3-3'}
+        initialAwayFormation={formationModalData?.awayFormation || '4-4-2'}
+        homeTeamName={formationModalData?.homeTeamName || '主队'}
+        awayTeamName={formationModalData?.awayTeamName || '客队'}
+      />
 
       {/* Recent Form Popup Modal */}
       <RecentFormModal
