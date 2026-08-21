@@ -69,6 +69,7 @@ export interface CanonicalMatchData {
     home_recent_form?: string;
     away_recent_form?: string;
     h2h_summary?: string;
+    raw_lineup?: any;
     lineup: {
       status: 'CONFIRMED' | 'PROJECTED' | 'UNKNOWN';
       home_formation: string;
@@ -339,6 +340,7 @@ export function canonicalizeRawMatchData(raw: any): CanonicalMatchData {
       home_recent_form: raw?.trend_summary?.home_form,
       away_recent_form: raw?.trend_summary?.away_form,
       h2h_summary: quant?.form_and_h2h_deep_metrics?.head_to_head_deep?.tactical_matchup_note_zh,
+      raw_lineup: raw?.lineups || raw?.lineup || raw?.formal?.lineup || raw?.tactical_context?.lineup || null,
       lineup: {
         status: lineupRaw.tier === 'confirmed_official_lineup' ? 'CONFIRMED' : 'PROJECTED',
         home_formation: homeFormation,

@@ -34,6 +34,7 @@ import { createGeminiEvaluationHandler } from './server/services/geminiEvaluatio
 import { resolveMatchEvaluationMode } from './server/services/evaluationMode';
 import { chunkPromptItems } from './server/services/promptChunking';
 import { buildSlimPromptMatch } from './server/services/promptSlimPayload';
+import { buildPromptInterfaceContext } from './server/services/promptInterfaceFeatures';
 
 const app = express();
 const { host: HOST, port: PORT, environment: ENVIRONMENT, geminiModel: GEMINI_MODEL } = APP_CONFIG;

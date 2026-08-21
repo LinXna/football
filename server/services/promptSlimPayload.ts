@@ -16,6 +16,7 @@ import {
 } from './quantitativeFeatures';
 import { deepMineFormAndH2H } from './formAndH2HDeepMining';
 import { buildMasterTacticalSynthesis } from './advancedTacticalQuantitativeEngines';
+import { evaluateLeisuCornerQuantitativePricing } from './leisuCornerMarket';
 
 const BETTABLE_MARKET = /^(full|half)_(h2h|spread|total)$/;
 const KEY_EVENT = /进球|破门|goal|红牌|red card|黄牌|yellow card|角球|corner|半场结束|中场|half.?time|下半场开始|second half|点球|penalty|var|取消进球|伤退|受伤|injur|换人|substitut|中断|暂停/i;
@@ -585,6 +586,7 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
         goal_distribution: goalDistribution || undefined,
       },
       master_tactical_synthesis: buildMasterTacticalSynthesis(cData, minute, verifiedMarkets) || undefined,
+      leisu_corner_pricing: evaluateLeisuCornerQuantitativePricing(item, minute),
       lineup_transparency: lineupTransparency.tier !== 'unknown_or_unannounced' ? lineupTransparency : undefined,
       fair_market_pricing: fairPricing.length > 0 ? fairPricing : undefined,
     },

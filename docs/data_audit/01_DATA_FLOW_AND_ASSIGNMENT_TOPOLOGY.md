@@ -246,11 +246,12 @@
 | **控球率统计** | 雷速 `confirmed_statistics.possession` | `live_statistics.possession` | `UnifiedMatchStats.possession` | `{home, away}` | 0-100 整数，双方之和应为 100 |
 | **动量时序波形** | 雷速 `live_match.attack_momentum_timeline` | `recent_trends.attack_momentum_timeline`| `StandardMatchData.momentum_timeline` | `object` | 包含双半场各分钟攻守压制数值数组 |
 | **文字直播事件** | 雷速 `live_match.text_live` | `live_text.entries` | `StandardTimelineEvent[]` | `Array<object>`| 结构化清洗，提取进球、红黄牌、角球事件 |
-| **初盘赔率矩阵** | 雷速 `formal.opening_odds` | `reference_odds.opening` | `ReferenceMarket.opening_line` | `object` | 让球、独赢、大小球初始基准 |
-| **即时参考赔率** | 雷速 `formal.odds` | `reference_odds.current` | `ReferenceMarket.current_line` | `object` | 雷速多阶段即时赔率 |
-| **YBTY 实时让球** | YBTY `markets[full_spread]` | `market_source.markets[full_spread]`| `StandardMatchData.markets.spread` | `object` | 主盘 line, home_odds, away_odds |
-| **YBTY 实时大小** | YBTY `markets[full_total]` | `market_source.markets[full_total]` | `StandardMatchData.markets.total` | `object` | 主盘 line, over_odds, under_odds |
-| **YBTY 实时独赢** | YBTY `markets[full_h2h]` | `market_source.markets[full_h2h]` | `StandardMatchData.markets.h2h` | `object` | 主客平三项即时欧赔 |
+| **初盘赔率矩阵** | 雷速 `formal.opening_odds` | `reference_odds.opening` | `ReferenceMarket.opening_line` | `object` | 让球、独赢、大小球初始基准，用于初盘预期锚点 |
+| **即时参考赔率** | 雷速 `formal.odds` | `reference_odds.current` | `ReferenceMarket.current_line` | `object` | 雷速多阶段即时赔率，用于即盘对比与衰减度量（严禁用作投注赔率） |
+| **YBTY 实时让球** | YBTY `markets[full_spread]` | `market_source.markets[full_spread]`| `StandardMatchData.markets.spread` | `object` | **唯一法定投注执行让球**：主盘 line, home_odds, away_odds |
+| **YBTY 实时大小** | YBTY `markets[full_total]` | `market_source.markets[full_total]` | `StandardMatchData.markets.total` | `object` | **唯一法定投注执行大小**：主盘 line, over_odds, under_odds |
+| **YBTY 实时独赢** | YBTY `markets[full_h2h]` | `market_source.markets[full_h2h]` | `StandardMatchData.markets.h2h` | `object` | **唯一法定投注执行独赢**：主客平三项即时欧赔 |
+| **初盘vs即盘对照引擎**| 雷速初盘 + YBTY即盘(雷速即盘穿透兜底) | `snapshotDeltaEngine.ts` | `InitialVsLiveComparison` | `object` | 初盘基准与即盘对比，自动计算 Decay 衰减与成色研判（绝不显示破折号空值） |
 | **首发与替补阵容**| 雷速 `formal.lineup` | `lineups` | `LineupData` | `object` | 包含首发11人、阵型、教练及伤停 |
 | **历史交锋与战绩**| 雷速 `formal.recent_matches` / `head_to_head` | `recent_trends.historical_analysis` | `HistoricalAnalysisData` | `object` | 近10场交锋、近期战绩走势及积分 |
 | **进球时段分布** | 雷速 `formal.goal_distribution` | `recent_trends.goal_distribution` | `GoalDistributionData` | `object` | 15分钟各区间进球分布 |

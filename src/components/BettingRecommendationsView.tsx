@@ -2040,6 +2040,65 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                           </div>
                         </div>
 
+                        {/* 🏛️ 赛前初盘 vs 滚球即盘 预期偏离与战术成色 (无需等待二次导入，单批次/首批次即可对齐) */}
+                        {(() => {
+                          const delta = m.snapshot_delta || computeClientSnapshotDelta(m);
+                          const ivl = delta?.initial_vs_live;
+                          if (!ivl || !ivl.has_initial_data) return null;
+
+                          const statusColors: Record<string, string> = {
+                            VALUE_DILUTION_OPPORTUNITY: 'bg-amber-950/40 border-amber-500/40 text-amber-200',
+                            PERFORMANCE_BEATS_INITIAL: 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200',
+                            PERFORMANCE_MATCHES_INITIAL: 'bg-sky-950/40 border-sky-500/40 text-sky-200',
+                            PERFORMANCE_BELOW_INITIAL: 'bg-rose-950/40 border-rose-500/40 text-rose-200',
+                            NEUTRAL: 'bg-slate-900/60 border-slate-700/50 text-slate-300',
+                          };
+
+                          const badgeColors: Record<string, string> = {
+                            VALUE_DILUTION_OPPORTUNITY: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+                            PERFORMANCE_BEATS_INITIAL: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+                            PERFORMANCE_MATCHES_INITIAL: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
+                            PERFORMANCE_BELOW_INITIAL: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+                            NEUTRAL: 'bg-slate-800 text-slate-300 border-slate-600',
+                          };
+
+                          return (
+                            <div className={`flex flex-col gap-1.5 text-[10px] border rounded-lg p-2 font-mono ${statusColors[ivl.expectation_status] || statusColors.NEUTRAL}`}>
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-semibold text-slate-200 flex items-center gap-1">
+                                    <span>🏛️ 赛前初盘 vs 滚球即盘对照:</span>
+                                  </span>
+                                  {ivl.initial_handicap !== null && (
+                                    <span className="text-slate-300">
+                                      让球 [初: <strong className="text-sky-300">{ivl.initial_handicap > 0 ? `+${ivl.initial_handicap}` : ivl.initial_handicap}</strong> ➔ 现: <strong className="text-purple-300">{ivl.current_handicap !== null ? (ivl.current_handicap > 0 ? `+${ivl.current_handicap}` : ivl.current_handicap) : '-'}</strong>]
+                                      {ivl.handicap_decay !== null && ivl.handicap_decay !== 0 && (
+                                        <span className="ml-1 text-slate-400">({ivl.handicap_decay > 0 ? `+${ivl.handicap_decay}` : ivl.handicap_decay})</span>
+                                      )}
+                                    </span>
+                                  )}
+                                  {ivl.initial_total !== null && (
+                                    <span className="text-slate-300">
+                                      大小 [初: <strong className="text-amber-300">{ivl.initial_total}</strong> ➔ 现: <strong className="text-amber-200">{ivl.current_total ?? '-'}</strong>]
+                                      {ivl.total_decay !== null && ivl.total_decay !== 0 && (
+                                        <span className="ml-1 text-slate-400">({ivl.total_decay > 0 ? `+${ivl.total_decay}` : ivl.total_decay})</span>
+                                      )}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${badgeColors[ivl.expectation_status] || badgeColors.NEUTRAL}`}>
+                                  {ivl.expectation_tag}
+                                </span>
+                              </div>
+                              {ivl.expectation_verdict && (
+                                <div className="text-[10px] text-slate-300/90 leading-tight">
+                                  💡 <span className="font-sans">{ivl.expectation_verdict}</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+
                         {/* 📈 攻势动能与跨批次盘口合流 (Unified Momentum & Market Delta) */}
                         {(() => {
                           const delta = m.snapshot_delta || computeClientSnapshotDelta(m);
@@ -2049,24 +2108,20 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                             return (
                               <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] bg-slate-900/80 border border-indigo-500/30 rounded-lg px-3 py-1.5 text-indigo-200 font-mono">
                                 <span className="text-indigo-300 font-semibold flex items-center gap-1.5">
-                                  <span>⚡ 攻势时序基准 (首次导入已激活):</span>
-                                  {delta.momentum_report?.recent15m && (
-                                    <span className="text-amber-300 font-normal">
-                                      近15分【{delta.momentum_report.recent15m.directionZh}】
-                                    </span>
-                                  )}
-                                  {delta.momentum_report?.patternZh && (
-                                    <span className="text-slate-400 font-normal">
-                                      ({delta.momentum_report.patternZh})
-                                    </span>
+                                  <span>📈 跨批次盘口追踪 (首批采样已锁定):</span>
+                                  {delta.line_movement.handicap_line_drift !== null ? (
+                                    <span className="text-sky-300 font-normal">让球基准 [{delta.current_sample.handicap_market?.line ?? '-'}]</span>
+                                  ) : null}
+                                  {delta.current_sample.ou_market?.line !== null && (
+                                    <span className="text-indigo-300 font-normal">大小球基准 [{delta.current_sample.ou_market?.line}]</span>
                                   )}
                                 </span>
                                 <div className="flex flex-wrap items-center gap-2.5 text-[10px]">
                                   <span className="text-rose-300">
-                                    危攻场均 {delta.stat_acceleration.dangerous_attacks_rate_per_min}/分
+                                    危攻基准 {delta.stat_acceleration.dangerous_attacks_rate_per_min}/分
                                   </span>
                                   <span className="text-slate-400">
-                                    盘口基准已锁定
+                                    待二次导入计算差分
                                   </span>
                                   {delta.is_golden_entry_point && (
                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
@@ -2080,13 +2135,18 @@ export const BettingRecommendationsView: React.FC<Props> = ({
 
                           return (
                             <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] bg-indigo-950/50 border border-indigo-500/40 rounded-lg px-3 py-1.5 text-indigo-200 font-mono">
-                              <div className="flex flex-wrap items-center gap-1.5">
+                              <div className="flex flex-wrap items-center gap-2">
                                 <span className="text-indigo-300 font-semibold flex items-center gap-1">
-                                  <span>📈 跨批次动能合流 (距{delta.elapsed_minutes}'前):</span>
+                                  <span>📈 跨批次盘口与增量追踪 (距{delta.elapsed_minutes}'前):</span>
                                 </span>
-                                {delta.momentum_report?.recent15m && (
-                                  <span className="text-indigo-200">
-                                    近15分【{delta.momentum_report.recent15m.directionZh}】
+                                {delta.line_movement.ou_line_drop !== null && (
+                                  <span className={delta.line_movement.ou_line_drop < 0 ? "text-amber-300 font-bold" : "text-sky-300 font-normal"}>
+                                    📉 大小球 {delta.line_movement.ou_line_drop <= 0 ? `掉落 ${Math.abs(delta.line_movement.ou_line_drop)}球` : `升盘 +${delta.line_movement.ou_line_drop}球`}
+                                  </span>
+                                )}
+                                {delta.line_movement.handicap_line_drift !== null && delta.line_movement.handicap_line_drift !== 0 && (
+                                  <span className="text-purple-300 font-medium">
+                                    ⚖️ 让球变盘 {delta.line_movement.handicap_line_drift > 0 ? `+${delta.line_movement.handicap_line_drift}` : delta.line_movement.handicap_line_drift}
                                   </span>
                                 )}
                               </div>
@@ -2103,9 +2163,9 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                                 <span className="text-emerald-300">
                                   🎯射正 +{delta.stat_acceleration.shots_on_target_delta.total}
                                 </span>
-                                {delta.line_movement.ou_line_drop !== null && (
-                                  <span className="text-sky-300">
-                                    📉大小球盘口 {delta.line_movement.ou_line_drop <= 0 ? `掉落 ${Math.abs(delta.line_movement.ou_line_drop)}` : `+${delta.line_movement.ou_line_drop}`}
+                                {delta.stat_acceleration.corners_delta.total > 0 && (
+                                  <span className="text-yellow-300">
+                                    ⛳角球 +{delta.stat_acceleration.corners_delta.total}
                                   </span>
                                 )}
                                 {delta.is_golden_entry_point && (

@@ -112,7 +112,20 @@
 
 ---
 
-## 5. 后续运维与操作指引
+## 5. 阶段七：初盘 vs 即盘对照穿透提取与双轨盘口权责固化 (Phase 7 - v3.0.3)
+
+- **问题背景与业务诉求**：
+  1. “赛前初盘 vs 滚球即盘对照”栏中，部分比赛出现 `让球 [初: +0.25 ➔ 现: -]` 或 `大小 [初: 2.5 ➔ 现: -]` 即盘为破折号的问题；
+  2. 系统必须明确贯彻**双轨盘口权责**：YBTY 盘口是唯一真实的投注与结算执行盘口，雷速初盘、赛前盘与滚球即盘都是作为核心参考与辅助预测功能。
+- **实施完成项**：
+  - **`src/lib/snapshotDeltaEngine.ts` & `server/services/snapshotDeltaEngine.ts` 深度重构**：
+    - 建立多层级即盘提取链路：优先提取 YBTY 实时导出的让球/大小球主盘；若 YBTY 暂缺或封盘，自动向下穿透提取雷速即盘数据 `reference_market.instant_handicap/instant_total`、`current_line` 及 `markets.*.live`，彻底消除破折号空值。
+    - 结合雷速初盘基准（`initial_handicap/total`）与即盘数值，精准计算盘口衰减（`handicap_decay`, `total_decay`），自动识别“强队破门迟滞·初盘折价黄金期”与“攻势疲软·谨防初盘诱深”等战术成色模式。
+  - **全系统规范文档更新**：同步更新 `README.md`、`docs/AI_SYSTEM_AND_DATA_CONTRACT.md`、`docs/SYSTEM_DATA_CONTRACT_AND_MAPPING.md`、`docs/PREDICTION_FEATURE_METHODOLOGY.md`、`CUSTOM_INSTRUCTIONS_COMPLETE.md` 以及 `docs/data_audit/` 目录下全部拓扑、契约与审计报告。
+
+---
+
+## 6. 后续运维与操作指引
 
 1. **日常分析流水线调用**：
    - 滚球分析：

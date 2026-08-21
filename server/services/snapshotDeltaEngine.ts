@@ -20,6 +20,19 @@ export interface MatchSnapshotPoint {
   };
 }
 
+export interface InitialVsLiveAnalysis {
+  has_initial_data: boolean;
+  initial_handicap: number | null;
+  current_handicap: number | null;
+  handicap_decay: number | null;
+  initial_total: number | null;
+  current_total: number | null;
+  total_decay: number | null;
+  expectation_status: 'PERFORMANCE_BEATS_INITIAL' | 'PERFORMANCE_MATCHES_INITIAL' | 'PERFORMANCE_BELOW_INITIAL' | 'VALUE_DILUTION_OPPORTUNITY' | 'NEUTRAL';
+  expectation_tag: string;
+  expectation_verdict: string;
+}
+
 export interface MatchSnapshotDelta {
   has_history: boolean;
   sample_count: number;
@@ -36,7 +49,10 @@ export interface MatchSnapshotDelta {
     summary: string;
   };
 
-  // 2. Stat Accelerations & Velocities
+  // 2. Initial Pre-match vs Live Market Expectation Analysis
+  initial_vs_live: InitialVsLiveAnalysis;
+
+  // 3. Stat Accelerations & Velocities
   stat_acceleration: {
     dangerous_attacks_delta: { home: number; away: number; total: number };
     dangerous_attacks_rate_per_min: number; // e.g. 0.88 / min
@@ -47,7 +63,7 @@ export interface MatchSnapshotDelta {
     cards_delta: { yellow: number; red: number };
   };
 
-  // 3. Derived Quantitative Momentum Signals
+  // 4. Derived Quantitative Momentum Signals
   momentum_signal: 'HIGH_ATTACK_ACCELERATION' | 'GOLDEN_ENTRY_LINE_DROP' | 'PASSIVE_POSSESSION' | 'DISCIPLINE_COLLAPSE' | 'BALANCED_STALEMATE' | 'INSUFFICIENT_DELTA';
   momentum_assessment: string;
   is_golden_entry_point: boolean; // True if line dropped significantly while attack intensity sustained
@@ -152,6 +168,18 @@ function extractPrimaryOUMarket(item: any): { line: number | string | null; odds
       }
     }
   }
+
+  // Fallback to Leisu Reference Market
+  const ref = item.reference_market || item.leisu_reference_market || item.detail_context?.formal?.odds;
+  const instantTotal = ref?.instant_total ?? ref?.instant_over_under ?? ref?.current_line?.total ?? ref?.current?.total_goals?.line ?? ref?.markets?.total_goals?.live?.line ?? null;
+  if (instantTotal !== null && instantTotal !== undefined) {
+    return {
+      line: instantTotal,
+      odds: null,
+      direction: 'OVER',
+    };
+  }
+
   if (item.recommendation && /大小球|total/i.test(item.recommendation.market || '')) {
     return {
       line: item.recommendation.line,
@@ -180,7 +208,163 @@ function extractPrimaryHandicapMarket(item: any): { line: number | string | null
       }
     }
   }
+
+  // Fallback to Leisu Reference Market
+  const ref = item.reference_market || item.leisu_reference_market || item.detail_context?.formal?.odds;
+  const instantHandicap = ref?.instant_handicap ?? ref?.current_line?.handicap ?? ref?.current?.asian_handicap?.line ?? ref?.current?.asian_handicap?.handicap ?? ref?.markets?.asian_handicap?.live?.line ?? null;
+  if (instantHandicap !== null && instantHandicap !== undefined) {
+    return {
+      line: instantHandicap,
+      odds: null,
+      direction: 'HOME',
+    };
+  }
+
+  if (item.recommendation && /让球|spread|handicap/i.test(item.recommendation.market || '')) {
+    return {
+      line: item.recommendation.line,
+      odds: item.recommendation.odds,
+      direction: item.recommendation.direction || 'HOME',
+    };
+  }
+
   return undefined;
+}
+
+export function computeInitialVsLiveAnalysis(
+  item: any,
+  currentPoint: MatchSnapshotPoint
+): InitialVsLiveAnalysis {
+  const ref = item.reference_market || item.leisu_reference_market || item.detail_context?.formal?.odds;
+  const initialHandicapRaw = ref?.initial_handicap ?? ref?.opening_line?.handicap ?? ref?.opening?.asian_handicap?.handicap ?? ref?.opening?.asian_handicap?.line ?? null;
+  const initialTotalRaw = ref?.initial_total ?? ref?.initial_over_under ?? ref?.opening_line?.total ?? ref?.opening?.total_goals?.line ?? null;
+
+  const initialHandicap = initialHandicapRaw !== null && !isNaN(Number(initialHandicapRaw)) ? Number(initialHandicapRaw) : null;
+  const initialTotal = initialTotalRaw !== null && !isNaN(Number(initialTotalRaw)) ? Number(initialTotalRaw) : null;
+
+  const currHandicap = currentPoint.handicap_market?.line !== null && currentPoint.handicap_market?.line !== undefined && !isNaN(Number(currentPoint.handicap_market?.line))
+    ? Number(currentPoint.handicap_market?.line)
+    : null;
+  const currTotal = currentPoint.ou_market?.line !== null && currentPoint.ou_market?.line !== undefined && !isNaN(Number(currentPoint.ou_market?.line))
+    ? Number(currentPoint.ou_market?.line)
+    : null;
+
+  let handicapDecay: number | null = null;
+  if (initialHandicap !== null && currHandicap !== null) {
+    handicapDecay = Number((currHandicap - initialHandicap).toFixed(2));
+  }
+
+  let totalDecay: number | null = null;
+  if (initialTotal !== null && currTotal !== null) {
+    totalDecay = Number((currTotal - initialTotal).toFixed(2));
+  }
+
+  const hasInitialData = initialHandicap !== null || initialTotal !== null;
+  if (!hasInitialData) {
+    return {
+      has_initial_data: false,
+      initial_handicap: null,
+      current_handicap: currHandicap,
+      handicap_decay: null,
+      initial_total: null,
+      current_total: currTotal,
+      total_decay: null,
+      expectation_status: 'NEUTRAL',
+      expectation_tag: '初盘待查',
+      expectation_verdict: '暂无雷速参考初盘数据',
+    };
+  }
+
+  const stats = currentPoint.live_statistics || {};
+  const homeShots = stats.shots?.home || 0;
+  const awayShots = stats.shots?.away || 0;
+  const homeSot = stats.shots_on_target?.home || 0;
+  const awaySot = stats.shots_on_target?.away || 0;
+  const homeDanger = stats.dangerous_attacks?.home || 0;
+  const awayDanger = stats.dangerous_attacks?.away || 0;
+  const minute = currentPoint.minute || 0;
+
+  let expectationStatus: InitialVsLiveAnalysis['expectation_status'] = 'NEUTRAL';
+  let expectationTag = '契合初盘预期';
+  let expectationVerdict = '';
+
+  const isHomeInitialFavorite = initialHandicap !== null && initialHandicap <= -0.5;
+  const isAwayInitialFavorite = initialHandicap !== null && initialHandicap >= 0.5;
+
+  if (isHomeInitialFavorite) {
+    const homeAttackDominant = homeDanger >= awayDanger * 1.3 && (homeShots >= 5 || homeSot >= 2);
+    const homeAttackWeak = homeDanger < 25 && homeShots <= 3 && minute >= 35;
+
+    if (homeAttackDominant) {
+      if (handicapDecay !== null && handicapDecay > 0) {
+        expectationStatus = 'VALUE_DILUTION_OPPORTUNITY';
+        expectationTag = '🔥 强队破门迟滞·初盘折价黄金期';
+        expectationVerdict = `初盘深开[${initialHandicap}]➔滚球[${currHandicap}] (缩水${Math.abs(handicapDecay)}球)；主队场面狂轰契合初盘实力，破门迟滞释放极佳博弈价值。`;
+      } else {
+        expectationStatus = 'PERFORMANCE_MATCHES_INITIAL';
+        expectationTag = '⚡ 场面契合强队初盘预期';
+        expectationVerdict = `主队危攻${homeDanger}/射正${homeSot}掌控局面，完全契合初盘[${initialHandicap}]让步预期。`;
+      }
+    } else if (homeAttackWeak) {
+      expectationStatus = 'PERFORMANCE_BELOW_INITIAL';
+      expectationTag = '⚠️ 强队攻势疲软·谨防初盘诱深';
+      expectationVerdict = `初盘给予深让[${initialHandicap}]，但${minute}'射门仅${homeShots}次/危攻${homeDanger}，场面严重低于预期，警惕冷门。`;
+    } else {
+      expectationStatus = 'PERFORMANCE_MATCHES_INITIAL';
+      expectationTag = '⚖️ 初盘动态消化中';
+      expectationVerdict = `初盘[${initialHandicap}]，当前比分${currentPoint.score.text}，场面维持常态推进。`;
+    }
+  } else if (isAwayInitialFavorite) {
+    const awayAttackDominant = awayDanger >= homeDanger * 1.3 && (awayShots >= 5 || awaySot >= 2);
+    const awayAttackWeak = awayDanger < 25 && awayShots <= 3 && minute >= 35;
+
+    if (awayAttackDominant) {
+      if (handicapDecay !== null && handicapDecay < 0) {
+        expectationStatus = 'VALUE_DILUTION_OPPORTUNITY';
+        expectationTag = '🔥 客让破门迟滞·初盘折价黄金期';
+        expectationVerdict = `客队初盘客让[${initialHandicap}]➔滚球[${currHandicap}]；客队场面优势契合初盘实力，破门迟滞释放极佳折价价值。`;
+      } else {
+        expectationStatus = 'PERFORMANCE_MATCHES_INITIAL';
+        expectationTag = '⚡ 场面契合客让初盘预期';
+        expectationVerdict = `客队危攻${awayDanger}/射正${awaySot}攻势占优，完全契合客让[${initialHandicap}]预期。`;
+      }
+    } else if (awayAttackWeak) {
+      expectationStatus = 'PERFORMANCE_BELOW_INITIAL';
+      expectationTag = '⚠️ 客让攻势受阻·谨防初盘虚高';
+      expectationVerdict = `初盘客让[${initialHandicap}]，但${minute}'射门仅${awayShots}次/危攻${awayDanger}，场面疲软低于预期。`;
+    } else {
+      expectationStatus = 'PERFORMANCE_MATCHES_INITIAL';
+      expectationTag = '⚖️ 初盘动态消化中';
+      expectationVerdict = `初盘客让[${initialHandicap}]，当前比分${currentPoint.score.text}。`;
+    }
+  } else {
+    if (homeDanger >= awayDanger * 1.8 && homeShots >= 6) {
+      expectationStatus = 'PERFORMANCE_BEATS_INITIAL';
+      expectationTag = '🚀 主队打破均势·超常发挥';
+      expectationVerdict = `初盘平手/浅让[${initialHandicap ?? '平手'}]，但主队危攻${homeDanger}碾压客队${awayDanger}，表现远超赛前预期。`;
+    } else if (awayDanger >= homeDanger * 1.8 && awayShots >= 6) {
+      expectationStatus = 'PERFORMANCE_BEATS_INITIAL';
+      expectationTag = '🚀 客队打破均势·反客为主';
+      expectationVerdict = `初盘浅让[${initialHandicap ?? '平手'}]，客队反客为主危攻${awayDanger}碾压主队${homeDanger}，表现远超预期。`;
+    } else {
+      expectationStatus = 'PERFORMANCE_MATCHES_INITIAL';
+      expectationTag = '⚖️ 契合均势初盘·焦灼缠斗';
+      expectationVerdict = `初盘[${initialHandicap ?? '平手'}]，双方攻守均势，符合赛前焦灼预期。`;
+    }
+  }
+
+  return {
+    has_initial_data: true,
+    initial_handicap: initialHandicap,
+    current_handicap: currHandicap,
+    handicap_decay: handicapDecay,
+    initial_total: initialTotal,
+    current_total: currTotal,
+    total_decay: totalDecay,
+    expectation_status: expectationStatus,
+    expectation_tag: expectationTag,
+    expectation_verdict: expectationVerdict,
+  };
 }
 
 export function createSnapshotPoint(item: any): MatchSnapshotPoint {
@@ -239,6 +423,7 @@ export function computeMatchSnapshotDelta(item: any): MatchSnapshotDelta {
   const history = readJsonFile<Record<string, MatchSnapshotPoint[]>>(SNAPSHOT_HISTORY_FILE, {});
   const list = history[key] || [];
   const current = createSnapshotPoint(item);
+  const initialVsLive = computeInitialVsLiveAnalysis(item, current);
 
   if (list.length === 0) {
     return {
@@ -254,6 +439,7 @@ export function computeMatchSnapshotDelta(item: any): MatchSnapshotDelta {
         status: 'NO_COMPARISON',
         summary: '首批基准采样点，尚未积累跨时段对比数据。',
       },
+      initial_vs_live: initialVsLive,
       stat_acceleration: {
         dangerous_attacks_delta: { home: 0, away: 0, total: 0 },
         dangerous_attacks_rate_per_min: 0,
@@ -285,6 +471,7 @@ export function computeMatchSnapshotDelta(item: any): MatchSnapshotDelta {
   // 1. Line movements
   let ouLineDrop: number | null = null;
   let ouOddsDrift: number | null = null;
+  let handicapDrift: number | null = null;
   if (previous.ou_market?.line != null && current.ou_market?.line != null) {
     const prevLine = Number(previous.ou_market.line);
     const currLine = Number(current.ou_market.line);
@@ -297,6 +484,13 @@ export function computeMatchSnapshotDelta(item: any): MatchSnapshotDelta {
     const currOdds = Number(current.ou_market.odds);
     if (Number.isFinite(prevOdds) && Number.isFinite(currOdds)) {
       ouOddsDrift = Number((currOdds - prevOdds).toFixed(3));
+    }
+  }
+  if (previous.handicap_market?.line != null && current.handicap_market?.line != null) {
+    const prevAh = Number(previous.handicap_market.line);
+    const currAh = Number(current.handicap_market.line);
+    if (Number.isFinite(prevAh) && Number.isFinite(currAh)) {
+      handicapDrift = Number((currAh - prevAh).toFixed(2));
     }
   }
 
@@ -379,10 +573,11 @@ export function computeMatchSnapshotDelta(item: any): MatchSnapshotDelta {
     line_movement: {
       ou_line_drop: ouLineDrop,
       ou_odds_drift: ouOddsDrift,
-      handicap_line_drift: null,
+      handicap_line_drift: handicapDrift,
       status: isLineDropped ? 'LINE_DROP_DECAY' : ouOddsDrift && ouOddsDrift > 0.05 ? 'ODDS_DRIFT_RISE' : 'LINE_STABLE',
       summary: `盘口 ${ouLineDrop !== null ? (ouLineDrop <= 0 ? `衰减 ${Math.abs(ouLineDrop)}球` : `升盘 +${ouLineDrop}球`) : '保持稳定'}`,
     },
+    initial_vs_live: initialVsLive,
     stat_acceleration: {
       dangerous_attacks_delta: { home: dDangerHome, away: dDangerAway, total: dDangerTotal },
       dangerous_attacks_rate_per_min: dangerRate,

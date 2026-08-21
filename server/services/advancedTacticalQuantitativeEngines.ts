@@ -62,17 +62,44 @@ export function evaluatePositionalAbsenceImpact(
   homeTeam: string = '',
   awayTeam: string = ''
 ): PositionalAbsenceImpact {
-  const injuries = Array.isArray(lineupData?.injuries || lineupData?.missing_players)
-    ? lineupData.injuries || lineupData.missing_players
+  const injuries = Array.isArray(lineupData?.injuries)
+    ? lineupData.injuries
+    : Array.isArray(lineupData?.missing_players)
+    ? lineupData.missing_players
+    : Array.isArray(lineupData?.absences)
+    ? lineupData.absences
     : [];
 
   const homeAbs = { gk: false, cb: 0, mf: 0, fw: 0, total: 0, names: [] as string[] };
   const awayAbs = { gk: false, cb: 0, mf: 0, fw: 0, total: 0, names: [] as string[] };
 
+  const cleanHome = (homeTeam || '').trim().toLowerCase();
+  const cleanAway = (awayTeam || '').trim().toLowerCase();
+
   for (const item of injuries) {
-    const text = typeof item === 'string' ? item : `${item.team || ''} ${item.name || ''} ${item.position || ''} ${item.reason || ''}`;
+    const text = typeof item === 'string' ? item : `${item.team || ''} ${item.side || ''} ${item.name || ''} ${item.position || ''} ${item.pos || ''} ${item.reason || ''}`;
     const lower = text.toLowerCase();
-    const isAway = awayTeam && (lower.includes(awayTeam.toLowerCase()) || text.includes('客队'));
+    
+    let isAway = false;
+    let isHome = false;
+
+    if (item && typeof item === 'object') {
+      if (item.side === 'away' || item.side === '客' || item.team === 'away') isAway = true;
+      else if (item.side === 'home' || item.side === '主' || item.team === 'home') isHome = true;
+    }
+
+    if (!isAway && !isHome) {
+      if (cleanAway && (lower.includes(cleanAway) || text.includes('客队') || text.includes('客'))) {
+        isAway = true;
+      } else if (cleanHome && (lower.includes(cleanHome) || text.includes('主队') || text.includes('主'))) {
+        isHome = true;
+      } else if (text.includes('客')) {
+        isAway = true;
+      } else {
+        isHome = true;
+      }
+    }
+
     const target = isAway ? awayAbs : homeAbs;
 
     target.total++;
@@ -158,14 +185,19 @@ export function evaluateCornerSqueezeMetrics(
   liveStats: any,
   minute: number,
   scoreText?: string,
-  rawItem?: any
+  rawItem?: any,
+  homeTeam: string = '',
+  awayTeam: string = ''
 ): CornerSqueezeMetrics | null {
   if (minute < 3) return null;
 
-  // 1. Prioritize StandardMatchData unified_stats
+  // 1. Prioritize StandardMatchData live_facts.stats / unified_stats
   let homeCorners = 0;
   let awayCorners = 0;
-  if (rawItem?.unified_stats?.corners) {
+  if (rawItem?.live_facts?.stats?.corners) {
+    homeCorners = Number(rawItem.live_facts.stats.corners.home ?? 0);
+    awayCorners = Number(rawItem.live_facts.stats.corners.away ?? 0);
+  } else if (rawItem?.unified_stats?.corners) {
     homeCorners = Number(rawItem.unified_stats.corners.home ?? 0);
     awayCorners = Number(rawItem.unified_stats.corners.away ?? 0);
   } else if (liveStats?.corners) {
@@ -190,13 +222,26 @@ export function evaluateCornerSqueezeMetrics(
     );
   }
 
-  // If liveStats is in string format "corners: 6-7" or events list
-  if (homeCorners === 0 && awayCorners === 0 && rawItem?.focused_incidents?.match_events) {
-    const events: string[] = Array.isArray(rawItem.focused_incidents.match_events) ? rawItem.focused_incidents.match_events : [];
+  // If liveStats is not yet populated, fallback to dynamic timeline events parsing
+  if (homeCorners === 0 && awayCorners === 0 && (rawItem?.live_facts?.events_timeline || rawItem?.focused_incidents?.match_events)) {
+    const events: any[] = rawItem?.live_facts?.events_timeline || rawItem?.focused_incidents?.match_events || [];
+    const cleanHome = (homeTeam || '').trim().toLowerCase();
+    const cleanAway = (awayTeam || '').trim().toLowerCase();
+
     for (const ev of events) {
-      if (/角球/i.test(ev)) {
-        if (/主队|谢周三|本菲卡|巴列卡诺|时刻准备|拉巴斯|斯塔尔南|博卡/i.test(ev)) homeCorners++;
-        else awayCorners++;
+      const text = typeof ev === 'string' ? ev : `${ev.text || ''} ${ev.shortText || ''}`;
+      if (/角球|corner/i.test(text)) {
+        if (typeof ev === 'object' && ev.side) {
+          if (ev.side === 'home') homeCorners++;
+          else if (ev.side === 'away') awayCorners++;
+        } else {
+          const lower = text.toLowerCase();
+          if (cleanHome && lower.includes(cleanHome)) homeCorners++;
+          else if (cleanAway && lower.includes(cleanAway)) awayCorners++;
+          else if (/主|home/i.test(text)) homeCorners++;
+          else if (/客|away/i.test(text)) awayCorners++;
+          else homeCorners++;
+        }
       }
     }
   }
@@ -213,12 +258,9 @@ export function evaluateCornerSqueezeMetrics(
   let dangerLevel: CornerSqueezeMetrics['squeeze_danger_level'] = 'MODERATE';
   let note = '';
 
-  const homeFieldTilt = Number(liveStats?.home?.field_tilt ?? liveStats?.home?.possession ?? 50);
-  const homeDangAtt = Number(liveStats?.home?.dangerous_attacks ?? 0);
-
   if (velocityPer10 >= 1.5 && (homeShare >= 75 || homeShare <= 25)) {
     dangerLevel = 'CRITICAL_IMMINENT_GOAL_SQUEEZE';
-    const dominantTeam = homeShare >= 75 ? '主队' : '客队';
+    const dominantTeam = homeShare >= 75 ? (homeTeam || '主队') : (awayTeam || '客队');
     note = `【禁区极限挤压破门预警】${dominantTeam}近段角球爆发(场均每10分钟${velocityPer10}个角球, 占总数${Math.max(homeShare, 100 - homeShare)}%)，将对手彻底压制在底线禁区，定位球与连续高空轰炸破门概率极高！`;
   } else if (velocityPer10 >= 1.1) {
     dangerLevel = 'HIGH_SET_PIECE_PRESSURE';
@@ -254,35 +296,52 @@ export interface RedCardDisciplinePhysics {
 
 export function evaluateRedCardDisciplinePhysics(
   item: any,
-  minute: number
+  minute: number,
+  homeTeam: string = '',
+  awayTeam: string = ''
 ): RedCardDisciplinePhysics {
   const cData: CanonicalMatchData = item?.live_facts?.stats ? (item as CanonicalMatchData) : canonicalizeRawMatchData(item);
-  const events = (item as any)?.timeline_events || (cData as any).timeline_events || [];
+  const events = cData.live_facts?.events_timeline || (item as any)?.timeline_events || (item as any)?.focused_incidents?.match_events || [];
   
+  const homeName = homeTeam || cData.meta?.home_team || '';
+  const awayName = awayTeam || cData.meta?.away_team || '';
+  const cleanHome = homeName.trim().toLowerCase();
+  const cleanAway = awayName.trim().toLowerCase();
+
   let homeReds = 0;
   let awayReds = 0;
   let firstRedMin = 999;
 
-  const checkEvent = (text: string, mNum?: number) => {
+  const checkEvent = (text: string, mNum?: number, explicitSide?: 'home' | 'away') => {
     if (!/红牌|red card|两黄变一红|2nd yellow/i.test(text)) return;
     const m = mNum || (text.match(/(\d{1,3})['′]/) ? parseInt(text.match(/(\d{1,3})['′]/)![1], 10) : minute);
     if (m < firstRedMin) firstRedMin = m;
     
-    if (/客|away/i.test(text)) awayReds++;
+    if (explicitSide === 'away') {
+      awayReds++;
+      return;
+    }
+    if (explicitSide === 'home') {
+      homeReds++;
+      return;
+    }
+
+    const lower = text.toLowerCase();
+    if (cleanAway && lower.includes(cleanAway)) awayReds++;
+    else if (cleanHome && lower.includes(cleanHome)) homeReds++;
+    else if (/客|away/i.test(text)) awayReds++;
     else homeReds++;
   };
 
   if (Array.isArray(events)) {
-    for (const ev of events) {
+    for (const ev of (events as any[])) {
       if (typeof ev === 'string') checkEvent(ev);
       else if (ev && typeof ev === 'object') {
         const desc = `${ev.text || ''} ${ev.shortText || ''} ${ev.icon || ''}`;
         const m = Number(ev.min || ev.minute || minute);
-        if (ev.isCard || ev.icon === 'red_card' || /红牌|red/i.test(desc)) {
-          if (ev.side === 'away') awayReds++;
-          else if (ev.side === 'home') homeReds++;
-          else checkEvent(desc, m);
-          if (m < firstRedMin) firstRedMin = m;
+        const isRed = ev.isCard || ev.icon === 'red_card' || /红牌|red/i.test(desc);
+        if (isRed) {
+          checkEvent(desc, m, ev.side === 'away' || ev.side === 'home' ? ev.side : undefined);
         } else {
           checkEvent(desc, m);
         }
@@ -291,8 +350,8 @@ export function evaluateRedCardDisciplinePhysics(
   }
 
   // Canonical unified red cards
-  const unifiedHomeRed = Number(cData.live_facts.stats.red_cards.home ?? 0);
-  const unifiedAwayRed = Number(cData.live_facts.stats.red_cards.away ?? 0);
+  const unifiedHomeRed = Number(cData.live_facts?.stats?.red_cards?.home ?? 0);
+  const unifiedAwayRed = Number(cData.live_facts?.stats?.red_cards?.away ?? 0);
   homeReds = Math.max(homeReds, unifiedHomeRed);
   awayReds = Math.max(awayReds, unifiedAwayRed);
 
@@ -315,22 +374,21 @@ export function evaluateRedCardDisciplinePhysics(
   let mult = 1.65;
   let guidance = '';
 
+  const penalizedName = redTeam === 'home' ? (homeName || '主队') : (awayName || '客队');
+  const advantagedName = redTeam === 'home' ? (awayName || '客队') : (homeName || '主队');
+
   if (redMin <= 45) {
     phase = 'EARLY_COLLAPSE_WINDOW';
     mult = 2.15;
-    const penalized = redTeam === 'home' ? '主队' : '客队';
-    const advantaged = redTeam === 'home' ? '客队' : '主队';
-    guidance = `【上半场(${redMin}')过早吃红牌・体能与防线双重崩塌】${penalized}少打一人需承受长达${remainingMins}分钟的人数劣势，体能将在下半场遭遇断崖式消耗，其失球期望率扩大2.15倍，强烈支持${advantaged}让球穿盘及全场大球！`;
+    guidance = `【上半场(${redMin}')过早吃红牌・体能与防线双重崩塌】${penalizedName}少打一人需承受长达${remainingMins}分钟的人数劣势，体能将在下半场遭遇断崖式消耗，其失球期望率扩大2.15倍，强烈支持${advantagedName}让球穿盘及全场大球！`;
   } else if (redMin >= 78) {
     phase = 'LATE_BUS_SURVIVAL';
     mult = 1.25;
-    const penalized = redTeam === 'home' ? '主队' : '客队';
-    guidance = `【终局(${redMin}')红牌・铁桶阵收缩模式】${penalized}在比赛尾声染红，剩余时间有限，受罚方将全员回撤禁区摆大巴拖延时间，进攻方攻坚时间不足，谨防盲目追大。`;
+    guidance = `【终局(${redMin}')红牌・铁桶阵收缩模式】${penalizedName}在比赛尾声染红，剩余时间有限，受罚方将全员回撤禁区摆大巴拖延时间，进攻方攻坚时间不足，谨防盲目追大。`;
   } else {
     phase = 'MID_FATIGUE_EROSION';
     mult = 1.70;
-    const penalized = redTeam === 'home' ? '主队' : '客队';
-    guidance = `【第${redMin}分钟红牌】${penalized}少打一人，防线缺口扩大(失球乘数1.70x)，利好进攻方持续围攻造杀机。`;
+    guidance = `【第${redMin}分钟红牌】${penalizedName}少打一人，防线缺口扩大(失球乘数1.70x)，利好${advantagedName}持续围攻造杀机。`;
   }
 
   return {
@@ -381,16 +439,16 @@ export function evaluateEuroAsianParity(
   // 1. Extract European 1X2 Home Win Odds from Reference (Crown/Pinnacle/Marathon) or verified YBTY
   let euroH = 0;
   if (referenceOdds) {
-    const euroRaw = referenceOdds.europe || referenceOdds.euro || referenceOdds.eur;
+    const euroRaw = referenceOdds.europe || referenceOdds.euro_odds || referenceOdds.euro || referenceOdds.eur || referenceOdds.european;
     if (euroRaw) {
-      euroH = Number(euroRaw.home_win || euroRaw.home || euroRaw.h || 0);
+      euroH = Number(euroRaw.home_win || euroRaw.home || euroRaw.h || euroRaw.win || 0);
     }
   }
 
   // If no reference euro, try to find 1X2 in verified markets
   if (euroH <= 1.0) {
-    const h2hMarket = verifiedMarkets.find((m: any) => m.market === 'full_h2h');
-    const homeOpt = h2hMarket?.options?.find((o: any) => /主胜|home|1/i.test(String(o.side || o.line || '')));
+    const h2hMarket = verifiedMarkets.find((m: any) => m.market === 'full_h2h' || m.market_type === 'full_h2h');
+    const homeOpt = h2hMarket?.options?.find((o: any) => /主胜|home|1/i.test(String(o.side || o.line || o.option_id || '')));
     if (homeOpt && Number(homeOpt.odds) > 1.0) {
       euroH = Number(homeOpt.odds);
     }
@@ -398,9 +456,9 @@ export function evaluateEuroAsianParity(
 
   // 2. Extract Actual Asian Handicap from verified markets
   let actualSpread: number | null = null;
-  const spreadMarket = verifiedMarkets.find((m: any) => m.market === 'full_spread');
+  const spreadMarket = verifiedMarkets.find((m: any) => m.market === 'full_spread' || m.market_type === 'full_spread');
   if (spreadMarket?.options?.length) {
-    const homeOpt = spreadMarket.options.find((o: any) => /主|home/i.test(String(o.side || '')));
+    const homeOpt = spreadMarket.options.find((o: any) => /主|home/i.test(String(o.side || o.option_id || '')));
     if (homeOpt && homeOpt.line !== null && homeOpt.line !== undefined) {
       const lineNum = parseFloat(String(homeOpt.line).replace(/[^\d.-]/g, ''));
       if (!isNaN(lineNum)) actualSpread = lineNum;
@@ -462,23 +520,48 @@ export function evaluateStrategicMotivation(
   homeTeam: string = '',
   awayTeam: string = ''
 ): StrategicMotivationMetrics {
-  const isCup = /杯|cup|copa|trophy|champions|uefa|afc|libertadores/i.test(league);
+  const isCup = /杯|cup|copa|trophy|champions|uefa|afc|libertadores|联赛杯|足协杯/i.test(league);
   
   let homePos = 8;
   let awayPos = 8;
   let homePts = 20;
   let awayPts = 20;
 
-  if (standings) {
+  if (standings && typeof standings === 'object') {
     const h = standings.home_team || standings.home;
     const a = standings.away_team || standings.away;
     if (h?.total) {
       homePos = Number(h.total.rank || h.total.position || 8);
       homePts = Number(h.total.points || h.total.pts || 20);
+    } else if (h?.rank || h?.position) {
+      homePos = Number(h.rank || h.position || 8);
+      homePts = Number(h.points || h.pts || 20);
     }
     if (a?.total) {
       awayPos = Number(a.total.rank || a.total.position || 8);
       awayPts = Number(a.total.points || a.total.pts || 20);
+    } else if (a?.rank || a?.position) {
+      awayPos = Number(a.rank || a.position || 8);
+      awayPts = Number(a.points || a.pts || 20);
+    }
+  } else if (typeof standings === 'string' && standings.trim().length > 0) {
+    // Robust regex parser from standings_text (e.g. "主: 曼城 第2名 (48分) | 客: 利物浦 第1名 (51分)" or "主队排名: 2, 积分: 48")
+    const homeRankMatch = standings.match(/主.*?第\s*(\d{1,2})\s*名|主.*?排名\s*[:：]?\s*(\d{1,2})|主.*?#(\d{1,2})/i);
+    if (homeRankMatch) {
+      homePos = parseInt(homeRankMatch[1] || homeRankMatch[2] || homeRankMatch[3], 10);
+    }
+    const homePtsMatch = standings.match(/主.*?(\d{1,3})\s*分|主.*?积\s*(\d{1,3})\s*分/i);
+    if (homePtsMatch) {
+      homePts = parseInt(homePtsMatch[1] || homePtsMatch[2], 10);
+    }
+
+    const awayRankMatch = standings.match(/客.*?第\s*(\d{1,2})\s*名|客.*?排名\s*[:：]?\s*(\d{1,2})|客.*?#(\d{1,2})/i);
+    if (awayRankMatch) {
+      awayPos = parseInt(awayRankMatch[1] || awayRankMatch[2] || awayRankMatch[3], 10);
+    }
+    const awayPtsMatch = standings.match(/客.*?(\d{1,3})\s*分|客.*?积\s*(\d{1,3})\s*分/i);
+    if (awayPtsMatch) {
+      awayPts = parseInt(awayPtsMatch[1] || awayPtsMatch[2], 10);
     }
   }
 
@@ -762,56 +845,32 @@ export function buildMasterTacticalSynthesis(
   const effectiveMin = cData.live_facts.minute || minute || 0;
   const scoreText = `${cData.live_facts.score.home}-${cData.live_facts.score.away}`;
 
-  const lineupData = (cData.context as any).raw_lineup || item?.lineups || null;
-  const refOdds = cData.raw_ref_odds;
-  const standings = cData.context.standings_text;
+  const lineupData = (cData.context as any)?.raw_lineup || item?.lineups || item?.lineup || item?.formal?.lineup || null;
+  const refOdds = cData.raw_ref_odds || item?.reference_market || item?.reference_odds || item?.formal?.odds;
+  const standings = cData.context?.standings_text || item?.trend_summary?.standings || item?.standings;
 
   // Formation
   const homeFormationResult = detectMatchFormation(lineupData, 'home');
   const awayFormationResult = detectMatchFormation(lineupData, 'away');
   const formationClash = evaluateFormationClash(
-    cData.context.lineup.home_formation || homeFormationResult.formation,
-    cData.context.lineup.away_formation || awayFormationResult.formation
+    cData.context?.lineup?.home_formation || homeFormationResult.formation,
+    cData.context?.lineup?.away_formation || awayFormationResult.formation
   );
 
   // Positional & Absences
   const positional = evaluatePositionalAbsenceImpact(lineupData, homeTeam, awayTeam);
 
-  // Corner Squeeze using canonical stats directly
-  const homeCorners = cData.live_facts.stats.corners.home;
-  const awayCorners = cData.live_facts.stats.corners.away;
-  const totalCorners = homeCorners + awayCorners;
-  const elapsed = Math.max(5, effectiveMin);
-  const velocityPer10 = Number(((totalCorners / elapsed) * 10).toFixed(2));
-  const homeShare = totalCorners > 0 ? Number(((homeCorners / totalCorners) * 100).toFixed(1)) : 50;
-  const projectedFT = Number((totalCorners + (totalCorners / elapsed) * (90 - elapsed)).toFixed(1));
+  // Corner Squeeze using unified sub-engine with dynamic team matching
+  const corner = evaluateCornerSqueezeMetrics(
+    cData.live_facts.stats,
+    effectiveMin,
+    scoreText,
+    item,
+    homeTeam,
+    awayTeam
+  );
 
-  let cornerDangerLevel: CornerSqueezeMetrics['squeeze_danger_level'] = 'MODERATE';
-  let cornerNote = '';
-  if (velocityPer10 >= 1.5 && (homeShare >= 75 || homeShare <= 25)) {
-    cornerDangerLevel = 'CRITICAL_IMMINENT_GOAL_SQUEEZE';
-    const dominantTeam = homeShare >= 75 ? '主队' : '客队';
-    cornerNote = `【禁区极限挤压破门预警】${dominantTeam}近段角球爆发(场均每10分钟${velocityPer10}个角球, 占总数${Math.max(homeShare, 100 - homeShare)}%)，将对手彻底压制在底线禁区，定位球与连续高空轰炸破门概率极高！`;
-  } else if (velocityPer10 >= 1.1) {
-    cornerDangerLevel = 'HIGH_SET_PIECE_PRESSURE';
-    cornerNote = `比赛攻防节奏转换快，双方累计角球${totalCorners}个(预期全场${projectedFT}个)，定位球威胁持续活跃。`;
-  } else {
-    cornerDangerLevel = 'LOW_CORNER_THREAT';
-    cornerNote = `角球产出频次偏低(每10分钟仅${velocityPer10}个)，主要以中场传导为主，边路下底传中受阻。`;
-  }
-
-  const corner: CornerSqueezeMetrics = {
-    total_corners: totalCorners,
-    home_corners: homeCorners,
-    away_corners: awayCorners,
-    corner_velocity_per_10min: velocityPer10,
-    corner_dominance_share_home: homeShare,
-    projected_full_time_corners: projectedFT,
-    squeeze_danger_level: cornerDangerLevel,
-    corner_tactical_note_zh: cornerNote,
-  };
-
-  const redCard = evaluateRedCardDisciplinePhysics(item, effectiveMin);
+  const redCard = evaluateRedCardDisciplinePhysics(item, effectiveMin, homeTeam, awayTeam);
   const euroAsian = evaluateEuroAsianParity(refOdds, verifiedMarkets.length > 0 ? verifiedMarkets : cData.verified_markets);
   const motivation = evaluateStrategicMotivation(standings, league, homeTeam, awayTeam);
 

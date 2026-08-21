@@ -27,6 +27,7 @@
 | **DEF-07** | `src/components/AttackMomentumTimelineWidget.tsx` | 动量波形数据结构适配断层 | **Medium** | 波形图组件对 `attack_momentum_timeline.data` 的二维数组缺少分段长度校验与平滑处理 |
 | **DEF-08** | `src/components/FormationClashModal.tsx` | 阵容对象结构不一致 | **Medium** | 组件期望 `lineup.home.starters` 为字符串数组，而新接口为结构化球员对象数组 (`Player[]`) |
 | **DEF-09** | `src/lib/extendedRecommendation.ts` & UI | 盘口类型语义与嵌套赔率数组断层 | **Critical** | `verifiedMarket` 硬编码 `market_type === 'total'`，无法识别 `full_total`/`全场大小球`，且仅读取平铺属性未读取 `options` 数组，导致全场大小球/让球/独赢全部显示“暂无真实盘口/无真实赔率” |
+| **DEF-10** | `snapshotDeltaEngine.ts` (前端与服务端) | 即盘（Live Market）穿透提取链路缺失 | **High** | 即盘提取过度依赖 YBTY 实时导出的单腿盘口，在 YBTY 临时封盘/下架时直接返回 `null`，导致“赛前初盘 vs 滚球即盘对照”无故渲染为 `现: -` 破折号空值，未穿透使用雷速即盘参考 |
 
 ---
 
@@ -151,6 +152,17 @@
   - 在 `src/lib/extendedRecommendation.ts` 中实现语义化分类匹配器 `matchesMarketCategory(targetType, rawKey)` 与结构提取器 `extractOptionsFromMarket(m, targetType)`，全面支持 6 大标准盘口（`full_total`, `half_total`, `full_spread`, `half_spread`, `full_h2h`, `half_h2h`）。
   - 在 `types.ts` `toStandardMatchData` 层面做双向对齐：自动将 `options` 数组计算补充至 `home_or_over_odds` / `away_or_under_odds` / `draw_odds`，并将平铺赔率反向填充至 `options`，实现盘口数据的百分之百兼容与零漏失。
   - 在 `BettingRecommendationsView.tsx` 与 `snapshotDeltaEngine.ts` 中统一接入 `verifiedMarket` 作为权威盘口解析基准。
+
+#### 缺陷 4.5：赛前初盘 vs 滚球即盘对照“现: -”破折号空值缺陷 (DEF-10)
+* **问题位置**：`src/lib/snapshotDeltaEngine.ts`、`server/services/snapshotDeltaEngine.ts`。
+* **现象描述**：
+  - 在比赛分析视图的“赛前初盘 vs 滚球即盘对照”中，出现 `让球 [初: +0.25 ➔ 现: -]` 或 `大小 [初: 2.5 ➔ 现: -]`，即盘位置无故呈现破折号破损显示。
+* **根因深度分析**：
+  1. **双轨盘口职责认识脱节**：系统原本将即盘完全绑定在 YBTY 单一数据流上。由于 YBTY 导出的滚球盘口在进球、红牌、VAR 或半场时段经常处于封盘状态（Suspended）或短暂下架，导致提取到的即盘值为 `null`。
+  2. **未明确雷速盘口辅助预测定位**：雷速的即时盘口（`instant_handicap` / `instant_total`、`current_line`、`markets.*.live`）本质上是全网机构的基准风向标，专用于提供走势预期与衰减对照；旧解析器未将雷速即盘作为即盘提取的二级穿透兜底源。
+* **修复与彻底根治方案**：
+  - 确立双轨原则：YBTY 盘口作为唯一真实投注盘口，雷速初盘/即盘作为辅助预测与价值锚点。
+  - 在前端与服务端 `snapshotDeltaEngine.ts` 中建立多层穿透回退机制：优先 YBTY 实时让球/大小球盘口；若为空或封盘，自动向下穿透读取雷速即盘 `reference_market.instant_handicap/instant_total`、`current_line` 及 `markets.*.live`，保障对照连续且完整。
 
 ---
 

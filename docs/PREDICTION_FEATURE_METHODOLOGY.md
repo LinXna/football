@@ -18,6 +18,45 @@
 
 简单扑救率不能等同门将真实能力。StatsBomb 的门将研究使用 PSxG/GSAA 校正射门质量，并强调小样本扑救表现不稳定：[Goalkeeper analysis](https://statsbomb.com/articles/soccer/goalkeepers-how-repeatable-are-shot-saving-performances/)、[Post-shot expected goals](https://statsbomb.com/articles/soccer/a-new-way-to-measure-keepers-shot-stopping-post-shot-expected-goals/)。当前接口没有射门落点、轨迹和 PSxG，所以系统只报告观察值，不伪造 GSAA。
 
+## 双轨盘口在预测与执行中的严格分工
+
+1. **YBTY 盘口（执行源）**：
+   - 唯一的真实可投注盘口与盈亏结算依据。AI 推荐输出的玩法、选项 ID、赔率必须完全以 YBTY 为准。
+2. **雷速盘口（参考与预测辅助源）**：
+   - 雷速的初盘（`opening`）与即盘（`instant`/`live`）作为全网机构预期基准线，用于量化机构初定实力差、监测滚球盘口衰减与异动，辅助提升预测的逻辑置信度与安全边际，严禁用作投注下单与结算。
+
+## 动能引擎双模架构：单批次首批即激活与跨批次差分 (Single-Import vs Multi-Snapshot)
+
+为消除“必须依赖二次导入才能展现动能与盘口表现”的系统瓶颈，系统设计并实施了**动能时序波形与盘口合流双模引擎**：
+
+### 1. 单批次/首批次导入即时激活 (First Import Instant Activation)
+- **攻势动量时序穿透**：直接解析雷速逐分钟压制波形（`attack_momentum_timeline`），无需等待后续批次即可计算近15分钟攻势斜率、均分与战术形态（单边窒息压制/中场泥潭缠斗/持续起势）；
+- **初盘先验 vs 即盘即时对比**：提取雷速初始让球/大小球与当前 YBTY 滚球盘口（或雷速即盘参考），立刻输出盘口衰减量与 4 大战术成色评判；
+- **Prompt 导出与前端视图同步**：即使系统只有单次快照，Prompt 导出与 UI 视图也会完整注入动量形态报告与初即对比结论，绝不显示“待二次导入”的空白占位。
+
+### 2. 跨批次多快照差分计算 (Cross-Batch Multi-Snapshot Differencing)
+- **离散指标速度与加速度**：基于缓存的多时间点快照（`match_snapshot_history.json`），计算离散时间窗口内的危攻加速度（`dangerous_attacks_rate_per_min`）、射正净增量与控球率转移；
+- **盘口水位漂移与黄金切入点**：对比前后两次采样的滚球盘口升降（`ou_line_drop`）与水位浮动，结合攻势加速度自动捕捉“大小球大幅掉落而攻势持续高涨”的黄金切入契机（`GOLDEN_ENTRY_LINE_DROP`）。
+
+## 赛前初盘 vs 滚球即盘偏离度与战术成色研判 (Initial vs Live Expectation)
+
+### 1. 衰减与偏离度计算
+- **让球衰减量**: `handicap_decay = current_handicap - initial_handicap`
+- **大小球衰减量**: `total_decay = current_total - initial_total`
+- **即盘多层穿透逻辑**: 优先提取实时 YBTY 滚球盘口；若 YBTY 因特定时段临时封盘或未开，系统自动穿透提取雷速即盘数据（`instant_handicap` / `instant_total`、`current_line`、`markets.*.live`），保障初即对照不中断。
+
+### 2. 战术成色与价值模式识别
+- **🔥 强队破门迟滞·初盘折价黄金期 (`VALUE_DILUTION_OPPORTUNITY`)**：
+  - *特征*：赛前初盘深让（如 `-0.75` 或更深），随着比赛时间推移（如第 50-70 分钟比分仍平局），即时让步折价至浅盘（如 `-0.25` 或平半）；但场面危攻比、射正数与控球率显示强队持续维持绝对围攻态势。
+  - *研判价值*：机构因时间衰减释放出更低的门槛与更具防守边际的盘口空间，构成极佳的战术成色博弈机会。
+- **⚠️ 强队攻势疲软·谨防初盘诱深 (`PERFORMANCE_BELOW_INITIAL`)**：
+  - *特征*：赛前机构深让，但场面进攻极其乏力、射正过少甚至被对手频频反击，实际表现严重落后于初盘设定。
+  - *研判价值*：提示初盘名气诱盘或强队轮换战意不足，坚决避免盲目按“强队名气”追单，触发防爆冷预警。
+- **🚀 战局反客为主 / 超出初盘预期 (`PERFORMANCE_BEATS_INITIAL`)**：
+  - *特征*：赛前平手或浅盘拉锯，场面实际呈现出单边攻势压制。
+- **⚖️ 契合初盘预期 (`PERFORMANCE_MATCHES_INITIAL`)**：
+  - *特征*：攻势走势与初盘预期及时间衰减完全匹配。
+
 ## 预测使用边界
 
 - 即时比分、比赛分钟、真实盘口和实时射门数据仍是滚球判断主体。
