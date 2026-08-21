@@ -18,7 +18,9 @@ import {
   Copy,
   Check,
   Radar,
-  BarChart2
+  BarChart2,
+  ListOrdered,
+  Filter
 } from 'lucide-react';
 import { DecisionItem, toStandardMatchData } from '../types';
 import { renderIncidentIcons } from './IncidentIconsHelper';
@@ -314,60 +316,135 @@ export function parseMatchIncidents(match?: any): ParsedIncidentItem[] {
 }
 
 export function extractAttackMomentumTimeline(match?: DecisionItem | any): ParsedTimelineData {
-  const isPrematch = !match?.minute || match.minute === 0 ||
-    match.export_mode === 'prematch' || match.status === 'PREMATCH' ||
-    String(match?.status || '').toLowerCase().includes('pre');
-
-  const std = match?.unified_stats ? match : toStandardMatchData(match);
-  const rawTimeline = std.attack_momentum_timeline || null;
-
-  const incidents = parseMatchIncidents(std);
-  const homeName = std?.ybty_home || std?.home_team || '主队';
-  const awayName = std?.ybty_away || std?.away_team || '客队';
-
-  if (!rawTimeline || typeof rawTimeline !== 'object') {
+  if (!match) {
     return {
       hasTimeline: false,
-      isPrematch,
+      isPrematch: false,
       segmentCount: 0,
       nominalMinutes: 45,
       segments: [],
       points: [],
-      allIncidents: incidents,
-      currentMinute: match?.minute || 0,
+      allIncidents: [],
+      currentMinute: 0,
       recent5Share: { home: 50, away: 50, dominantSide: 'balanced' },
       recentShare: { home: 50, away: 50 },
       dominanceWindows: [],
       trend: 'BALANCED_CONTEST',
       tacticalConversionZh: '',
-      verdictZh: isPrematch ? '赛前待开赛，攻势曲线尚未生成' : '暂无即时攻势时序数据',
+      verdictZh: '暂无数据',
     };
   }
 
-  const rawData = rawTimeline.data;
-  const nominalMinutes = Number(rawTimeline.nominal_segment_minutes) || 45;
-  const reportedSegmentCount = Number(rawTimeline.segment_count) || 2;
+  const isPrematch = !match?.minute || match.minute === 0 ||
+    match.export_mode === 'prematch' || match.status === 'PREMATCH' ||
+    String(match?.status || '').toLowerCase().includes('pre');
+
+  // Comprehensive multi-source resolution for raw timeline
+  let rawTimeline =
+    match.attack_momentum_timeline ||
+    match.live_match_physical_facts?.attack_momentum_timeline ||
+    match.live_facts?.attack_momentum_timeline ||
+    match.live_match?.attack_momentum_timeline ||
+    match.formal?.live_match?.attack_momentum_timeline ||
+    match.formal?.attack_momentum_timeline ||
+    match.result?.attack_momentum_timeline ||
+    match.match_info?.attack_momentum_timeline ||
+    match.trend ||
+    match.live_match_physical_facts?.trend ||
+    match.live_facts?.trend ||
+    match.live_match?.trend ||
+    match.formal?.live_match?.trend ||
+    match.formal?.trend ||
+    match.result?.trend ||
+    match.match_info?.trend ||
+    null;
+
+  if (typeof rawTimeline === 'string') {
+    try {
+      rawTimeline = JSON.parse(rawTimeline);
+    } catch (e) {
+      // unparseable string fallback
+    }
+  }
+
+  const std = match?.unified_stats ? match : toStandardMatchData(match);
+  if (!rawTimeline && std?.attack_momentum_timeline) {
+    rawTimeline = std.attack_momentum_timeline;
+  }
+
+  const incidents = parseMatchIncidents(std);
+  const homeName = std?.ybty_home || std?.home_team || match?.home_team || match?.home || '主队';
+  const awayName = std?.ybty_away || std?.away_team || match?.away_team || match?.away || '客队';
 
   // Normalize into 2D segments: Array<Array<number>>
   let rawSegments: number[][] = [];
+  let nominalMinutes = 45;
+  let reportedSegmentCount = 2;
 
-  if (Array.isArray(rawData) && rawData.length > 0) {
-    if (Array.isArray(rawData[0])) {
-      // Standard 2D array: data: [ [-90, 100, ...], [22, 20, ...] ]
-      rawSegments = rawData.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
-    } else if (typeof rawData[0] === 'number') {
-      // 1D fallback
-      rawSegments = [rawData.map(Number)];
+  if (rawTimeline && typeof rawTimeline === 'object') {
+    nominalMinutes = Number(rawTimeline.nominal_segment_minutes) || 45;
+    reportedSegmentCount = Number(rawTimeline.segment_count) || 2;
+
+    const rawData =
+      rawTimeline.data !== undefined
+        ? rawTimeline.data
+        : rawTimeline.trend?.data !== undefined
+        ? rawTimeline.trend.data
+        : rawTimeline.trend;
+
+    if (Array.isArray(rawTimeline) && rawTimeline.length > 0) {
+      // Direct array passed as timeline
+      if (Array.isArray(rawTimeline[0])) {
+        rawSegments = rawTimeline.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
+      } else if (typeof rawTimeline[0] === 'number') {
+        rawSegments = [rawTimeline.map(Number)];
+      }
+    } else if (Array.isArray(rawData) && rawData.length > 0) {
+      if (Array.isArray(rawData[0])) {
+        // Standard 2D array: data: [ [-90, 100, ...], [22, 20, ...] ]
+        rawSegments = rawData.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
+      } else if (typeof rawData[0] === 'number') {
+        // 1D fallback
+        rawSegments = [rawData.map(Number)];
+      }
+    } else if (Array.isArray(rawTimeline.periods) && rawTimeline.periods.length > 0) {
+      rawSegments = rawTimeline.periods.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
+    } else if (Array.isArray(rawTimeline.segments) && rawTimeline.segments.length > 0) {
+      rawSegments = rawTimeline.segments.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
+    } else if (Array.isArray(rawTimeline.raw?.data) && rawTimeline.raw.data.length > 0) {
+      rawSegments = rawTimeline.raw.data.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
+    } else if (Array.isArray(rawTimeline.home) && Array.isArray(rawTimeline.away)) {
+      // Parallel arrays
+      const len = Math.max(rawTimeline.home.length, rawTimeline.away.length);
+      const diffs: number[] = [];
+      for (let i = 0; i < len; i++) {
+        const hVal = Number(rawTimeline.home[i]) || 0;
+        const aVal = Number(rawTimeline.away[i]) || 0;
+        diffs.push(hVal - aVal);
+      }
+      rawSegments = [diffs];
     }
-  } else if (Array.isArray(rawTimeline.periods) && rawTimeline.periods.length > 0) {
-    rawSegments = rawTimeline.periods.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
-  } else if (Array.isArray(rawTimeline.raw?.data) && rawTimeline.raw.data.length > 0) {
-    rawSegments = rawTimeline.raw.data.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
   }
 
   rawSegments = rawSegments.filter((s) => s.length > 0);
 
+  // Strictly use raw trend segments from Leisu/data source. Never fabricate/synthesize future or fake minute points.
   if (rawSegments.length === 0) {
+    // In-play stat-derived baseline estimation when waveform is pending
+    const uStats = std?.unified_stats;
+    const hDang = uStats?.dangerous_attacks?.home ?? 0;
+    const aDang = uStats?.dangerous_attacks?.away ?? 0;
+    const totDang = hDang + aDang;
+    const dangHShare = totDang > 0 ? Number(((hDang / totDang) * 100).toFixed(1)) : 50;
+    const dangAShare = totDang > 0 ? Number(((aDang / totDang) * 100).toFixed(1)) : 50;
+
+    const trend =
+      dangHShare >= 65
+        ? 'HOME_HEAVY_PRESSURE'
+        : dangAShare >= 65
+        ? 'AWAY_HEAVY_PRESSURE'
+        : 'BALANCED_CONTEST';
+
     return {
       hasTimeline: false,
       isPrematch,
@@ -377,12 +454,12 @@ export function extractAttackMomentumTimeline(match?: DecisionItem | any): Parse
       points: [],
       allIncidents: incidents,
       currentMinute: match?.minute || 0,
-      recent5Share: { home: 50, away: 50, dominantSide: 'balanced' },
-      recentShare: { home: 50, away: 50 },
+      recent5Share: { home: dangHShare, away: dangAShare, dominantSide: dangHShare >= 65 ? 'home' : dangAShare >= 65 ? 'away' : 'balanced' },
+      recentShare: { home: dangHShare, away: dangAShare },
       dominanceWindows: [],
-      trend: 'BALANCED_CONTEST',
+      trend,
       tacticalConversionZh: '',
-      verdictZh: '暂无即时攻势打分时序',
+      verdictZh: isPrematch ? '赛前待开赛，攻势曲线尚未生成' : '雷速暂未返回分分钟动能打分点阵（已展示即时技术统计与事件流）',
     };
   }
 
@@ -675,25 +752,160 @@ interface WidgetProps {
 
 export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, compact = false }) => {
   const [showFullTimeline, setShowFullTimeline] = useState(true);
-  const [activeTab, setActiveTab] = useState<'timeline' | 'analytics' | 'shifts' | 'divergence' | 'ai_brief'>('timeline');
+  const [activeTab, setActiveTab] = useState<'timeline' | 'events' | 'analytics' | 'shifts' | 'divergence' | 'ai_brief'>('timeline');
+  const [incidentFilter, setIncidentFilter] = useState<'all' | 'goal' | 'corner' | 'card' | 'sub' | 'danger'>('all');
   const [selectedSegIdx, setSelectedSegIdx] = useState<number | null>(null); // null = all segments side-by-side
   const [hoveredPoint, setHoveredPoint] = useState<TimelinePoint | null>(null);
   const [copiedSnippet, setCopiedSnippet] = useState(false);
 
   const parsed = extractAttackMomentumTimeline(match);
+  const std = match?.unified_stats ? match : toStandardMatchData(match);
 
   if (parsed.isPrematch) {
     return null;
   }
 
-  if (!parsed.hasTimeline) {
+  // Handle Compact Mode (used in parlay leg cards and compact containers)
+  if (compact) {
+    if (!parsed.hasTimeline) {
+      const uStats = std?.unified_stats;
+      const hDang = uStats?.dangerous_attacks?.home ?? 0;
+      const aDang = uStats?.dangerous_attacks?.away ?? 0;
+      const hPoss = uStats?.possession?.home ?? 50;
+      const aPoss = uStats?.possession?.away ?? 50;
+      const hasAnyStats = hDang > 0 || aDang > 0 || (uStats?.shots?.home ?? 0) > 0;
+
+      return (
+        <div className="bg-slate-950/80 border border-slate-800/80 rounded px-2.5 py-1.5 font-mono text-[10px] space-y-1">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="flex items-center gap-1 text-slate-300 font-bold">
+              <Zap className="w-3 h-3 text-amber-400" />
+              <span>即时攻势态势</span>
+            </span>
+            <span className="text-[9px] text-slate-500">
+              {hasAnyStats ? `危攻 ${hDang}-${aDang}` : '待雷速时序同步'}
+            </span>
+          </div>
+          {hasAnyStats ? (
+            <div className="flex items-center justify-between text-[9px] text-slate-400">
+              <span className="text-emerald-400 font-semibold">主控 {hPoss}%</span>
+              <div className="w-24 h-1.5 bg-slate-900 rounded-full overflow-hidden flex border border-slate-800 mx-1.5">
+                <div className="h-full bg-emerald-500" style={{ width: `${hPoss}%` }} />
+                <div className="h-full bg-purple-500" style={{ width: `${aPoss}%` }} />
+              </div>
+              <span className="text-purple-400 font-semibold">客控 {aPoss}%</span>
+            </div>
+          ) : (
+            <div className="text-[9px] text-slate-500">暂无即时攻势波形</div>
+          )}
+        </div>
+      );
+    }
+
+    const analysis = analyzeAttackMomentum(parsed, match);
+    const { recent5Share, recentShare, trend } = parsed;
+
+    const trendBadge =
+      trend === 'HOME_HEAVY_PRESSURE'
+        ? { label: '主队高压围攻', color: 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300' }
+        : trend === 'AWAY_HEAVY_PRESSURE'
+        ? { label: '客队高压围攻', color: 'bg-purple-950/80 border-purple-500/50 text-purple-300' }
+        : { label: '攻势相对胶着', color: 'bg-slate-900 border-slate-700 text-slate-400' };
+
     return (
-      <div className="flex items-center justify-between text-[10px] bg-slate-900/60 rounded px-2.5 py-1.5 border border-slate-800/80 text-slate-400 font-mono">
-        <span className="flex items-center gap-1.5 text-slate-400">
-          <Activity className="w-3.5 h-3.5 text-slate-500" />
-          <span>攻势评分与事件流: 暂无即时数据</span>
-        </span>
-        <span className="text-[9px] text-slate-500">待雷速时序同步</span>
+      <div className="bg-slate-950/90 border border-indigo-900/40 rounded px-2.5 py-2 font-mono text-[10px] space-y-1.5 shadow-sm">
+        {/* Compact Top Row: Title + Pattern + Trend Badge */}
+        <div className="flex items-center justify-between gap-1.5">
+          <div className="flex items-center gap-1 font-bold text-slate-200">
+            <Zap className="w-3 h-3 text-amber-400 shrink-0" />
+            <span className="text-[10.5px] font-sans">攻势动能</span>
+            <span className="text-[9px] px-1 py-0.2 rounded bg-indigo-950/90 border border-indigo-700/60 text-indigo-300 font-bold">
+              {analysis.patternZh}
+            </span>
+          </div>
+          <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${trendBadge.color} flex items-center gap-0.5`}>
+            {trend !== 'BALANCED_CONTEST' && <Flame className="w-2.5 h-2.5" />}
+            {trendBadge.label}
+          </span>
+        </div>
+
+        {/* Compact Gauges: 5m & 15m */}
+        <div className="grid grid-cols-2 gap-1.5 text-[9px]">
+          <div className="bg-slate-900/90 rounded px-1.5 py-0.5 border border-slate-800 flex items-center justify-between">
+            <span className="text-amber-300 font-medium">⚡近5分</span>
+            <span className="text-slate-300 font-mono">
+              <span className="text-emerald-400 font-bold">{recent5Share.home}%</span>
+              <span className="text-slate-500 mx-0.5">:</span>
+              <span className="text-purple-400 font-bold">{recent5Share.away}%</span>
+            </span>
+          </div>
+          <div className="bg-slate-900/90 rounded px-1.5 py-0.5 border border-slate-800 flex items-center justify-between">
+            <span className="text-slate-400 font-medium">近15分</span>
+            <span className="text-slate-300 font-mono">
+              <span className="text-emerald-400 font-bold">{recentShare.home}%</span>
+              <span className="text-slate-500 mx-0.5">:</span>
+              <span className="text-purple-400 font-bold">{recentShare.away}%</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Divergence Warning Alert if any active */}
+        {analysis.divergenceSignals.length > 0 && (
+          <div className="text-[8.5px] px-1.5 py-0.5 rounded bg-rose-950/60 border border-rose-800/60 text-rose-300 font-medium flex items-center gap-1">
+            <Radar className="w-2.5 h-2.5 text-rose-400 shrink-0" />
+            <span className="truncate">{analysis.divergenceSignals[0].tag}: {analysis.divergenceSignals[0].title}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Full Widget Mode: If no waveform, render informative stat-derived panel
+  if (!parsed.hasTimeline) {
+    const uStats = std?.unified_stats;
+    const hDang = uStats?.dangerous_attacks?.home ?? 0;
+    const aDang = uStats?.dangerous_attacks?.away ?? 0;
+    const hPoss = uStats?.possession?.home ?? 50;
+    const aPoss = uStats?.possession?.away ?? 50;
+    const hShots = uStats?.shots?.home ?? 0;
+    const aShots = uStats?.shots?.away ?? 0;
+    const hasStats = hDang > 0 || aDang > 0 || hShots > 0 || aShots > 0;
+
+    return (
+      <div className="bg-slate-950/80 border border-slate-800/80 rounded-lg p-2.5 font-mono text-[11px] space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 font-bold text-slate-300">
+            <Activity className="w-3.5 h-3.5 text-slate-400" />
+            <span>攻势动能与事件流</span>
+            <span className="text-[9.5px] px-1.5 py-0.2 rounded bg-slate-900 border border-slate-700 text-slate-400">
+              即时数据概览
+            </span>
+          </div>
+          <span className="text-[9.5px] text-slate-500">待雷速时序同步</span>
+        </div>
+
+        {hasStats ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-900/60 rounded p-2 border border-slate-800/60">
+            <div className="space-y-1">
+              <div className="flex justify-between text-[10px]">
+                <span className="text-emerald-400 font-semibold">主队控球 {hPoss}%</span>
+                <span className="text-purple-400 font-semibold">客队控球 {aPoss}%</span>
+              </div>
+              <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden flex border border-slate-800">
+                <div className="h-full bg-emerald-500" style={{ width: `${hPoss}%` }} />
+                <div className="h-full bg-purple-500" style={{ width: `${aPoss}%` }} />
+              </div>
+            </div>
+            <div className="flex items-center justify-around text-[10px] text-slate-300">
+              <span>危险进攻: <strong className="text-emerald-400">{hDang}</strong> - <strong className="text-purple-400">{aDang}</strong></span>
+              <span>射门: <strong className="text-emerald-400">{hShots}</strong> - <strong className="text-purple-400">{aShots}</strong></span>
+            </div>
+          </div>
+        ) : (
+          <div className="text-[10px] text-slate-400 py-1 text-center">
+            暂无即时攻势波形打分（比赛进行至第 {match?.minute || 0} 分钟）
+          </div>
+        )}
       </div>
     );
   }
@@ -804,6 +1016,23 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
           >
             <Activity className="w-3 h-3" />
             <span>时序波形与事件</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('events')}
+            className={`px-2 py-1 rounded font-medium flex items-center gap-1 transition-all ${
+              activeTab === 'events'
+                ? 'bg-indigo-600 text-white font-bold shadow'
+                : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <ListOrdered className="w-3 h-3" />
+            <span>全场事件流</span>
+            {allIncidents.length > 0 && (
+              <span className="px-1 py-0.2 rounded-full text-[8.5px] bg-amber-500 text-slate-950 font-black">
+                {allIncidents.length}
+              </span>
+            )}
           </button>
 
           <button
@@ -1043,6 +1272,189 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Quick Incidents Flow Highlights */}
+          {allIncidents.length > 0 && (
+            <div className="bg-slate-900/70 border border-slate-800 rounded-md p-2 space-y-1.5">
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-slate-300 font-semibold flex items-center gap-1">
+                  <ListOrdered className="w-3.5 h-3.5 text-amber-400" />
+                  <span>实况关键事件时序流 ({allIncidents.length} 项)</span>
+                </span>
+                <button
+                  onClick={() => setActiveTab('events')}
+                  className="text-indigo-400 hover:text-indigo-300 text-[9px] underline cursor-pointer"
+                >
+                  查看全部完整事件详情 &gt;
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {allIncidents.slice(0, 10).map((inc, idx) => {
+                  const sideClass =
+                    inc.side === 'home'
+                      ? 'bg-emerald-950/80 border-emerald-700/60 text-emerald-200'
+                      : inc.side === 'away'
+                      ? 'bg-purple-950/80 border-purple-700/60 text-purple-200'
+                      : 'bg-slate-950 border-slate-800 text-slate-300';
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`text-[9.5px] px-2 py-0.5 rounded border flex items-center gap-1 ${sideClass}`}
+                    >
+                      <span className="font-mono font-bold text-amber-300">{inc.displayMin}</span>
+                      <span>{inc.icon}</span>
+                      <span className="font-medium truncate max-w-[200px]" title={inc.text}>
+                        {inc.shortText || inc.text}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 2: Full Incident Stream with Category Filters */}
+      {activeTab === 'events' && (
+        <div className="space-y-2 animate-fadeIn font-sans">
+          {/* Incident Filter Pills */}
+          <div className="flex flex-wrap items-center justify-between gap-1 bg-slate-900/90 p-1.5 rounded-lg border border-slate-800 text-[10px]">
+            <div className="flex items-center gap-1">
+              <span className="text-slate-400 flex items-center gap-0.5 mr-1">
+                <Filter className="w-3 h-3 text-slate-400" /> 筛选:
+              </span>
+              <button
+                onClick={() => setIncidentFilter('all')}
+                className={`px-2 py-0.5 rounded transition-colors ${
+                  incidentFilter === 'all' ? 'bg-indigo-600 text-white font-bold' : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                全部 ({allIncidents.length})
+              </button>
+              <button
+                onClick={() => setIncidentFilter('goal')}
+                className={`px-2 py-0.5 rounded transition-colors ${
+                  incidentFilter === 'goal' ? 'bg-indigo-600 text-white font-bold' : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                进球 ⚽ ({allIncidents.filter(i => i.isGoal).length})
+              </button>
+              <button
+                onClick={() => setIncidentFilter('corner')}
+                className={`px-2 py-0.5 rounded transition-colors ${
+                  incidentFilter === 'corner' ? 'bg-indigo-600 text-white font-bold' : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                角球 🚩 ({allIncidents.filter(i => i.isCorner).length})
+              </button>
+              <button
+                onClick={() => setIncidentFilter('card')}
+                className={`px-2 py-0.5 rounded transition-colors ${
+                  incidentFilter === 'card' ? 'bg-indigo-600 text-white font-bold' : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                红黄牌 🟨🟥 ({allIncidents.filter(i => i.isCard).length})
+              </button>
+              <button
+                onClick={() => setIncidentFilter('sub')}
+                className={`px-2 py-0.5 rounded transition-colors ${
+                  incidentFilter === 'sub' ? 'bg-indigo-600 text-white font-bold' : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                换人 🔄 ({allIncidents.filter(i => i.isSub).length})
+              </button>
+              <button
+                onClick={() => setIncidentFilter('danger')}
+                className={`px-2 py-0.5 rounded transition-colors ${
+                  incidentFilter === 'danger' ? 'bg-indigo-600 text-white font-bold' : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                关键攻防 ⚡ ({allIncidents.filter(i => !i.isGoal && !i.isCorner && !i.isCard && !i.isSub).length})
+              </button>
+            </div>
+
+            <div className="text-[9px] text-slate-400 font-mono">
+              主队: <span className="text-emerald-400 font-bold">{allIncidents.filter(i => i.side === 'home').length}</span> 项 | 客队: <span className="text-purple-400 font-bold">{allIncidents.filter(i => i.side === 'away').length}</span> 项
+            </div>
+          </div>
+
+          {/* Incidents Chronological Card List */}
+          {allIncidents.length === 0 ? (
+            <div className="text-center py-6 bg-slate-900/60 rounded-lg border border-slate-800 text-slate-400 text-xs">
+              <ListOrdered className="w-5 h-5 text-slate-500 mx-auto mb-1" />
+              <span>暂无本场比赛事件流数据</span>
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+              {allIncidents
+                .filter((inc) => {
+                  if (incidentFilter === 'goal') return inc.isGoal;
+                  if (incidentFilter === 'corner') return inc.isCorner;
+                  if (incidentFilter === 'card') return inc.isCard;
+                  if (incidentFilter === 'sub') return inc.isSub;
+                  if (incidentFilter === 'danger') return !inc.isGoal && !inc.isCorner && !inc.isCard && !inc.isSub;
+                  return true;
+                })
+                .map((inc, idx) => {
+                  const isHome = inc.side === 'home';
+                  const isAway = inc.side === 'away';
+
+                  const badgeBorder = isHome
+                    ? 'border-emerald-700/60 bg-emerald-950/40 text-emerald-200'
+                    : isAway
+                    ? 'border-purple-700/60 bg-purple-950/40 text-purple-200'
+                    : 'border-slate-800 bg-slate-950 text-slate-300';
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-2 rounded-lg border flex items-center justify-between gap-2 transition-all ${badgeBorder}`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {/* Minute Bubble */}
+                        <div className="w-9 h-6 rounded bg-slate-950 border border-slate-800 flex items-center justify-center font-mono font-bold text-amber-300 text-[10px] shrink-0 shadow-xs">
+                          {inc.displayMin}
+                        </div>
+
+                        {/* Icon */}
+                        <span className="text-base shrink-0">{inc.icon}</span>
+
+                        {/* Event Text & Team Name */}
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-bold text-slate-100 flex items-center gap-1.5 truncate">
+                            <span>{inc.shortText || inc.text}</span>
+                            {inc.sideName && (
+                              <span className={`text-[9px] px-1 py-0.2 rounded border font-normal ${
+                                isHome ? 'bg-emerald-950 border-emerald-600 text-emerald-300' : 'bg-purple-950 border-purple-600 text-purple-300'
+                              }`}>
+                                {inc.sideName}
+                              </span>
+                            )}
+                          </div>
+                          {inc.text !== inc.shortText && (
+                            <div className="text-[9.5px] text-slate-400 truncate">
+                              {inc.text}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Half & Side Tag */}
+                      <div className="text-right shrink-0">
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${
+                          isHome ? 'bg-emerald-900/60 text-emerald-300' : isAway ? 'bg-purple-900/60 text-purple-300' : 'bg-slate-900 text-slate-400'
+                        }`}>
+                          {isHome ? '主队' : isAway ? '客队' : '中立'} · {inc.half === 1 ? '上半场' : inc.half === 2 ? '下半场' : '常规'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           )}
         </div>

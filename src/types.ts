@@ -170,14 +170,24 @@ export interface TacticalContext {
 /**
  * 3. 真实可投盘口快照 (白名单过滤，清晰易读)
  */
+export interface MarketSnapshotOption {
+  option_id?: string;
+  side?: 'home' | 'away' | 'draw' | 'over' | 'under' | string;
+  line?: string | number | null;
+  odds: number;
+  suspended?: boolean;
+}
+
 export interface MarketSnapshot {
   market_type: 'spread' | 'total' | 'h2h' | string;
   line?: string | number | null;
+  market_label?: string;
   home_or_over_odds?: number;
   away_or_under_odds?: number;
   draw_odds?: number;
   is_verified: boolean;
   raw_option_ids?: string[];
+  options?: MarketSnapshotOption[];
 }
 
 /**
@@ -246,67 +256,119 @@ export interface StandardMatchData {
 export type DecisionItem = StandardMatchData;
 
 /**
- * 数据标准化转换函数：确保所有源数据（雷速/YBTY）均经过此接口转换，消除冗余和空字段
+ * 数据标准化转换函数：根据全系统统一数据契约 (docs/SYSTEM_DATA_CONTRACT_AND_MAPPING.md) 执行强校验与清洗
+ * 确保所有进入系统的源数据在转换层即被彻底清洗，移除模糊兜底，强制硬性映射或抛出明确的数据契约异常
  */
 export function toStandardMatchData(raw: any): StandardMatchData {
-  if (!raw) {
-    return {
-      id: '',
-      match: '',
-      ybty_home: '',
-      ybty_away: '',
-      home_team: '',
-      away_team: '',
-      minute: 0,
-      score: { home: 0, away: 0 },
-      status: 'WATCH',
-      unified_stats: {
-        possession: { home: 50, away: 50 },
-        shots: { home: 0, away: 0 },
-        shots_on_target: { home: 0, away: 0 },
-        corners: { home: 0, away: 0 },
-        dangerous_attacks: { home: 0, away: 0 },
-        yellow_cards: { home: 0, away: 0 },
-        red_cards: { home: 0, away: 0 },
-      },
-      tactical_context: {
-        formation: { home: '4-2-3-1', away: '4-2-3-1' },
-        lineup_status: 'UNKNOWN',
-        key_absences_count: { home: 0, away: 0 },
-        h2h_matches: [],
-        home_recent_matches: [],
-        away_recent_matches: [],
-      },
-      market_snapshots: [],
-      timeline_events: [],
-    };
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('[DataContractViolation] toStandardMatchData requires a valid non-null object payload.');
   }
 
-  // If already standard with pure fields, return as is
-  if (raw.unified_stats && raw.tactical_context && raw.market_snapshots && raw.timeline_events !== undefined) {
-    return raw as StandardMatchData;
+  // 1. 提取并强校验对阵权威队名 (严格对齐 YBTY 权威基准)
+  let homeTeam = String(raw.ybty_home || raw.home || raw.home_team || '').trim();
+  let awayTeam = String(raw.ybty_away || raw.away || raw.away_team || '').trim();
+
+  // 若字段分离缺失，尝试从 match 对阵字符串严格解析
+  if ((!homeTeam || !awayTeam) && typeof raw.match === 'string' && raw.match.includes(' vs ')) {
+    const parts = raw.match.split(' vs ').map((s: string) => s.trim());
+    if (parts[0] && parts[1]) {
+      homeTeam = homeTeam || parts[0];
+      awayTeam = awayTeam || parts[1];
+    }
   }
 
-  const matchId = String(raw.match_id || raw.id || raw.leisu_match_id || '');
-  const homeTeam = String(raw.ybty_home || raw.home || raw.home_team || raw.leisu_home || '主队');
-  const awayTeam = String(raw.ybty_away || raw.away || raw.away_team || raw.leisu_away || '客队');
-  const league = String(raw.league || raw.ybty_league || raw.leisu_league || '常规赛事');
+  // 杜绝 '主队' / '客队' 等模糊占位符兜底，对阵队名缺失直接判定为无效数据契约
+  if (!homeTeam || !awayTeam) {
+    throw new Error(
+      `[DataContractViolation] Invalid match payload: Missing authoritative team names (home: "${homeTeam}", away: "${awayTeam}")`
+    );
+  }
 
+  // 2. 硬性映射全局唯一标识 (ID Resolution)
+  const resolvedMatchId = String(
+    raw.source_match_id ||
+    raw.match_id ||
+    raw.id ||
+    raw.leisu_match_id ||
+    ''
+  ).trim();
+
+  const standardId = resolvedMatchId || `${homeTeam}_vs_${awayTeam}`;
+  const standardMatch = `${homeTeam} vs ${awayTeam}`;
+  const league = String(raw.league || raw.ybty_league || raw.leisu_league || '未分类联赛').trim();
+
+  // 3. 时间与赛前/滚球状态标准化
+  const rawMinute = raw.minute !== undefined ? Number(raw.minute) : NaN;
+  const minute = !isNaN(rawMinute) && rawMinute >= 0 ? Math.floor(rawMinute) : 0;
+  const isPrematch = minute === 0 || raw.export_mode === 'prematch' || String(raw.status || '').toUpperCase().includes('PRE');
+  const status = raw.status || (isPrematch ? 'PREMATCH' : 'IN_PLAY');
+
+  // 4. 比分与双源交叉核验 (防假比分安全防线)
   let scoreHome = 0;
   let scoreAway = 0;
+
   if (typeof raw.score === 'object' && raw.score !== null) {
-    scoreHome = Number(raw.score.home ?? 0);
-    scoreAway = Number(raw.score.away ?? 0);
-  } else if (typeof raw.score === 'string' && raw.score.includes('-')) {
-    const parts = raw.score.split('-');
+    scoreHome = Number(raw.score.home ?? raw.score.home_score ?? 0);
+    scoreAway = Number(raw.score.away ?? raw.score.away_score ?? 0);
+  } else if (raw.home_score !== undefined && raw.away_score !== undefined) {
+    scoreHome = Number(raw.home_score || 0);
+    scoreAway = Number(raw.away_score || 0);
+  } else if (typeof raw.score === 'string' && (raw.score.includes('-') || raw.score.includes(':'))) {
+    const parts = raw.score.split(/[-:]/);
     scoreHome = parseInt(parts[0], 10) || 0;
     scoreAway = parseInt(parts[1], 10) || 0;
   }
 
-  const liveStats = raw.unified_stats || raw.liveStats || {};
+  if (isNaN(scoreHome) || scoreHome < 0) scoreHome = 0;
+  if (isNaN(scoreAway) || scoreAway < 0) scoreAway = 0;
+
+  const scoreVerified = isPrematch ? true : Boolean(raw.score_verified);
+  const scoreSource = String(
+    raw.score_source || (scoreVerified ? 'ybty+leisu_api' : 'unverified')
+  );
+
+  // 5. 攻势时序提取与归一化 (Multi-source Waveform Normalizer)
+  const extractMomentumTimeline = (sourceObj: any) => {
+    if (!sourceObj) return null;
+    if (typeof sourceObj === 'string') {
+      try {
+        const parsed = JSON.parse(sourceObj);
+        return extractMomentumTimeline(parsed);
+      } catch (e) {
+        return null;
+      }
+    }
+    return (
+      sourceObj.attack_momentum_timeline ||
+      sourceObj.live_match_physical_facts?.attack_momentum_timeline ||
+      sourceObj.live_facts?.attack_momentum_timeline ||
+      sourceObj.live_match?.attack_momentum_timeline ||
+      sourceObj.formal?.live_match?.attack_momentum_timeline ||
+      sourceObj.formal?.attack_momentum_timeline ||
+      sourceObj.result?.attack_momentum_timeline ||
+      sourceObj.match_info?.attack_momentum_timeline ||
+      sourceObj.trend ||
+      sourceObj.live_match_physical_facts?.trend ||
+      sourceObj.live_facts?.trend ||
+      sourceObj.live_match?.trend ||
+      sourceObj.formal?.live_match?.trend ||
+      sourceObj.formal?.trend ||
+      sourceObj.result?.trend ||
+      sourceObj.match_info?.trend ||
+      (sourceObj.formal?.trend?.data ? { available: true, source: 'LIVE_DETAIL_VUE.trend.data', data: sourceObj.formal.trend.data, raw: sourceObj.formal.trend } : null) ||
+      (sourceObj.trend?.data ? { available: true, source: 'LIVE_DETAIL_VUE.trend.data', data: sourceObj.trend.data, raw: sourceObj.trend } : null) ||
+      (sourceObj.live_match?.trend?.data ? { available: true, source: 'LIVE_DETAIL_VUE.trend.data', data: sourceObj.live_match.trend.data, raw: sourceObj.live_match.trend } : null) ||
+      null
+    );
+  };
+
+  const attackMomentumTimeline = extractMomentumTimeline(raw);
+
+  // 6. 统一技术统计数据清洗 (Unified Match Stats)
+  const liveStats = raw.unified_stats || raw.liveStats || raw.confirmed_statistics || {};
   const incidents = raw.focused_incidents || {};
 
-  const parseSideStat = (statVal: any, side: 'home' | 'away', fallback = 0): number => {
+  const parseStatNumber = (statVal: any, side: 'home' | 'away', fallback = 0): number => {
     if (statVal === null || statVal === undefined) return fallback;
     if (typeof statVal === 'number') return isNaN(statVal) ? fallback : statVal;
     if (typeof statVal === 'object') {
@@ -326,85 +388,61 @@ export function toStandardMatchData(raw: any): StandardMatchData {
     return fallback;
   };
 
-  const cornersHome = parseSideStat(incidents?.cards_and_corners?.corners, 'home',
-    parseSideStat(liveStats?.corners, 'home',
-      Number(liveStats?.corners_home ?? liveStats?.home?.corners ?? liveStats?.home?.corner_kicks ?? 0)
-    )
+  const posHome = parseStatNumber(liveStats?.possession, 'home', Number(liveStats?.possession_home ?? 50));
+  const posAway = parseStatNumber(liveStats?.possession, 'away', Number(liveStats?.possession_away ?? 50));
+
+  const shotsHome = parseStatNumber(liveStats?.shots, 'home', Number(liveStats?.shots_home ?? 0));
+  const shotsAway = parseStatNumber(liveStats?.shots, 'away', Number(liveStats?.shots_away ?? 0));
+
+  const targetHome = parseStatNumber(liveStats?.shots_on_target, 'home', Number(liveStats?.shots_on_target_home ?? 0));
+  const targetAway = parseStatNumber(liveStats?.shots_on_target, 'away', Number(liveStats?.shots_on_target_away ?? 0));
+
+  const offTargetHome = parseStatNumber(liveStats?.shots_off_target, 'home', Math.max(0, shotsHome - targetHome));
+  const offTargetAway = parseStatNumber(liveStats?.shots_off_target, 'away', Math.max(0, shotsAway - targetAway));
+
+  const dangHome = parseStatNumber(liveStats?.dangerous_attacks, 'home', Number(liveStats?.dangerous_attacks_home ?? 0));
+  const dangAway = parseStatNumber(liveStats?.dangerous_attacks, 'away', Number(liveStats?.dangerous_attacks_away ?? 0));
+
+  const cornersHome = parseStatNumber(incidents?.cards_and_corners?.corners, 'home',
+    parseStatNumber(liveStats?.corners, 'home', Number(liveStats?.corners_home ?? 0))
   );
-  const cornersAway = parseSideStat(incidents?.cards_and_corners?.corners, 'away',
-    parseSideStat(liveStats?.corners, 'away',
-      Number(liveStats?.corners_away ?? liveStats?.away?.corners ?? liveStats?.away?.corner_kicks ?? 0)
-    )
+  const cornersAway = parseStatNumber(incidents?.cards_and_corners?.corners, 'away',
+    parseStatNumber(liveStats?.corners, 'away', Number(liveStats?.corners_away ?? 0))
   );
 
-  const posHome = parseSideStat(liveStats?.possession, 'home',
-    Number(liveStats?.possession_home ?? liveStats?.home?.possession ?? 50)
+  const yellowHome = parseStatNumber(incidents?.cards_and_corners?.yellow_cards, 'home',
+    parseStatNumber(liveStats?.yellow_cards, 'home', Number(liveStats?.yellow_cards_home ?? 0))
   );
-  const posAway = parseSideStat(liveStats?.possession, 'away',
-    Number(liveStats?.possession_away ?? liveStats?.away?.possession ?? 50)
-  );
-
-  const shotsHome = parseSideStat(liveStats?.shots, 'home',
-    Number(liveStats?.shots_home ?? liveStats?.home?.shots ?? 0)
-  );
-  const shotsAway = parseSideStat(liveStats?.shots, 'away',
-    Number(liveStats?.shots_away ?? liveStats?.away?.shots ?? 0)
+  const yellowAway = parseStatNumber(incidents?.cards_and_corners?.yellow_cards, 'away',
+    parseStatNumber(liveStats?.yellow_cards, 'away', Number(liveStats?.yellow_cards_away ?? 0))
   );
 
-  const targetHome = parseSideStat(liveStats?.shots_on_target, 'home',
-    Number(liveStats?.shots_on_target_home ?? liveStats?.home?.shots_on_target ?? 0)
+  const redHome = parseStatNumber(incidents?.cards_and_corners?.red_cards, 'home',
+    parseStatNumber(liveStats?.red_cards, 'home', Number(liveStats?.red_cards_home ?? 0))
   );
-  const targetAway = parseSideStat(liveStats?.shots_on_target, 'away',
-    Number(liveStats?.shots_on_target_away ?? liveStats?.away?.shots_on_target ?? 0)
-  );
-
-  const dangHome = parseSideStat(liveStats?.dangerous_attacks, 'home',
-    Number(liveStats?.dangerous_attacks_home ?? liveStats?.home?.dangerous_attacks ?? 0)
-  );
-  const dangAway = parseSideStat(liveStats?.dangerous_attacks, 'away',
-    Number(liveStats?.dangerous_attacks_away ?? liveStats?.away?.dangerous_attacks ?? 0)
-  );
-
-  const yellowHome = parseSideStat(incidents?.cards_and_corners?.yellow_cards, 'home',
-    parseSideStat(liveStats?.yellow_cards, 'home',
-      Number(liveStats?.yellow_cards_home ?? liveStats?.home?.yellow_cards ?? 0)
-    )
-  );
-  const yellowAway = parseSideStat(incidents?.cards_and_corners?.yellow_cards, 'away',
-    parseSideStat(liveStats?.yellow_cards, 'away',
-      Number(liveStats?.yellow_cards_away ?? liveStats?.away?.yellow_cards ?? 0)
-    )
-  );
-
-  const redHome = parseSideStat(incidents?.cards_and_corners?.red_cards, 'home',
-    parseSideStat(liveStats?.red_cards, 'home',
-      Number(liveStats?.red_cards_home ?? liveStats?.home?.red_cards ?? 0)
-    )
-  );
-  const redAway = parseSideStat(incidents?.cards_and_corners?.red_cards, 'away',
-    parseSideStat(liveStats?.red_cards, 'away',
-      Number(liveStats?.red_cards_away ?? liveStats?.away?.red_cards ?? 0)
-    )
+  const redAway = parseStatNumber(incidents?.cards_and_corners?.red_cards, 'away',
+    parseStatNumber(liveStats?.red_cards, 'away', Number(liveStats?.red_cards_away ?? 0))
   );
 
   const unified_stats: UnifiedMatchStats = {
-    possession: { home: posHome, away: posAway },
-    shots: { home: shotsHome, away: shotsAway },
-    shots_on_target: { home: targetHome, away: targetAway },
-    corners: { home: cornersHome, away: cornersAway },
-    dangerous_attacks: { home: dangHome, away: dangAway },
-    yellow_cards: { home: yellowHome, away: yellowAway },
-    red_cards: { home: redHome, away: redAway },
+    possession: { home: Math.max(0, Math.min(100, posHome)), away: Math.max(0, Math.min(100, posAway)) },
+    shots: { home: Math.max(0, shotsHome), away: Math.max(0, shotsAway) },
+    shots_on_target: { home: Math.max(0, targetHome), away: Math.max(0, targetAway) },
+    corners: { home: Math.max(0, cornersHome), away: Math.max(0, cornersAway) },
+    dangerous_attacks: { home: Math.max(0, dangHome), away: Math.max(0, dangAway) },
+    yellow_cards: { home: Math.max(0, yellowHome), away: Math.max(0, yellowAway) },
+    red_cards: { home: Math.max(0, redHome), away: Math.max(0, redAway) },
   };
 
-  const lineups = raw.lineups;
-  const formationClash = raw.formation_clash;
-  
-  // Extract Historical Matches & Form Lists from tactical_context
+  // 7. 战术背景清洗 (Tactical Context)
   const tc = raw.tactical_context || {};
-  const h2hMatches = Array.isArray(tc.h2h_matches) ? tc.h2h_matches : Array.isArray(raw.h2h) ? raw.h2h : [];
-  const homeRecent = Array.isArray(tc.home_recent_matches) ? tc.home_recent_matches : [];
-  const awayRecent = Array.isArray(tc.away_recent_matches) ? tc.away_recent_matches : [];
+  const lineups = raw.lineups || raw.lineup;
+  const formationClash = raw.formation_clash;
+
+  const lineupStatus =
+    lineups?.status === 'confirmed' || lineups?.status === 'CONFIRMED' || lineups?.confirmed === true
+      ? 'CONFIRMED'
+      : (tc.lineup_status === 'CONFIRMED' ? 'CONFIRMED' : 'PROJECTED');
 
   const tactical_context: TacticalContext = {
     formation: {
@@ -417,82 +455,71 @@ export function toStandardMatchData(raw: any): StandardMatchData {
     home_form: tc.home_form,
     away_form: tc.away_form,
     h2h_summary: tc.h2h_summary,
-    lineup_status: lineups?.status === 'confirmed' || lineups?.status === 'CONFIRMED' ? 'CONFIRMED' : (tc.lineup_status || 'PROJECTED'),
+    lineup_status: lineupStatus,
     key_absences_count: tc.key_absences_count || { home: 0, away: 0 },
-    h2h_matches: h2hMatches,
-    home_recent_matches: homeRecent,
-    away_recent_matches: awayRecent,
+    h2h_matches: Array.isArray(tc.h2h_matches) ? tc.h2h_matches : Array.isArray(raw.h2h) ? raw.h2h : [],
+    home_recent_matches: Array.isArray(tc.home_recent_matches) ? tc.home_recent_matches : [],
+    away_recent_matches: Array.isArray(tc.away_recent_matches) ? tc.away_recent_matches : [],
   };
 
+  // 8. 盘口快照清洗 (Market Snapshots - YBTY 权威白名单)
   const market_snapshots: MarketSnapshot[] = [];
   if (Array.isArray(raw.market_snapshots) && raw.market_snapshots.length > 0) {
     market_snapshots.push(...raw.market_snapshots);
   } else {
-    if (raw.ybty_markets?.spread) {
-      market_snapshots.push({
-        market_type: 'spread',
-        line: raw.ybty_markets.spread.home_line ?? raw.ybty_markets.spread.away_line,
-        home_or_over_odds: raw.ybty_markets.spread.home_odds,
-        away_or_under_odds: raw.ybty_markets.spread.away_odds,
-        is_verified: !raw.ybty_markets.spread.home_suspended,
-      });
-    }
-    if (raw.ybty_markets?.total) {
-      market_snapshots.push({
-        market_type: 'total',
-        line: raw.ybty_markets.total.line,
-        home_or_over_odds: raw.ybty_markets.total.over_odds,
-        away_or_under_odds: raw.ybty_markets.total.under_odds,
-        is_verified: !raw.ybty_markets.total.over_suspended,
-      });
-    }
-    if (raw.ybty_markets?.h2h) {
-      market_snapshots.push({
-        market_type: 'h2h',
-        home_or_over_odds: raw.ybty_markets.h2h.home_odds,
-        away_or_under_odds: raw.ybty_markets.h2h.away_odds,
-        draw_odds: raw.ybty_markets.h2h.draw_odds,
-        is_verified: !raw.ybty_markets.h2h.home_suspended,
-      });
+    const rawMarkets = raw.verified_ybty_markets || raw.ybty_raw_markets || raw.markets || [];
+    if (Array.isArray(rawMarkets) && rawMarkets.length > 0) {
+      for (const mkt of rawMarkets) {
+        if (Array.isArray(mkt.options)) {
+          market_snapshots.push({
+            market_type: mkt.market || mkt.market_type || 'custom',
+            line: mkt.line,
+            market_label: mkt.market_label || mkt.market,
+            is_verified: Boolean(mkt.market_type_verified ?? true),
+            options: mkt.options.map((opt: any) => ({
+              option_id: opt.option_id,
+              side: opt.side,
+              line: opt.line,
+              odds: Number(opt.odds || 0),
+              suspended: Boolean(opt.suspended),
+            })),
+          });
+        }
+      }
     }
   }
 
-  // Extract Timeline Events cleanly
+  // 9. 事件流清洗 (Timeline Events)
   const rawTimelineEvents = [
     ...(Array.isArray(raw.timeline_events) ? raw.timeline_events : []),
     ...(Array.isArray(raw.text_live) ? raw.text_live : []),
     ...(Array.isArray(raw.focused_incidents?.match_events) ? raw.focused_incidents.match_events : []),
   ];
 
-  // Extract Momentum Timeline
-  const attackMomentumTimeline = raw.attack_momentum_timeline ||
-    raw.live_match_physical_facts?.attack_momentum_timeline ||
-    null;
-
   return {
-    id: matchId || `${homeTeam}_vs_${awayTeam}`,
-    match: raw.match || `${homeTeam} vs ${awayTeam}`,
-    match_id: matchId,
-    leisu_match_id: String(raw.leisu_match_id || matchId),
+    id: standardId,
+    match: standardMatch,
+    match_id: resolvedMatchId || standardId,
+    leisu_match_id: String(raw.leisu_match_id || resolvedMatchId || standardId),
     league,
     ybty_league: String(raw.ybty_league || league),
     leisu_league: String(raw.leisu_league || league),
-    ybty_match: String(raw.ybty_match || raw.match || `${homeTeam} vs ${awayTeam}`),
+    ybty_match: standardMatch,
     ybty_home: homeTeam,
     ybty_away: awayTeam,
     home_team: homeTeam,
     away_team: awayTeam,
-    leisu_home: String(raw.leisu_home || homeTeam),
-    leisu_away: String(raw.leisu_away || awayTeam),
+    leisu_home: raw.leisu_home ? String(raw.leisu_home) : undefined,
+    leisu_away: raw.leisu_away ? String(raw.leisu_away) : undefined,
     start_time_beijing: raw.start_time_beijing || raw.ybty_start_time_beijing || raw.time || null,
     ybty_start_time_beijing: raw.ybty_start_time_beijing || raw.start_time_beijing || null,
     ybty_start_time: raw.ybty_start_time || null,
     captured_at: raw.captured_at || new Date().toISOString(),
-    minute: Number(raw.minute || 0),
+    minute,
     score: { home: scoreHome, away: scoreAway },
-    score_source: String(raw.score_source || (raw.score_verified ? 'ybty+leisu_api' : 'machine_detected')),
-    score_verified: Boolean(raw.score_verified),
-    status: raw.status || 'WATCH',
+    score_source: scoreSource,
+    score_verified: scoreVerified,
+    status,
     grade: raw.grade || 'C',
     model_score: Number(raw.model_score || 0),
     unified_stats,
@@ -500,6 +527,13 @@ export function toStandardMatchData(raw: any): StandardMatchData {
     market_snapshots,
     timeline_events: rawTimelineEvents,
     attack_momentum_timeline: attackMomentumTimeline,
+    commence_time: raw.commence_time || null,
+    provider_start_time: raw.provider_start_time || null,
+    ht_score: raw.ht_score || raw.half_time_score || null,
+    half_time_score: raw.half_time_score || raw.ht_score || null,
+    weather: raw.weather || raw.environment || undefined,
+    lineups: lineups || undefined,
+    reference_market: raw.reference_market || raw.reference_odds || undefined,
     recommendation: raw.recommendation || null,
     risks: Array.isArray(raw.risks) ? raw.risks : [],
     evidence: Array.isArray(raw.evidence) ? raw.evidence : [],

@@ -530,7 +530,7 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
 
   const rawIncidents = filterPromptKeyIncidents(item, 50);
   const attackMomentumTimeline = mode === 'prematch_eval' ? null : analyzeAttackMomentumTimeline(
-    item?.attack_momentum_timeline || item?.live_facts?.attack_momentum_timeline,
+    item?.attack_momentum_timeline || item?.live_facts?.attack_momentum_timeline || item?.live_match_physical_facts?.attack_momentum_timeline || cData.attack_momentum_timeline || cData.live_facts?.attack_momentum_timeline,
     minute,
     rawIncidents,
     homeTeam,

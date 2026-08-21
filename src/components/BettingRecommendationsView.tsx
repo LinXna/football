@@ -1587,8 +1587,10 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                       const sourceMeta = parlaySourceMeta(leg.directionSource);
                       const legHome = (leg as any).home || leg.ybty_home || teams.homeYbty;
                       const legAway = (leg as any).away || leg.ybty_away || teams.awayYbty;
+                      const legMatchId = (leg as any).match_id || (leg as any).id || (leg as any).leisu_match_id;
                       const legMatchItem = allCombined.find(
                         (m) =>
+                          (legMatchId && (String(m.match_id) === String(legMatchId) || String(m.id) === String(legMatchId))) ||
                           m.match === leg.match ||
                           (m.ybty_home && legHome && m.ybty_home === legHome && m.ybty_away === legAway) ||
                           (m.match && leg.match && (m.match.includes(leg.match) || leg.match.includes(m.match)))

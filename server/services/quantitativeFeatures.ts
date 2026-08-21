@@ -1237,15 +1237,36 @@ export function analyzeAttackMomentumTimeline(
   tactical_conversion_verdict: string;
   momentum_verdict_zh: string;
 } | null {
-  if (!timelineInput || typeof timelineInput !== 'object') return null;
+  if (!timelineInput) return null;
 
-  const rawData = timelineInput.data;
-  const nominalMinutes = Number(timelineInput.nominal_segment_minutes) || 45;
+  let timeline = timelineInput;
+  if (typeof timeline === 'string') {
+    try {
+      timeline = JSON.parse(timeline);
+    } catch {
+      return null;
+    }
+  }
+  if (!timeline || typeof timeline !== 'object') return null;
+
+  const nominalMinutes = Number(timeline.nominal_segment_minutes) || 45;
+  const rawData =
+    timeline.data !== undefined
+      ? timeline.data
+      : timeline.trend?.data !== undefined
+      ? timeline.trend.data
+      : timeline.trend;
 
   // Normalize into 2D segments: Array<Array<number>>
   let segments: number[][] = [];
 
-  if (Array.isArray(rawData) && rawData.length > 0) {
+  if (Array.isArray(timeline) && timeline.length > 0) {
+    if (Array.isArray(timeline[0])) {
+      segments = timeline.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
+    } else if (typeof timeline[0] === 'number') {
+      segments = [timeline.map(Number)];
+    }
+  } else if (Array.isArray(rawData) && rawData.length > 0) {
     if (Array.isArray(rawData[0])) {
       // 2D Array [ [..], [..] ]
       segments = rawData.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
@@ -1253,10 +1274,19 @@ export function analyzeAttackMomentumTimeline(
       // Flat 1D Array fallback
       segments = [rawData.map(Number)];
     }
-  } else if (Array.isArray(timelineInput.periods) && timelineInput.periods.length > 0) {
-    segments = timelineInput.periods.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
-  } else if (Array.isArray(timelineInput.raw?.data) && timelineInput.raw.data.length > 0) {
-    segments = timelineInput.raw.data.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
+  } else if (Array.isArray(timeline.periods) && timeline.periods.length > 0) {
+    segments = timeline.periods.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
+  } else if (Array.isArray(timeline.segments) && timeline.segments.length > 0) {
+    segments = timeline.segments.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
+  } else if (Array.isArray(timeline.raw?.data) && timeline.raw.data.length > 0) {
+    segments = timeline.raw.data.map((seg: any) => (Array.isArray(seg) ? seg.map(Number) : []));
+  } else if (Array.isArray(timeline.home) && Array.isArray(timeline.away)) {
+    const len = Math.max(timeline.home.length, timeline.away.length);
+    const diffs: number[] = [];
+    for (let i = 0; i < len; i++) {
+      diffs.push((Number(timeline.home[i]) || 0) - (Number(timeline.away[i]) || 0));
+    }
+    segments = [diffs];
   }
 
   // Filter out empty segments

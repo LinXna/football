@@ -4,6 +4,8 @@
  * 彻底消除数据异构、字段重名与多源解析混乱
  */
 
+import { analyzeAttackMomentumTimeline } from './quantitativeFeatures';
+
 export interface CanonicalMatchStats {
   possession: { home: number; away: number };
   shots: { home: number; away: number };
@@ -53,6 +55,7 @@ export interface CanonicalMatchData {
       momentum_trend?: string;
       tactical_conversion_verdict?: string;
     };
+    attack_momentum_timeline?: any;
     attack_conversion: {
       field_tilt_share: { home: number; away: number };
       dangerous_attack_to_shot_ratio: { home: number; away: number };
@@ -76,6 +79,7 @@ export interface CanonicalMatchData {
       away_absences: { missing_gk: boolean; missing_cbs: number; key_midfielders_missing: number; top_scorers_missing: number };
     };
   };
+  attack_momentum_timeline?: any;
   verified_markets: CanonicalMarketOption[];
   raw_ref_odds?: any;
 }
@@ -90,9 +94,9 @@ export function canonicalizeRawMatchData(raw: any): CanonicalMatchData {
   const liveStatsRaw = raw?.unified_stats || raw?.liveStats || raw?.live_facts?.stats || {};
   const incidents = raw?.focused_incidents || livePhysical?.focused_incidents || {};
 
-  // 1. Meta
-  const match_id = String(matchInfo.match_id || raw.match_id || raw.id || '');
-  const leisu_match_id = String(matchInfo.leisu_match_id || raw.leisu_match_id || match_id);
+  // 1. Meta (雷速 match_id 作为合并赛事的唯一主键)
+  const match_id = String(raw.match_id || raw.id || '');
+  const leisu_match_id = match_id;
   const league_name = String(matchInfo.league || raw.league || raw.league_name || '常规职业联赛');
   const home_team = String(matchInfo.ybty_home || raw.ybty_home || matchInfo.home || raw.home || '主队');
   const away_team = String(matchInfo.ybty_away || raw.ybty_away || matchInfo.away || raw.away || '客队');
@@ -224,12 +228,29 @@ export function canonicalizeRawMatchData(raw: any): CanonicalMatchData {
   }
 
   // 4. Attack Conversion / Momentum
-  const momTimeline = livePhysical.attack_momentum_timeline || {};
-  const rec5Home = Number(momTimeline?.recent_5min_momentum?.home ?? 50);
-  const rec5Away = Number(momTimeline?.recent_5min_momentum?.away ?? 50);
-  const rec15Home = Number(momTimeline?.recent_15min_pressure_share?.home ?? 50);
-  const rec15Away = Number(momTimeline?.recent_15min_pressure_share?.away ?? 50);
-  const dominanceWindows = Array.isArray(momTimeline?.continuous_dominance_windows) ? momTimeline.continuous_dominance_windows : [];
+  const attack_momentum_timeline =
+    raw?.attack_momentum_timeline ||
+    livePhysical?.attack_momentum_timeline ||
+    raw?.live_facts?.attack_momentum_timeline ||
+    raw?.live_match?.attack_momentum_timeline ||
+    raw?.formal?.live_match?.attack_momentum_timeline ||
+    raw?.formal?.attack_momentum_timeline ||
+    raw?.result?.attack_momentum_timeline ||
+    (raw?.formal?.trend?.data ? { available: true, source: 'LIVE_DETAIL_VUE.trend.data', data: raw.formal.trend.data, raw: raw.formal.trend } : null) ||
+    (raw?.trend?.data ? { available: true, source: 'LIVE_DETAIL_VUE.trend.data', data: raw.trend.data, raw: raw.trend } : null) ||
+    (raw?.live_match?.trend?.data ? { available: true, source: 'LIVE_DETAIL_VUE.trend.data', data: raw.live_match.trend.data, raw: raw.live_match.trend } : null) ||
+    null;
+
+  const momTimeline = attack_momentum_timeline || livePhysical.attack_momentum_timeline || {};
+  const analyzedMom = attack_momentum_timeline ? analyzeAttackMomentumTimeline(attack_momentum_timeline, minute, eventsList, home_team, away_team) : null;
+
+  const rec5Home = Number(analyzedMom?.recent_5min_momentum?.home ?? momTimeline?.recent_5min_momentum?.home ?? momTimeline?.recent_5min_share?.home ?? 50);
+  const rec5Away = Number(analyzedMom?.recent_5min_momentum?.away ?? momTimeline?.recent_5min_momentum?.away ?? momTimeline?.recent_5min_share?.away ?? 50);
+  const rec15Home = Number(analyzedMom?.recent_15min_pressure_share?.home ?? momTimeline?.recent_15min_pressure_share?.home ?? momTimeline?.recent_15min_share?.home ?? 50);
+  const rec15Away = Number(analyzedMom?.recent_15min_pressure_share?.away ?? momTimeline?.recent_15min_pressure_share?.away ?? momTimeline?.recent_15min_share?.away ?? 50);
+  const dominanceWindows = analyzedMom?.continuous_dominance_windows ?? (Array.isArray(momTimeline?.continuous_dominance_windows) ? momTimeline.continuous_dominance_windows : (Array.isArray(momTimeline?.dominance_windows) ? momTimeline.dominance_windows : []));
+  const momTrend = analyzedMom?.momentum_trend ?? momTimeline.momentum_trend;
+  const tacticalVerdict = analyzedMom?.tactical_conversion_verdict ?? momTimeline.tactical_conversion_verdict;
 
   const rawConv = livePhysical.attack_conversion || {};
   const fieldTiltHome = Number(rawConv.field_tilt_share?.home ?? (dangHome + dangAway > 0 ? dangHome / (dangHome + dangAway) : 0.5));
@@ -301,9 +322,10 @@ export function canonicalizeRawMatchData(raw: any): CanonicalMatchData {
         recent_5min_share: { home: rec5Home, away: rec5Away },
         recent_15min_share: { home: rec15Home, away: rec15Away },
         dominance_windows: dominanceWindows,
-        momentum_trend: momTimeline.momentum_trend,
-        tactical_conversion_verdict: momTimeline.tactical_conversion_verdict,
+        momentum_trend: momTrend,
+        tactical_conversion_verdict: tacticalVerdict,
       },
+      attack_momentum_timeline: attack_momentum_timeline || undefined,
       attack_conversion: {
         field_tilt_share: { home: Number(fieldTiltHome.toFixed(4)), away: Number(fieldTiltAway.toFixed(4)) },
         dangerous_attack_to_shot_ratio: { home: Number(dangToShotHome.toFixed(4)), away: Number(dangToShotAway.toFixed(4)) },
@@ -337,6 +359,7 @@ export function canonicalizeRawMatchData(raw: any): CanonicalMatchData {
         },
       },
     },
+    attack_momentum_timeline: attack_momentum_timeline || undefined,
     verified_markets: verifiedMarketsList,
     raw_ref_odds: raw.reference_market || raw.reference_odds,
   };
