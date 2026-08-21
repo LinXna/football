@@ -256,7 +256,8 @@ export function evaluateRedCardDisciplinePhysics(
   item: any,
   minute: number
 ): RedCardDisciplinePhysics {
-  const events = item?.incidents || item?.focused_incidents?.red_cards || item?.detail_context?.formal?.live_match?.incidents || [];
+  const cData: CanonicalMatchData = item?.live_facts?.stats ? (item as CanonicalMatchData) : canonicalizeRawMatchData(item);
+  const events = (item as any)?.timeline_events || (cData as any).timeline_events || [];
   
   let homeReds = 0;
   let awayReds = 0;
@@ -275,20 +276,25 @@ export function evaluateRedCardDisciplinePhysics(
     for (const ev of events) {
       if (typeof ev === 'string') checkEvent(ev);
       else if (ev && typeof ev === 'object') {
-        const desc = `${ev.text || ''} ${ev.event || ''} ${ev.type || ''}`;
-        const m = Number(ev.minute || ev.time || minute);
-        checkEvent(desc, m);
+        const desc = `${ev.text || ''} ${ev.shortText || ''} ${ev.icon || ''}`;
+        const m = Number(ev.min || ev.minute || minute);
+        if (ev.isCard || ev.icon === 'red_card' || /红牌|red/i.test(desc)) {
+          if (ev.side === 'away') awayReds++;
+          else if (ev.side === 'home') homeReds++;
+          else checkEvent(desc, m);
+          if (m < firstRedMin) firstRedMin = m;
+        } else {
+          checkEvent(desc, m);
+        }
       }
     }
   }
 
-  // Also check live statistics cards / unified_stats
-  const unifiedHomeRed = Number(item?.unified_stats?.red_cards?.home ?? 0);
-  const unifiedAwayRed = Number(item?.unified_stats?.red_cards?.away ?? 0);
-  const statsHomeRed = Number(item?.live_statistics?.home?.red_cards ?? item?.live_statistics?.red_cards?.home ?? 0);
-  const statsAwayRed = Number(item?.live_statistics?.away?.red_cards ?? item?.live_statistics?.red_cards?.away ?? 0);
-  homeReds = Math.max(homeReds, unifiedHomeRed, statsHomeRed);
-  awayReds = Math.max(awayReds, unifiedAwayRed, statsAwayRed);
+  // Canonical unified red cards
+  const unifiedHomeRed = Number(cData.live_facts.stats.red_cards.home ?? 0);
+  const unifiedAwayRed = Number(cData.live_facts.stats.red_cards.away ?? 0);
+  homeReds = Math.max(homeReds, unifiedHomeRed);
+  awayReds = Math.max(awayReds, unifiedAwayRed);
 
   if (homeReds === 0 && awayReds === 0) {
     return {
@@ -584,40 +590,16 @@ export function evaluateNonLinearTimeDecay(
     phaseBaseNote = '终局搏命与体能透支期 (75-90+\')：防线拉长脱节。';
   }
 
-  // Extract real in-match physical facts with multi-layer fallback
-  let targetHome = Number(liveStats?.shots_on_target_home ?? liveStats?.shots_on_goal_home ?? liveStats?.home?.shots_on_target ?? 0);
-  let targetAway = Number(liveStats?.shots_on_target_away ?? liveStats?.shots_on_goal_away ?? liveStats?.away?.shots_on_target ?? 0);
-  let totalShotsHome = Number(liveStats?.shots_home ?? liveStats?.total_shots_home ?? liveStats?.home?.shots ?? 0);
-  let totalShotsAway = Number(liveStats?.shots_away ?? liveStats?.total_shots_away ?? liveStats?.away?.shots ?? 0);
-  let dangHome = Number(liveStats?.dangerous_attacks_home ?? liveStats?.dangerous_attack_home ?? liveStats?.home?.dangerous_attacks ?? 0);
-  let dangAway = Number(liveStats?.dangerous_attacks_away ?? liveStats?.dangerous_attack_away ?? liveStats?.away?.dangerous_attacks ?? 0);
-  let cornersHome = Number(liveStats?.corners_home ?? liveStats?.corner_home ?? liveStats?.home?.corners ?? liveStats?.home?.corner_kicks ?? 0);
-  let cornersAway = Number(liveStats?.corners_away ?? liveStats?.corner_away ?? liveStats?.away?.corners ?? liveStats?.away?.corner_kicks ?? 0);
-
-  // If liveStats is null or missing, attempt reading from rawItem text summary
-  if (totalShotsHome === 0 && totalShotsAway === 0 && rawItem?.live_match_physical_facts?.attack_pressure_summary) {
-    const sumText: string = String(rawItem.live_match_physical_facts.attack_pressure_summary);
-    const mShots = sumText.match(/射门:\s*(\d+)-(\d+)/);
-    if (mShots) {
-      totalShotsHome = parseInt(mShots[1], 10) || 0;
-      totalShotsAway = parseInt(mShots[2], 10) || 0;
-    }
-    const mTarget = sumText.match(/射正:\s*(\d+)-(\d+)/);
-    if (mTarget) {
-      targetHome = parseInt(mTarget[1], 10) || 0;
-      targetAway = parseInt(mTarget[2], 10) || 0;
-    }
-    const mDang = sumText.match(/危险进攻:\s*(\d+)-(\d+)/);
-    if (mDang) {
-      dangHome = parseInt(mDang[1], 10) || 0;
-      dangAway = parseInt(mDang[2], 10) || 0;
-    }
-    const mCorn = sumText.match(/角球:\s*(\d+)-(\d+)/);
-    if (mCorn) {
-      cornersHome = parseInt(mCorn[1], 10) || 0;
-      cornersAway = parseInt(mCorn[2], 10) || 0;
-    }
-  }
+  // Extract real in-match physical facts from canonical unified_stats
+  const canonicalStats = rawItem?.live_facts?.stats || (rawItem ? canonicalizeRawMatchData(rawItem).live_facts.stats : null);
+  let targetHome = Number(canonicalStats?.shots_on_target?.home ?? liveStats?.shots_on_target_home ?? 0);
+  let targetAway = Number(canonicalStats?.shots_on_target?.away ?? liveStats?.shots_on_target_away ?? 0);
+  let totalShotsHome = Number(canonicalStats?.shots?.home ?? liveStats?.shots_home ?? 0);
+  let totalShotsAway = Number(canonicalStats?.shots?.away ?? liveStats?.shots_away ?? 0);
+  let dangHome = Number(canonicalStats?.dangerous_attacks?.home ?? liveStats?.dangerous_attacks_home ?? 0);
+  let dangAway = Number(canonicalStats?.dangerous_attacks?.away ?? liveStats?.dangerous_attacks_away ?? 0);
+  let cornersHome = Number(canonicalStats?.corners?.home ?? liveStats?.corners_home ?? 0);
+  let cornersAway = Number(canonicalStats?.corners?.away ?? liveStats?.corners_away ?? 0);
 
   const totalTargetShots = targetHome + targetAway;
   const totalShots = totalShotsHome + totalShotsAway;
@@ -780,9 +762,9 @@ export function buildMasterTacticalSynthesis(
   const effectiveMin = cData.live_facts.minute || minute || 0;
   const scoreText = `${cData.live_facts.score.home}-${cData.live_facts.score.away}`;
 
-  const lineupData = item?.lineups || item?.detail_context?.formal?.lineup || item?.detail_context?.lineup || item?.detail_context?.formal?.static_match?.lineup;
-  const refOdds = item?.reference_odds || item?.detail_context?.formal?.odds || cData.raw_ref_odds;
-  const standings = item?.recent_trends?.standings || item?.trend_summary?.standings || cData.context.standings_text;
+  const lineupData = (cData.context as any).raw_lineup || item?.lineups || null;
+  const refOdds = cData.raw_ref_odds;
+  const standings = cData.context.standings_text;
 
   // Formation
   const homeFormationResult = detectMatchFormation(lineupData, 'home');

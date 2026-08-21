@@ -244,12 +244,12 @@ export const BettingRecommendationsView: React.FC<Props> = ({
     mode: Number(m.minute || 0) > 0 ? 'live' : 'prematch',
     minute: Number(m.minute || 0),
     score: m.score || { home: 0, away: 0 },
-    live_statistics: m.live_statistics || null,
-    recent_trends: m.recent_trends || null,
-    reference_odds: m.reference_odds || null,
+    unified_stats: m.unified_stats || null,
+    tactical_context: m.tactical_context || null,
+    market_snapshots: m.market_snapshots || null,
     weather: m.weather || null,
     lineups: m.lineups || null,
-    detail_completeness: (m.detail_context as any)?.completeness || null,
+    timeline_events_count: m.timeline_events?.length || 0,
   });
 
   const buildLedgerItemsForMatch = (m: DecisionItem, includeAllExtended: boolean = true) => {
@@ -432,38 +432,7 @@ export const BettingRecommendationsView: React.FC<Props> = ({
     // This entry deliberately excludes m.recommendation: the formal primary has
     // its own ledger path and must not be duplicated as an all-market candidate.
 
-    for (const rawMarket of m.ybty_raw_markets || []) {
-      const marketCode = String(rawMarket.market || '');
-      const activeOptions = (rawMarket.options || [])
-        .map((option, index) => ({ ...option, index, numericOdds: Number(option.odds) }))
-        .filter((option) => !option.suspended && Number.isFinite(option.numericOdds) && option.numericOdds > 1);
-      activeOptions.sort((a, b) => a.numericOdds - b.numericOdds);
-      const selected = activeOptions[0];
-      if (!selected) continue;
-      const isHalf = marketCode.startsWith('half_');
-      const period = isHalf ? '半场' : '全场';
-      const lineIndex = Number(rawMarket.line_index || 0);
-      const suffix = lineIndex > 0 ? ` 第${lineIndex + 1}盘口` : '';
-      if (marketCode.endsWith('_h2h')) {
-        const selectionText = String(selected.selection || selected.text || '');
-        const side = selectionText.includes('主')
-          ? '主胜'
-          : selectionText.includes('平')
-            ? '平局'
-            : selectionText.includes('客')
-              ? '客胜'
-              : selected.index === 0 ? '主胜' : selected.index === 1 && activeOptions.length >= 3 ? '客胜' : '平局';
-        addRow(`${period}独赢（市场基准）${suffix}`, side, selected.numericOdds, `取自本次YBTY ${marketCode} 原始真实赔率`);
-      } else if (marketCode.endsWith('_spread')) {
-        const side = selected.index === 0 ? '主队' : '客队';
-        addRow(`${period}让球（市场基准）${suffix}`, `${side} ${formatAsianLine(selected.selection || '0')}`, selected.numericOdds, `取自本次YBTY ${marketCode} 原始真实盘口和赔率`);
-      } else if (marketCode.endsWith('_total')) {
-        const side = selected.index === 0 ? '大球' : '小球';
-        addRow(`${period}${side}（市场基准）${suffix}`, formatAsianLine(selected.selection || '0'), selected.numericOdds, `取自本次YBTY ${marketCode} 原始真实盘口和赔率`);
-      }
-    }
-
-    // 1. Prioritize StandardMatchData market_snapshots
+    // 2. StandardMatchData market_snapshots
     if (Array.isArray(m.market_snapshots) && m.market_snapshots.length > 0) {
       const h2hSnap = m.market_snapshots.find((s) => s.market_type === 'h2h');
       if (h2hSnap) {
@@ -471,9 +440,9 @@ export const BettingRecommendationsView: React.FC<Props> = ({
           { line: '主胜', odds: h2hSnap.home_or_over_odds },
           { line: '平局', odds: h2hSnap.draw_odds },
           { line: '客胜', odds: h2hSnap.away_or_under_odds },
-        ].filter((opt) => Number(opt.odds) > 1);
+        ].filter((opt) => opt.odds && Number(opt.odds) > 1);
         options.sort((a, b) => Number(a.odds) - Number(b.odds));
-        if (options[0]) addRow('全场独赢（市场基准）', options[0].line, options[0].odds, '取自本次YBTY独赢盘真实赔率的最低赔率方向');
+        if (options[0]) addRow('全场独赢（市场基准）', options[0].line, options[0].odds!, '取自本次YBTY独赢盘真实赔率的最低赔率方向');
       }
 
       const spreadSnap = m.market_snapshots.find((s) => s.market_type === 'spread');
@@ -481,9 +450,9 @@ export const BettingRecommendationsView: React.FC<Props> = ({
         const options = [
           { side: '主队', line: spreadSnap.line, odds: spreadSnap.home_or_over_odds },
           { side: '客队', line: spreadSnap.line, odds: spreadSnap.away_or_under_odds },
-        ].filter((opt) => Number(opt.odds) > 1);
+        ].filter((opt) => opt.odds && Number(opt.odds) > 1);
         options.sort((a, b) => Number(a.odds) - Number(b.odds));
-        if (options[0]) addRow('全场让球（市场基准）', `${options[0].side} ${formatAsianLine(options[0].line!)}`, options[0].odds, '取自本次YBTY让球盘真实盘口和赔率');
+        if (options[0]) addRow('全场让球（市场基准）', `${options[0].side} ${formatAsianLine(options[0].line!)}`, options[0].odds!, '取自本次YBTY让球盘真实盘口和赔率');
       }
 
       const totalSnap = m.market_snapshots.find((s) => s.market_type === 'total');
@@ -491,40 +460,9 @@ export const BettingRecommendationsView: React.FC<Props> = ({
         const options = [
           { side: '大球', odds: totalSnap.home_or_over_odds },
           { side: '小球', odds: totalSnap.away_or_under_odds },
-        ].filter((opt) => Number(opt.odds) > 1);
+        ].filter((opt) => opt.odds && Number(opt.odds) > 1);
         options.sort((a, b) => Number(a.odds) - Number(b.odds));
-        if (options[0]) addRow(`全场${options[0].side}（市场基准）`, formatAsianLine(totalSnap.line), options[0].odds, '取自本次YBTY大小球盘真实盘口和赔率');
-      }
-    } else {
-      const h2h = m.ybty_markets?.h2h;
-      if (h2h) {
-        const options = [
-          { line: '主胜', odds: h2h.home_odds, suspended: h2h.home_suspended },
-          { line: '平局', odds: h2h.draw_odds, suspended: h2h.draw_suspended },
-          { line: '客胜', odds: h2h.away_odds, suspended: h2h.away_suspended },
-        ].filter((option) => !option.suspended && Number(option.odds) > 1);
-        options.sort((a, b) => Number(a.odds) - Number(b.odds));
-        if (options[0]) addRow('全场独赢（市场基准）', options[0].line, options[0].odds, '取自本次YBTY独赢盘真实赔率的最低赔率方向');
-      }
-
-      const spread = m.ybty_markets?.spread;
-      if (spread) {
-        const options = [
-          { side: '主队', line: spread.home_line, odds: spread.home_odds, suspended: spread.home_suspended },
-          { side: '客队', line: spread.away_line, odds: spread.away_odds, suspended: spread.away_suspended },
-        ].filter((option) => !option.suspended && option.line !== undefined && Number(option.odds) > 1);
-        options.sort((a, b) => Number(a.odds) - Number(b.odds));
-        if (options[0]) addRow('全场让球（市场基准）', `${options[0].side} ${formatAsianLine(options[0].line!)}`, options[0].odds, '取自本次YBTY让球盘真实盘口和赔率');
-      }
-
-      const total = m.ybty_markets?.total;
-      if (total?.line !== undefined) {
-        const options = [
-          { side: '大球', odds: total.over_odds, suspended: total.over_suspended },
-          { side: '小球', odds: total.under_odds, suspended: total.under_suspended },
-        ].filter((option) => !option.suspended && Number(option.odds) > 1);
-        options.sort((a, b) => Number(a.odds) - Number(b.odds));
-        if (options[0]) addRow(`全场${options[0].side}（市场基准）`, formatAsianLine(total.line), options[0].odds, '取自本次YBTY大小球盘真实盘口和赔率');
+        if (options[0]) addRow(`全场${options[0].side}（市场基准）`, formatAsianLine(totalSnap.line), options[0].odds!, '取自本次YBTY大小球盘真实盘口和赔率');
       }
     }
 

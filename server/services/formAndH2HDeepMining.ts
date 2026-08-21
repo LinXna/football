@@ -366,16 +366,16 @@ export function deepMineFormAndH2H(item: any): FormAndH2HDeepMiningResult {
   const homeName = item?.ybty_home || item?.leisu_home || item?.home_team || item?.home || '主队';
   const awayName = item?.ybty_away || item?.leisu_away || item?.away_team || item?.away || '客队';
 
-  const historical = item?.recent_trends?.historical_analysis || item?.detail_context?.formal?.historical_analysis || item?.detail_context?.formal || {};
-  const trends = item?.recent_trends || item?.trend_summary || {};
+  const tc = item?.tactical_context || {};
+  const trends = item?.trend_summary || {};
 
   // Extract raw match lists
-  const homeRecentMatches = trends?.home?.matches || trends?.home_recent_form?.matches || historical?.home_recent_form?.matches || [];
-  const awayRecentMatches = trends?.away?.matches || trends?.away_recent_form?.matches || historical?.away_recent_form?.matches || [];
-  const h2hMatches = historical?.head_to_head || item?.head_to_head || trends?.h2h || [];
+  const homeRecentMatches = tc.home_recent_matches || tc.home_recent_form?.matches || trends?.home?.matches || [];
+  const awayRecentMatches = tc.away_recent_matches || tc.away_recent_form?.matches || trends?.away?.matches || [];
+  const h2hMatches = tc.h2h_matches || tc.h2h_summary || item?.head_to_head || [];
 
   // Standings tables if match lists are slimmed
-  const standings = trends?.standings || item?.recent_trends?.standings || historical?.league_standings;
+  const standings = tc.standings || tc.standings_summary || trends?.standings;
   const homeStandings = standings?.home_team || standings?.home;
   const awayStandings = standings?.away_team || standings?.away;
 

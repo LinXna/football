@@ -87,7 +87,7 @@ export function canonicalizeRawMatchData(raw: any): CanonicalMatchData {
   const matchInfo = raw?.match_info || raw || {};
   const livePhysical = raw?.live_match_physical_facts || {};
   const quant = raw?.quantitative_analysis || {};
-  const liveStatsRaw = raw?.liveStats || raw?.live_statistics || raw?.confirmed_statistics || {};
+  const liveStatsRaw = raw?.unified_stats || raw?.liveStats || raw?.live_facts?.stats || {};
   const incidents = raw?.focused_incidents || livePhysical?.focused_incidents || {};
 
   // 1. Meta
@@ -213,7 +213,7 @@ export function canonicalizeRawMatchData(raw: any): CanonicalMatchData {
   }
 
   // Fallback to events timeline count
-  const eventsList: string[] = incidents?.match_events || livePhysical?.focused_incidents?.match_events || [];
+  const eventsList: string[] = (Array.isArray(raw.timeline_events) ? raw.timeline_events : null) || incidents?.match_events || livePhysical?.focused_incidents?.match_events || [];
   if (cornersHome === 0 && cornersAway === 0 && eventsList.length > 0) {
     for (const ev of eventsList) {
       if (/角球/i.test(ev)) {
@@ -250,7 +250,7 @@ export function canonicalizeRawMatchData(raw: any): CanonicalMatchData {
 
   // 6. Markets extraction
   const verifiedMarketsList: CanonicalMarketOption[] = [];
-  const rawMarkets = raw.verified_ybty_markets || [];
+  const rawMarkets = raw.market_snapshots || raw.verified_ybty_markets || [];
   if (Array.isArray(rawMarkets)) {
     for (const mkt of rawMarkets) {
       if (Array.isArray(mkt.options)) {
@@ -338,6 +338,6 @@ export function canonicalizeRawMatchData(raw: any): CanonicalMatchData {
       },
     },
     verified_markets: verifiedMarketsList,
-    raw_ref_odds: raw.reference_odds,
+    raw_ref_odds: raw.reference_market || raw.reference_odds,
   };
 }

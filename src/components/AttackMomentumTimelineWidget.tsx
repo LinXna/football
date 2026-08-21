@@ -20,7 +20,7 @@ import {
   Radar,
   BarChart2
 } from 'lucide-react';
-import { DecisionItem } from '../types';
+import { DecisionItem, toStandardMatchData } from '../types';
 import { renderIncidentIcons } from './IncidentIconsHelper';
 import { analyzeAttackMomentum } from '../utils/momentumAnalytics';
 
@@ -152,22 +152,13 @@ function parseMinuteVal(
 
 export function parseMatchIncidents(match?: any): ParsedIncidentItem[] {
   if (!match) return [];
-  const rawList = [
-    ...(Array.isArray(match.timeline_events) ? match.timeline_events : []),
-    ...(Array.isArray(match.incidents) ? match.incidents : []),
-    ...(Array.isArray(match.key_incidents) ? match.key_incidents : []),
-    ...(Array.isArray(match.text_live) ? match.text_live : []),
-    ...(Array.isArray(match.events) ? match.events : []),
-    ...(Array.isArray(match.live_events) ? match.live_events : []),
-    ...(Array.isArray(match.focused_incidents?.match_events) ? match.focused_incidents.match_events : []),
-    ...(Array.isArray(match.detail_context?.formal?.live_match?.text_live) ? match.detail_context.formal.live_match.text_live : []),
-    ...(Array.isArray(match.detail_context?.formal?.live_match?.incidents) ? match.detail_context.formal.live_match.incidents : []),
-  ];
+  const std = match.unified_stats ? match : toStandardMatchData(match);
+  const rawList = Array.isArray(std.timeline_events) ? std.timeline_events : [];
 
-  const homeName = String(match?.home_team || match?.ybty_home || match?.home || '').trim();
-  const awayName = String(match?.away_team || match?.ybty_away || match?.away || '').trim();
-  const homeLeisu = String(match?.leisu_home || match?.detail_context?.formal?.live_match?.home || '').trim();
-  const awayLeisu = String(match?.leisu_away || match?.detail_context?.formal?.live_match?.away || '').trim();
+  const homeName = String(std.home_team || std.ybty_home || '').trim();
+  const awayName = String(std.away_team || std.ybty_away || '').trim();
+  const homeLeisu = String(std.leisu_home || '').trim();
+  const awayLeisu = String(std.leisu_away || '').trim();
 
   const results: ParsedIncidentItem[] = [];
   const seen = new Set<string>();
@@ -327,15 +318,12 @@ export function extractAttackMomentumTimeline(match?: DecisionItem | any): Parse
     match.export_mode === 'prematch' || match.status === 'PREMATCH' ||
     String(match?.status || '').toLowerCase().includes('pre');
 
-  const rawTimeline =
-    match?.attack_momentum_timeline ||
-    match?.live_match_physical_facts?.attack_momentum_timeline ||
-    match?.detail_context?.formal?.live_match?.attack_momentum_timeline ||
-    null;
+  const std = match?.unified_stats ? match : toStandardMatchData(match);
+  const rawTimeline = std.attack_momentum_timeline || null;
 
-  const incidents = parseMatchIncidents(match);
-  const homeName = match?.ybty_home || match?.home || match?.home_team || '主队';
-  const awayName = match?.ybty_away || match?.away || match?.away_team || '客队';
+  const incidents = parseMatchIncidents(std);
+  const homeName = std?.ybty_home || std?.home_team || '主队';
+  const awayName = std?.ybty_away || std?.away_team || '客队';
 
   if (!rawTimeline || typeof rawTimeline !== 'object') {
     return {

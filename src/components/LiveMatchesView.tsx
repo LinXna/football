@@ -692,12 +692,14 @@ export const LiveMatchesView: React.FC<Props> = ({
                     )}
 
                     {/* Live Text Timeline */}
-                    {m.live_text?.entries && m.live_text.entries.length > 0 && (
+                    {m.timeline_events && m.timeline_events.length > 0 && (
                       <div className="bg-slate-900/60 border border-slate-800 p-3 rounded-lg">
                         <div className="font-semibold text-slate-300 mb-1">实况文字时间线 (Live Timeline)</div>
                         <div className="text-slate-400 text-[11px] max-h-24 overflow-y-auto space-y-1">
-                          {m.live_text.entries.map((item, i) => (
-                            <div key={i} className="border-b border-slate-800/40 pb-0.5">{displayText(item, '未提供文字')}</div>
+                          {m.timeline_events.slice(0, 15).map((item, i) => (
+                            <div key={i} className="border-b border-slate-800/40 pb-0.5">
+                              {displayText(item.text || item.shortText || item, '未提供文字')}
+                            </div>
                           ))}
                         </div>
                       </div>

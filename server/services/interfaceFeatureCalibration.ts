@@ -8,25 +8,28 @@ const object = (value: any) => value && typeof value === 'object' && !Array.isAr
 const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 
 function recentGoalAverage(snapshot: any): number | null {
-  const recent = object(object(snapshot?.recent_trends).historical_analysis).recent_matches;
-  const rows = [...(Array.isArray(recent?.home) ? recent.home : []), ...(Array.isArray(recent?.away) ? recent.away : [])].slice(0, 20);
-  const values = rows.map((row: any) => numeric(row?.goals)).filter((value: number | null): value is number => value !== null);
+  const tc = snapshot?.tactical_context;
+  if (!tc) return null;
+  const homeMatches = Array.isArray(tc.home_recent_matches) ? tc.home_recent_matches : [];
+  const awayMatches = Array.isArray(tc.away_recent_matches) ? tc.away_recent_matches : [];
+  const rows = [...homeMatches, ...awayMatches].slice(0, 20);
+  const values = rows.map((r: any) => numeric(r?.goals ?? (Number(r?.home_score || 0) + Number(r?.away_score || 0)))).filter((v: number | null): v is number => v !== null);
   return values.length ? average(values) : null;
 }
 
 function h2hGoalAverage(snapshot: any): number | null {
-  const rows = object(object(snapshot?.recent_trends).historical_analysis).head_to_head;
-  if (!Array.isArray(rows)) return null;
-  const values = rows.slice(0, 10).flatMap((row: any) => {
-    const home = numeric(Array.isArray(row?.home_scores) ? row.home_scores[0] : null);
-    const away = numeric(Array.isArray(row?.away_scores) ? row.away_scores[0] : null);
+  const tc = snapshot?.tactical_context;
+  if (!tc || !Array.isArray(tc.h2h_matches)) return null;
+  const values = tc.h2h_matches.slice(0, 10).flatMap((row: any) => {
+    const home = numeric(row?.home_score ?? (Array.isArray(row?.home_scores) ? row.home_scores[0] : null));
+    const away = numeric(row?.away_score ?? (Array.isArray(row?.away_scores) ? row.away_scores[0] : null));
     return home === null || away === null ? [] : [home + away];
   });
   return values.length ? average(values) : null;
 }
 
 function standingPpgDifference(snapshot: any): number | null {
-  const standings = object(object(object(snapshot?.recent_trends).historical_analysis).league_standings);
+  const standings = object(snapshot?.tactical_context?.standings || snapshot?.tactical_context?.standings_summary);
   const ppg = (team: any) => {
     const total = object(object(team).total);
     const games = numeric(total.total), points = numeric(total.points);
@@ -57,7 +60,7 @@ export function extractCalibrationRows(ledger: any[]): Row[] {
     const isLive = snapshot.mode === 'live' || Number(snapshot.minute || item?.minute || 0) > 0;
     const target = finalHome + finalAway - (isLive ? currentHome + currentAway : 0);
     if (target < 0) return [];
-    const stats = object(snapshot.live_statistics);
+    const stats = object(snapshot.unified_stats);
     const efficiency = object(object(stats.efficiency).by_attacking_side);
     const homeAttack = object(object(efficiency.home).attack), awayAttack = object(object(efficiency.away).attack);
     const homeKeeper = object(object(efficiency.away).opposing_goalkeeper);

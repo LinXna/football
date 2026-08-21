@@ -105,20 +105,19 @@ export function extractLeisuCornerMarkets(item: any): LeisuCornerMarket[] {
     return container;
   };
 
-  // 1. Try to locate corner odds across various Leisu payload positions
-  const formalOdds = item?.detail_context?.formal?.odds || item?.detail_context?.formal?.static_match?.odds || {};
-  const refOdds = item?.reference_odds || {};
+  // 1. Try to locate corner odds across standard payload positions
+  const refOdds = item?.reference_market || item?.raw_ref_odds || {};
   const rows = Array.isArray(refOdds?.normalized_rows) ? refOdds.normalized_rows : [];
 
   const isLive = Boolean(item?.minute && Number(item.minute) > 0);
   const source = isLive ? 'leisu_live' : 'leisu_prematch';
 
-  // Corner Total Candidates (check nested markets.corners, direct corners, etc.)
-  const cornerTotalContainer = formalOdds?.markets?.corners || refOdds?.markets?.corners || formalOdds?.corners || formalOdds?.corner_total || formalOdds?.corner_ou || refOdds?.corners || refOdds?.corner_total || refOdds?.corner_ou;
+  // Corner Total Candidates (check reference_market corners, etc.)
+  const cornerTotalContainer = refOdds?.markets?.corners || refOdds?.corners || refOdds?.corner_total || refOdds?.corner_ou;
   const cornerTotalRaw = pickActiveOddsObj(cornerTotalContainer, isLive);
 
   // Corner Handicap Candidates
-  const cornerSpreadContainer = formalOdds?.markets?.corner_handicap || formalOdds?.markets?.corner_spread || refOdds?.markets?.corner_handicap || refOdds?.markets?.corner_spread || formalOdds?.corner_handicap || formalOdds?.corner_spread || refOdds?.corner_handicap || refOdds?.corner_spread;
+  const cornerSpreadContainer = refOdds?.markets?.corner_handicap || refOdds?.markets?.corner_spread || refOdds?.corner_handicap || refOdds?.corner_spread;
   const cornerSpreadRaw = pickActiveOddsObj(cornerSpreadContainer, isLive);
 
   // Parse Corner Totals
@@ -234,9 +233,9 @@ export function evaluateLeisuCornerQuantitativePricing(
   item: any,
   minute: number = 0
 ): CornerQuantitativePricing {
-  const stats = item?.live_statistics || item?.detail_context?.formal?.live_match?.confirmed_statistics || {};
-  const homeCorners = Number(stats?.home?.corner_kicks ?? stats?.home?.corners ?? 0);
-  const awayCorners = Number(stats?.away?.corner_kicks ?? stats?.away?.corners ?? 0);
+  const stats = item?.unified_stats || item?.live_facts?.stats || {};
+  const homeCorners = Number(stats?.corners?.home ?? 0);
+  const awayCorners = Number(stats?.corners?.away ?? 0);
   const currentTotal = homeCorners + awayCorners;
 
   const markets = extractLeisuCornerMarkets(item);

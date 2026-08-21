@@ -161,39 +161,30 @@ export function normalizeLeisuInterfaceExport(payload: unknown): JsonRecord[] | 
       source_type: 'leisu',
       score_source: liveMatch.source || 'leisu_interface_api',
       score_verified: Boolean(liveMatch.match_id && Number.isFinite(Number(homeScores.score)) && Number.isFinite(Number(awayScores.score))),
-      live_statistics: normalizedStatistics,
+      unified_stats: normalizedStatistics,
+      tactical_context: {
+        formation: {
+          home: String(formal.formation?.home || '4-2-3-1'),
+          away: String(formal.formation?.away || '4-2-3-1'),
+        },
+        standings_summary: formal.league_standings || formal.trend_summary?.standings || null,
+        home_form: formal.trend_summary?.home || formal.recent_matches?.home || null,
+        away_form: formal.trend_summary?.away || formal.recent_matches?.away || null,
+        h2h_summary: formal.trend_summary?.h2h || formal.head_to_head || null,
+        lineup_status: Boolean(lineupRecord.confirmed) ? 'CONFIRMED' : 'PROJECTED',
+        key_absences_count: { home: 0, away: 0 },
+        h2h_matches: formal.head_to_head || [],
+        home_recent_matches: formal.recent_matches?.home || [],
+        away_recent_matches: formal.recent_matches?.away || [],
+      },
       attack_momentum_timeline: attackMomentum,
-      reference_odds: {
+      market_snapshots: [],
+      timeline_events: textLiveEntries,
+      reference_market: {
         ...odds,
         opening: initialMarkets,
         current: currentMarkets,
-        detail: {
-          normalized: {
-            companies: [{
-              company_id: odds.company_id,
-              company_name: odds.company_name,
-              total_goals: {
-                opening: initialMarkets.total_goals,
-                current: currentMarkets.total_goals,
-              },
-            }],
-          },
-        },
       },
-      recent_trends: {
-        recent: formal.trend_summary || null,
-        historical_analysis: {
-          analysis_match_context: formal.analysis_match_context || null,
-          head_to_head: formal.head_to_head || [],
-          future_schedule: formal.future_schedule || null,
-          recent_matches: formal.recent_matches || { home: [], away: [] },
-          league_standings: formal.league_standings || null,
-          goal_distribution: formal.goal_distribution || null,
-          trend_summary: formal.trend_summary || null,
-        },
-        analysis_data: formal.analysis_match_context || null,
-      },
-      incidents: textLiveEntries,
       weather: {
         ...environment,
         available: Object.keys(environment).length > 0,
@@ -204,19 +195,6 @@ export function normalizeLeisuInterfaceExport(payload: unknown): JsonRecord[] | 
         ...(Array.isArray(lineupRecord.home) ? lineupRecord.home : []),
         ...(Array.isArray(lineupRecord.away) ? lineupRecord.away : []),
       ],
-      live_text: {
-        available: textLiveEntries.length > 0,
-        entries: textLiveEntries.map((entry) => asRecord(entry).data || asRecord(entry).text || '').filter(Boolean),
-        raw_entries: textLiveEntries,
-      },
-      detail_context: {
-        export_type: root.export_type,
-        export_version: root.export_version,
-        available: result.available === true,
-        complete: result.complete === true,
-        completeness: result.completeness || null,
-        formal,
-      },
     };
   });
 }

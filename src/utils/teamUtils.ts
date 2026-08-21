@@ -244,10 +244,7 @@ export function getUnifiedTeamDisplay(item: any): UnifiedTeamDisplay {
     item.matched_leisu_id ||
     item.candidate?.match_id ||
     item.candidate?.id ||
-    item.details?.match_id ||
-    item.detail_context?.formal?.static_match?.id ||
-    item.detail_context?.formal?.live_match?.match_id ||
-    item.reference_odds?.match_id ||
+    item.reference_market?.match_id ||
     '';
   const matchId = rawId ? String(rawId).trim() : undefined;
   const matchDisplayName = matchId

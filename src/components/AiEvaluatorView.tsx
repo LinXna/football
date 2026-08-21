@@ -2040,8 +2040,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                             odds: leg.odds,
                             selection: leg.selection || leg.market,
                           },
-                          ybty_raw_markets: (leg as any)?.ybty_raw_markets || (leg as any)?.raw_markets,
-                          ybty_markets: (leg as any)?.ybty_markets,
+                          market_snapshots: (leg as any)?.market_snapshots || [],
                         }) as DecisionItem;
 
                         const ext = generateExtendedAnalysis(effectiveMatchItem);

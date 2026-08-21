@@ -1,4 +1,4 @@
-import { DecisionItem } from '../types';
+import { DecisionItem, toStandardMatchData } from '../types';
 import { formatAsianLine } from './quarterSettlement';
 
 export interface CorrectScoreOption { score: string; odds: number | null; probPercent: number; }
@@ -53,7 +53,7 @@ const percent = (value: number): number => Math.round(value * 1000) / 10;
 function verifiedMarket(item: DecisionItem | null | undefined, marketType: string): RawMarket | null {
   if (!item) return null;
 
-  // 1. Prioritize StandardMatchData market_snapshots
+  // 1. StandardMatchData market_snapshots
   if (Array.isArray(item.market_snapshots) && item.market_snapshots.length > 0) {
     if (marketType === 'full_total') {
       const tot = item.market_snapshots.find((m) => m.market_type === 'total');
@@ -85,52 +85,7 @@ function verifiedMarket(item: DecisionItem | null | undefined, marketType: strin
     }
   }
 
-  const rows = Array.isArray(item.ybty_raw_markets) ? (item.ybty_raw_markets as RawMarket[]) : [];
-
-  // Exact or semantic match in raw markets
-  let found = rows.find((row) => row.market === marketType && row.market_type_verified !== false);
-  if (found && usableOptions(found).length > 0) return found;
-
-  // Fallback 1: match common aliases in ybty_raw_markets
-  if (marketType === 'full_total') {
-    found = rows.find((row) => (row.market === 'total' || row.market === 'ou' || row.market === 'full_total' || String((row as any).market_title || '').includes('大小球')) && row.market_type_verified !== false);
-  } else if (marketType === 'half_total') {
-    found = rows.find((row) => (row.market === 'half_total' || row.market === 'ht_total' || String((row as any).market_title || '').includes('半场大小')) && row.market_type_verified !== false);
-  } else if (marketType === 'full_spread') {
-    found = rows.find((row) => (row.market === 'spread' || row.market === 'ah' || row.market === 'handicap' || row.market === 'full_spread' || String((row as any).market_title || '').includes('让球')) && row.market_type_verified !== false);
-  } else if (marketType === 'half_spread') {
-    found = rows.find((row) => (row.market === 'half_spread' || row.market === 'ht_spread' || String((row as any).market_title || '').includes('半场让球')) && row.market_type_verified !== false);
-  } else if (marketType === 'full_h2h') {
-    found = rows.find((row) => (row.market === 'h2h' || row.market === '1x2' || row.market === 'full_h2h' || String((row as any).market_title || '').includes('独赢')) && row.market_type_verified !== false);
-  }
-  if (found && usableOptions(found).length > 0) return found;
-
-  // Fallback 2: check item.ybty_markets
-  const ybtyMarkets = (item as any)?.ybty_markets;
-  if (ybtyMarkets) {
-    if (marketType === 'full_total' && ybtyMarkets.total) {
-      const tot = ybtyMarkets.total;
-      const opts: RawOption[] = [];
-      if (tot.over_odds) opts.push({ selection: String(tot.line ?? ''), line: tot.line, odds: tot.over_odds, side: 'over', suspended: tot.over_suspended });
-      if (tot.under_odds) opts.push({ selection: String(tot.line ?? ''), line: tot.line, odds: tot.under_odds, side: 'under', suspended: tot.under_suspended });
-      if (opts.length) return { market: 'full_total', options: opts };
-    } else if (marketType === 'full_spread' && ybtyMarkets.spread) {
-      const sp = ybtyMarkets.spread;
-      const opts: RawOption[] = [];
-      if (sp.home_odds) opts.push({ selection: String(sp.home_line ?? ''), line: sp.home_line, odds: sp.home_odds, side: 'home', suspended: sp.home_suspended });
-      if (sp.away_odds) opts.push({ selection: String(sp.away_line ?? ''), line: sp.away_line, odds: sp.away_odds, side: 'away', suspended: sp.away_suspended });
-      if (opts.length) return { market: 'full_spread', options: opts };
-    } else if (marketType === 'full_h2h' && ybtyMarkets.h2h) {
-      const h = ybtyMarkets.h2h;
-      const opts: RawOption[] = [];
-      if (h.home_odds) opts.push({ selection: '主', odds: h.home_odds, side: 'home', suspended: h.home_suspended });
-      if (h.away_odds) opts.push({ selection: '客', odds: h.away_odds, side: 'away', suspended: h.away_suspended });
-      if (h.draw_odds) opts.push({ selection: '平', odds: h.draw_odds, side: 'draw', suspended: h.draw_suspended });
-      if (opts.length) return { market: 'full_h2h', options: opts };
-    }
-  }
-
-  // Fallback 3: check item.recommendation
+  // 2. Fallback: check item.recommendation
   const rec = item?.recommendation;
   if (rec && rec.odds) {
     const recMarket = String(rec.market || '');
@@ -183,22 +138,21 @@ function marketLean(options: Array<RawOption & { numericOdds: number }>) {
 
 function historicalSummary(item: DecisionItem): { h2h: string; recent: string } {
   if (!item) return { h2h: '历史交锋：暂无可计算样本', recent: '近期战绩：暂无可计算样本' };
-  const root: any = (item as any).recent_trends || {};
-  const analysis = root.analysis_data || root;
-  const historical = root.historical_analysis || analysis.historical_analysis;
-  const interfaceRecent = historical?.recent_matches;
-  const interfaceH2h = Array.isArray(historical?.head_to_head) ? historical.head_to_head : [];
-  if (interfaceRecent || interfaceH2h.length) {
-    const homeRecent = Array.isArray(interfaceRecent?.home) ? interfaceRecent.home : [];
-    const awayRecent = Array.isArray(interfaceRecent?.away) ? interfaceRecent.away : [];
+  const std = item.unified_stats ? item : toStandardMatchData(item);
+  const tc = std.tactical_context;
+  const interfaceH2h = Array.isArray(tc?.h2h_matches) ? tc.h2h_matches : [];
+  const homeRecent = Array.isArray(tc?.home_recent_matches) ? tc.home_recent_matches : [];
+  const awayRecent = Array.isArray(tc?.away_recent_matches) ? tc.away_recent_matches : [];
+
+  if (homeRecent.length || awayRecent.length || interfaceH2h.length) {
     const averageGoals = (rows: any[]) => rows.length
-      ? rows.reduce((sum, row) => sum + (Number(row?.goals) || 0), 0) / rows.length
+      ? rows.reduce((sum, row) => sum + (Number(row?.goals ?? (Number(row?.home_score || 0) + Number(row?.away_score || 0))) || 0), 0) / rows.length
       : null;
     const homeAverage = averageGoals(homeRecent);
     const awayAverage = averageGoals(awayRecent);
     const h2hGoals = interfaceH2h.flatMap((row: any) => {
-      const home = Number(Array.isArray(row?.home_scores) ? row.home_scores[0] : NaN);
-      const away = Number(Array.isArray(row?.away_scores) ? row.away_scores[0] : NaN);
+      const home = Number(Array.isArray(row?.home_scores) ? row.home_scores[0] : (row?.home_score ?? NaN));
+      const away = Number(Array.isArray(row?.away_scores) ? row.away_scores[0] : (row?.away_score ?? NaN));
       return Number.isFinite(home) && Number.isFinite(away) ? [home + away] : [];
     });
     const h2hAverage = h2hGoals.length ? h2hGoals.reduce((sum: number, value: number) => sum + value, 0) / h2hGoals.length : null;
@@ -237,14 +191,10 @@ function historicalSummary(item: DecisionItem): { h2h: string; recent: string } 
       recent: `近期战绩：主队${homeRecent.length}场${homeAverage == null ? '' : `(均进${homeAverage.toFixed(2)})`}；客队${awayRecent.length}场${awayAverage == null ? '' : `(均进${awayAverage.toFixed(2)})`}。依据时效衰减模型，优先参考近6场与即时首发。`,
     };
   }
-  if (!historical || historical.available !== true) {
-    const reason = historical?.reason || '雷速本次详情没有提供可核验的近期战绩或交锋结构化数据';
-    return { h2h: `历史交锋：无可核验数据（${reason}）`, recent: `近期战绩：无可核验数据（${reason}）` };
-  }
-  const recent = Array.isArray(historical.recent_form) ? historical.recent_form : [];
+
   return {
-    h2h: historical.historical_trend ? `历史交锋：${JSON.stringify(historical.historical_trend)}` : '历史交锋：雷速未提供独立交锋统计',
-    recent: recent.length ? `近期战绩：雷速提供 ${recent.length} 条结构化记录，预测仅使用这些记录` : '近期战绩：雷速标记历史模块可用，但没有返回近期比赛明细',
+    h2h: '历史交锋：无可核验数据（雷速本次详情未提供近期战绩或交锋结构化数据）',
+    recent: '近期战绩：无可核验数据（雷速本次详情未提供近期战绩或交锋结构化数据）',
   };
 }
 
@@ -330,17 +280,13 @@ export function generateExtendedAnalysis(matchItem: DecisionItem): ExtendedMatch
     ? `基于YBTY真实全场大小球盘口 ${formatAsianLine(String(totalOptions[0]?.line ?? totalOptions[0]?.selection))}，再按真实1X2主客隐含强度分配期望进球；这是透明的泊松盘口模型，不是雷速历史数据，也没有虚构赔率。`
     : '缺少已核验的YBTY全场大小球或1X2盘口，无法计算进球预测。';
 
-  const referenceOdds: any = (matchItem as any).reference_odds
-    || (matchItem as any).detail_context?.formal?.odds
-    || {};
-  const referenceRows: any[] = referenceOdds?.detail_page?.panels?.flatMap((panel: any) => panel.normalized_rows || []) || [];
-  const interfaceMarkets = referenceOdds?.markets || {};
-  const phaseChanges = Object.values(interfaceMarkets).filter((market: any) => market?.initial && (market?.pregame || market?.live)).length;
-  const lineMovementSummary = phaseChanges > 0
-    ? `雷速提供${phaseChanges}个市场的初盘及当前阶段快照；只比较真实快照，不推测中间路径。`
-    : referenceRows.length > 1
-    ? `雷速提供 ${referenceRows.length} 个真实盘口阶段快照；页面不再虚构连续走势。`
-    : '雷速没有提供可比较的多阶段盘口，无法判断真实升降盘。';
+  const std = matchItem.unified_stats ? matchItem : toStandardMatchData(matchItem);
+  const refMarket = std.reference_market;
+  const lineMovementSummary = refMarket?.handicap_movement
+    ? `参考机构盘口动态：${refMarket.handicap_movement} (初盘 ${refMarket.initial_handicap || '--'} 现盘 ${refMarket.instant_handicap || '--'})`
+    : refMarket?.company
+    ? `参考机构: ${refMarket.company} 状态: ${refMarket.status || '正常'}`
+    : '未配置外部参考机构升降盘对比。';
 
   return {
     h2hSummary: history.h2h,

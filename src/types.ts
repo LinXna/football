@@ -26,6 +26,11 @@ export interface ReferenceMarket {
   opening_line?: any;
   current_line?: any;
   source?: string;
+  company?: string;
+  handicap_movement?: string;
+  initial_handicap?: string | number;
+  instant_handicap?: string | number;
+  status?: string;
 }
 
 export interface WeatherInfo {
@@ -125,6 +130,23 @@ export interface UnifiedMatchStats {
   momentum_index?: { home: number; away: number };
 }
 
+export interface StandardTimelineEvent {
+  min: number;
+  half?: 1 | 2 | 0;
+  stoppageExtra?: number;
+  displayMin?: string;
+  text?: string;
+  shortText?: string;
+  icon?: string;
+  side?: 'home' | 'away' | 'neutral';
+  sideName?: string;
+  isGoal?: boolean;
+  isCorner?: boolean;
+  isCard?: boolean;
+  isSub?: boolean;
+  raw?: any;
+}
+
 /**
  * 2. 战术与基本面上下文 (精炼提炼，杜绝深层杂乱嵌套)
  */
@@ -198,7 +220,7 @@ export interface StandardMatchData {
   unified_stats: UnifiedMatchStats;
   tactical_context: TacticalContext;
   market_snapshots: MarketSnapshot[];
-  timeline_events?: any[];
+  timeline_events?: StandardTimelineEvent[];
   attack_momentum_timeline?: any;
 
   recommendation?: {
@@ -208,28 +230,9 @@ export interface StandardMatchData {
     basis?: string;
     scope?: string;
   } | null;
-  ybty_markets?: {
-    h2h?: { home_odds?: number; draw_odds?: number; away_odds?: number; home_suspended?: boolean; draw_suspended?: boolean; away_suspended?: boolean };
-    spread?: { home_line?: number | string; away_line?: number | string; home_odds?: number; away_odds?: number; home_suspended?: boolean; away_suspended?: boolean };
-    total?: { line?: number | string; over_odds?: number; under_odds?: number; over_suspended?: boolean; under_suspended?: boolean };
-  };
-  ybty_raw_markets?: Array<{
-    line_index?: number;
-    market?: string;
-    options?: Array<{ selection?: string; odds?: string | number; suspended?: boolean; text?: string }>;
-  }>;
-  market_age_seconds?: number;
   reference_market?: ReferenceMarket;
   weather?: WeatherInfo;
   lineups?: LineupData;
-  live_statistics?: Record<string, any> | null;
-  recent_trends?: Record<string, any> | null;
-  reference_odds?: Record<string, any> | null;
-  detail_context?: Record<string, any> | null;
-  live_text?: {
-    available?: boolean;
-    entries?: string[];
-  };
   risks?: string[];
   evidence?: string[];
   formation_clash?: FormationClashResult;
@@ -300,8 +303,8 @@ export function toStandardMatchData(raw: any): StandardMatchData {
     scoreAway = parseInt(parts[1], 10) || 0;
   }
 
-  const liveStats = raw.live_statistics || raw.liveStats || raw.detail_context?.formal?.live_match?.confirmed_statistics || {};
-  const incidents = raw.focused_incidents || raw.detail_context?.focused_incidents || {};
+  const liveStats = raw.unified_stats || raw.liveStats || {};
+  const incidents = raw.focused_incidents || {};
 
   const parseSideStat = (statVal: any, side: 'home' | 'away', fallback = 0): number => {
     if (statVal === null || statVal === undefined) return fallback;
@@ -394,30 +397,28 @@ export function toStandardMatchData(raw: any): StandardMatchData {
     red_cards: { home: redHome, away: redAway },
   };
 
-  const lineups = raw.lineups || raw.detail_context?.formal?.lineup || raw.detail_context?.lineup;
+  const lineups = raw.lineups;
   const formationClash = raw.formation_clash;
   
-  // Extract Historical Matches & Form Lists cleanly
-  const ctx = raw.detail_context || {};
-  const hist = raw.recent_trends?.historical_analysis || ctx.formal?.historical_analysis || ctx.formal?.history || {};
-  const trends = raw.recent_trends || raw.trend_summary || {};
-  const h2hMatches = Array.isArray(raw.h2h) ? raw.h2h : Array.isArray(hist.head_to_head) ? hist.head_to_head : Array.isArray(trends.h2h) ? trends.h2h : Array.isArray(ctx.h2h) ? ctx.h2h : [];
-  const homeRecent = Array.isArray(trends?.home?.matches) ? trends.home.matches : Array.isArray(trends?.home_recent_form?.matches) ? trends.home_recent_form.matches : Array.isArray(hist?.home_recent_form?.matches) ? hist.home_recent_form.matches : Array.isArray(ctx.home_recent) ? ctx.home_recent : Array.isArray(ctx.recent_matches?.home) ? ctx.recent_matches.home : [];
-  const awayRecent = Array.isArray(trends?.away?.matches) ? trends.away.matches : Array.isArray(trends?.away_recent_form?.matches) ? trends.away_recent_form.matches : Array.isArray(hist?.away_recent_form?.matches) ? hist.away_recent_form.matches : Array.isArray(ctx.away_recent) ? ctx.away_recent : Array.isArray(ctx.recent_matches?.away) ? ctx.recent_matches.away : [];
+  // Extract Historical Matches & Form Lists from tactical_context
+  const tc = raw.tactical_context || {};
+  const h2hMatches = Array.isArray(tc.h2h_matches) ? tc.h2h_matches : Array.isArray(raw.h2h) ? raw.h2h : [];
+  const homeRecent = Array.isArray(tc.home_recent_matches) ? tc.home_recent_matches : [];
+  const awayRecent = Array.isArray(tc.away_recent_matches) ? tc.away_recent_matches : [];
 
   const tactical_context: TacticalContext = {
     formation: {
-      home: String(raw.home_formation || formationClash?.home_formation || lineups?.home_formation || '4-2-3-1'),
-      away: String(raw.away_formation || formationClash?.away_formation || lineups?.away_formation || '4-2-3-1'),
+      home: String(tc.formation?.home || raw.home_formation || formationClash?.home_formation || lineups?.home_formation || '4-2-3-1'),
+      away: String(tc.formation?.away || raw.away_formation || formationClash?.away_formation || lineups?.away_formation || '4-2-3-1'),
     },
-    formation_clash_verdict: formationClash?.clash_verdict,
-    formation_clash_summary: formationClash?.clash_verdict_zh || formationClash?.master_tactical_breakdown_zh,
-    standings_summary: raw.recent_trends?.standings || raw.trend_summary?.standings || raw.tactical_context?.standings_summary,
-    home_form: raw.trend_summary?.home_form || raw.tactical_context?.home_form,
-    away_form: raw.trend_summary?.away_form || raw.tactical_context?.away_form,
-    h2h_summary: raw.trend_summary?.h2h_summary || raw.tactical_context?.h2h_summary,
-    lineup_status: lineups?.status === 'confirmed' || lineups?.status === 'CONFIRMED' ? 'CONFIRMED' : 'PROJECTED',
-    key_absences_count: { home: 0, away: 0 },
+    formation_clash_verdict: tc.formation_clash_verdict || formationClash?.clash_verdict,
+    formation_clash_summary: tc.formation_clash_summary || formationClash?.clash_verdict_zh || formationClash?.master_tactical_breakdown_zh,
+    standings_summary: tc.standings_summary || tc.standings,
+    home_form: tc.home_form,
+    away_form: tc.away_form,
+    h2h_summary: tc.h2h_summary,
+    lineup_status: lineups?.status === 'confirmed' || lineups?.status === 'CONFIRMED' ? 'CONFIRMED' : (tc.lineup_status || 'PROJECTED'),
+    key_absences_count: tc.key_absences_count || { home: 0, away: 0 },
     h2h_matches: h2hMatches,
     home_recent_matches: homeRecent,
     away_recent_matches: awayRecent,
@@ -461,14 +462,10 @@ export function toStandardMatchData(raw: any): StandardMatchData {
     ...(Array.isArray(raw.timeline_events) ? raw.timeline_events : []),
     ...(Array.isArray(raw.text_live) ? raw.text_live : []),
     ...(Array.isArray(raw.focused_incidents?.match_events) ? raw.focused_incidents.match_events : []),
-    ...(Array.isArray(raw.detail_context?.formal?.live_match?.text_live) ? raw.detail_context.formal.live_match.text_live : []),
-    ...(Array.isArray(raw.detail_context?.formal?.live_match?.incidents) ? raw.detail_context.formal.live_match.incidents : []),
   ];
 
   // Extract Momentum Timeline
   const attackMomentumTimeline = raw.attack_momentum_timeline ||
-    raw.detail_context?.formal?.live_match?.attack_momentum_timeline ||
-    raw.detail_context?.formal?.attack_momentum_timeline ||
     raw.live_match_physical_facts?.attack_momentum_timeline ||
     null;
 
@@ -476,7 +473,7 @@ export function toStandardMatchData(raw: any): StandardMatchData {
     id: matchId || `${homeTeam}_vs_${awayTeam}`,
     match: raw.match || `${homeTeam} vs ${awayTeam}`,
     match_id: matchId,
-    leisu_match_id: String(raw.leisu_match_id || raw.detail_context?.formal?.static_match?.id || raw.detail_context?.formal?.live_match?.match_id || matchId),
+    leisu_match_id: String(raw.leisu_match_id || matchId),
     league,
     ybty_league: String(raw.ybty_league || league),
     leisu_league: String(raw.leisu_league || league),
@@ -485,8 +482,8 @@ export function toStandardMatchData(raw: any): StandardMatchData {
     ybty_away: awayTeam,
     home_team: homeTeam,
     away_team: awayTeam,
-    leisu_home: String(raw.leisu_home || raw.detail_context?.formal?.live_match?.home || homeTeam),
-    leisu_away: String(raw.leisu_away || raw.detail_context?.formal?.live_match?.away || awayTeam),
+    leisu_home: String(raw.leisu_home || homeTeam),
+    leisu_away: String(raw.leisu_away || awayTeam),
     start_time_beijing: raw.start_time_beijing || raw.ybty_start_time_beijing || raw.time || null,
     ybty_start_time_beijing: raw.ybty_start_time_beijing || raw.start_time_beijing || null,
     ybty_start_time: raw.ybty_start_time || null,
@@ -644,13 +641,6 @@ export function getLeagueName(item: any): string {
     item.league_name,
     item.competition,
     item.event_name,
-    item.detail_context?.league,
-    item.detail_context?.tournament,
-    item.detail_context?.event_name,
-    item.detail_context?.formal?.live_match?.league?.name_zh,
-    item.detail_context?.formal?.live_match?.league?.name,
-    item.detail_context?.formal?.live_match?.tournament,
-    item.reference_odds?.league,
     item.reference_market?.league,
   ]) {
     const text = leagueText(value);

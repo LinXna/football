@@ -33,8 +33,7 @@ export function resolveScoreVerification(item: any, prematch = false): { verifie
   if (prematch) return { verified: true, source: 'prematch_not_applicable' };
   if (item?.score_verified === true) return { verified: true, source: String(item?.score_source || 'verified') };
   const ybtyScore = parseValidScore(item?.score);
-  const liveMatch = item?.detail_context?.formal?.live_match;
-  const leisuScore = parseScoreFields(liveMatch?.home_scores?.score, liveMatch?.away_scores?.score);
+  const leisuScore = parseValidScore(item?.leisu_score || item?.live_facts?.score);
   if (ybtyScore && leisuScore && ybtyScore.home === leisuScore.home && ybtyScore.away === leisuScore.away) {
     return { verified: true, source: 'ybty+leisu_api' };
   }

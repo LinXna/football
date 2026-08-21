@@ -94,13 +94,11 @@ export function formatCleanIncident(event: any, homeTeam = '', awayTeam = ''): s
 }
 
 export function filterPromptKeyIncidents(item: any, limit = 50): string[] {
-  const formalEvents = item?.detail_context?.formal?.live_match?.text_live;
   const candidates = [
+    ...asArray(item?.timeline_events),
     ...asArray(item?.incidents),
     ...asArray(item?.key_incidents),
-    ...asArray(item?.live_text?.entries),
-    ...asArray(item?.live_text),
-    ...asArray(formalEvents),
+    ...asArray(item?.text_live),
   ];
   
   const home = item?.leisu_home || item?.ybty_home || '';
@@ -136,7 +134,7 @@ export function extractFocusedIncidents(item: any): {
   const allIncidents = filterPromptKeyIncidents(item, 50);
   const redCards = allIncidents.filter((text) => /红牌/i.test(text));
 
-  const stats = item?.live_statistics || item?.detail_context?.formal?.live_match?.confirmed_statistics || {};
+  const stats = item?.unified_stats || item?.live_facts?.stats || {};
   const getPair = (field: string) => {
     const val = stats[field];
     if (val && typeof val === 'object') {
@@ -334,13 +332,12 @@ function slimStandings(standings: any): string | undefined {
 }
 
 function trendSummary(item: any): any {
-  const historical = item?.recent_trends?.historical_analysis || item?.detail_context?.formal || {};
-  const existing = item?.trend_summary || historical?.trend_summary || item?.recent_trends;
-  const rawH2H = asArray(historical?.head_to_head || item?.head_to_head || existing?.h2h);
+  const tc = item?.tactical_context || item?.context || {};
+  const rawH2H = asArray(tc.h2h_matches || tc.h2h_summary || item?.head_to_head);
   const h2h = rawH2H.map(scoreText).filter(Boolean).slice(0, 6);
-  const homeForm = slimRecentForm(existing?.home_recent_form || existing?.home || item?.recent_trends?.home);
-  const awayForm = slimRecentForm(existing?.away_recent_form || existing?.away || item?.recent_trends?.away);
-  const standings = slimStandings(existing?.standings || item?.recent_trends?.standings || historical?.league_standings);
+  const homeForm = slimRecentForm(tc.home_recent_matches || tc.home_form || tc.home_recent_form);
+  const awayForm = slimRecentForm(tc.away_recent_matches || tc.away_form || tc.away_recent_form);
+  const standings = slimStandings(tc.standings || tc.standings_summary || tc.standings_text);
 
   if (!h2h.length && !homeForm && !awayForm && !standings) return null;
   return {
@@ -498,10 +495,10 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
   }
 
   const fiveMarketsCoupling = evaluateFiveMarketsSanityAndCoupling(verifiedMarkets, liveStatsObj, scoreObj);
-  const lineupData = item?.lineups || item?.detail_context?.formal?.lineup || item?.detail_context?.lineup || item?.detail_context?.formal?.static_match?.lineup;
+  const lineupData = item?.lineups || item?.tactical_context?.lineups || null;
   const lineupTransparency = classifyLineupTransparency(lineupData);
   const tournamentRisk = detectTournamentRisk(league, lineupTransparency, homeTeam, awayTeam);
-  const historicalH2HList = asArray(item?.recent_trends?.historical_analysis?.head_to_head || item?.head_to_head || item?.trend_summary?.h2h);
+  const historicalH2HList = asArray(item?.tactical_context?.h2h_matches || item?.head_to_head || item?.trend_summary?.h2h);
   const h2hRecencyAnalysis = analyzeH2HRecency(historicalH2HList);
 
   const fairPricing = verifiedMarkets.map((m: any) => {
@@ -533,12 +530,7 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
 
   const rawIncidents = filterPromptKeyIncidents(item, 50);
   const attackMomentumTimeline = mode === 'prematch_eval' ? null : analyzeAttackMomentumTimeline(
-    item?.attack_momentum_timeline ||
-    item?.detail_context?.formal?.live_match?.attack_momentum_timeline ||
-    item?.detail_context?.formal?.attack_momentum_timeline ||
-    item?.detail_context?.attack_momentum_timeline ||
-    item?.detail_context?.live_match?.attack_momentum_timeline ||
-    item?.live_statistics?.attack_momentum_timeline,
+    item?.attack_momentum_timeline || item?.live_facts?.attack_momentum_timeline,
     minute,
     rawIncidents,
     homeTeam,
@@ -546,9 +538,7 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
   );
 
   const goalDistribution = analyzeGoalDistribution(
-    item?.recent_trends?.historical_analysis?.goal_distribution ||
-    item?.detail_context?.formal?.goal_distribution ||
-    item?.goal_distribution
+    item?.goal_distribution || item?.tactical_context?.goal_distribution
   );
 
   const rawPayload = {

@@ -120,7 +120,7 @@ function parseLiveStats(item: any): any {
     };
   }
 
-  const raw = item.live_statistics || item.detail_context?.formal?.live_match?.confirmed_statistics || {};
+  const raw = item.unified_stats || item.live_facts?.stats || item.liveStats || {};
 
   return {
     possession: parsePair(raw.possession || item.possession),

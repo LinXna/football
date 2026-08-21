@@ -29,7 +29,7 @@ export function registerPipelineRoutes(app: express.Express, deps: PipelineDepen
     }
     for (const cand of Array.isArray(candidates.candidates) ? candidates.candidates : []) {
       const id = `${deps.cleanTeamName(cand.match?.home || cand.market_source?.home)}|${deps.cleanTeamName(cand.match?.away || cand.market_source?.away)}`;
-      const l = cand.match?.league || cand.market_source?.league || cand.detail_context?.tournament;
+      const l = cand.match?.league || cand.market_source?.league || cand.league || cand.ybty_league;
       if (l && !leagueByMatch.has(id)) leagueByMatch.set(id, String(l).trim());
     }
 
@@ -72,7 +72,7 @@ export function registerPipelineRoutes(app: express.Express, deps: PipelineDepen
     const leagueByMatch = new Map<string, string>();
     for (const cand of Array.isArray(candidates.candidates) ? candidates.candidates : []) {
       const id = `${deps.cleanTeamName(cand.match?.home || cand.market_source?.home)}|${deps.cleanTeamName(cand.match?.away || cand.market_source?.away)}`;
-      const l = cand.match?.league || cand.market_source?.league || cand.detail_context?.tournament;
+      const l = cand.match?.league || cand.market_source?.league || cand.league || cand.ybty_league;
       if (l && !leagueByMatch.has(id)) leagueByMatch.set(id, String(l).trim());
     }
 

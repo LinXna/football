@@ -568,13 +568,12 @@ export function analyzeAttackMomentum(
   }
 
   // Signal 4: 盘口背离与滞后机会检测 (Odds Divergence)
-  if (match?.ybty_markets?.spread) {
-    const spread = match.ybty_markets.spread;
-    const homeLine = Number(spread.home_line ?? 0);
-    const homeOdds = Number(spread.home_odds ?? 0);
+  const spreadSnap = match?.market_snapshots?.find((s) => s.market_type === 'spread');
+  if (spreadSnap) {
+    const homeOdds = Number(spreadSnap.home_or_over_odds ?? 0);
 
     // If home is heavily dominating (net >= 50) but odds are rising (water >= 2.05) or line shrinking
-    if (recent15m.netScore >= 50 && homeOdds >= 2.05 && !spread.home_suspended) {
+    if (recent15m.netScore >= 50 && homeOdds >= 2.05 && spreadSnap.is_verified) {
       divergenceSignals.push({
         level: 'CRITICAL',
         tag: '【盘口异常-虚假受热/机构防下盘】',
@@ -587,7 +586,7 @@ export function analyzeAttackMomentum(
     }
 
     // If home is surging fast (slope > 3) but odds have not moved significantly yet
-    if (recent15m.slope >= 3.0 && homeOdds >= 1.85 && !spread.home_suspended) {
+    if (recent15m.slope >= 3.0 && homeOdds >= 1.85 && spreadSnap.is_verified) {
       divergenceSignals.push({
         level: 'OPPORTUNITY',
         tag: '【攻势起势-赔率滞后窗口】',

@@ -98,10 +98,7 @@ export function createBatchSupplementHandler(normalizeTeamName: (name: string) =
         item.matched_leisu_id ||
         item.candidate?.match_id ||
         item.candidate?.id ||
-        item.details?.match_id ||
-        item.detail_context?.formal?.static_match?.id ||
-        item.detail_context?.formal?.live_match?.match_id ||
-        item.reference_odds?.match_id ||
+        item.reference_market?.match_id ||
         '';
       const boundMatchId = rawMatchId ? String(rawMatchId).trim() : undefined;
 
@@ -139,7 +136,7 @@ export function createBatchSupplementHandler(normalizeTeamName: (name: string) =
 
             if (importedScore) { hScore = importedScore.home; aScore = importedScore.away; }
 
-            const importedLeague = item.league || item.league_name || item.league_title || item.tournament || item.detail_context?.tournament || item.detail_context?.league_name || '';
+            const importedLeague = item.league || item.league_name || item.league_title || item.tournament || '';
             const existingLeague = d.league || d.ybty_league || d.leisu_league || '';
             const resolvedLeague = importedLeague || existingLeague || '';
 
@@ -150,16 +147,13 @@ export function createBatchSupplementHandler(normalizeTeamName: (name: string) =
               league: resolvedLeague,
               ybty_league: item.ybty_league || importedLeague || d.ybty_league || resolvedLeague,
               leisu_league: item.leisu_league || item.leisu_raw?.league || d.leisu_league || '',
-              ybty_raw_markets: normalizeYbtyMarketTypes(item.ybty_raw_markets || item.markets || d.ybty_raw_markets),
-              live_statistics: item.live_statistics || d.live_statistics || null,
-              reference_odds: item.reference_odds || d.reference_odds || null,
-              recent_trends: item.recent_trends || d.recent_trends || null,
-              incidents: item.incidents || d.incidents || [],
+              unified_stats: item.unified_stats || d.unified_stats || null,
+              tactical_context: item.tactical_context || d.tactical_context || null,
+              market_snapshots: item.market_snapshots || d.market_snapshots || [],
+              timeline_events: item.timeline_events || d.timeline_events || [],
+              reference_market: item.reference_market || d.reference_market || null,
               weather: item.weather || d.weather || null,
               lineups: item.lineups || d.lineups || null,
-              player_candidates: item.player_candidates || d.player_candidates || [],
-              live_text: item.live_text || d.live_text || null,
-              detail_context: item.detail_context || d.detail_context || null,
               leisu_home: leisuHome || d.leisu_home || '',
               leisu_away: leisuAway || d.leisu_away || '',
               score: { home: hScore, away: aScore },
@@ -198,7 +192,7 @@ export function createBatchSupplementHandler(normalizeTeamName: (name: string) =
 
             if (importedScore) { hScore = importedScore.home; aScore = importedScore.away; }
 
-            const importedLeague = item.league || item.league_name || item.league_title || item.tournament || item.detail_context?.tournament || item.detail_context?.league_name || '';
+            const importedLeague = item.league || item.league_name || item.league_title || item.tournament || '';
             const existingLeague = d.league || d.ybty_league || d.leisu_league || '';
             const resolvedLeague = importedLeague || existingLeague || '';
 
@@ -209,16 +203,13 @@ export function createBatchSupplementHandler(normalizeTeamName: (name: string) =
               league: resolvedLeague,
               ybty_league: item.ybty_league || importedLeague || d.ybty_league || resolvedLeague,
               leisu_league: item.leisu_league || item.leisu_raw?.league || d.leisu_league || '',
-              ybty_raw_markets: normalizeYbtyMarketTypes(item.ybty_raw_markets || item.markets || d.ybty_raw_markets),
-              live_statistics: item.live_statistics || d.live_statistics || null,
-              reference_odds: item.reference_odds || d.reference_odds || null,
-              recent_trends: item.recent_trends || d.recent_trends || null,
-              incidents: item.incidents || d.incidents || [],
+              unified_stats: item.unified_stats || d.unified_stats || null,
+              tactical_context: item.tactical_context || d.tactical_context || null,
+              market_snapshots: item.market_snapshots || d.market_snapshots || [],
+              timeline_events: item.timeline_events || d.timeline_events || [],
+              reference_market: item.reference_market || d.reference_market || null,
               weather: item.weather || d.weather || null,
               lineups: item.lineups || d.lineups || null,
-              player_candidates: item.player_candidates || d.player_candidates || [],
-              live_text: item.live_text || d.live_text || null,
-              detail_context: item.detail_context || d.detail_context || null,
               leisu_home: leisuHome || d.leisu_home || '',
               leisu_away: leisuAway || d.leisu_away || '',
               score: { home: hScore, away: aScore },
@@ -276,7 +267,7 @@ export function createBatchSupplementHandler(normalizeTeamName: (name: string) =
         let aScore = 0;
         if (importedScore) { hScore = importedScore.home; aScore = importedScore.away; }
 
-        const importedLeague = item.league || item.league_name || item.league_title || item.tournament || item.detail_context?.tournament || item.detail_context?.league_name || '';
+        const importedLeague = item.league || item.league_name || item.league_title || item.tournament || '';
 
         const newRecord = {
           match: matchName,
@@ -308,16 +299,13 @@ export function createBatchSupplementHandler(normalizeTeamName: (name: string) =
           })(),
           evidence: [`[最新导入] 数据来源: ${item.source_type || '整合导入'}，已计算准确开赛与已进行时间`],
           risks: [],
-          ybty_raw_markets: normalizeYbtyMarketTypes(item.ybty_raw_markets || item.markets),
-          live_statistics: item.live_statistics || null,
-          reference_odds: item.reference_odds || null,
-          recent_trends: item.recent_trends || null,
-          incidents: item.incidents || [],
+          unified_stats: item.unified_stats || null,
+          tactical_context: item.tactical_context || null,
+          market_snapshots: item.market_snapshots || [],
+          timeline_events: item.timeline_events || [],
+          reference_market: item.reference_market || null,
           weather: item.weather || null,
           lineups: item.lineups || null,
-          player_candidates: item.player_candidates || [],
-          live_text: item.live_text || null,
-          detail_context: item.detail_context || null,
         };
 
         if (isLive) {

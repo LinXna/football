@@ -23,6 +23,7 @@ import { buildAliasLookup, getCanonicalName, normalizeTeamName, isSameTeam } fro
 import { matchSequentialName } from '../lib/sequentialNameMatcher';
 import { normalizeLeisuInterfaceExport } from '../lib/leisuInterfaceImport';
 import { scoreDisplay } from '../lib/scoreDisplay';
+import { toStandardMatchData } from '../types';
 
 interface ExportDataViewProps {
   onRefreshAll?: () => void;
@@ -74,16 +75,15 @@ interface ParsedMatchItem {
     minute?: number;
   }>;
   all_leisu_teams?: string[];
-  ybty_raw_markets?: any[];
-  live_statistics?: any;
-  reference_odds?: any;
-  recent_trends?: any;
-  incidents?: any[];
+  unified_stats?: any;
+  tactical_context?: any;
+  market_snapshots?: any[];
+  timeline_events?: any[];
+  reference_market?: any;
+  verified_ybty_markets?: any[];
   weather?: any;
   lineups?: any;
   player_candidates?: any[];
-  live_text?: any;
-  detail_context?: any;
 }
 
 export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) => {
@@ -458,7 +458,7 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
         const rawSource = safeExtractString(item.source_type || item.provider || item.score_source).toLowerCase();
         if (rawSource.includes('combined') || rawSource.includes('decision') || item.decisions) {
           combinedRawList.push(item);
-        } else if (rawSource.includes('leisu') || item.homeTeam || item.events || item.detail_context) {
+        } else if (rawSource.includes('leisu') || item.homeTeam || item.events || item.unified_stats || item.tactical_context) {
           leisuRawList.push(item);
         } else {
           ybtyRawList.push(item);
@@ -688,6 +688,19 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
           return 0;
         });
 
+        const stdData = toStandardMatchData({
+          ...matchedLeisuRaw,
+          ...item,
+          ybty_home: homeName,
+          ybty_away: awayName,
+          leisu_home: matchedLeisuObj?.leisu_home || '',
+          leisu_away: matchedLeisuObj?.leisu_away || '',
+          league: leagueName,
+          score: isMatchLive ? scoreStr : null,
+          minute: elapsedMinutes || item.minute,
+          score_verified: item.score_verified === true || matchedLeisuRaw?.score_verified === true,
+        });
+
         return {
           league: leagueName,
           match: matchStr,
@@ -717,30 +730,28 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
           unmatch_reason: unmatchReason,
           candidate_leisu_matches: sortedCandidateMatches,
           all_leisu_teams: allLeisuTeams,
-          ybty_raw_markets: Array.isArray(item.ybty_raw_markets)
-            ? item.ybty_raw_markets
-            : Array.isArray(item.markets)
-              ? item.markets
-              : Array.isArray(item.market_source?.markets)
-                ? item.market_source.markets
-                : [],
-          live_statistics: item.live_statistics || matchedLeisuRaw?._statistics || matchedLeisuRaw?.live_statistics || null,
-          reference_odds: item.reference_odds || matchedLeisuRaw?.reference_odds || matchedLeisuRaw?.odds || null,
-          recent_trends: item.recent_trends || matchedLeisuRaw?._recent_trends || matchedLeisuRaw?.recent_trends || (
-            matchedLeisuRaw && (matchedLeisuRaw._historical_analysis || matchedLeisuRaw.analysis_data)
-              ? {
-                  recent: matchedLeisuRaw._recent_trends || null,
-                  historical_analysis: matchedLeisuRaw._historical_analysis || null,
-                  analysis_data: matchedLeisuRaw.analysis_data || null,
-                }
-              : null
-          ),
-          incidents: item.incidents || matchedLeisuRaw?._incidents || matchedLeisuRaw?.incidents || [],
+          // Standard canonical fields
+          unified_stats: stdData.unified_stats,
+          tactical_context: stdData.tactical_context,
+          market_snapshots: stdData.market_snapshots,
+          timeline_events: stdData.timeline_events,
+          reference_market: stdData.reference_market,
+          verified_ybty_markets: stdData.market_snapshots.map((m: any) => ({
+            market: m.market_type === 'total' ? '全场大小球' : m.market_type === 'spread' ? '全场让球' : m.market_type === 'moneyline' ? '全场独赢1X2' : m.market_type,
+            market_type: m.market_type,
+            line: m.line,
+            odds: m.home_or_over_odds,
+            over_odds: m.home_or_over_odds,
+            under_odds: m.away_or_under_odds,
+            home_odds: m.home_or_over_odds,
+            away_odds: m.away_or_under_odds,
+            draw_odds: m.draw_odds,
+            is_verified: m.is_verified,
+            status: m.status,
+          })),
           weather: item.weather || matchedLeisuRaw?._weather || matchedLeisuRaw?.weather || null,
           lineups: item.lineups || matchedLeisuRaw?._lineups || matchedLeisuRaw?.lineups || null,
           player_candidates: item.player_candidates || matchedLeisuRaw?._player_candidates || matchedLeisuRaw?.player_candidates || [],
-          live_text: item.live_text || matchedLeisuRaw?._live_text || matchedLeisuRaw?.live_text || null,
-          detail_context: item.detail_context || matchedLeisuRaw?.detail_context || matchedLeisuRaw?._detail_context || null,
         };
       };
 

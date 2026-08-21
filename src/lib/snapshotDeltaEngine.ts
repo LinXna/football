@@ -1,4 +1,4 @@
-import { DecisionItem } from '../types';
+import { DecisionItem, toStandardMatchData } from '../types';
 import { extractAttackMomentumTimeline } from '../components/AttackMomentumTimelineWidget';
 import { analyzeAttackMomentum, ComprehensiveMomentumReport } from '../utils/momentumAnalytics';
 
@@ -9,7 +9,7 @@ export interface MatchSnapshotPoint {
   ou_market?: { line: number | string | null; odds: number | string | null; direction?: string };
   handicap_market?: { line: number | string | null; odds: number | string | null; direction?: string };
   moneyline_market?: { home_odds?: number; draw_odds?: number; away_odds?: number };
-  live_statistics?: {
+  unified_stats?: {
     possession?: { home: number; away: number };
     dangerous_attacks?: { home: number; away: number; total: number };
     attacks?: { home: number; away: number; total: number };
@@ -138,27 +138,18 @@ export function createClientSnapshotPoint(item: any): MatchSnapshotPoint {
   }
 
   // 2. Prioritize StandardMatchData unified_stats
-  const u = item.unified_stats;
-  const rawStats = item.live_statistics || item.detail_context?.formal?.live_match?.confirmed_statistics || {};
+  const std = item.unified_stats ? item : toStandardMatchData(item);
+  const u = std.unified_stats;
 
-  const statsObj = u ? {
-    possession: parsePair(u.possession),
-    dangerous_attacks: parsePair(u.dangerous_attacks),
-    attacks: parsePair(u.dangerous_attacks),
-    shots: parsePair(u.shots),
-    shots_on_target: parsePair(u.shots_on_target),
-    corners: parsePair(u.corners),
-    yellow_cards: parsePair(u.yellow_cards),
-    red_cards: parsePair(u.red_cards),
-  } : {
-    possession: parsePair(rawStats.possession || item.possession),
-    dangerous_attacks: parsePair(rawStats.dangerous_attacks || item.dangerous_attacks),
-    attacks: parsePair(rawStats.attacks || item.attacks),
-    shots: parsePair(rawStats.shots || rawStats.shots_total || item.shots),
-    shots_on_target: parsePair(rawStats.shots_on_target || item.shots_on_target),
-    corners: parsePair(rawStats.corners || item.corners),
-    yellow_cards: parsePair(rawStats.yellow_cards || item.yellow_cards),
-    red_cards: parsePair(rawStats.red_cards || item.red_cards),
+  const statsObj = {
+    possession: parsePair(u?.possession),
+    dangerous_attacks: parsePair(u?.dangerous_attacks),
+    attacks: parsePair(u?.dangerous_attacks),
+    shots: parsePair(u?.shots),
+    shots_on_target: parsePair(u?.shots_on_target),
+    corners: parsePair(u?.corners),
+    yellow_cards: parsePair(u?.yellow_cards),
+    red_cards: parsePair(u?.red_cards),
   };
 
   return {
@@ -167,7 +158,7 @@ export function createClientSnapshotPoint(item: any): MatchSnapshotPoint {
     score: { home: h, away: a, text: `${h}-${a}` },
     ou_market: { line: ouLine, odds: ouOdds },
     handicap_market: { line: ahLine, odds: ahOdds },
-    live_statistics: statsObj,
+    unified_stats: statsObj,
   };
 }
 
@@ -199,7 +190,7 @@ export function computeClientSnapshotDelta(item: any): MatchSnapshotDelta {
   const timeline = extractAttackMomentumTimeline(item);
   const momentumReport = analyzeAttackMomentum(timeline, item);
 
-  const currStats = current.live_statistics || {};
+  const currStats = current.unified_stats || {};
   const currentMinute = Math.max(1, current.minute || 1);
 
   // Case A: First Import (Single sample / No prior snapshot history)
@@ -283,7 +274,7 @@ export function computeClientSnapshotDelta(item: any): MatchSnapshotDelta {
   // Case B: Multi-Snapshot Cross-Batch Delta
   const previous = list[0];
   const elapsed = Math.max(1, current.minute - previous.minute);
-  const prevStats = previous.live_statistics || {};
+  const prevStats = previous.unified_stats || {};
 
   const dDangerHome = Math.max(0, (currStats.dangerous_attacks?.home || 0) - (prevStats.dangerous_attacks?.home || 0));
   const dDangerAway = Math.max(0, (currStats.dangerous_attacks?.away || 0) - (prevStats.dangerous_attacks?.away || 0));

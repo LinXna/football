@@ -214,7 +214,7 @@ export function registerAiManualImportRoutes(app: express.Express, deps: { parse
           ybty_away: source?.ybty_away || match.ybty_away,
           match: source?.match || match.match || `${source?.ybty_home || match.ybty_home} vs ${source?.ybty_away || match.ybty_away}`,
           league: source?.league || source?.ybty_league || match.league,
-          live_statistics: source?.live_statistics || source?._statistics || match.live_statistics || null,
+          unified_stats: source?.unified_stats || source?.live_facts?.stats || match.unified_stats || null,
           score: source?.score !== undefined ? source.score : match.score,
           minute: source?.minute !== undefined ? source.minute : match.minute,
           score_verified: scoreVerified,
