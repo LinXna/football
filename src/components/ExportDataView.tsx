@@ -79,6 +79,7 @@ interface ParsedMatchItem {
   tactical_context?: any;
   market_snapshots?: any[];
   timeline_events?: any[];
+  attack_momentum_timeline?: any;
   reference_market?: any;
   verified_ybty_markets?: any[];
   weather?: any;
@@ -735,17 +736,20 @@ export const ExportDataView: React.FC<ExportDataViewProps> = ({ onRefreshAll }) 
           tactical_context: stdData.tactical_context,
           market_snapshots: stdData.market_snapshots,
           timeline_events: stdData.timeline_events,
+          attack_momentum_timeline: stdData.attack_momentum_timeline,
           reference_market: stdData.reference_market,
           verified_ybty_markets: stdData.market_snapshots.map((m: any) => ({
-            market: m.market_type === 'total' ? '全场大小球' : m.market_type === 'spread' ? '全场让球' : m.market_type === 'moneyline' ? '全场独赢1X2' : m.market_type,
+            market: m.market_type === 'total' || m.market_type === 'full_total' ? '全场大小球' : m.market_type === 'spread' || m.market_type === 'full_spread' ? '全场让球' : m.market_type === 'moneyline' || m.market_type === 'full_h2h' ? '全场独赢1X2' : m.market_type,
             market_type: m.market_type,
+            market_label: m.market_label,
             line: m.line,
-            odds: m.home_or_over_odds,
+            odds: m.home_or_over_odds ?? m.options?.[0]?.odds,
             over_odds: m.home_or_over_odds,
             under_odds: m.away_or_under_odds,
             home_odds: m.home_or_over_odds,
             away_odds: m.away_or_under_odds,
             draw_odds: m.draw_odds,
+            options: m.options,
             is_verified: m.is_verified,
             status: m.status,
           })),

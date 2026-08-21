@@ -568,9 +568,13 @@ export function analyzeAttackMomentum(
   }
 
   // Signal 4: 盘口背离与滞后机会检测 (Odds Divergence)
-  const spreadSnap = match?.market_snapshots?.find((s) => s.market_type === 'spread');
+  const spreadSnap = match?.market_snapshots?.find((s) => /spread|让球|handicap/i.test(s.market_type || s.market_label || ''));
   if (spreadSnap) {
-    const homeOdds = Number(spreadSnap.home_or_over_odds ?? 0);
+    const homeOdds = Number(
+      spreadSnap.home_or_over_odds ??
+      spreadSnap.options?.find((o: any) => o.side === 'home' || String(o.selection || '').includes('主'))?.odds ??
+      0
+    );
 
     // If home is heavily dominating (net >= 50) but odds are rising (water >= 2.05) or line shrinking
     if (recent15m.netScore >= 50 && homeOdds >= 2.05 && spreadSnap.is_verified) {

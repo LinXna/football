@@ -211,7 +211,7 @@ def assess(candidate: dict[str, Any], now: datetime) -> dict[str, Any]:
     score_verified = bool(
         score.get("home") is not None
         and score.get("away") is not None
-        and score_source in {"ybty_market", "score_canvas", "leisu_text_live", "provider_api"}
+        and score_source in {"ybty_market", "score_canvas", "leisu_text_live", "leisu_api", "provider_api"}
     )
     goals = (number(score.get("home")) or 0) + (number(score.get("away")) or 0)
     age = market_age_seconds(candidate, now)

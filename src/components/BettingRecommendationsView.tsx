@@ -5,7 +5,7 @@ import { BatchSupplementModal } from './BatchSupplementModal';
 import { RecentFormModal } from './RecentFormModal';
 import { FormationClashModal } from './FormationClashModal';
 import { isQuarterLine, parseQuarterLine, getQuarterSplits, formatAsianLine } from '../lib/quarterSettlement';
-import { generateExtendedAnalysis } from '../lib/extendedRecommendation';
+import { generateExtendedAnalysis, verifiedMarket } from '../lib/extendedRecommendation';
 import { analyzeDualConsensus, DualConsensusAnalysis, formatMarketLabel, formatBetOption } from '../lib/consensusArbitration';
 import { displayText } from '../lib/displayValue';
 import { extractMatchLiveStats } from '../lib/matchStats';
@@ -432,38 +432,43 @@ export const BettingRecommendationsView: React.FC<Props> = ({
     // This entry deliberately excludes m.recommendation: the formal primary has
     // its own ledger path and must not be duplicated as an all-market candidate.
 
-    // 2. StandardMatchData market_snapshots
-    if (Array.isArray(m.market_snapshots) && m.market_snapshots.length > 0) {
-      const h2hSnap = m.market_snapshots.find((s) => s.market_type === 'h2h');
-      if (h2hSnap) {
-        const options = [
-          { line: '主胜', odds: h2hSnap.home_or_over_odds },
-          { line: '平局', odds: h2hSnap.draw_odds },
-          { line: '客胜', odds: h2hSnap.away_or_under_odds },
-        ].filter((opt) => opt.odds && Number(opt.odds) > 1);
-        options.sort((a, b) => Number(a.odds) - Number(b.odds));
-        if (options[0]) addRow('全场独赢（市场基准）', options[0].line, options[0].odds!, '取自本次YBTY独赢盘真实赔率的最低赔率方向');
-      }
+    // 2. Standardized verified market benchmarks
+    const h2hMkt = verifiedMarket(m, 'full_h2h');
+    if (h2hMkt && h2hMkt.options && h2hMkt.options.length > 0) {
+      const options = h2hMkt.options
+        .map((opt) => ({
+          line: opt.side === 'home' ? '主胜' : opt.side === 'away' ? '客胜' : '平局',
+          odds: opt.odds,
+        }))
+        .filter((opt) => opt.odds && Number(opt.odds) > 1);
+      options.sort((a, b) => Number(a.odds) - Number(b.odds));
+      if (options[0]) addRow('全场独赢（市场基准）', options[0].line, options[0].odds!, '取自本次YBTY独赢盘真实赔率的最低赔率方向');
+    }
 
-      const spreadSnap = m.market_snapshots.find((s) => s.market_type === 'spread');
-      if (spreadSnap && spreadSnap.line !== undefined) {
-        const options = [
-          { side: '主队', line: spreadSnap.line, odds: spreadSnap.home_or_over_odds },
-          { side: '客队', line: spreadSnap.line, odds: spreadSnap.away_or_under_odds },
-        ].filter((opt) => opt.odds && Number(opt.odds) > 1);
-        options.sort((a, b) => Number(a.odds) - Number(b.odds));
-        if (options[0]) addRow('全场让球（市场基准）', `${options[0].side} ${formatAsianLine(options[0].line!)}`, options[0].odds!, '取自本次YBTY让球盘真实盘口和赔率');
-      }
+    const spreadMkt = verifiedMarket(m, 'full_spread');
+    if (spreadMkt && spreadMkt.options && spreadMkt.options.length > 0) {
+      const options = spreadMkt.options
+        .map((opt) => ({
+          side: opt.side === 'away' ? (m.ybty_away || '客队') : (m.ybty_home || '主队'),
+          line: opt.line,
+          odds: opt.odds,
+        }))
+        .filter((opt) => opt.odds && Number(opt.odds) > 1);
+      options.sort((a, b) => Number(a.odds) - Number(b.odds));
+      if (options[0]) addRow('全场让球（市场基准）', `${options[0].side} ${formatAsianLine(options[0].line ? String(options[0].line) : '')}`, options[0].odds!, '取自本次YBTY让球盘真实盘口和赔率');
+    }
 
-      const totalSnap = m.market_snapshots.find((s) => s.market_type === 'total');
-      if (totalSnap && totalSnap.line !== undefined && totalSnap.line !== null) {
-        const options = [
-          { side: '大球', odds: totalSnap.home_or_over_odds },
-          { side: '小球', odds: totalSnap.away_or_under_odds },
-        ].filter((opt) => opt.odds && Number(opt.odds) > 1);
-        options.sort((a, b) => Number(a.odds) - Number(b.odds));
-        if (options[0]) addRow(`全场${options[0].side}（市场基准）`, formatAsianLine(totalSnap.line), options[0].odds!, '取自本次YBTY大小球盘真实盘口和赔率');
-      }
+    const totalMkt = verifiedMarket(m, 'full_total');
+    if (totalMkt && totalMkt.options && totalMkt.options.length > 0) {
+      const options = totalMkt.options
+        .map((opt) => ({
+          side: opt.side === 'under' ? '小球' : '大球',
+          line: opt.line,
+          odds: opt.odds,
+        }))
+        .filter((opt) => opt.odds && Number(opt.odds) > 1);
+      options.sort((a, b) => Number(a.odds) - Number(b.odds));
+      if (options[0]) addRow(`全场${options[0].side}（市场基准）`, formatAsianLine(options[0].line ? String(options[0].line) : ''), options[0].odds!, '取自本次YBTY大小球盘真实盘口和赔率');
     }
 
     const seen = new Set<string>();

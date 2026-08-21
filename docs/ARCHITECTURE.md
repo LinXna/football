@@ -58,4 +58,6 @@ The runtime-maintenance API deliberately operates only on re-generable `output/`
 4. **串关风控重构**：实现了组合签名去重（Signature Deduplication）与重叠率熔断（Overlap Gate），杜绝多串关重复包含相同核心腿的问题。
 5. **包管理器统一**：移除了冗余的 `bun.lock` 干扰，全系统统一基于 `npm` 进行构建与依赖管理。
 6. **目录与产物分层**：运行时动态产物严格限定在 `output/`，长期报告保存于 `reports/`，只读测试夹具保存于 `sources/`。
+7. **数据契约与管道全面对齐 (v3.0.0)**：完成全系统 `StandardMatchData` 统一契约迁移与 `src/utils/dataAdapter.ts` 清洗防护层；Python 管道原生适配雷速 `leisu_interface_data` (`results[].formal`) 结构化数据，详见 `docs/data_audit/06_IMPLEMENTATION_COMPLETION_REPORT.md`。
+
 

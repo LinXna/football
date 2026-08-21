@@ -8,6 +8,7 @@ import { advanceGeminiKeyCursor, geminiKeyIndex, getGeminiKeyCooldown, isGeminiK
 import { parseModelJson } from './modelJson';
 import { normalizeParlayRecommendations } from './parlayRecommendationNormalizer';
 import { enforceLiveScoreVerification, validateAssessmentAgainstVerifiedMarkets } from './verifiedMarketAssessment';
+import { normalizeYbtyMarketTypes } from './marketTypeNormalizer';
 import { normalizeMatchPredictionsAndAssessments } from './marketAssessmentsNormalizer';
 
 export function createGeminiEvaluationHandler(deps: {
@@ -144,7 +145,16 @@ export function createGeminiEvaluationHandler(deps: {
         const matchId = String(rawMatch?.match_id || rawMatch?.leisu_match_id || '').trim();
         const inputMatch = (matchId ? evaluationData.find((d: any) => String(d?.match_info?.match_id || d?.match_info?.leisu_match_id || d?.match_id || '').trim() === matchId) : undefined)
           || evaluationData[idx] || {};
-        const verifiedMarketTypes = new Set((inputMatch?.verified_ybty_markets || []).map((market: any) => market.market));
+        const rawInputMarkets = Array.isArray(inputMatch?.market_snapshots) && inputMatch.market_snapshots.length > 0
+          ? inputMatch.market_snapshots
+          : (Array.isArray(inputMatch?.verified_ybty_markets) && inputMatch.verified_ybty_markets.length > 0
+              ? inputMatch.verified_ybty_markets
+              : (Array.isArray(inputMatch?.ybty_raw_markets) && inputMatch.ybty_raw_markets.length > 0
+                  ? inputMatch.ybty_raw_markets
+                  : (Array.isArray(inputMatch?.markets) ? inputMatch.markets : [])));
+
+        const normalizedInputMarkets = normalizeYbtyMarketTypes(rawInputMarkets);
+        const verifiedMarketTypes = new Set(normalizedInputMarkets.map((market: any) => market.market));
         const requiredMarketByCategory: Record<string, string> = {
           '全场大小球': 'full_total',
           '半场大小球': 'half_total',
@@ -195,7 +205,7 @@ export function createGeminiEvaluationHandler(deps: {
               };
             }
             if (requiredMarket) {
-              const verified = validateAssessmentAgainstVerifiedMarkets(assessment, inputMatch?.verified_ybty_markets || []);
+              const verified = validateAssessmentAgainstVerifiedMarkets(assessment, normalizedInputMarkets);
               if (verified.ybty_market_verified !== true) return verified;
               Object.assign(assessment, verified);
             }

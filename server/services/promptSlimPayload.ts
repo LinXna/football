@@ -428,7 +428,16 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
   // 1. Convert any input to CanonicalMatchData single source of truth
   const cData: CanonicalMatchData = item?.live_facts?.stats ? (item as CanonicalMatchData) : canonicalizeRawMatchData(item);
 
-  const normalizedMarkets = normalizeYbtyMarketTypes(item?.ybty_raw_markets || item?.verified_ybty_markets || []);
+  // Extract markets from market_snapshots, verified_ybty_markets, ybty_raw_markets, or markets
+  const rawInputMarkets = Array.isArray(item?.market_snapshots) && item.market_snapshots.length > 0
+    ? item.market_snapshots
+    : (Array.isArray(item?.verified_ybty_markets) && item.verified_ybty_markets.length > 0
+        ? item.verified_ybty_markets
+        : (Array.isArray(item?.ybty_raw_markets) && item.ybty_raw_markets.length > 0
+            ? item.ybty_raw_markets
+            : (Array.isArray(item?.markets) ? item.markets : [])));
+
+  const normalizedMarkets = normalizeYbtyMarketTypes(rawInputMarkets);
   const verifiedMarkets = withVerifiedYbtyOptionIds(normalizedMarkets
     .filter((market: any) => BETTABLE_MARKET.test(String(market?.market || '')) && market?.market_type_verified !== false)
     .map((market: any) => ({

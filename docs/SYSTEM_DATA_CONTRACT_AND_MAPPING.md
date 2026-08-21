@@ -382,5 +382,84 @@ export interface StandardMatchData {
 
 ---
 
+## 6. 数据导入与评估链路缺陷诊断与修复方案 (Import & Evaluation Pipeline Diagnostic & Fix Plan v3.0.1)
+
+### 6.1 问题现象与根因诊断
+
+在导入数据并添加比赛后，系统出现以下三项关键问题：
+
+#### 问题 1：攻势动能与事件流即时数据概览没有正确展示数值
+- **根因分析**：
+  1. **数据导出与保存裁剪**：在 `ExportDataView.tsx` 的 `formatItem` 函数中，遗漏了 `attack_momentum_timeline` 字段的序列化传递；同时在 `batchSupplementService.ts` 进行比赛更新和追加时，未将 `attack_momentum_timeline` 写入决策记录，导致落盘的 JSON 文件缺失攻势动能曲线。
+  2. **前端统计提取跳过归一化**：`src/lib/matchStats.ts` 中的 `extractMatchLiveStats` 存在短路判断 `const std = item.unified_stats ? item : toStandardMatchData(item)`，当 `item` 具有残缺或非标的 `unified_stats` 时跳过了 `toStandardMatchData` 的深层结构规整，导致 `possession`、`dangerous_attacks` 等字段的 `home`/`away` 取值为 `undefined` 或回退至默认值。
+  3. **时序解析容错度**：`extractAttackMomentumTimeline` 需进一步支持 `live_match_physical_facts` 与多层嵌套 `trend.data` 来源的直通映射。
+
+#### 问题 2：YBTY 真实盘口与市场隐含概率（全场 + 半场 + 独赢 1X2）都显示“无真实赔率”
+- **根因分析**：
+  1. **Prompt 构建时字段名读取遗漏**：`server/services/promptSlimPayload.ts`（第 431 行）在提取可投注盘口时，仅读取了 `item?.ybty_raw_markets || item?.verified_ybty_markets || []`，完全遗漏了 v3.0 标准契约中的 `item?.market_snapshots` 与 `item?.markets`。由于标准决策数据均存储于 `market_snapshots`，导致 `normalizedMarkets` 恒为空数组，生成发送给 Gemini 的盘口列表为空。
+  2. **盘口类型归一化兼容性**：`server/services/marketTypeNormalizer.ts` 主要解析 YBTY 原始盘口名，对已经结构化的 `market_snapshots`（包含 `market_type: 'full_spread' | 'full_total'` 等）未建立直接映射直通逻辑。
+  3. **量化模型盘口提取字段剥离**：`server/services/canonicalMatchModel.ts` 在从 `market_snapshots` 构建 `verified_markets` 时，仅保留了 `option_id`, `side`, `line`, `odds`，丢弃了盘口所属的 `market` 分类与 `market_type`。
+
+#### 问题 3：机器评估全都显示“数据不足”
+- **根因分析**：
+  1. **评估后置核验门禁硬拦截**：`server/services/geminiEvaluationService.ts` 包含安全核验逻辑：若 `inputMatch?.verified_ybty_markets` 中不包含指定市场的核验类型（如 `full_spread`、`full_total` 等），会直接将该玩法置为：`direction: '盘口阶段未核验', grade: 'NO_BET', status: 'unavailable', reason: '输入盘口未确认属于该全场/半场市场，系统已禁止按索引猜测盘口阶段。'`。因问题 2 中盘口未能注入 `verified_ybty_markets`，导致 5 大核心玩法被全部降级为“数据不足 / NO_BET”。
+  2. **量化衍生特征计算空跑**：因 `verifiedMarkets` 为空，`calculateMarketOverroundAndFairOdds` 与 `evaluateFiveMarketsSanityAndCoupling` 无法计算真实隐含概率与价值边际（Value Edge），AI 和规则引擎均判定为无有效盘口可供评估。
+
+---
+
+### 6.2 详细修改实施方案 (Modification Plan)
+
+#### 步骤 1：修复数据导出与补全服务中的攻势动能传递
+- **修改文件**：`src/components/ExportDataView.tsx`、`server/services/batchSupplementService.ts`
+- **变更内容**：
+  - 在 `ExportDataView.tsx` 的 `formatItem` 中完整输出 `attack_momentum_timeline`。
+  - 在 `batchSupplementService.ts` 保存/更新 `liveDecisions` 与 `prematchDecisions` 时，完整保留 `attack_momentum_timeline`、`market_snapshots`、`unified_stats`、`timeline_events`。
+
+#### 步骤 2：强化前端技术统计提取与攻势动能适配
+- **修改文件**：`src/lib/matchStats.ts`、`src/types.ts`
+- **变更内容**：
+  - 在 `src/lib/matchStats.ts` 的 `extractMatchLiveStats` 中，统一先调用 `toStandardMatchData(item)` 进行全字段深层防御与数值清洗，消除 `unified_stats` 嵌套层级不一致导致的读取失败。
+  - 在 `src/types.ts` 的 `toStandardMatchData` 中，确保对 `attack_momentum_timeline`、`trend.data`、`live_match_physical_facts` 等多源动量波形进行无缝适配。
+
+#### 步骤 3：修复服务端 Prompt 注入层的盘口抽取与市场类型归一化
+- **修改文件**：`server/services/promptSlimPayload.ts`、`server/services/marketTypeNormalizer.ts`、`server/services/canonicalMatchModel.ts`
+- **变更内容**：
+  - 在 `promptSlimPayload.ts` 中，统一从 `item?.market_snapshots || item?.markets || item?.ybty_raw_markets || item?.verified_ybty_markets || []` 提取盘口。
+  - 在 `marketTypeNormalizer.ts` 中，新增对标准 `market_snapshots`（已有 `market_type` 与 `options`）的原样直通与类型规范化支持。
+  - 在 `canonicalMatchModel.ts` 中，确保 `canonicalizeRawMatchData` 正确保留 `market` / `market_type` 字段，并同步注入 `verified_ybty_markets`。
+
+#### 步骤 4：对齐 AI 评估服务中的真实盘口核验与状态派发
+- **修改文件**：`server/services/geminiEvaluationService.ts`
+- **变更内容**：
+  - 在 `geminiEvaluationService.ts` 中，提取已核验市场类型时，同时从 `inputMatch?.verified_ybty_markets` 与 `inputMatch?.market_snapshots` 进行双重校验。
+  - 确保当存在真实盘口快照时，评估结果正确显示赔率、隐含概率、价值边际与推荐评级，彻底解决“数据不足”和“无真实赔率”问题。
+
+---
+
+### 6.3 前端推荐组件全场大小球/让球/独赢“无真实赔率”深度诊断与彻底修复 (v3.0.2)
+
+#### 1. 现象复现
+在投注推荐看板与扩展分析面板中，全场大小球、让球或独赢展示：
+> `⚽ 全场大小球无真实赔率全场暂无真实盘口--YBTY本次导入没有可用且已核验的该市场盘口，不生成默认盘口或赔率。市场隐含概率: 0%`
+
+#### 2. 根因链条梳理 (Root Cause Chain)
+1. **语义匹配僵化**：`src/lib/extendedRecommendation.ts` 中的 `verifiedMarket` 原实现采用严格判等 `m.market_type === 'total'`，无法匹配包含 `full_total`、`total`、`全场大小球`、`over_under`、`OU` 等多种命名变体的真实盘口。
+2. **数据结构未遍历 `options`**：标准数据中盘口水位保存在 `options: MarketSnapshotOption[]` 数组中，而 `verifiedMarket` 原逻辑仅尝试读取平铺的 `home_or_over_odds` / `away_or_under_odds`，若平铺字段未展开，则判定为没有可用赔率。
+3. **缺少多源回退与双向互补**：未在 `toStandardMatchData`（`src/types.ts`）中将 `options` 数组与平铺赔率字段进行双向对称填充；未在 `extendedRecommendation.ts` 中按优先级连锁检索 `market_snapshots` → `verified_ybty_markets` → `ybty_raw_markets` → `markets` → `recommendation`。
+
+#### 3. 彻底修复与系统对齐措施
+1. **核心解析器升级 (`src/lib/extendedRecommendation.ts`)**：
+   - 引入 `matchesMarketCategory(targetType, rawKey)`，支持 6 大标准盘口分类（`full_total`, `half_total`, `full_spread`, `half_spread`, `full_h2h`, `half_h2h`）的语义模糊与正则匹配。
+   - 引入 `extractOptionsFromMarket(m, targetType)`，优先解析 `m.options` 数组并标准化 `side`、`line`、`odds`，同时自动向下兼容平铺赔率属性。
+   - 实现 7 级深度数据源回退（`market_snapshots` → `verified_ybty_markets` → `ybty_raw_markets` → `markets` → `raw.markets` → `raw.market_snapshots` → `recommendation`）。
+2. **基准提取器对齐 (`src/components/BettingRecommendationsView.tsx`)**：
+   - 统一调用 `verifiedMarket` 提取全场独赢、让球、大小球的权威市场基准，保证与推荐面板口径 100% 一致。
+3. **时序快照引擎对齐 (`src/lib/snapshotDeltaEngine.ts`)**：
+   - 统一接入 `verifiedMarket` 提取 `ou_market` 与 `handicap_market`。
+4. **数据标准化双向填充 (`src/types.ts`)**：
+   - `toStandardMatchData` 在清洗 `market_snapshots` 时，自动双向对齐 `options` 数组与 `home_or_over_odds` / `away_or_under_odds` / `draw_odds`。
+
+---
+
 *本文件为 CODEX 系统的唯一核心数据契约，全系统所有功能开发、数据导入导出、AI 提示词构建与代码修改均以此为绝对基准。*
 

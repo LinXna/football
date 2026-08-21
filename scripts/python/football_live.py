@@ -180,6 +180,179 @@ def normalize_espn(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return output
 
 
+def load_leisu_interface_file(path: Path) -> list[dict[str, Any]]:
+    """Parse leisu_interface_data exports (results[].formal structure)."""
+    try:
+        raw_data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except Exception as e:
+        print(f"Warning: Failed to parse Leisu JSON {path}: {e}", file=sys.stderr)
+        return []
+
+    events_out: list[dict[str, Any]] = []
+    
+    # Handle list or wrapper dict with results / events
+    items = raw_data if isinstance(raw_data, list) else raw_data.get("results", raw_data.get("events", raw_data.get("matches", [])))
+    
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        formal = item.get("formal", {})
+        if not formal and "static_match" in item:
+            formal = item
+        
+        static_match = formal.get("static_match", {})
+        live_match = formal.get("live_match", {})
+        odds_obj = formal.get("odds", {})
+        opening_odds = formal.get("opening_odds", {})
+        lineup_obj = formal.get("lineup", {})
+        environment = static_match.get("environment", {})
+        
+        match_id = str(static_match.get("id") or item.get("match_id") or "")
+        competition = static_match.get("competition", {})
+        league_name = competition.get("shortName") or competition.get("name") or ""
+        
+        home_meta = static_match.get("homeTeam", {})
+        away_meta = static_match.get("awayTeam", {})
+        home_name = home_meta.get("shortName") or home_meta.get("name") or ""
+        away_name = away_meta.get("shortName") or away_meta.get("name") or ""
+        
+        if not home_name or not away_name:
+            continue
+            
+        match_time_sec = static_match.get("matchTime")
+        start_timestamp = int(match_time_sec) if match_time_sec else None
+        start_time_text = None
+        if start_timestamp:
+            dt = datetime.fromtimestamp(start_timestamp, timezone.utc)
+            start_time_text = dt.strftime("%Y-%m-%d %H:%M")
+            
+        status_id = live_match.get("status_id")
+        # Leisu status_id: 1=未开赛, 2=上半场, 3=中场, 4=下半场, 5=加时, 7=点球, 8=完场
+        if status_id == 1 or status_id is None:
+            status_type = "notstarted"
+        elif status_id == 3:
+            status_type = "halftime"
+        elif status_id in (2, 4, 5, 7):
+            status_type = "inprogress"
+        elif status_id == 8:
+            status_type = "finished"
+        else:
+            status_type = "inprogress"
+            
+        home_scores = live_match.get("home_scores", {})
+        away_scores = live_match.get("away_scores", {})
+        home_score_val = home_scores.get("score")
+        away_score_val = away_scores.get("score")
+        
+        # Confirmed statistics
+        conf_stats = live_match.get("confirmed_statistics", {})
+        statistics: dict[str, Any] = {}
+        for k, v in conf_stats.items():
+            if isinstance(v, dict) and "home" in v and "away" in v:
+                statistics[k] = {"home": v["home"], "away": v["away"]}
+                
+        # If shots not explicitly mapped, compute from sot + s_off
+        if "shots" not in statistics and "shots_on_target" in statistics:
+            sot_h = statistics["shots_on_target"].get("home", 0) or 0
+            sot_a = statistics["shots_on_target"].get("away", 0) or 0
+            soff_h = (statistics.get("shots_off_target", {}).get("home", 0) or 0)
+            soff_a = (statistics.get("shots_off_target", {}).get("away", 0) or 0)
+            statistics["shots"] = {"home": sot_h + soff_h, "away": sot_a + soff_a}
+            
+        # Incident extraction
+        text_live_entries = live_match.get("text_live", [])
+        incidents: list[dict[str, Any]] = []
+        for tl in text_live_entries:
+            if isinstance(tl, dict):
+                inc_type = tl.get("type")
+                pos = tl.get("position")
+                t_str = tl.get("time") or ""
+                t_num = int(re.sub(r"\D", "", t_str)) if re.sub(r"\D", "", t_str) else None
+                data_text = tl.get("data", "")
+                incidents.append({
+                    "type": inc_type,
+                    "position": pos,
+                    "time": t_str,
+                    "minute": t_num,
+                    "text": data_text,
+                    "incidentClass": "red" if (inc_type in (4, 15) or "红牌" in data_text) else None,
+                    "isGoal": bool(inc_type in (1, 19) or "进球" in data_text or "球进啦" in data_text),
+                })
+                
+        # Normalised reference odds
+        markets_raw = odds_obj.get("markets", {})
+        reference_odds = {
+            "opening": {
+                "asian_handicap": opening_odds.get("asian_handicap"),
+                "match_winner": opening_odds.get("match_winner"),
+                "total_goals": opening_odds.get("total_goals"),
+                "corners": opening_odds.get("corners"),
+            },
+            "current": {
+                "asian_handicap": markets_raw.get("asian_handicap", {}).get("live" if status_type == "inprogress" else "pregame"),
+                "match_winner": markets_raw.get("match_winner", {}).get("live" if status_type == "inprogress" else "pregame"),
+                "total_goals": markets_raw.get("total_goals", {}).get("live" if status_type == "inprogress" else "pregame"),
+                "corners": markets_raw.get("corners", {}).get("live" if status_type == "inprogress" else "pregame"),
+            },
+            "detail": odds_obj,
+        }
+        
+        # Historical analysis context
+        historical_analysis = {
+            "recent_matches": formal.get("recent_matches", {}),
+            "head_to_head": formal.get("head_to_head", []),
+            "league_standings": formal.get("league_standings", {}),
+            "goal_distribution": formal.get("goal_distribution", {}),
+            "trend_summary": formal.get("trend_summary", {}),
+            "future_schedule": formal.get("future_schedule", {}),
+            "analysis_match_context": formal.get("match_analysis", {}),
+        }
+        
+        # Lineup structure
+        lineup_norm = {
+            "available": bool(lineup_obj),
+            "confirmed": lineup_obj.get("status") in (1, "confirmed", "CONFIRMED"),
+            "home_formation": lineup_obj.get("home_formation") or "4-2-3-1",
+            "away_formation": lineup_obj.get("away_formation") or "4-2-3-1",
+            "home_starters": lineup_obj.get("home_starters", []),
+            "away_starters": lineup_obj.get("away_starters", []),
+            "home_injuries": lineup_obj.get("home_injuries", []),
+            "away_injuries": lineup_obj.get("away_injuries", []),
+            "home_coach": lineup_obj.get("home_coach"),
+            "away_coach": lineup_obj.get("away_coach"),
+            "raw": lineup_obj,
+        }
+        
+        event_dict: dict[str, Any] = {
+            "id": match_id,
+            "_provider": "leisu",
+            "_score_source": "leisu_api" if (home_score_val is not None and away_score_val is not None) else None,
+            "startTimestamp": start_timestamp,
+            "_start_time_text": start_time_text,
+            "tournament": {"name": league_name, "id": competition.get("id")},
+            "homeTeam": {"name": home_name, "id": home_meta.get("id"), "rank": home_meta.get("rank")},
+            "awayTeam": {"name": away_name, "id": away_meta.get("id"), "rank": away_meta.get("rank")},
+            "status": {"type": status_type, "status_id": status_id},
+            "homeScore": {"current": home_score_val if home_score_val is not None else 0},
+            "awayScore": {"current": away_score_val if away_score_val is not None else 0},
+            "_statistics": statistics,
+            "_statistics_source": live_match.get("statistics_source") or "leisu_v3_vd",
+            "_incidents": incidents,
+            "_weather": environment,
+            "_lineups": lineup_norm,
+            "_live_text": {"entries": [tl.get("data") for tl in text_live_entries if isinstance(tl, dict) and tl.get("data")]},
+            "_detail_context": {"formal": formal},
+            "odds": reference_odds,
+            "_recent_trends": {
+                "historical_analysis": historical_analysis,
+                "attack_momentum_timeline": live_match.get("attack_momentum_timeline"),
+            },
+        }
+        events_out.append(event_dict)
+        
+    return events_out
+
+
 def repair_leisu_event(event: dict[str, Any]) -> dict[str, Any]:
     if event.get("_provider") != "leisu" or not event.get("raw_text"):
         return event
@@ -1118,8 +1291,9 @@ def match_events(
         matched.append(
             {
                 "match": {
-                    "sofascore_event_id": event_id,
-                    "provider": event.get("_provider", "sofascore"),
+                    "provider_event_id": event_id,
+                    "leisu_match_id": event_id,
+                    "provider": event.get("_provider", "leisu"),
                     "league": event.get("tournament", {}).get("name"),
                     "home": event["homeTeam"]["name"],
                     "away": event["awayTeam"]["name"],
@@ -1180,10 +1354,19 @@ def main() -> int:
         if args.live_fixture:
             provider_used = "fixture"
             provider_errors: list[str] = []
-            all_events = [
-                repair_leisu_event(event)
-                for event in json.loads(args.live_fixture.read_text(encoding="utf-8")).get("events", [])
-            ]
+            try:
+                raw_fixture = json.loads(args.live_fixture.read_text(encoding="utf-8"))
+            except Exception:
+                raw_fixture = {}
+            if isinstance(raw_fixture, dict) and ("results" in raw_fixture or raw_fixture.get("export_type") == "leisu_interface_data"):
+                all_events = load_leisu_interface_file(args.live_fixture)
+            elif isinstance(raw_fixture, dict) and "events" in raw_fixture:
+                all_events = [
+                    repair_leisu_event(event)
+                    for event in raw_fixture.get("events", [])
+                ]
+            else:
+                all_events = load_leisu_interface_file(args.live_fixture)
         else:
             provider_used, all_events, provider_errors = collect_live(args.provider)
         allowed_statuses = (

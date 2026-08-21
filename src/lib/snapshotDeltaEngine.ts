@@ -1,6 +1,7 @@
 import { DecisionItem, toStandardMatchData } from '../types';
 import { extractAttackMomentumTimeline } from '../components/AttackMomentumTimelineWidget';
 import { analyzeAttackMomentum, ComprehensiveMomentumReport } from '../utils/momentumAnalytics';
+import { verifiedMarket } from './extendedRecommendation';
 
 export interface MatchSnapshotPoint {
   captured_at: string;
@@ -104,37 +105,22 @@ export function createClientSnapshotPoint(item: any): MatchSnapshotPoint {
     return { home: homeVal, away: awayVal, total: homeVal + awayVal };
   };
 
-  // 1. Prioritize StandardMatchData market_snapshots
+  // 1. Prioritize StandardMatchData / verified market extraction
   let ouLine: number | string | null = null;
   let ouOdds: number | string | null = null;
   let ahLine: number | string | null = null;
   let ahOdds: number | string | null = null;
 
-  if (Array.isArray(item.market_snapshots)) {
-    const totalM = item.market_snapshots.find((m: any) => m.market_type === 'total');
-    if (totalM) {
-      ouLine = totalM.line ?? null;
-      ouOdds = totalM.home_or_over_odds ?? null;
-    }
-    const spreadM = item.market_snapshots.find((m: any) => m.market_type === 'spread');
-    if (spreadM) {
-      ahLine = spreadM.line ?? null;
-      ahOdds = spreadM.home_or_over_odds ?? null;
-    }
-  } else {
-    const markets = item.markets || item.all_markets || item.handicap_items || [];
-    if (Array.isArray(markets)) {
-      const ou = markets.find((m: any) => m.market === 'OU' || m.market_type === 'OU' || m.market_name?.includes('大小'));
-      if (ou) {
-        ouLine = ou.line ?? ou.handicap ?? null;
-        ouOdds = ou.odds ?? ou.over_odds ?? null;
-      }
-      const ah = markets.find((m: any) => m.market === 'AH' || m.market_type === 'AH' || m.market_name?.includes('让球'));
-      if (ah) {
-        ahLine = ah.line ?? ah.handicap ?? null;
-        ahOdds = ah.odds ?? ah.home_odds ?? null;
-      }
-    }
+  const totalMkt = verifiedMarket(item, 'full_total');
+  if (totalMkt && totalMkt.options && totalMkt.options.length > 0) {
+    ouLine = totalMkt.options[0]?.line ?? null;
+    ouOdds = totalMkt.options[0]?.odds ?? null;
+  }
+
+  const spreadMkt = verifiedMarket(item, 'full_spread');
+  if (spreadMkt && spreadMkt.options && spreadMkt.options.length > 0) {
+    ahLine = spreadMkt.options[0]?.line ?? null;
+    ahOdds = spreadMkt.options[0]?.odds ?? null;
   }
 
   // 2. Prioritize StandardMatchData unified_stats

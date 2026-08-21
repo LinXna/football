@@ -470,29 +470,49 @@ export function toStandardMatchData(raw: any): StandardMatchData {
 
   // 8. 盘口快照清洗 (Market Snapshots - YBTY 权威白名单)
   const market_snapshots: MarketSnapshot[] = [];
-  if (Array.isArray(raw.market_snapshots) && raw.market_snapshots.length > 0) {
-    market_snapshots.push(...raw.market_snapshots);
-  } else {
-    const rawMarkets = raw.verified_ybty_markets || raw.ybty_raw_markets || raw.markets || [];
-    if (Array.isArray(rawMarkets) && rawMarkets.length > 0) {
-      for (const mkt of rawMarkets) {
-        if (Array.isArray(mkt.options)) {
-          const defaultLine = mkt.line ?? mkt.home_selection ?? mkt.away_selection ?? null;
-          market_snapshots.push({
-            market_type: mkt.market || mkt.market_type || 'custom',
-            line: defaultLine,
-            market_label: mkt.market_title || mkt.market_label || mkt.market,
-            is_verified: Boolean(mkt.market_type_verified ?? true),
-            options: mkt.options.map((opt: any) => ({
-              option_id: opt.option_id,
-              side: opt.side,
-              line: opt.line ?? defaultLine,
-              odds: Number(opt.odds || 0),
-              suspended: Boolean(opt.suspended),
-            })),
-          });
-        }
+  const sourceSnapshots = Array.isArray(raw.market_snapshots) && raw.market_snapshots.length > 0
+    ? raw.market_snapshots
+    : (raw.verified_ybty_markets || raw.ybty_raw_markets || raw.markets || []);
+
+  if (Array.isArray(sourceSnapshots) && sourceSnapshots.length > 0) {
+    for (const mkt of sourceSnapshots) {
+      const defaultLine = mkt.line ?? mkt.home_selection ?? mkt.away_selection ?? null;
+      let opts: MarketSnapshotOption[] = [];
+
+      if (Array.isArray(mkt.options) && mkt.options.length > 0) {
+        opts = mkt.options.map((opt: any) => ({
+          option_id: opt.option_id,
+          side: opt.side,
+          line: opt.line ?? defaultLine,
+          odds: Number(opt.odds || 0),
+          suspended: Boolean(opt.suspended),
+        }));
+      } else {
+        const homeOdds = Number(mkt.home_or_over_odds ?? mkt.over_odds ?? mkt.home_odds ?? 0);
+        const awayOdds = Number(mkt.away_or_under_odds ?? mkt.under_odds ?? mkt.away_odds ?? 0);
+        const drawOdds = Number(mkt.draw_odds ?? mkt.tie_odds ?? 0);
+        const isTot = /total|大小/i.test(mkt.market_type || mkt.market || '');
+        const isSp = /spread|让球/i.test(mkt.market_type || mkt.market || '');
+
+        if (homeOdds > 0) opts.push({ side: isTot ? 'over' : isSp ? 'home' : 'home', line: defaultLine, odds: homeOdds });
+        if (awayOdds > 0) opts.push({ side: isTot ? 'under' : isSp ? 'away' : 'away', line: defaultLine, odds: awayOdds });
+        if (drawOdds > 0) opts.push({ side: 'draw', line: defaultLine, odds: drawOdds });
       }
+
+      const overOpt = opts.find((o) => o.side === 'over' || o.side === 'home');
+      const underOpt = opts.find((o) => o.side === 'under' || o.side === 'away');
+      const drawOpt = opts.find((o) => o.side === 'draw');
+
+      market_snapshots.push({
+        market_type: mkt.market_type || mkt.market || 'custom',
+        line: defaultLine,
+        market_label: mkt.market_label || mkt.market_title || mkt.market,
+        is_verified: Boolean(mkt.is_verified ?? mkt.market_type_verified ?? true),
+        home_or_over_odds: mkt.home_or_over_odds ?? (overOpt ? overOpt.odds : undefined),
+        away_or_under_odds: mkt.away_or_under_odds ?? (underOpt ? underOpt.odds : undefined),
+        draw_odds: mkt.draw_odds ?? (drawOpt ? drawOpt.odds : undefined),
+        options: opts,
+      });
     }
   }
 

@@ -22,17 +22,17 @@ export function extractMatchLiveStats(matchItem?: any, leg?: any): MatchLiveStat
   const isPrematch = (item.minute === undefined || Number(item.minute) === 0) &&
     (item.export_mode === 'prematch' || item.status === 'notstarted' || item.status === 'PREMATCH' || String(item.status || '').toLowerCase().includes('pre'));
 
-  // 统一通过 StandardMatchData / unified_stats 提取事实数据
-  const std = item.unified_stats ? item : toStandardMatchData(item);
-  const u = std.unified_stats;
+  // 统一通过 toStandardMatchData 规整，确保全字段深度解析与结构对齐
+  const std = toStandardMatchData(item);
+  const u = std.unified_stats || {};
   
-  const corners = { home: u.corners?.home ?? 0, away: u.corners?.away ?? 0 };
-  const yellow = { home: u.yellow_cards?.home ?? 0, away: u.yellow_cards?.away ?? 0 };
-  const red = { home: u.red_cards?.home ?? 0, away: u.red_cards?.away ?? 0 };
-  const shots = { home: u.shots?.home ?? 0, away: u.shots?.away ?? 0 };
-  const onTarget = { home: u.shots_on_target?.home ?? 0, away: u.shots_on_target?.away ?? 0 };
-  const pos = { home: u.possession?.home ?? 50, away: u.possession?.away ?? 50 };
-  const dang = { home: u.dangerous_attacks?.home ?? 0, away: u.dangerous_attacks?.away ?? 0 };
+  const corners = { home: Number(u.corners?.home ?? 0), away: Number(u.corners?.away ?? 0) };
+  const yellow = { home: Number(u.yellow_cards?.home ?? 0), away: Number(u.yellow_cards?.away ?? 0) };
+  const red = { home: Number(u.red_cards?.home ?? 0), away: Number(u.red_cards?.away ?? 0) };
+  const shots = { home: Number(u.shots?.home ?? 0), away: Number(u.shots?.away ?? 0) };
+  const onTarget = { home: Number(u.shots_on_target?.home ?? 0), away: Number(u.shots_on_target?.away ?? 0) };
+  const pos = { home: Number(u.possession?.home ?? 50), away: Number(u.possession?.away ?? 50) };
+  const dang = { home: Number(u.dangerous_attacks?.home ?? 0), away: Number(u.dangerous_attacks?.away ?? 0) };
   const hasStats = Boolean(corners.home || corners.away || shots.home || shots.away || dang.home || dang.away || (pos.home !== 50 && pos.home !== 0));
 
   return {
