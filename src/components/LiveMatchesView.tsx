@@ -23,6 +23,7 @@ import {
   ChevronDown,
   ChevronUp,
   Edit3,
+  DollarSign,
   CheckSquare,
   Square,
   CheckCircle2,
@@ -615,10 +616,63 @@ export const LiveMatchesView: React.FC<Props> = ({
                     );
                   })()}
 
-                  {/* Row 2: Recommendation Preview / Risk 下面一列 */}
-                  <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 text-xs space-y-2">
-                    <div className="text-slate-400 flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/70 pb-1.5">
-                      <span className="font-bold text-slate-300">市场与盘口配置:</span>
+                  {/* Row 2: 真实盘口赔率面板 & Recommendation Preview */}
+                  <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 text-xs space-y-2.5">
+                    {/* 真实盘口与赔率 (YBTY Real Markets) */}
+                    <div className="space-y-1.5">
+                      <div className="text-slate-300 font-bold flex items-center justify-between border-b border-slate-800/70 pb-1 text-[11px]">
+                        <span className="flex items-center gap-1.5 text-emerald-400">
+                          <DollarSign className="w-3.5 h-3.5" /> 真实可投盘口与实时赔率 (YBTY Markets)
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-normal">权威采集快照</span>
+                      </div>
+                      
+                      {(() => {
+                        const markets = (Array.isArray(m.market_snapshots) && m.market_snapshots.length > 0)
+                          ? m.market_snapshots
+                          : (Array.isArray(m.ybty_raw_markets) && m.ybty_raw_markets.length > 0)
+                            ? m.ybty_raw_markets
+                            : (Array.isArray((m as any).verified_ybty_markets) && (m as any).verified_ybty_markets.length > 0)
+                              ? (m as any).verified_ybty_markets
+                              : [];
+
+                        if (markets.length === 0) {
+                          return (
+                            <div className="text-[11px] text-slate-500 italic py-1">
+                              暂无 YBTY 盘口赔率快照（等待数据源水解）
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-0.5">
+                            {markets.slice(0, 6).map((mkt: any, idx: number) => {
+                              const title = mkt.market_label || mkt.market_title || mkt.market_type || mkt.market || '盘口';
+                              const line = mkt.line ?? mkt.home_selection ?? mkt.away_selection ?? '';
+                              const opts = Array.isArray(mkt.options) ? mkt.options : [];
+                              return (
+                                <div key={idx} className="bg-slate-900/80 border border-slate-800 p-2 rounded text-[11px] space-y-1">
+                                  <div className="flex items-center justify-between text-slate-400 border-b border-slate-800/50 pb-0.5 font-medium">
+                                    <span>{title}</span>
+                                    {line && <span className="text-amber-300 font-mono font-bold">{line}</span>}
+                                  </div>
+                                  <div className="flex items-center justify-between text-slate-200 font-mono gap-1 text-[10px]">
+                                    {opts.slice(0, 3).map((opt: any, oIdx: number) => (
+                                      <span key={oIdx} className={`px-1.5 py-0.5 rounded ${opt.suspended ? 'bg-slate-800 text-slate-500 line-through' : 'bg-slate-950 text-emerald-400 font-bold border border-slate-800'}`}>
+                                        {opt.side === 'home' || opt.side === 'over' ? '主/大' : opt.side === 'away' || opt.side === 'under' ? '客/小' : opt.side === 'draw' ? '平' : opt.side}: {opt.odds}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    <div className="text-slate-400 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800/70 pt-2 text-[11px]">
+                      <span className="font-bold text-slate-300">初筛决策依据:</span>
                       <span className="font-bold text-emerald-400 font-mono">
                         {m.recommendation ? `${m.recommendation.market || '未指定'} (${m.recommendation.line ?? ''}) @ ${m.recommendation.odds ?? ''}` : '观察模式 (无直接初筛)'}
                       </span>

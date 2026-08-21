@@ -63,18 +63,30 @@ export function buildPromptLiveEfficiency(statistics: unknown, score: unknown): 
 export function buildPromptInterfaceContext(item: unknown, compact = false): JsonRecord {
   const match = object(item);
   const tactical = object(match.tactical_context || match.context);
-  const statistics = object(match.unified_stats || match.live_facts?.stats);
+  const statistics = object(match.unified_stats || match.live_facts?.stats || match.live_statistics);
   const lineup = match.lineups || match.context?.lineup || null;
   const lineupRecord = object(lineup);
+  const extractPlayers = (val: unknown): any[] => {
+    if (Array.isArray(val)) return val;
+    const rec = object(val);
+    if (Array.isArray(rec.starters) || Array.isArray(rec.substitutes)) {
+      return [...(Array.isArray(rec.starters) ? rec.starters : []), ...(Array.isArray(rec.substitutes) ? rec.substitutes : [])];
+    }
+    return [];
+  };
   const lineupPlayers = [
-    ...(Array.isArray(lineupRecord.home) ? lineupRecord.home : []),
-    ...(Array.isArray(lineupRecord.away) ? lineupRecord.away : []),
+    ...extractPlayers(lineupRecord.home),
+    ...extractPlayers(lineupRecord.away),
   ];
-  const rawCommentary = Array.isArray(match.timeline_events)
-    ? match.timeline_events
-    : Array.isArray(match.live_facts?.events_timeline)
-      ? match.live_facts.events_timeline
-      : [];
+  const detailContext = object(match.detail_context);
+  const formal = object(detailContext.formal);
+  const formalKeys = Object.keys(formal);
+
+  const rawCommentary = [
+    ...(Array.isArray(match.timeline_events) ? match.timeline_events : []),
+    ...(Array.isArray(match.live_facts?.events_timeline) ? match.live_facts.events_timeline : []),
+    ...(Array.isArray(formal.live_match?.text_live) ? formal.live_match.text_live : []),
+  ];
   const liveCommentary = rawCommentary.map((entry: unknown) => {
     if (typeof entry === 'string') return { time: null, type: null, position: null, text: entry };
     const event = object(entry);
@@ -87,11 +99,20 @@ export function buildPromptInterfaceContext(item: unknown, compact = false): Jso
     };
   }).filter((entry: JsonRecord) => entry.text || entry.time != null || entry.type != null);
 
+
   const fullContext = {
-    schema_version: 'standard_prompt_fields_v2',
-    head_to_head: tactical.h2h_matches || tactical.h2h_summary || [],
-    recent_matches: { home: tactical.home_recent_matches || tactical.home_recent_form || [], away: tactical.away_recent_matches || tactical.away_recent_form || [] },
-    league_standings: tactical.standings || tactical.standings_summary || tactical.standings_text || null,
+    schema_version: '2.0',
+    source_formal_field_manifest: formalKeys,
+    source_formal_payload: formalKeys.length > 0 ? formal : null,
+    head_to_head: tactical.h2h_matches || tactical.h2h_summary || formal.head_to_head || match.recent_trends?.historical_analysis?.head_to_head || [],
+    recent_matches: { 
+      home: tactical.home_recent_matches || tactical.home_recent_form || formal.recent_matches?.home || match.recent_trends?.historical_analysis?.recent_matches?.home || [], 
+      away: tactical.away_recent_matches || tactical.away_recent_form || formal.recent_matches?.away || match.recent_trends?.historical_analysis?.recent_matches?.away || [] 
+    },
+    league_standings: tactical.standings || tactical.standings_summary || tactical.standings_text || formal.league_standings || null,
+    future_schedule: formal.future_schedule || null,
+    goal_distribution: formal.goal_distribution || null,
+    trend_summary: formal.trend_summary || null,
     match_statistics: {
       corners: statistics.corners || null,
       yellow_cards: statistics.yellow_cards || null,
@@ -103,11 +124,12 @@ export function buildPromptInterfaceContext(item: unknown, compact = false): Jso
       shots_off_target: statistics.shots_off_target || null,
       all_available_statistics: statistics,
     },
-    squad_and_lineup: lineup,
+    squad_and_lineup: lineup || formal.lineup || null,
     player_candidates: Array.isArray(match.player_candidates) && match.player_candidates.length > 0
       ? match.player_candidates
       : lineupPlayers,
-    reference_company_odds: match.reference_market || match.raw_ref_odds || null,
+    reference_company_odds: match.reference_market || match.raw_ref_odds || match.reference_odds || formal.odds || null,
+    opening_odds: formal.opening_odds || null,
     match_environment: match.weather || null,
     live_commentary: {
       captured_snapshot_only: true,
@@ -122,5 +144,18 @@ export function buildPromptInterfaceContext(item: unknown, compact = false): Jso
     snapshot_delta_and_momentum: match.snapshot_delta || match.live_facts?.momentum || null,
     calibration_policy: 'Do not invent field weights or modify the score. Use as evidence; numerical scoring is allowed only after real settled samples pass chronological holdout validation.',
   };
+
+  if (compact && fullContext.source_formal_payload) {
+    const fc = fullContext as any;
+    if (formal.recent_matches) delete fc.recent_matches;
+    if (formal.lineup) delete fc.squad_and_lineup;
+    if (formal.live_match) delete fc.live_commentary;
+    fc.source_field_paths = {
+      recent_matches: 'source_formal_payload.recent_matches',
+      squad_and_lineup: 'source_formal_payload.lineup',
+      live_commentary: 'source_formal_payload.live_match',
+    };
+  }
+
   return fullContext;
 }

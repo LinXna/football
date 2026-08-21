@@ -8,19 +8,18 @@ const object = (value: any) => value && typeof value === 'object' && !Array.isAr
 const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 
 function recentGoalAverage(snapshot: any): number | null {
-  const tc = snapshot?.tactical_context;
-  if (!tc) return null;
-  const homeMatches = Array.isArray(tc.home_recent_matches) ? tc.home_recent_matches : [];
-  const awayMatches = Array.isArray(tc.away_recent_matches) ? tc.away_recent_matches : [];
+  const tc = snapshot?.tactical_context || snapshot;
+  const homeMatches = Array.isArray(tc.home_recent_matches) ? tc.home_recent_matches : (Array.isArray(tc.recent_matches?.home) ? tc.recent_matches.home : []);
+  const awayMatches = Array.isArray(tc.away_recent_matches) ? tc.away_recent_matches : (Array.isArray(tc.recent_matches?.away) ? tc.recent_matches.away : []);
   const rows = [...homeMatches, ...awayMatches].slice(0, 20);
   const values = rows.map((r: any) => numeric(r?.goals ?? (Number(r?.home_score || 0) + Number(r?.away_score || 0)))).filter((v: number | null): v is number => v !== null);
   return values.length ? average(values) : null;
 }
 
 function h2hGoalAverage(snapshot: any): number | null {
-  const tc = snapshot?.tactical_context;
-  if (!tc || !Array.isArray(tc.h2h_matches)) return null;
-  const values = tc.h2h_matches.slice(0, 10).flatMap((row: any) => {
+  const tc = snapshot?.tactical_context || snapshot;
+  const matches = Array.isArray(tc.h2h_matches) ? tc.h2h_matches : (Array.isArray(tc.head_to_head) ? tc.head_to_head : (Array.isArray(tc.h2h) ? tc.h2h : []));
+  const values = matches.slice(0, 10).flatMap((row: any) => {
     const home = numeric(row?.home_score ?? (Array.isArray(row?.home_scores) ? row.home_scores[0] : null));
     const away = numeric(row?.away_score ?? (Array.isArray(row?.away_scores) ? row.away_scores[0] : null));
     return home === null || away === null ? [] : [home + away];
@@ -60,7 +59,7 @@ export function extractCalibrationRows(ledger: any[]): Row[] {
     const isLive = snapshot.mode === 'live' || Number(snapshot.minute || item?.minute || 0) > 0;
     const target = finalHome + finalAway - (isLive ? currentHome + currentAway : 0);
     if (target < 0) return [];
-    const stats = object(snapshot.unified_stats);
+    const stats = object(snapshot.unified_stats || snapshot.live_statistics);
     const efficiency = object(object(stats.efficiency).by_attacking_side);
     const homeAttack = object(object(efficiency.home).attack), awayAttack = object(object(efficiency.away).attack);
     const homeKeeper = object(object(efficiency.away).opposing_goalkeeper);

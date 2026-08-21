@@ -67,7 +67,10 @@ export function formatCleanIncident(event: any, homeTeam = '', awayTeam = ''): s
 
   // Detect team/actor
   let targetTeam = '';
-  if (homeTeam && raw.includes(homeTeam)) {
+  if (/VAR\s*取消进球/i.test(raw)) {
+    eventType = 'VAR';
+    targetTeam = '取消进球';
+  } else if (homeTeam && raw.includes(homeTeam)) {
     targetTeam = homeTeam;
   } else if (awayTeam && raw.includes(awayTeam)) {
     targetTeam = awayTeam;
@@ -99,6 +102,7 @@ export function filterPromptKeyIncidents(item: any, limit = 50): string[] {
     ...asArray(item?.incidents),
     ...asArray(item?.key_incidents),
     ...asArray(item?.text_live),
+    ...asArray(item?.live_text?.entries),
   ];
   
   const home = item?.leisu_home || item?.ybty_home || '';
@@ -134,7 +138,7 @@ export function extractFocusedIncidents(item: any): {
   const allIncidents = filterPromptKeyIncidents(item, 50);
   const redCards = allIncidents.filter((text) => /红牌/i.test(text));
 
-  const stats = item?.unified_stats || item?.live_facts?.stats || {};
+  const stats = item?.unified_stats || item?.live_facts?.stats || item?.live_statistics || {};
   const getPair = (field: string) => {
     const val = stats[field];
     if (val && typeof val === 'object') {

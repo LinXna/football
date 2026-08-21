@@ -1,6 +1,6 @@
 # 全系统统一数据契约与赋值链路标准规范文档
 # CODEX SYSTEM UNIFIED DATA SCHEMA & MAPPING CONTRACT
-**版本**: `2.0.0-PROD`  
+**版本**: `2.8.0-CANONICAL`  
 **状态**: `LOCKED_CANONICAL` (全系统唯一最高数据法律，所有模块开发、维护、解析必须无条件遵循)  
 **约束级别**: `CRITICAL_LAW`  
 **生效范围**: 前端组件 (`src/components/`), 业务逻辑与管道 (`src/lib/`, `src/utils/`), 后端服务 (`server/`), AI Prompt 注入层与导出模块。
@@ -9,16 +9,17 @@
 
 ## 目录
 1. [系统总体架构与数据生命周期](#1-系统总体架构与数据生命周期)
-2. [原始数据源定义与完整度标准 (Source Specifications)](#2-原始数据源定义与完整度标准-source-specifications)
+2. [原始数据源定义与完整度标准 (Source Specifications v2.8.0)](#2-原始数据源定义与完整度标准-source-specifications-v280)
    - 2.1 [YBTY 原始数据源 (权威盘口与对阵基准)](#21-ybty-原始数据源-权威盘口与对阵基准)
    - 2.2 [雷速 (Leisu) 原始数据源 (基本面、技术统计、事件与动能时序)](#22-雷速-leisu-原始数据源-基本面技术统计事件与动能时序)
 3. [StandardMatchData 核心结构与全量字段契约](#3-standardmatchdata-核心结构与全量字段契约)
-   - 3.1 [全量 TypeScript 接口定义](#31-全量-typescript-接口定义)
+   - 3.1 [全量 TypeScript 接口定义 (与 src/types.ts 100% 对齐)](#31-全量-typescript-接口定义)
    - 3.2 [每个字段的语义、类型定义与业务边界详解](#32-每个字段的语义类型定义与业务边界详解)
+   - 3.3 [服务端派生量化模型 (CanonicalMatchData) 的明确定位](#33-服务端派生量化模型-canonicalmatchdata-的明确定位)
 4. [YBTY 与 雷速 到 StandardMatchData 的严格赋值映射链路](#4-ybty-与-雷速-到-standardmatchdata-的严格赋值映射链路)
    - 4.1 [多源对齐与赛事匹配机制 (Match Key Alignment)](#41-多源对齐与赛事匹配机制-match-key-alignment)
    - 4.2 [字段级赋值与回退逻辑全矩阵](#42-字段级赋值与回退逻辑全矩阵)
-   - 4.3 [标准转换函数实现标准 (Canonical Converter Implementation)](#43-标准转换函数实现标准-canonical-converter-implementation)
+   - 4.3 [标准转换函数实现标准 (`toStandardMatchData`)](#43-标准转换函数实现标准-canonical-converter-implementation)
 5. [数据取值与消费五大防破坏法则 (Anti-Violation Rules)](#5-数据取值与消费五大防破坏法则-anti-violation-rules)
 
 ---
@@ -66,31 +67,36 @@ CODEX 系统处理滚球（`live`）与赛前（`prematch`）赛事，统一执�
 
 ```typescript
 export interface YbtyRawMatch {
-  league: string;               // YBTY 原始联赛名 (如 "英格兰超级联赛", "澳洲维多利亚超级联赛U23")
-  home: string;                 // YBTY 权威主队名 (如 "曼彻斯特城")
-  away: string;                 // YBTY 权威客队名 (如 "利物浦")
-  home_score?: string | number; // YBTY 即时采集主队比分
-  away_score?: string | number; // YBTY 即时采集客队比分
-  clock?: string;               // 滚球钟表时间 (如 "68:15", "45+", "半场", "90+3")
-  clock_status?: string;        // 比赛进行状态字串
-  commence_time?: string;       // 开赛时间 (UTC ISO 或 毫秒时间戳)
-  source_match_id?: string;     // YBTY 内部比赛ID
-  captured_at?: string;         // 快照采集时间 ISO 8601
-  markets: YbtyRawMarket[];     // 真实可投注盘口列表 (严禁手工制造假盘口)
+  source_match_id: string | null;  // YBTY 内部比赛 ID (实际导出中常为 null)
+  league: string;                  // YBTY 原始权威联赛名 (如 "英格兰甲级联赛")
+  home: string;                    // YBTY 权威主队名 (如 "谢周三")
+  away: string;                    // YBTY 权威客队名 (如 "布拉德福德城")
+  home_score?: string | number;    // YBTY 即时采集主队比分
+  away_score?: string | number;    // YBTY 即时采集客队比分
+  clock?: string;                  // 滚球钟表时间 (如 "62:25", "45+", "半场")
+  clock_status?: string;           // 比赛进行状态字串
+  commence_time?: string | null;   // 开赛时间
+  captured_at?: string;            // 快照采集时间 (ISO 8601)
+  markets: YbtyRawMarket[];        // 真实可投注盘口列表
 }
 
 export interface YbtyRawMarket {
-  market: 'full_total' | 'half_total' | 'full_spread' | 'half_spread' | 'full_h2h' | 'both_teams_to_score' | string;
-  market_type_verified?: boolean;
+  market: 'full_total' | 'half_total' | 'full_spread' | 'half_spread' | 'full_h2h' | string;
+  market_title?: string;           // 盘口中文标题 (如 "全场让球")
+  line_index?: number;             // 盘口线路序号 (0=主盘, 1=副盘1, 2=副盘2)
+  market_type_verified?: boolean;  // 盘口类型语义是否校验
+  home_selection?: string | null;  // 让球盘口主队线路 (如 "-0/0.5")
+  away_selection?: string | null;  // 让球盘口客队线路 (如 "+0/0.5")
   options: YbtyRawOption[];
 }
 
 export interface YbtyRawOption {
-  side: 'over' | 'under' | 'home' | 'away' | 'draw' | 'yes' | 'no' | string;
-  line?: string | number;       // 盘口数值 (如 "2.5", "-0.5/-1", "+1.25", "3.0")
-  odds: string | number;        // 实时赔率 (如 "1.95", "2.05")
-  suspended?: boolean;          // 是否封盘 (true: 无法下注)
-  side_verified?: boolean;      // 方向是否校验
+  side: 'over' | 'under' | 'home' | 'away' | 'draw' | string;
+  line?: string | null;            // 大小球盘口数值 (如 "2.5"；让球盘口通常为 null，盘口在 selection 或 side 语义中)
+  odds: string | number;           // 实时赔率 (如 "1.91", "2.20")
+  suspended?: boolean;             // 是否封盘
+  side_verified?: boolean;         // 方向是否校验
+  text?: string;                   // 原始 DOM 文本
 }
 ```
 
@@ -99,23 +105,32 @@ export interface YbtyRawOption {
 - **核心原则**: 雷速队名仅用于多维模糊匹配与交叉比对，绝不可替代 YBTY 队名；雷速指数仅用于机构意图分析，严禁用作投注赔率。
 
 ```typescript
-export interface LeisuRawData {
-  match_id: string | number;    // 雷速全球唯一赛事 ID
+export interface LeisuRawExport {
+  export_version: string;         // "2.8.0"
+  export_type: string;            // "leisu_interface_data"
+  captured_at: string;            // 快照采集时间
+  results: Array<{
+    match_id: string | number;
+    available: boolean;
+    formal: LeisuFormalData;
+  }>;
+}
+
+export interface LeisuFormalData {
   static_match: {
-    competition: { name: string; shortName?: string };
-    homeTeam: { name: string; shortName?: string };
-    awayTeam: { name: string; shortName?: string };
-    matchTime: number;          // 秒级开赛时间戳 (UNIX Timestamp)
-    environment?: { weather?: string; temperature?: string };
+    id: number;
+    matchTime: number;            // Unix 秒级时间戳
+    homeTeam: { id: number; name: string; shortName?: string; rank?: string };
+    awayTeam: { id: number; name: string; shortName?: string; rank?: string };
+    competition: { id: number; name: string; shortName?: string };
+    environment?: { weather?: string; temperature?: string; wind?: string; humidity?: string };
   };
   live_match?: {
-    status_id: number;          // 比赛状态: 1=未开赛, 2=上半场, 3=中场, 4=下半场, 8=完场, 9=推迟
-    time_running?: number;      // 实际进行秒数
+    status_id: number;            // 1=未开赛, 2=上半场, 3=中场, 4=下半场, 8=完场
     home_scores: { score: number; halfScore?: number; redCard?: number; yellowCard?: number; corner?: number };
     away_scores: { score: number; halfScore?: number; redCard?: number; yellowCard?: number; corner?: number };
     confirmed_statistics?: {
       possession?: { home: number; away: number };
-      shots?: { home: number; away: number };
       shots_on_target?: { home: number; away: number };
       shots_off_target?: { home: number; away: number };
       dangerous_attacks?: { home: number; away: number };
@@ -125,26 +140,21 @@ export interface LeisuRawData {
       red_cards?: { home: number; away: number };
     };
     text_live?: Array<{
-      minute: number;
-      type: number;            // 1=进球, 2=角球, 3=黄牌, 4=红牌, 9=换人, 11=点球
-      text: string;
-      position?: number;        // 1=主队, 2=客队
+      time: string;               // 字符串时间，如 "47'"
+      type: number;               // 1=进球, 2=角球, 3=黄牌, 4=红牌, 5=越位, 21=射正, 22=射偏
+      position: number;           // 1=主队, 2=客队, 0=中立/裁判
+      data: string;               // 文字直播明细
     }>;
-    attack_momentum_timeline?: any;
+    attack_momentum_timeline?: {
+      available: boolean;
+      data: number[][];           // [ [上半场差值], [下半场差值] ]
+    };
+    trend?: { data: number[][] };
   };
-  trend?: {
-    data: number[][];           // 分钟级攻势波形: data[0] 上半场 (0-45m), data[1] 下半场 (46-90m)
-  };
-  lineup?: {
-    confirmed: boolean;         // 首发名单是否官宣
-    home: { starters: any[]; substitutes: any[]; formation?: string };
-    away: { starters: any[]; substitutes: any[]; formation?: string };
-  };
-  odds?: {
-    initial?: any;              // 初盘指数
-    live?: any;                 // 机构参考即时指数
-    pregame?: any;
-  };
+  head_to_head?: any[];           // 历史交手
+  recent_matches?: { home: any[]; away: any[] }; // 近期战绩
+  lineup?: any;                   // 首发与替补名单
+  odds?: any;                     // 机构参考指数
 }
 ```
 
@@ -289,6 +299,13 @@ export interface StandardMatchData {
 | `tactical_context.lineup_status` | `enum` | `'CONFIRMED'`（首发已官宣）、`'PROJECTED'`（预测阵容）、`'UNAVAILABLE'`。杯赛未确认首发前最高定级 C 级。 |
 
 ---
+
+### 3.3 服务端派生量化模型 (CanonicalMatchData) 的明确定位
+
+服务端 `server/services/canonicalMatchModel.ts` 中的 `CanonicalMatchData` **不是与 StandardMatchData 平行的竞争模型**，而是其在服务端执行复杂量化特征计算、攻势转化率分析时的 **内部派生展开态 (Derived Quant Feature State)**。
+
+- **转换关系**: `StandardMatchData` → `canonicalizeRawMatchData()` → `CanonicalMatchData`
+- **使用约束**: 仅在 server 内部 Prompt slim 构建与高级量化引擎中使用，对外 API 响应与前端消费统一收敛回 `StandardMatchData`。
 
 ## 4. YBTY 与 雷速 到 StandardMatchData 的严格赋值映射链路
 

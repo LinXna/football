@@ -115,18 +115,33 @@ export function normalizeLeisuInterfaceExport(payload: unknown): JsonRecord[] | 
     const awayPlayers = Array.isArray(lineupRecord.away) ? lineupRecord.away : [];
     const normalizedLineups = {
       ...lineupRecord,
+      confirmed: Boolean(lineupRecord.confirmed),
       available: Boolean(lineupRecord.confirmed),
       home: {
-        starters: homePlayers.filter((player) => asRecord(player).starter === true || Number(asRecord(player).status) === 1),
+        starters: homePlayers.filter((player) => asRecord(player).starter === true || Number(asRecord(player).status) === 1 || (!asRecord(player).starter && Number(asRecord(player).status) !== 0)),
         substitutes: homePlayers.filter((player) => asRecord(player).starter !== true && Number(asRecord(player).status) !== 1),
       },
       away: {
-        starters: awayPlayers.filter((player) => asRecord(player).starter === true || Number(asRecord(player).status) === 1),
+        starters: awayPlayers.filter((player) => asRecord(player).starter === true || Number(asRecord(player).status) === 1 || (!asRecord(player).starter && Number(asRecord(player).status) !== 0)),
         substitutes: awayPlayers.filter((player) => asRecord(player).starter !== true && Number(asRecord(player).status) !== 1),
       },
       raw: lineupRecord,
     };
-    const textLiveEntries = Array.isArray(liveMatch.text_live) ? liveMatch.text_live : [];
+    const textLiveEntries = Array.isArray(liveMatch.text_live)
+      ? liveMatch.text_live.map((entry: any) => {
+          const rawText = String(entry.data || entry.text || entry.description || '').trim();
+          const timeStr = String(entry.time || '').trim();
+          const parsedMin = parseInt(timeStr.replace(/\D/g, ''), 10) || 0;
+          return {
+            minute: parsedMin,
+            time: timeStr || (parsedMin ? `${parsedMin}'` : ''),
+            type: Number(entry.type || 0),
+            position: Number(entry.position || 0),
+            data: rawText,
+            text: rawText,
+          };
+        })
+      : [];
     const attackMomentum =
       liveMatch.attack_momentum_timeline ||
       formal.live_match?.attack_momentum_timeline ||
@@ -162,6 +177,13 @@ export function normalizeLeisuInterfaceExport(payload: unknown): JsonRecord[] | 
       score_source: liveMatch.source || 'leisu_interface_api',
       score_verified: Boolean(liveMatch.match_id && Number.isFinite(Number(homeScores.score)) && Number.isFinite(Number(awayScores.score))),
       unified_stats: normalizedStatistics,
+      live_statistics: normalizedStatistics,
+      detail_context: { formal },
+      recent_trends: {
+        historical_analysis: {
+          head_to_head: formal.head_to_head || [],
+        },
+      },
       tactical_context: {
         formation: {
           home: String(formal.formation?.home || '4-2-3-1'),
@@ -191,10 +213,12 @@ export function normalizeLeisuInterfaceExport(payload: unknown): JsonRecord[] | 
         text: Object.values(environment).filter((value) => value !== null && value !== ''),
       },
       lineups: normalizedLineups,
-      player_candidates: [
-        ...(Array.isArray(lineupRecord.home) ? lineupRecord.home : []),
-        ...(Array.isArray(lineupRecord.away) ? lineupRecord.away : []),
-      ],
+      player_candidates: homePlayers.length > 0 || awayPlayers.length > 0
+        ? [...homePlayers, ...awayPlayers]
+        : [
+            ...(Array.isArray(lineupRecord.home) ? lineupRecord.home : []),
+            ...(Array.isArray(lineupRecord.away) ? lineupRecord.away : []),
+          ],
     };
   });
 }
