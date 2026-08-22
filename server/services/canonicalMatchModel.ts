@@ -266,8 +266,8 @@ export function canonicalizeRawMatchData(raw: any): CanonicalMatchData {
   // 5. Lineup & Context
   const lineupRaw = quant.lineup_transparency || raw.lineup || {};
   const formationClashRaw = quant.master_tactical_synthesis?.formation_clash || {};
-  const homeFormation = String(formationClashRaw.home_formation || raw.home_formation || '4-2-3-1');
-  const awayFormation = String(formationClashRaw.away_formation || raw.away_formation || '4-2-3-1');
+  const homeFormation = String(formationClashRaw.home_formation || raw.home_formation || raw.lineup?.home_formation || raw.tactical_context?.formation?.home || 'UNKNOWN');
+  const awayFormation = String(formationClashRaw.away_formation || raw.away_formation || raw.lineup?.away_formation || raw.tactical_context?.formation?.away || 'UNKNOWN');
   const absencesRaw = quant.master_tactical_synthesis?.positional_absence || {};
 
   // 6. Markets extraction

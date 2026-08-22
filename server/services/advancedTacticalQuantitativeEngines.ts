@@ -880,7 +880,11 @@ export function buildMasterTacticalSynthesis(
 
   const summaryParts: string[] = [];
   if (redCard.has_red_card) summaryParts.push(redCard.discipline_tactical_guidance_zh);
-  if (formationClash.clash_verdict !== 'TACTICAL_STALEMATE') summaryParts.push(`阵型克制: ${formationClash.clash_verdict_zh}`);
+  if (formationClash.is_available && formationClash.clash_verdict !== 'TACTICAL_STALEMATE' && formationClash.clash_verdict !== 'NO_FORMATION_DATA') {
+    summaryParts.push(`阵型克制: ${formationClash.clash_verdict_zh}`);
+  } else if (!formationClash.is_available || formationClash.clash_verdict === 'NO_FORMATION_DATA') {
+    summaryParts.push(`阵型状态: 未提供官方首发阵型(阵型先验已关闭)`);
+  }
   if (leagueDNA.league_key !== 'STANDARD_LEAGUE') summaryParts.push(`联赛基因: ${leagueDNA.league_name_zh} (${leagueDNA.tactical_dna_summary_zh})`);
   if (euroAsian.spread_discrepancy !== null && Math.abs(euroAsian.spread_discrepancy) >= 0.5) summaryParts.push(euroAsian.parity_analysis_note_zh);
   if (corner && corner.squeeze_danger_level === 'CRITICAL_IMMINENT_GOAL_SQUEEZE') summaryParts.push(corner.corner_tactical_note_zh);

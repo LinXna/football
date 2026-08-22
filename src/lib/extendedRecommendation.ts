@@ -306,20 +306,24 @@ function realMarketRecommendation(market: RawMarket | null, label: string, homeN
   const formattedLine = rawLine && rawLine !== '--' && rawLine !== 'undefined' ? formatAsianLine(rawLine) : '';
 
   let fullDisplay = '';
+  let lineDisplay = formattedLine || '--';
+
   if (label.includes('让球') || label.includes('spread')) {
-    const team = side === 'away' ? awayName : homeName;
+    const teamLabel = side === 'away' ? '客场' : '主场';
     const lineSuffix = formattedLine ? ` ${formattedLine}` : '';
-    fullDisplay = `${label}${team}${lineSuffix}`.trim();
+    fullDisplay = `${label}${teamLabel}${lineSuffix}`.trim();
+    lineDisplay = `${teamLabel} ${formattedLine}`.trim();
   } else {
     // Total (Over/Under)
-    const direction = side === 'over' ? '大球' : side === 'under' ? '小球' : side === 'home' ? homeName : side === 'away' ? awayName : '平局';
+    const direction = side === 'over' ? '大' : side === 'under' ? '小' : side === 'home' ? '主场' : side === 'away' ? '客场' : '平';
     const lineSuffix = formattedLine ? ` ${formattedLine}` : '';
-    fullDisplay = `${label}${direction}${lineSuffix}`.trim();
+    fullDisplay = `${label}${direction === '大' ? '大球' : direction === '小' ? '小球' : direction}${lineSuffix}`.trim();
+    lineDisplay = formattedLine ? `${direction} ${formattedLine}`.trim() : (direction === '大' ? '大球' : '小球');
   }
 
   return {
     value: fullDisplay,
-    line: formattedLine || '--',
+    line: lineDisplay,
     odds: lean.option.numericOdds,
     confidence: lean.probability,
     reason: `方向和赔率直接来自YBTY已核验盘口；${lean.probability}%是该市场去除同盘水位后的隐含概率，不是编造的模型胜率。`,
@@ -344,7 +348,7 @@ export function generateExtendedAnalysis(matchItem: DecisionItem): ExtendedMatch
   const htSpreadRec = realMarketRecommendation(halfSpread, '半场让球 ', homeName, awayName);
   const h2hLean = marketLean(usableOptions(fullH2h));
   const h2hSide = String(h2hLean?.option.side || '');
-  const h2hValue = h2hSide === 'home' ? `主胜（${homeName}）` : h2hSide === 'away' ? `客胜（${awayName}）` : h2hSide === 'draw' ? '平局' : '暂无真实独赢盘口';
+  const h2hValue = h2hSide === 'home' ? '主胜' : h2hSide === 'away' ? '客胜' : h2hSide === 'draw' ? '平局' : '暂无真实独赢盘口';
 
   const totalOptions = usableOptions(fullTotal);
   const totalLine = numericLine(totalOptions[0]?.line ?? totalOptions[0]?.selection);

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   FormationType,
+  FormationProfile,
   FormationClashResult,
   FORMATION_ENCYCLOPEDIA,
   evaluateFormationClash,
@@ -31,6 +32,32 @@ interface FormationClashModalProps {
   awayTeamName?: string;
 }
 
+type KnownFormationType = Exclude<FormationType, 'UNKNOWN'>;
+
+const DEFAULT_UNKNOWN_PROF: FormationProfile = {
+  code: '4-3-3',
+  name_zh: '未提供官方阵型',
+  category: 'FOUR_BACK',
+  core_philosophy_zh: '该队暂未获取到官方首发阵型，阵型先验克制评估已主动关闭。',
+  attacking_shape_zh: '暂无首发阵型数据',
+  defensive_shape_zh: '暂无首发阵型数据',
+  key_strengths_zh: ['阵型数据未提供'],
+  key_weaknesses_zh: ['阵型数据未提供', '阵型先验已关闭'],
+  optimal_counters_zh: ['需等待官方首发公布'],
+  tactical_dna: {
+    midfield_count: 3,
+    forward_count: 3,
+    defender_count: 4,
+    flank_width_rating: 5,
+    central_density_rating: 5,
+    high_press_intensity: 5,
+    low_block_resilience: 5,
+    wingback_stamina_dependency: 5,
+  },
+  favorable_matchups: [],
+  unfavorable_matchups: [],
+};
+
 export const FormationClashModal: React.FC<FormationClashModalProps> = ({
   isOpen,
   onClose,
@@ -42,16 +69,16 @@ export const FormationClashModal: React.FC<FormationClashModalProps> = ({
   const [homeFormation, setHomeFormation] = useState<FormationType>(normalizeFormationCode(initialHomeFormation));
   const [awayFormation, setAwayFormation] = useState<FormationType>(normalizeFormationCode(initialAwayFormation));
   const [activeTab, setActiveTab] = useState<'clash' | 'encyclopedia'>('clash');
-  const [selectedProfileCode, setSelectedProfileCode] = useState<FormationType>('4-3-3');
+  const [selectedProfileCode, setSelectedProfileCode] = useState<KnownFormationType>('4-3-3');
 
   if (!isOpen) return null;
 
   const clashResult: FormationClashResult = evaluateFormationClash(homeFormation, awayFormation);
-  const homeProf = FORMATION_ENCYCLOPEDIA[homeFormation];
-  const awayProf = FORMATION_ENCYCLOPEDIA[awayFormation];
+  const homeProf = homeFormation !== 'UNKNOWN' ? FORMATION_ENCYCLOPEDIA[homeFormation] : DEFAULT_UNKNOWN_PROF;
+  const awayProf = awayFormation !== 'UNKNOWN' ? FORMATION_ENCYCLOPEDIA[awayFormation] : DEFAULT_UNKNOWN_PROF;
   const selectedProf = FORMATION_ENCYCLOPEDIA[selectedProfileCode];
 
-  const allFormationKeys = Object.keys(FORMATION_ENCYCLOPEDIA) as FormationType[];
+  const allFormationKeys = Object.keys(FORMATION_ENCYCLOPEDIA) as KnownFormationType[];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
@@ -131,11 +158,17 @@ export const FormationClashModal: React.FC<FormationClashModalProps> = ({
                     onChange={(e) => setHomeFormation(e.target.value as FormationType)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium cursor-pointer"
                   >
+                    {homeFormation === 'UNKNOWN' && (
+                      <option value="UNKNOWN">❓ 未提供官方首发阵型</option>
+                    )}
                     {allFormationKeys.map((k) => (
                       <option key={`home-${k}`} value={k}>
                         {FORMATION_ENCYCLOPEDIA[k].name_zh}
                       </option>
                     ))}
+                    {homeFormation !== 'UNKNOWN' && (
+                      <option value="UNKNOWN">❓ 未知 / 关闭阵型先验</option>
+                    )}
                   </select>
                   <p className="text-xs text-slate-400 line-clamp-1">
                     {homeProf.core_philosophy_zh}
@@ -162,11 +195,17 @@ export const FormationClashModal: React.FC<FormationClashModalProps> = ({
                     onChange={(e) => setAwayFormation(e.target.value as FormationType)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 font-medium cursor-pointer"
                   >
+                    {awayFormation === 'UNKNOWN' && (
+                      <option value="UNKNOWN">❓ 未提供官方首发阵型</option>
+                    )}
                     {allFormationKeys.map((k) => (
                       <option key={`away-${k}`} value={k}>
                         {FORMATION_ENCYCLOPEDIA[k].name_zh}
                       </option>
                     ))}
+                    {awayFormation !== 'UNKNOWN' && (
+                      <option value="UNKNOWN">❓ 未知 / 关闭阵型先验</option>
+                    )}
                   </select>
                   <p className="text-xs text-slate-400 line-clamp-1">
                     {awayProf.core_philosophy_zh}
@@ -453,7 +492,7 @@ export const FormationClashModal: React.FC<FormationClashModalProps> = ({
                   <div className="p-3 bg-emerald-950/20 rounded-xl border border-emerald-800/40 space-y-2">
                     <span className="font-bold text-emerald-300">✅ 核心优势:</span>
                     <ul className="space-y-1 text-slate-300">
-                      {selectedProf.key_strengths_zh.map((s, idx) => (
+                      {selectedProf.key_strengths_zh.map((s: string, idx: number) => (
                         <li key={idx} className="flex items-start gap-1">
                           <span className="text-emerald-400">•</span>
                           <span>{s}</span>
@@ -465,7 +504,7 @@ export const FormationClashModal: React.FC<FormationClashModalProps> = ({
                   <div className="p-3 bg-rose-950/20 rounded-xl border border-rose-800/40 space-y-2">
                     <span className="font-bold text-rose-300">⚠️ 固有弱点与空当:</span>
                     <ul className="space-y-1 text-slate-300">
-                      {selectedProf.key_weaknesses_zh.map((w, idx) => (
+                      {selectedProf.key_weaknesses_zh.map((w: string, idx: number) => (
                         <li key={idx} className="flex items-start gap-1">
                           <span className="text-rose-400">•</span>
                           <span>{w}</span>
@@ -479,7 +518,7 @@ export const FormationClashModal: React.FC<FormationClashModalProps> = ({
                 <div className="p-3 bg-slate-900/70 rounded-xl border border-slate-700/80 space-y-2 text-xs">
                   <span className="font-bold text-slate-200">🎯 最佳克制应对策略:</span>
                   <ul className="space-y-1 text-slate-300">
-                    {selectedProf.optimal_counters_zh.map((c, idx) => (
+                    {selectedProf.optimal_counters_zh.map((c: string, idx: number) => (
                       <li key={idx} className="flex items-start gap-1">
                         <span className="text-amber-400 font-bold">»</span>
                         <span>{c}</span>

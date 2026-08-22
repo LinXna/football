@@ -277,17 +277,19 @@ export function parseMatchIncidents(match?: any): ParsedIncidentItem[] {
     const halfKey = half === 1 ? 'H1' : half === 2 ? 'H2' : 'HX';
     let dedupeKey = '';
     if (isCorner) {
-      // Deduplicate corner kicks by half, minute and team (at most 1 corner per minute per side)
-      dedupeKey = `${halfKey}_${min}_${stoppageExtra}_corner_${side}`;
+      // Allow multiple distinct corners in the same minute (e.g. 13' 第2个角球 vs 13' 第3个角球, or distinct rawText)
+      const cornerId = cornerNum ? `num_${cornerNum}` : rawText.replace(/\s+/g, '').slice(0, 30);
+      dedupeKey = `${halfKey}_${min}_${stoppageExtra}_corner_${side}_${cornerId}`;
     } else if (isYellow) {
-      dedupeKey = `${halfKey}_${min}_${stoppageExtra}_yellow_${side}`;
+      const cardId = cardNum ? `num_${cardNum}` : rawText.replace(/\s+/g, '').slice(0, 30);
+      dedupeKey = `${halfKey}_${min}_${stoppageExtra}_yellow_${side}_${cardId}`;
     } else if (isRed) {
-      dedupeKey = `${halfKey}_${min}_${stoppageExtra}_red_${side}`;
+      dedupeKey = `${halfKey}_${min}_${stoppageExtra}_red_${side}_${rawText.replace(/\s+/g, '').slice(0, 20)}`;
     } else if (isSub) {
       const normSub = subPlayers.replace(/[\s↑↓]/g, '') || rawText.replace(/\d+[']?\s*[-–]?\s*/, '').slice(0, 20);
       dedupeKey = `${halfKey}_${min}_${stoppageExtra}_sub_${side}_${normSub}`;
     } else if (isGoal) {
-      dedupeKey = `${halfKey}_${min}_${stoppageExtra}_goal_${side}`;
+      dedupeKey = `${halfKey}_${min}_${stoppageExtra}_goal_${side}_${rawText.replace(/\s+/g, '').slice(0, 20)}`;
     } else {
       dedupeKey = `${halfKey}_${min}_${stoppageExtra}_${icon}_${side}_${rawText.slice(0, 15)}`;
     }

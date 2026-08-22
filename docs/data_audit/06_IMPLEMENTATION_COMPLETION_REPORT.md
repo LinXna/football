@@ -125,7 +125,28 @@
 
 ---
 
-## 6. 后续运维与操作指引
+## 6. 阶段八：全指标联合物理演算、UPTS 威胁内核与贝叶斯先验衰减 (Phase 8 - v3.1.0)
+
+- **问题背景与业务诉求**：
+  1. 传统模型将控球率、危攻、射门、角球孤立计算，导致出现“77% 无效横传控球被误判为绝对大优”的假象；
+  2. 静态阵型几何对比（如 4-3-3 对 4-4-2 得出 +58 主优）刻板印象在比赛进行到中后段仍旧绑架系统评估；
+  3. 缺乏对“角球-防线承压高危空战通道”以及“超巨星/反击球队短时脉冲式致命突击 (ALD)”的联合捕获。
+- **实施完成项**：
+  - **`server/services/quantitativeFeatures.ts` 全面升级**：
+    - 引入**三层递进渗透漏斗模型 (`calculateUniversalPenetrationFunnel`)**：计算有效领地、防线破坏增益与终结穿透率；
+    - 引入**定位球高危空战引擎 (`set_piece_pressure`)**：计算 90' 角球密度、禁区混乱度与转化率；
+    - 引入**单次攻势致命收益密度 (`calculateAttackLethalityDensity`)**：精准捕获低控球、低危攻下的脉冲突发高危进攻 (`pulse_burst_detected`)。
+  - **`server/services/formationTacticalEngine.ts` 解耦**：
+    - 移除静态阵型绝对统治力定性，引入通用**贝叶斯时间衰减方程 (`calculateBayesianPriorWeight`)**，确保开场 20~25 分钟后静态克制平滑让位给实战 UPTS 表现。
+  - **`server/services/advancedTacticalQuantitativeEngines.ts` 联合演算**：
+    - 建立 **UPTS (Unified Physical Threat Score)** 联合物理威胁分内核；
+    - 实现五大通用实战格局自适应判定（`TRUE_SIEGE` / `STERILE_POSSESSION` / `LETHAL_COUNTER` / `SET_PIECE_DOMINANCE` / `ATTRITIONAL_DEADLOCK`），对无效控球实施偏向分压缩，对高效反击进行动态反转修正。
+  - **`promptSlimPayload.ts` & `geminiEvaluationService.ts` 载荷与提示词契约升级**：
+    - 注入纯净物理格局结构体，并增加“全指标联合物理演算与战术反转约束”系统级硬性指令。
+
+---
+
+## 7. 后续运维与操作指引
 
 1. **日常分析流水线调用**：
    - 滚球分析：

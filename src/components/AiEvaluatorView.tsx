@@ -839,8 +839,9 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
           onClick={() => {
             const stored = allMatches.find((item) => item.match === matchName);
             const lineups = (stored as any)?.lineups || (stored as any)?.match?.lineups;
-            const homeF = lineups?.home_formation || lineups?.home_formation_detected || '4-3-3';
-            const awayF = lineups?.away_formation || lineups?.away_formation_detected || '4-4-2';
+            const tcFormation = (stored as any)?.tactical_context?.formation;
+            const homeF = lineups?.home_formation || lineups?.home_formation_detected || tcFormation?.home || 'UNKNOWN';
+            const awayF = lineups?.away_formation || lineups?.away_formation_detected || tcFormation?.away || 'UNKNOWN';
             setFormationModalData({
               homeFormation: homeF,
               awayFormation: awayF,
@@ -2421,8 +2422,8 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
           setIsFormationModalOpen(false);
           setFormationModalData(null);
         }}
-        initialHomeFormation={formationModalData?.homeFormation || '4-3-3'}
-        initialAwayFormation={formationModalData?.awayFormation || '4-4-2'}
+        initialHomeFormation={formationModalData?.homeFormation || 'UNKNOWN'}
+        initialAwayFormation={formationModalData?.awayFormation || 'UNKNOWN'}
         homeTeamName={formationModalData?.homeTeamName || '主队'}
         awayTeamName={formationModalData?.awayTeamName || '客队'}
       />

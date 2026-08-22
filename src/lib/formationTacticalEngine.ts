@@ -15,7 +15,8 @@ export type FormationType =
   | '4-1-4-1'
   | '3-4-2-1'
   | '5-2-3'
-  | '4-2-2-2';
+  | '4-2-2-2'
+  | 'UNKNOWN';
 
 export interface FormationProfile {
   code: FormationType;
@@ -41,12 +42,22 @@ export interface FormationProfile {
   unfavorable_matchups: FormationType[];
 }
 
+export type ClashVerdict = 
+  | 'ADVANTAGE_HOME' 
+  | 'ADVANTAGE_AWAY' 
+  | 'TACTICAL_STALEMATE' 
+  | 'OPEN_GOAL_FEST' 
+  | 'DEFENSIVE_ATTRITION'
+  | 'NO_FORMATION_DATA';
+
 export interface FormationClashResult {
   home_formation: FormationType;
   away_formation: FormationType;
   home_formation_name: string;
   away_formation_name: string;
-  clash_verdict: 'ADVANTAGE_HOME' | 'ADVANTAGE_AWAY' | 'TACTICAL_STALEMATE' | 'OPEN_GOAL_FEST' | 'DEFENSIVE_ATTRITION';
+  is_available: boolean;
+  status?: 'ACTIVE' | 'DISABLED_NO_DATA';
+  clash_verdict: ClashVerdict;
   clash_verdict_zh: string;
   formation_clash_score: number; // -100 to +100 (>0 favors home, <0 favors away)
   
@@ -86,7 +97,7 @@ export interface FormationClashResult {
 }
 
 // Complete Formation Encyclopedia
-export const FORMATION_ENCYCLOPEDIA: Record<FormationType, FormationProfile> = {
+export const FORMATION_ENCYCLOPEDIA: Record<Exclude<FormationType, 'UNKNOWN'>, FormationProfile> = {
   '4-3-3': {
     code: '4-3-3',
     name_zh: '4-3-3 攻势传控与高位压迫',
@@ -524,8 +535,11 @@ export const FORMATION_ENCYCLOPEDIA: Record<FormationType, FormationProfile> = {
  * Clean & normalize formation text from match data into standard FormationType
  */
 export function normalizeFormationCode(rawFormation?: string | null): FormationType {
-  if (!rawFormation) return '4-3-3'; // default fallback
+  if (!rawFormation) return 'UNKNOWN';
   const str = String(rawFormation).trim().toLowerCase().replace(/[\s\-_]/g, '');
+  if (!str || str === 'unknown' || str === 'none' || str === 'null' || str === 'undefined' || str === '待定' || str === '未知') {
+    return 'UNKNOWN';
+  }
   
   if (str.includes('4231')) return '4-2-3-1';
   if (str.includes('433')) return '4-3-3';
@@ -544,7 +558,7 @@ export function normalizeFormationCode(rawFormation?: string | null): FormationT
   if (str.includes('4222')) return '4-2-2-2';
   if (str.includes('4312')) return '4-4-2-diamond';
 
-  return '4-3-3';
+  return 'UNKNOWN';
 }
 
 /**
@@ -553,20 +567,24 @@ export function normalizeFormationCode(rawFormation?: string | null): FormationT
 export function detectMatchFormation(
   lineupData: any,
   side: 'home' | 'away'
-): { formation: FormationType; source: string; confidence: number } {
+): { formation: FormationType; source: string; confidence: number; is_available: boolean } {
   if (!lineupData) {
-    return { formation: '4-3-3', source: 'default_tactical_heuristic', confidence: 0.5 };
+    return { formation: 'UNKNOWN', source: 'no_lineup_data', confidence: 0, is_available: false };
   }
 
   // 1. Direct formation string in lineup data
   const sideRecord = lineupData[side] || (side === 'home' ? lineupData.home_team : lineupData.away_team);
   const directStr = sideRecord?.formation || sideRecord?.array || lineupData[`${side}_formation`];
-  if (directStr && typeof directStr === 'string') {
-    return {
-      formation: normalizeFormationCode(directStr),
-      source: 'official_lineup_formation_field',
-      confidence: 0.95
-    };
+  if (directStr && typeof directStr === 'string' && directStr.trim()) {
+    const norm = normalizeFormationCode(directStr);
+    if (norm !== 'UNKNOWN') {
+      return {
+        formation: norm,
+        source: 'official_lineup_formation_field',
+        confidence: 0.95,
+        is_available: true
+      };
+    }
   }
 
   // 2. Count starters by position if available
@@ -588,19 +606,19 @@ export function detectMatchFormation(
     const midfielders = dm + cm + am;
     const forwards = w + st;
 
-    if (defenders === 5 && midfielders === 3 && forwards === 2) return { formation: '5-3-2', source: 'position_synthesis', confidence: 0.85 };
-    if (defenders === 5 && midfielders === 4 && forwards === 1) return { formation: '5-4-1', source: 'position_synthesis', confidence: 0.85 };
-    if (defenders === 3 && midfielders === 5 && forwards === 2) return { formation: '3-5-2', source: 'position_synthesis', confidence: 0.85 };
-    if (defenders === 3 && midfielders === 4 && forwards === 3) return { formation: '3-4-3', source: 'position_synthesis', confidence: 0.85 };
+    if (defenders === 5 && midfielders === 3 && forwards === 2) return { formation: '5-3-2', source: 'position_synthesis', confidence: 0.85, is_available: true };
+    if (defenders === 5 && midfielders === 4 && forwards === 1) return { formation: '5-4-1', source: 'position_synthesis', confidence: 0.85, is_available: true };
+    if (defenders === 3 && midfielders === 5 && forwards === 2) return { formation: '3-5-2', source: 'position_synthesis', confidence: 0.85, is_available: true };
+    if (defenders === 3 && midfielders === 4 && forwards === 3) return { formation: '3-4-3', source: 'position_synthesis', confidence: 0.85, is_available: true };
     if (defenders === 4 && midfielders === 5 && forwards === 1) {
-      if (dm === 2) return { formation: '4-2-3-1', source: 'position_synthesis', confidence: 0.85 };
-      return { formation: '4-1-4-1', source: 'position_synthesis', confidence: 0.85 };
+      if (dm === 2) return { formation: '4-2-3-1', source: 'position_synthesis', confidence: 0.85, is_available: true };
+      return { formation: '4-1-4-1', source: 'position_synthesis', confidence: 0.85, is_available: true };
     }
-    if (defenders === 4 && midfielders === 3 && forwards === 3) return { formation: '4-3-3', source: 'position_synthesis', confidence: 0.85 };
-    if (defenders === 4 && midfielders === 4 && forwards === 2) return { formation: '4-4-2', source: 'position_synthesis', confidence: 0.85 };
+    if (defenders === 4 && midfielders === 3 && forwards === 3) return { formation: '4-3-3', source: 'position_synthesis', confidence: 0.85, is_available: true };
+    if (defenders === 4 && midfielders === 4 && forwards === 2) return { formation: '4-4-2', source: 'position_synthesis', confidence: 0.85, is_available: true };
   }
 
-  return { formation: '4-3-3', source: 'estimated_generic', confidence: 0.5 };
+  return { formation: 'UNKNOWN', source: 'missing_lineup_data', confidence: 0, is_available: false };
 }
 
 /**
@@ -613,6 +631,46 @@ export function evaluateFormationClash(
 ): FormationClashResult {
   const homeFormation = normalizeFormationCode(homeFormationRaw);
   const awayFormation = normalizeFormationCode(awayFormationRaw);
+
+  // If either team has unknown formation, cleanly bypass and disable formation clash evaluation
+  if (homeFormation === 'UNKNOWN' || awayFormation === 'UNKNOWN') {
+    return {
+      home_formation: homeFormation,
+      away_formation: awayFormation,
+      home_formation_name: homeFormation === 'UNKNOWN' ? '未提供官方阵型' : (FORMATION_ENCYCLOPEDIA[homeFormation]?.name_zh || homeFormation),
+      away_formation_name: awayFormation === 'UNKNOWN' ? '未提供官方阵型' : (FORMATION_ENCYCLOPEDIA[awayFormation]?.name_zh || awayFormation),
+      is_available: false,
+      status: 'DISABLED_NO_DATA',
+      clash_verdict: 'NO_FORMATION_DATA',
+      clash_verdict_zh: '暂无官方阵型（阵型评估已关闭）',
+      formation_clash_score: 0,
+      midfield_battle: {
+        winner: 'EVEN',
+        home_midfielders: 0,
+        away_midfielders: 0,
+        analysis_zh: '缺少确切首发阵型数据，中场人数对决与控制力推演已关闭。'
+      },
+      flank_battle: {
+        winner: 'EVEN',
+        analysis_zh: '缺少确切首发阵型数据，边路走廊宽度博弈已关闭。'
+      },
+      box_and_backline_battle: {
+        home_attack_vs_away_defense_zh: '阵型数据未提供，禁区攻防推演已关闭',
+        away_attack_vs_home_defense_zh: '阵型数据未提供，禁区攻防推演已关闭'
+      },
+      home_exploit_points_zh: [],
+      away_exploit_points_zh: [],
+      expected_pace_and_goals: 'LOW_GOAL_ATTRITION',
+      expected_pace_zh: '阵型数据缺失，比赛节奏完全取决于现场物理攻防与动能波形',
+      betting_implications: {
+        handicap_angle_zh: '无阵型先验倾向，不给予任何主客让球加权',
+        total_goals_angle_zh: '大小球期望完全由实时渗透率与射门转化率决定',
+        corner_threat_angle_zh: '角球威胁根据现场真实角球密度评估',
+        recommended_play_focus: ['UNDER']
+      },
+      master_tactical_breakdown_zh: '本场比赛官方源未提供确切首发阵型（常见于低级别联赛、青年后备队或热身赛），系统已主动关闭静态阵型先验克制推演，不作任何无依据假设，评估全量依托实时攻守物理数据。'
+    };
+  }
 
   const homeProf = FORMATION_ENCYCLOPEDIA[homeFormation] || FORMATION_ENCYCLOPEDIA['4-3-3'];
   const awayProf = FORMATION_ENCYCLOPEDIA[awayFormation] || FORMATION_ENCYCLOPEDIA['4-3-3'];
@@ -796,6 +854,8 @@ export function evaluateFormationClash(
     away_formation: awayFormation,
     home_formation_name: homeProf.name_zh,
     away_formation_name: awayProf.name_zh,
+    is_available: true,
+    status: 'ACTIVE',
     clash_verdict: verdict,
     clash_verdict_zh: verdictZh,
     formation_clash_score: clashScore,

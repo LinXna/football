@@ -72,14 +72,25 @@ export type FormationType =
   | '4-1-4-1'
   | '3-4-2-1'
   | '5-2-3'
-  | '4-2-2-2';
+  | '4-2-2-2'
+  | 'UNKNOWN';
+
+export type ClashVerdict = 
+  | 'ADVANTAGE_HOME' 
+  | 'ADVANTAGE_AWAY' 
+  | 'TACTICAL_STALEMATE' 
+  | 'OPEN_GOAL_FEST' 
+  | 'DEFENSIVE_ATTRITION'
+  | 'NO_FORMATION_DATA';
 
 export interface FormationClashResult {
   home_formation: FormationType;
   away_formation: FormationType;
   home_formation_name: string;
   away_formation_name: string;
-  clash_verdict: 'ADVANTAGE_HOME' | 'ADVANTAGE_AWAY' | 'TACTICAL_STALEMATE' | 'OPEN_GOAL_FEST' | 'DEFENSIVE_ATTRITION';
+  is_available?: boolean;
+  status?: 'ACTIVE' | 'DISABLED_NO_DATA';
+  clash_verdict: ClashVerdict;
   clash_verdict_zh: string;
   formation_clash_score: number;
   midfield_battle: {
@@ -450,10 +461,13 @@ export function toStandardMatchData(raw: any): StandardMatchData {
       ? 'CONFIRMED'
       : (tc.lineup_status === 'CONFIRMED' ? 'CONFIRMED' : 'PROJECTED');
 
+  const homeFormationVal = tc.formation?.home || raw.home_formation || formationClash?.home_formation || lineups?.home_formation;
+  const awayFormationVal = tc.formation?.away || raw.away_formation || formationClash?.away_formation || lineups?.away_formation;
+
   const tactical_context: TacticalContext = {
     formation: {
-      home: String(tc.formation?.home || raw.home_formation || formationClash?.home_formation || lineups?.home_formation || '4-2-3-1'),
-      away: String(tc.formation?.away || raw.away_formation || formationClash?.away_formation || lineups?.away_formation || '4-2-3-1'),
+      home: homeFormationVal ? String(homeFormationVal) : 'UNKNOWN',
+      away: awayFormationVal ? String(awayFormationVal) : 'UNKNOWN',
     },
     formation_clash_verdict: tc.formation_clash_verdict || formationClash?.clash_verdict,
     formation_clash_summary: tc.formation_clash_summary || formationClash?.clash_verdict_zh || formationClash?.master_tactical_breakdown_zh,

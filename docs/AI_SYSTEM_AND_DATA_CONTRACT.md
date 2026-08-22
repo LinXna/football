@@ -760,7 +760,34 @@ YBTY原名始终用于投注显示和台账；雷速名只用于交叉验证。�
 11. `tests-ts/` 和 `tests/`；
 12. 本文件。
 
-## 15. 验证命令
+## 15. 2026-08 全链路物理量化与联合演算重构规范
+
+为根除传统统计中“控球率虚高误导”、“静态阵型刻板印象绑架预测”、“忽视角球与定位球防线承压”以及“漏判超巨星/反击脉冲式致命威胁”等深层缺陷，系统已升级全指标联合物理演算体系：
+
+### 15.1 三层递进渗透漏斗 (Penetration Funnel) & UPTS 内核
+1. **空间与领地压制**：$\text{EffectiveTerritory} = \sqrt{\text{Possession} \times \frac{\text{DangerousAttacks}}{\max(1, \text{Minutes}) \times 0.5}}$；
+2. **防守破坏增益**：$\text{DisruptionBonus} = 1.0 + (\text{Corners} \times 0.15) + (\text{OpponentYellowCards} \times 0.3) + (\text{OpponentRedCards} \times 0.8)$；
+3. **门前终结穿透率**：$\text{LethalityRate} = \frac{\text{ShotsTarget} \times 2.0 + \text{OffTarget} \times 0.8 + \text{Goals} \times 4.0 + 0.05}{\max(1, \text{DangerousAttacks})}$；
+4. **联合物理威胁分 (UPTS)**：$\text{UPTS} = \text{EffectiveTerritory} \times \text{LethalityRate} \times \text{DisruptionBonus}$。
+   - **核心物理规则**：无有效终结（0 射门 0 射正 0 破防）的高控球（如 77%），其终结穿透率接近于 0，UPTS 自动归零，彻底消灭“无效控球即优势”的假象。
+
+### 15.2 脉冲式攻势致命密度 (Attack Lethality Density - ALD)
+$$\text{ALD} = \frac{\text{Goals} \times 4.0 + \text{ShotsTarget} \times 2.0 + \text{Corners} \times 1.0 + \text{ForcedYellowCards} \times 1.5}{\max(1, \text{DangerousAttacks})}$$
+- **脉冲突发检测 (`pulse_burst_detected`)**：当弱势/低控球方在短时间内以极低危攻产生高 ALD（$\ge 0.4$）并换取射正、进球或迫使对手吃牌时，系统自动标记为“脉冲突发高效反击”，绝不因常态控球低而盲目唱衰。
+
+### 15.3 阵型先验的通用贝叶斯时间衰减 (Bayesian Prior Decay)
+$$W_{prior}(t) = \frac{1}{1 + e^{0.12 \times (t - 22)}}$$
+- 静态几何克制仅作为赛前/开场初期的风格标签；
+- $t \ge 20 \sim 25$ 分钟时先验权重跌破 50%，$t \ge 30$ 分钟后完全由现场实战 UPTS 物理表现主导。
+
+### 15.4 五大通用实战格局自适应判定 (Universal Match Patterns)
+- **`TRUE_SIEGE` (真实高位围攻)**：高领地 + 高角球/射门 + 门前实质破防；
+- **`STERILE_POSSESSION` (无效传控)**：高控球 + 0 射正 + 低角球，强制大幅削减赢盘与大球期望；
+- **`LETHAL_COUNTER` (高效穿透反击)**：低控球 + 高 ALD + 伴随射门与造牌，激活下盘与反击得分保护；
+- **`SET_PIECE_DOMINANCE` (定位球与高空轰炸)**：阵地受阻但角球密度高（90' 预期 $\ge 7$）持续制造禁区混乱；
+- **`ATTRITIONAL_DEADLOCK` (中场胶着互不着力)**：双方渗透产出皆低，优势归于均势（0）。
+
+## 16. 验证命令
 
 ```powershell
 npm run lint

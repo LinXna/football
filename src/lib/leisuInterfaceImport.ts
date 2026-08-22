@@ -186,8 +186,8 @@ export function normalizeLeisuInterfaceExport(payload: unknown): JsonRecord[] | 
       },
       tactical_context: {
         formation: {
-          home: String(formal.formation?.home || '4-2-3-1'),
-          away: String(formal.formation?.away || '4-2-3-1'),
+          home: formal.formation?.home ? String(formal.formation.home) : 'UNKNOWN',
+          away: formal.formation?.away ? String(formal.formation.away) : 'UNKNOWN',
         },
         standings_summary: formal.league_standings || formal.trend_summary?.standings || null,
         home_form: formal.trend_summary?.home || formal.recent_matches?.home || null,

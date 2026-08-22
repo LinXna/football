@@ -109,11 +109,11 @@ export function formatAsianLine(rawLine: string | number): string {
   if (frac === 25) {
     const low = Math.floor(abs);
     const high = low + 0.5;
-    return isNegative ? `-${low}/-${high}` : `${low}/${high}`;
+    return isNegative ? `-${low}/${high}` : `${low}/${high}`;
   } else if (frac === 75) {
     const low = Math.floor(abs) + 0.5;
     const high = Math.floor(abs) + 1;
-    return isNegative ? `-${low}/-${high}` : `${low}/${high}`;
+    return isNegative ? `-${low}/${high}` : `${low}/${high}`;
   }
 
   return str;

@@ -583,38 +583,48 @@ def authoritative_match_state(
     ybty_away_score = score_value(market.away_score)
     ybty_minute = elapsed_minute(market.clock) if mode == "live" else None
     provider_score_source = event.get("_score_source") or (
-        "provider_api" if event.get("_provider") != "leisu" else None
+        "leisu_interface" if event.get("_provider") == "leisu" or "leisu" in str(event.get("_source", "")).lower() else "provider_api"
     )
     provider_score = {
-        "home": score_value(event.get("homeScore", {}).get("current")),
-        "away": score_value(event.get("awayScore", {}).get("current")),
+        "home": score_value(event.get("homeScore", {}).get("current") if isinstance(event.get("homeScore"), dict) else event.get("home_score")),
+        "away": score_value(event.get("awayScore", {}).get("current") if isinstance(event.get("awayScore"), dict) else event.get("away_score")),
     }
     ybty_score_complete = None not in (ybty_home_score, ybty_away_score)
-    provider_score_reliable = (
-        None not in (provider_score["home"], provider_score["away"])
-        and (
-            event.get("_provider") != "leisu"
-            or provider_score_source in {"score_canvas", "leisu_text_live"}
-        )
-    )
-    if ybty_score_complete:
+    provider_score_complete = None not in (provider_score["home"], provider_score["away"])
+
+    score_verified = False
+    if ybty_score_complete and provider_score_complete:
+        if ybty_home_score == provider_score["home"] and ybty_away_score == provider_score["away"]:
+            selected_score = {"home": ybty_home_score, "away": ybty_away_score}
+            selected_score_source = "ybty+leisu_interface"
+            score_verified = True
+        else:
+            selected_score = {"home": ybty_home_score, "away": ybty_away_score}
+            selected_score_source = "ybty_market(cross_check_mismatch)"
+            score_verified = False
+    elif ybty_score_complete:
         selected_score = {"home": ybty_home_score, "away": ybty_away_score}
         selected_score_source = "ybty_market"
-    elif provider_score_reliable:
+        score_verified = True
+    elif provider_score_complete:
         selected_score = provider_score
         selected_score_source = provider_score_source
+        score_verified = True
     else:
         selected_score = {"home": None, "away": None}
         selected_score_source = None
+        score_verified = False
+
     provider_minute = event_minute(event, int(time.time())) if mode == "live" else None
     return {
         "minute": ybty_minute,
         "score": selected_score,
         "score_source": selected_score_source,
+        "score_verified": score_verified,
         "start_time": market.commence_time,
         "state_source": {
             "minute": "ybty",
-            "score": "ybty" if selected_score_source == "ybty_market" else "provider",
+            "score": "ybty+leisu" if "ybty+leisu" in str(selected_score_source) else ("ybty" if "ybty" in str(selected_score_source) else "provider"),
             "start_time": "ybty",
         },
         "provider_state": {

@@ -38,7 +38,7 @@ export function adaptToStandardMatch(raw: any): StandardMatchData {
         red_cards: { home: 0, away: 0 },
       },
       tactical_context: {
-        formation: { home: '4-2-3-1', away: '4-2-3-1' },
+        formation: { home: 'UNKNOWN', away: 'UNKNOWN' },
         lineup_status: 'PROJECTED',
         key_absences_count: { home: 0, away: 0 },
         h2h_matches: [],
@@ -108,10 +108,13 @@ export function adaptToStandardMatch(raw: any): StandardMatchData {
   const formalData = raw.detail_context?.formal || raw.formal || {};
   const lineups = raw.lineups || raw.lineup || formalData.lineup;
 
+  const homeFormationVal = tcRaw.formation?.home || raw.home_formation || lineups?.home_formation;
+  const awayFormationVal = tcRaw.formation?.away || raw.away_formation || lineups?.away_formation;
+
   const tactical_context: TacticalContext = {
     formation: {
-      home: String(tcRaw.formation?.home || raw.home_formation || lineups?.home_formation || '4-2-3-1'),
-      away: String(tcRaw.formation?.away || raw.away_formation || lineups?.away_formation || '4-2-3-1'),
+      home: homeFormationVal ? String(homeFormationVal) : 'UNKNOWN',
+      away: awayFormationVal ? String(awayFormationVal) : 'UNKNOWN',
     },
     formation_clash_verdict: tcRaw.formation_clash_verdict || raw.formation_clash?.clash_verdict,
     formation_clash_summary: tcRaw.formation_clash_summary || raw.formation_clash?.clash_verdict_zh,
