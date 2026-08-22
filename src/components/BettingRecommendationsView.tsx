@@ -1738,7 +1738,7 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                 ? latestAiEvaluation.market_assessments.find((item: any) => String(item.category || '') === category)
                 : null;
               if (!assessment) {
-                return <div className="mt-2 border-t border-sky-900/60 pt-2 text-[10px] text-slate-600">AI：尚无该玩法评估</div>;
+                return <div className="mt-1 border-t border-sky-900/40 pt-1 text-[10px] text-slate-400">AI：尚无该玩法评估</div>;
               }
               const status = aiAssessmentStatus(String(assessment.status || ''));
               const line = String(assessment.line ?? '').trim();
@@ -1747,14 +1747,14 @@ export const BettingRecommendationsView: React.FC<Props> = ({
               const odds = Number(assessment.odds);
               const probability = Number(assessment.probability);
               return (
-                <div className="mt-2 border-t border-sky-800/60 pt-2 text-[10px]">
+                <div className="mt-1 border-t border-sky-800/50 pt-1 text-[10px] space-y-0.5">
                   <div className="flex flex-wrap items-center justify-between gap-1">
-                    <span className="font-bold text-sky-300">AI：{display}</span>
-                    <span className="font-mono text-amber-300">{Number.isFinite(odds) && odds > 1 ? `@${assessment.odds}` : '无真实赔率'}</span>
+                    <span className="font-bold text-sky-200">AI：{display}</span>
+                    <span className="font-mono text-amber-300 font-bold">{Number.isFinite(odds) && odds > 1 ? `@${assessment.odds}` : '无真实赔率'}</span>
                   </div>
-                  <div className="mt-1 flex items-center justify-between gap-1 text-slate-400">
-                    <span>{Number.isFinite(probability) ? `概率 ${assessment.probability}%` : '概率 --'}</span>
-                    <span className={`rounded border px-1 py-0.5 text-[9px] ${status.className}`}>{assessment.status === 'prediction' ? status.label : `${status.label} · ${assessment.grade || 'NO_BET'}`}</span>
+                  <div className="flex items-center justify-between gap-1 text-slate-300 text-[10px]">
+                    <span className="text-slate-300">{Number.isFinite(probability) ? `胜率 ${assessment.probability}%` : '胜率 --'}</span>
+                    <span className={`rounded border px-1 py-0.2 text-[9px] font-semibold ${status.className}`}>{assessment.status === 'prediction' ? status.label : `${status.label} · ${assessment.grade || 'NO_BET'}`}</span>
                   </div>
                 </div>
               );
@@ -2448,68 +2448,68 @@ export const BettingRecommendationsView: React.FC<Props> = ({
 
                   {/* 0. Full-Time & Half-Time Over/Under, Handicap & 1X2 Matrix */}
                   {(marketViewTab === 'ALL_MARKETS' || marketViewTab === 'OU_HANDICAP') && (
-                    <div className="bg-slate-900/90 p-3 rounded-lg border border-emerald-500/30 space-y-2.5 shadow-md">
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs border-b border-slate-800/80 pb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-emerald-400 flex items-center gap-1.5">
-                            <Trophy className="w-4 h-4 text-emerald-400" />
+                    <div className="bg-slate-900/90 p-3 rounded-lg border border-emerald-500/30 space-y-2 shadow-md">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs border-b border-slate-800 pb-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-bold text-emerald-400 text-xs flex items-center gap-1.5">
+                            <Trophy className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                             ⚽ 全维度三重视角看板：①真实盘口 ②机器量化推演 ③AI深度研判
                           </span>
-                          <span className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5 rounded font-mono">
+                          <span className="bg-slate-800 text-slate-200 text-[10px] px-2 py-0.5 rounded font-mono border border-slate-700">
                             量化模型全量推演，不受风控评级拦截
                           </span>
                         </div>
-                        <span className="text-[10px] text-slate-400 font-mono">
+                        <span className="text-[10px] text-slate-300 font-mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
                           {quant.dominanceStatus === 'STERILE_POSSESSION' ? '⚠️ 战术识别: 假象控球/穿透乏力' : quant.dominanceStatus === 'HOME_DOMINANT' ? '🔥 战术识别: 主队高压' : quant.dominanceStatus === 'AWAY_DOMINANT' ? '⚡ 战术识别: 客队反击强劲' : '⚖️ 战术识别: 均衡对抗'}
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 text-xs">
                         {/* 1. Full Time Over/Under */}
-                        <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 space-y-2 flex flex-col justify-between">
-                          <div className="flex items-center justify-between text-[11px] font-bold text-emerald-300 border-b border-slate-800/60 pb-1">
+                        <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 space-y-1.5 flex flex-col justify-between shadow-sm">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-emerald-300 border-b border-slate-800/80 pb-1">
                             <span className="flex items-center gap-1">⚽ 全场大小球</span>
                           </div>
 
                           {/* 1. 真实盘口与市场去水隐含概率 */}
-                          <div className="bg-slate-900/60 p-1.5 rounded border border-slate-800/80 space-y-0.5">
-                            <div className="flex items-center justify-between text-[10px] text-slate-400">
-                              <span>① 真实盘口:</span>
-                              <span className="font-mono text-amber-300 font-bold flex items-center gap-1">
+                          <div className="bg-slate-900/90 p-1.5 rounded border border-slate-800 space-y-0.5">
+                            <div className="flex items-center justify-between text-[10px] text-slate-300">
+                              <span className="font-semibold text-slate-400">① 真实盘口:</span>
+                              <span className="font-mono text-amber-300 font-bold text-[11px] flex items-center gap-1">
                                 <span>{ext.overUnder.fullTime.line || '--'}</span>
                                 {ext.overUnder.fullTime.odds && (
-                                  <span className="font-mono text-[10px] text-amber-400">@{ext.overUnder.fullTime.odds}</span>
+                                  <span className="font-mono text-amber-400 font-bold">@{ext.overUnder.fullTime.odds}</span>
                                 )}
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-slate-400">市场去水隐含:</span>
+                              <span className="text-slate-400">去水隐含概率:</span>
                               <span className="text-emerald-400 font-mono font-bold">{ext.overUnder.fullTime.confidence}%</span>
                             </div>
                           </div>
 
                           {/* 2. 机器物理量化推演 (独立不受风控拦截) */}
-                          <div className="bg-emerald-950/30 p-1.5 rounded border border-emerald-800/50 space-y-1">
+                          <div className="bg-emerald-950/30 p-1.5 rounded border border-emerald-800/40 space-y-0.5">
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-emerald-300 font-bold flex items-center gap-1">
+                              <span className="text-emerald-300 font-bold flex items-center gap-0.5">
                                 🖥️ 机器量化:
                               </span>
-                              <span className="text-emerald-400 font-bold flex items-center gap-1">
+                              <span className="text-emerald-300 font-bold text-[10px] flex items-center gap-1">
                                 <span>{quant.predictions.totalGoals?.predictedSelection || ext.overUnder.fullTime.value}</span>
                                 {quant.predictions.totalGoals?.odds && (
-                                  <span className="font-mono text-[10px] text-amber-300">@{quant.predictions.totalGoals.odds}</span>
+                                  <span className="font-mono text-amber-300 font-bold">@{quant.predictions.totalGoals.odds}</span>
                                 )}
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-slate-300">模型胜率: <strong className="text-emerald-300 font-mono">{quant.predictions.totalGoals?.modelProbability ?? ext.overUnder.fullTime.confidence}%</strong></span>
+                              <span className="text-slate-300">胜率: <strong className="text-emerald-300 font-mono">{quant.predictions.totalGoals?.modelProbability ?? ext.overUnder.fullTime.confidence}%</strong></span>
                               {quant.predictions.totalGoals && (
-                                <span className={`font-mono text-[9px] px-1 rounded ${quant.predictions.totalGoals.expectedValue > 0 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'}`}>
+                                <span className={`font-mono text-[9px] px-1 py-0.2 rounded font-semibold ${quant.predictions.totalGoals.expectedValue > 0 ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/40' : 'bg-slate-800 text-slate-300 border border-slate-700'}`}>
                                   EV {quant.predictions.totalGoals.expectedValue > 0 ? `+${quant.predictions.totalGoals.expectedValue}%` : `${quant.predictions.totalGoals.expectedValue}%`}
                                 </span>
                               )}
                             </div>
-                            <p className="text-[9px] text-slate-400 leading-tight line-clamp-2">
+                            <p className="text-[10px] text-slate-300 leading-snug line-clamp-2">
                               {quant.predictions.totalGoals?.quantReason || ext.overUnder.fullTime.reason}
                             </p>
                           </div>
@@ -2519,50 +2519,50 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                         </div>
 
                         {/* 2. Half Time Over/Under */}
-                        <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 space-y-2 flex flex-col justify-between">
-                          <div className="flex items-center justify-between text-[11px] font-bold text-sky-300 border-b border-slate-800/60 pb-1">
+                        <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 space-y-1.5 flex flex-col justify-between shadow-sm">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-sky-300 border-b border-slate-800/80 pb-1">
                             <span className="flex items-center gap-1">⏱️ 半场大小球</span>
                           </div>
 
                           {/* 1. 真实盘口与市场去水隐含概率 */}
-                          <div className="bg-slate-900/60 p-1.5 rounded border border-slate-800/80 space-y-0.5">
-                            <div className="flex items-center justify-between text-[10px] text-slate-400">
-                              <span>① 真实盘口:</span>
-                              <span className="font-mono text-amber-300 font-bold flex items-center gap-1">
+                          <div className="bg-slate-900/90 p-1.5 rounded border border-slate-800 space-y-0.5">
+                            <div className="flex items-center justify-between text-[10px] text-slate-300">
+                              <span className="font-semibold text-slate-400">① 真实盘口:</span>
+                              <span className="font-mono text-amber-300 font-bold text-[11px] flex items-center gap-1">
                                 <span>{ext.overUnder.halfTime.line || '--'}</span>
                                 {ext.overUnder.halfTime.odds && (
-                                  <span className="font-mono text-[10px] text-amber-400">@{ext.overUnder.halfTime.odds}</span>
+                                  <span className="font-mono text-amber-400 font-bold">@{ext.overUnder.halfTime.odds}</span>
                                 )}
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-slate-400">市场去水隐含:</span>
+                              <span className="text-slate-400">去水隐含概率:</span>
                               <span className="text-sky-400 font-mono font-bold">{ext.overUnder.halfTime.confidence}%</span>
                             </div>
                           </div>
 
                           {/* 2. 机器物理量化推演 */}
-                          <div className="bg-sky-950/30 p-1.5 rounded border border-sky-800/50 space-y-1">
+                          <div className="bg-sky-950/30 p-1.5 rounded border border-sky-800/40 space-y-0.5">
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-sky-300 font-bold flex items-center gap-1">
+                              <span className="text-sky-300 font-bold flex items-center gap-0.5">
                                 🖥️ 机器量化:
                               </span>
-                              <span className="text-sky-400 font-bold flex items-center gap-1">
+                              <span className="text-sky-300 font-bold text-[10px] flex items-center gap-1">
                                 <span>{quant.predictions.halfTotalGoals?.predictedSelection || ext.overUnder.halfTime.value}</span>
                                 {quant.predictions.halfTotalGoals?.odds && (
-                                  <span className="font-mono text-[10px] text-amber-300">@{quant.predictions.halfTotalGoals.odds}</span>
+                                  <span className="font-mono text-amber-300 font-bold">@{quant.predictions.halfTotalGoals.odds}</span>
                                 )}
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-slate-300">模型胜率: <strong className="text-sky-300 font-mono">{quant.predictions.halfTotalGoals?.modelProbability ?? ext.overUnder.halfTime.confidence}%</strong></span>
+                              <span className="text-slate-300">胜率: <strong className="text-sky-300 font-mono">{quant.predictions.halfTotalGoals?.modelProbability ?? ext.overUnder.halfTime.confidence}%</strong></span>
                               {quant.predictions.halfTotalGoals && (
-                                <span className={`font-mono text-[9px] px-1 rounded ${quant.predictions.halfTotalGoals.expectedValue > 0 ? 'bg-sky-500/20 text-sky-300' : 'bg-slate-800 text-slate-400'}`}>
+                                <span className={`font-mono text-[9px] px-1 py-0.2 rounded font-semibold ${quant.predictions.halfTotalGoals.expectedValue > 0 ? 'bg-sky-500/25 text-sky-300 border border-sky-500/40' : 'bg-slate-800 text-slate-300 border border-slate-700'}`}>
                                   EV {quant.predictions.halfTotalGoals.expectedValue > 0 ? `+${quant.predictions.halfTotalGoals.expectedValue}%` : `${quant.predictions.halfTotalGoals.expectedValue}%`}
                                 </span>
                               )}
                             </div>
-                            <p className="text-[9px] text-slate-400 leading-tight line-clamp-2">
+                            <p className="text-[10px] text-slate-300 leading-snug line-clamp-2">
                               {quant.predictions.halfTotalGoals?.quantReason || ext.overUnder.halfTime.reason}
                             </p>
                           </div>
@@ -2572,50 +2572,50 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                         </div>
 
                         {/* 3. Full Time Handicap */}
-                        <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 space-y-2 flex flex-col justify-between">
-                          <div className="flex items-center justify-between text-[11px] font-bold text-amber-300 border-b border-slate-800/60 pb-1">
+                        <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 space-y-1.5 flex flex-col justify-between shadow-sm">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-amber-300 border-b border-slate-800/80 pb-1">
                             <span className="flex items-center gap-1">🚩 全场让球</span>
                           </div>
 
                           {/* 1. 真实盘口与市场去水隐含概率 */}
-                          <div className="bg-slate-900/60 p-1.5 rounded border border-slate-800/80 space-y-0.5">
-                            <div className="flex items-center justify-between text-[10px] text-slate-400">
-                              <span>① 真实盘口:</span>
-                              <span className="font-mono text-emerald-400 font-bold flex items-center gap-1">
+                          <div className="bg-slate-900/90 p-1.5 rounded border border-slate-800 space-y-0.5">
+                            <div className="flex items-center justify-between text-[10px] text-slate-300">
+                              <span className="font-semibold text-slate-400">① 真实盘口:</span>
+                              <span className="font-mono text-emerald-300 font-bold text-[11px] flex items-center gap-1">
                                 <span>{ext.handicap.fullTime.line || '--'}</span>
                                 {ext.handicap.fullTime.odds && (
-                                  <span className="font-mono text-[10px] text-emerald-300">@{ext.handicap.fullTime.odds}</span>
+                                  <span className="font-mono text-emerald-400 font-bold">@{ext.handicap.fullTime.odds}</span>
                                 )}
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-slate-400">市场去水隐含:</span>
+                              <span className="text-slate-400">去水隐含概率:</span>
                               <span className="text-amber-400 font-mono font-bold">{ext.handicap.fullTime.confidence}%</span>
                             </div>
                           </div>
 
                           {/* 2. 机器物理量化推演 */}
-                          <div className="bg-amber-950/30 p-1.5 rounded border border-amber-800/50 space-y-1">
+                          <div className="bg-amber-950/30 p-1.5 rounded border border-amber-800/40 space-y-0.5">
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-amber-300 font-bold flex items-center gap-1">
+                              <span className="text-amber-300 font-bold flex items-center gap-0.5">
                                 🖥️ 机器量化:
                               </span>
-                              <span className="text-amber-400 font-bold flex items-center gap-1">
+                              <span className="text-amber-300 font-bold text-[10px] flex items-center gap-1">
                                 <span>{quant.predictions.asianHandicap?.predictedSelection || ext.handicap.fullTime.value}</span>
                                 {quant.predictions.asianHandicap?.odds && (
-                                  <span className="font-mono text-[10px] text-emerald-300">@{quant.predictions.asianHandicap.odds}</span>
+                                  <span className="font-mono text-emerald-300 font-bold">@{quant.predictions.asianHandicap.odds}</span>
                                 )}
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-slate-300">模型胜率: <strong className="text-amber-300 font-mono">{quant.predictions.asianHandicap?.modelProbability ?? ext.handicap.fullTime.confidence}%</strong></span>
+                              <span className="text-slate-300">胜率: <strong className="text-amber-300 font-mono">{quant.predictions.asianHandicap?.modelProbability ?? ext.handicap.fullTime.confidence}%</strong></span>
                               {quant.predictions.asianHandicap && (
-                                <span className={`font-mono text-[9px] px-1 rounded ${quant.predictions.asianHandicap.expectedValue > 0 ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-800 text-slate-400'}`}>
+                                <span className={`font-mono text-[9px] px-1 py-0.2 rounded font-semibold ${quant.predictions.asianHandicap.expectedValue > 0 ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40' : 'bg-slate-800 text-slate-300 border border-slate-700'}`}>
                                   EV {quant.predictions.asianHandicap.expectedValue > 0 ? `+${quant.predictions.asianHandicap.expectedValue}%` : `${quant.predictions.asianHandicap.expectedValue}%`}
                                 </span>
                               )}
                             </div>
-                            <p className="text-[9px] text-slate-400 leading-tight line-clamp-2">
+                            <p className="text-[10px] text-slate-300 leading-snug line-clamp-2">
                               {quant.predictions.asianHandicap?.quantReason || ext.handicap.fullTime.reason}
                             </p>
                           </div>
@@ -2625,50 +2625,50 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                         </div>
 
                         {/* 4. Half Time Handicap */}
-                        <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 space-y-2 flex flex-col justify-between">
-                          <div className="flex items-center justify-between text-[11px] font-bold text-purple-300 border-b border-slate-800/60 pb-1">
+                        <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 space-y-1.5 flex flex-col justify-between shadow-sm">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-purple-300 border-b border-slate-800/80 pb-1">
                             <span className="flex items-center gap-1">⏱️ 半场让球</span>
                           </div>
 
                           {/* 1. 真实盘口与市场去水隐含概率 */}
-                          <div className="bg-slate-900/60 p-1.5 rounded border border-slate-800/80 space-y-0.5">
-                            <div className="flex items-center justify-between text-[10px] text-slate-400">
-                              <span>① 真实盘口:</span>
-                              <span className="font-mono text-emerald-400 font-bold flex items-center gap-1">
+                          <div className="bg-slate-900/90 p-1.5 rounded border border-slate-800 space-y-0.5">
+                            <div className="flex items-center justify-between text-[10px] text-slate-300">
+                              <span className="font-semibold text-slate-400">① 真实盘口:</span>
+                              <span className="font-mono text-emerald-300 font-bold text-[11px] flex items-center gap-1">
                                 <span>{ext.handicap.halfTime.line || '--'}</span>
                                 {ext.handicap.halfTime.odds && (
-                                  <span className="font-mono text-[10px] text-emerald-300">@{ext.handicap.halfTime.odds}</span>
+                                  <span className="font-mono text-emerald-400 font-bold">@{ext.handicap.halfTime.odds}</span>
                                 )}
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-slate-400">市场去水隐含:</span>
+                              <span className="text-slate-400">去水隐含概率:</span>
                               <span className="text-purple-400 font-mono font-bold">{ext.handicap.halfTime.confidence}%</span>
                             </div>
                           </div>
 
                           {/* 2. 机器物理量化推演 */}
-                          <div className="bg-purple-950/30 p-1.5 rounded border border-purple-800/50 space-y-1">
+                          <div className="bg-purple-950/30 p-1.5 rounded border border-purple-800/40 space-y-0.5">
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-purple-300 font-bold flex items-center gap-1">
+                              <span className="text-purple-300 font-bold flex items-center gap-0.5">
                                 🖥️ 机器量化:
                               </span>
-                              <span className="text-purple-400 font-bold flex items-center gap-1">
+                              <span className="text-purple-300 font-bold text-[10px] flex items-center gap-1">
                                 <span>{quant.predictions.halfAsianHandicap?.predictedSelection || ext.handicap.halfTime.value}</span>
                                 {quant.predictions.halfAsianHandicap?.odds && (
-                                  <span className="font-mono text-[10px] text-emerald-300">@{quant.predictions.halfAsianHandicap.odds}</span>
+                                  <span className="font-mono text-emerald-300 font-bold">@{quant.predictions.halfAsianHandicap.odds}</span>
                                 )}
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-slate-300">模型胜率: <strong className="text-purple-300 font-mono">{quant.predictions.halfAsianHandicap?.modelProbability ?? ext.handicap.halfTime.confidence}%</strong></span>
+                              <span className="text-slate-300">胜率: <strong className="text-purple-300 font-mono">{quant.predictions.halfAsianHandicap?.modelProbability ?? ext.handicap.halfTime.confidence}%</strong></span>
                               {quant.predictions.halfAsianHandicap && (
-                                <span className={`font-mono text-[9px] px-1 rounded ${quant.predictions.halfAsianHandicap.expectedValue > 0 ? 'bg-purple-500/20 text-purple-300' : 'bg-slate-800 text-slate-400'}`}>
+                                <span className={`font-mono text-[9px] px-1 py-0.2 rounded font-semibold ${quant.predictions.halfAsianHandicap.expectedValue > 0 ? 'bg-purple-500/25 text-purple-300 border border-purple-500/40' : 'bg-slate-800 text-slate-300 border border-slate-700'}`}>
                                   EV {quant.predictions.halfAsianHandicap.expectedValue > 0 ? `+${quant.predictions.halfAsianHandicap.expectedValue}%` : `${quant.predictions.halfAsianHandicap.expectedValue}%`}
                                 </span>
                               )}
                             </div>
-                            <p className="text-[9px] text-slate-400 leading-tight line-clamp-2">
+                            <p className="text-[10px] text-slate-300 leading-snug line-clamp-2">
                               {quant.predictions.halfAsianHandicap?.quantReason || ext.handicap.halfTime.reason}
                             </p>
                           </div>
@@ -2678,50 +2678,50 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                         </div>
 
                         {/* 5. 1X2 Match Winner */}
-                        <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 space-y-2 flex flex-col justify-between">
-                          <div className="flex items-center justify-between text-[11px] font-bold text-indigo-300 border-b border-slate-800/60 pb-1">
+                        <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 space-y-1.5 flex flex-col justify-between shadow-sm">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-indigo-300 border-b border-slate-800/80 pb-1">
                             <span className="flex items-center gap-1">🏆 全场独赢 (1X2)</span>
                           </div>
 
                           {/* 1. 真实盘口与市场去水隐含概率 */}
-                          <div className="bg-slate-900/60 p-1.5 rounded border border-slate-800/80 space-y-0.5">
-                            <div className="flex items-center justify-between text-[10px] text-slate-400">
-                              <span>① 真实盘口:</span>
-                              <span className="font-mono text-indigo-300 font-bold flex items-center gap-1">
+                          <div className="bg-slate-900/90 p-1.5 rounded border border-slate-800 space-y-0.5">
+                            <div className="flex items-center justify-between text-[10px] text-slate-300">
+                              <span className="font-semibold text-slate-400">① 真实盘口:</span>
+                              <span className="font-mono text-indigo-300 font-bold text-[11px] flex items-center gap-1">
                                 <span>{ext.match1X2.value || '--'}</span>
                                 {ext.match1X2.odds && (
-                                  <span className="font-mono text-[10px] text-indigo-400">@{ext.match1X2.odds}</span>
+                                  <span className="font-mono text-indigo-400 font-bold">@{ext.match1X2.odds}</span>
                                 )}
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-slate-400">市场去水隐含:</span>
+                              <span className="text-slate-400">去水隐含概率:</span>
                               <span className="text-indigo-400 font-mono font-bold">{ext.match1X2.probability}%</span>
                             </div>
                           </div>
 
                           {/* 2. 机器物理量化推演 */}
-                          <div className="bg-indigo-950/30 p-1.5 rounded border border-indigo-800/50 space-y-1">
+                          <div className="bg-indigo-950/30 p-1.5 rounded border border-indigo-800/40 space-y-0.5">
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-indigo-300 font-bold flex items-center gap-1">
+                              <span className="text-indigo-300 font-bold flex items-center gap-0.5">
                                 🖥️ 机器量化:
                               </span>
-                              <span className="text-indigo-400 font-bold flex items-center gap-1">
+                              <span className="text-indigo-300 font-bold text-[10px] flex items-center gap-1">
                                 <span>{quant.predictions.matchWinner?.predictedSelection || ext.match1X2.value}</span>
                                 {quant.predictions.matchWinner?.odds && (
-                                  <span className="font-mono text-[10px] text-emerald-300">@{quant.predictions.matchWinner.odds}</span>
+                                  <span className="font-mono text-emerald-300 font-bold">@{quant.predictions.matchWinner.odds}</span>
                                 )}
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-slate-300">模型胜率: <strong className="text-indigo-300 font-mono">{quant.predictions.matchWinner?.modelProbability ?? ext.match1X2.probability}%</strong></span>
+                              <span className="text-slate-300">胜率: <strong className="text-indigo-300 font-mono">{quant.predictions.matchWinner?.modelProbability ?? ext.match1X2.probability}%</strong></span>
                               {quant.predictions.matchWinner && (
-                                <span className={`font-mono text-[9px] px-1 rounded ${quant.predictions.matchWinner.expectedValue > 0 ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-800 text-slate-400'}`}>
+                                <span className={`font-mono text-[9px] px-1 py-0.2 rounded font-semibold ${quant.predictions.matchWinner.expectedValue > 0 ? 'bg-indigo-500/25 text-indigo-300 border border-indigo-500/40' : 'bg-slate-800 text-slate-300 border border-slate-700'}`}>
                                   EV {quant.predictions.matchWinner.expectedValue > 0 ? `+${quant.predictions.matchWinner.expectedValue}%` : `${quant.predictions.matchWinner.expectedValue}%`}
                                 </span>
                               )}
                             </div>
-                            <p className="text-[9px] text-slate-400 leading-tight line-clamp-2">
+                            <p className="text-[10px] text-slate-300 leading-snug line-clamp-2">
                               {quant.predictions.matchWinner?.quantReason || ext.match1X2.reason}
                             </p>
                           </div>
@@ -2735,46 +2735,46 @@ export const BettingRecommendationsView: React.FC<Props> = ({
 
                   {/* 1. Correct Score (波胆) & BTTS & Odd/Even Grid */}
                   {(marketViewTab === 'ALL_MARKETS' || marketViewTab === 'GOAL_PREDICTIONS') && (
-                    <div className="space-y-3 text-xs">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-2.5 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         {[
                           { label: '主队进球预测', category: '主队进球数', value: ext.goalProjection.homeMostLikely, alternative: ext.goalProjection.homeAlternative, confidence: ext.goalProjection.homeConfidence },
                           { label: '客队进球预测', category: '客队进球数', value: ext.goalProjection.awayMostLikely, alternative: ext.goalProjection.awayAlternative, confidence: ext.goalProjection.awayConfidence },
                           { label: '总进球预测', category: '总进球数', value: ext.goalProjection.totalMostLikely, alternative: ext.goalProjection.totalAlternative, confidence: ext.goalProjection.totalConfidence },
                         ].map((projection) => (
-                          <div key={projection.label} className="rounded-lg border border-slate-800 bg-slate-950/80 p-3">
-                            <div className="text-[11px] text-slate-400">{projection.label}</div>
-                            <div className="mt-1 flex items-end justify-between">
-                              <span className="text-xl font-bold font-mono text-slate-100">{projection.value === null ? '数据不足' : `首选 ${projection.value} 球`}</span>
-                              <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+                          <div key={projection.label} className="rounded-lg border border-slate-800 bg-slate-950 p-2.5 shadow-sm space-y-1">
+                            <div className="text-[11px] font-semibold text-slate-300">{projection.label}</div>
+                            <div className="mt-0.5 flex items-end justify-between">
+                              <span className="text-base font-bold font-mono text-slate-100">{projection.value === null ? '数据不足' : `首选 ${projection.value} 球`}</span>
+                              <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-200 border border-slate-700">
                                 次选 {projection.alternative ?? '无'}{projection.alternative !== null ? ' 球' : ''}
                               </span>
                             </div>
-                            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
-                              <div className="h-full rounded-full bg-emerald-500" style={{ width: `${projection.confidence}%` }} />
+                            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                              <div className="h-full rounded-full bg-emerald-400" style={{ width: `${projection.confidence}%` }} />
                             </div>
-                            <div className="mt-1 text-[10px] text-slate-500">预测集中度：{projection.confidence}%</div>
+                            <div className="mt-0.5 text-[10px] text-slate-400 font-mono">预测集中度：{projection.confidence}%</div>
                             {renderAiInline(projection.category)}
                           </div>
                         ))}
                       </div>
-                      <div className="text-[10px] text-slate-500">{ext.goalProjection.basis}</div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="text-[10px] text-slate-400 bg-slate-950 px-2.5 py-1 rounded border border-slate-800">{ext.goalProjection.basis}</div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                       {/* Correct Score Panel */}
-                      <div className="bg-slate-900/90 p-3 rounded-lg border border-slate-800 space-y-2">
-                        <div className="font-semibold text-emerald-400 flex items-center justify-between text-[11px]">
+                      <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 space-y-1.5 shadow-sm">
+                        <div className="font-semibold text-emerald-300 flex items-center justify-between text-xs">
                           <span className="flex items-center gap-1">
-                            <Target className="w-3.5 h-3.5" /> 🎯 波胆模型精选 (Correct Score)
+                            <Target className="w-3.5 h-3.5 text-emerald-400" /> 🎯 波胆精选 (Correct Score)
                           </span>
-                          <span className="text-[10px] text-slate-500">高回报娱乐盘</span>
+                          <span className="text-[10px] text-slate-400">高回报娱乐盘</span>
                         </div>
                         <div className="grid grid-cols-2 gap-1.5">
                           {ext.correctScores.map((cs, cIdx) => (
-                            <div key={cIdx} className="bg-slate-950/80 p-1.5 rounded border border-slate-800 flex items-center justify-between text-[11px] font-mono">
-                              <span className="font-bold text-amber-300">{cs.score}</span>
+                            <div key={cIdx} className="bg-slate-950 p-1.5 rounded border border-slate-800 flex items-center justify-between text-[11px] font-mono">
+                              <span className="font-bold text-amber-300 text-xs">{cs.score}</span>
                               <div className="text-right">
-                                <span className="text-emerald-400 font-bold">{cs.odds ? `@${cs.odds}` : '无赔率'}</span>
-                                <span className="text-[9px] text-slate-500 block">({cs.probPercent}%)</span>
+                                <span className="text-emerald-300 font-bold block text-[11px]">{cs.odds ? `@${cs.odds}` : '无赔率'}</span>
+                                <span className="text-[10px] text-slate-400 font-medium">({cs.probPercent}%)</span>
                               </div>
                             </div>
                           ))}
@@ -2783,21 +2783,21 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                       </div>
 
                       {/* Both Teams To Score (BTTS) Panel */}
-                      <div className="bg-slate-900/90 p-3 rounded-lg border border-slate-800 space-y-2">
-                        <div className="font-semibold text-sky-400 flex items-center justify-between text-[11px]">
+                      <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 space-y-1.5 shadow-sm">
+                        <div className="font-semibold text-sky-300 flex items-center justify-between text-xs">
                           <span className="flex items-center gap-1">
-                            <Crosshair className="w-3.5 h-3.5" /> 🔄 双方均有进球 (BTTS)
+                            <Crosshair className="w-3.5 h-3.5 text-sky-400" /> 🔄 双方均有进球 (BTTS)
                           </span>
-                          <span className="font-mono font-bold text-sky-300">{ext.btts.odds ? `@${ext.btts.odds}` : '无真实赔率'}</span>
+                          <span className="font-mono font-bold text-sky-300 text-xs">{ext.btts.odds ? `@${ext.btts.odds}` : '无真实赔率'}</span>
                         </div>
-                        <div className="bg-slate-950/80 p-2 rounded border border-slate-800 text-[11px] space-y-1">
-                          <div className="flex items-center justify-between font-bold text-slate-200">
+                        <div className="bg-slate-950 p-2 rounded border border-slate-800 text-xs space-y-1">
+                          <div className="flex items-center justify-between font-bold text-slate-100 text-[11px]">
                             <span>推荐方向:</span>
-                            <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                            <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-200 border border-sky-500/30">
                               双方进球 - {ext.btts.value}
                             </span>
                           </div>
-                          <p className="text-[10px] text-slate-400 leading-tight">
+                          <p className="text-[10px] text-slate-300 leading-snug">
                             {ext.btts.reason}
                           </p>
                         </div>
@@ -2805,21 +2805,21 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                       </div>
 
                       {/* Odd / Even Goals Panel */}
-                      <div className="bg-slate-900/90 p-3 rounded-lg border border-slate-800 space-y-2">
-                        <div className="font-semibold text-purple-400 flex items-center justify-between text-[11px]">
+                      <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 space-y-1.5 shadow-sm">
+                        <div className="font-semibold text-purple-300 flex items-center justify-between text-xs">
                           <span className="flex items-center gap-1">
-                            <Divide className="w-3.5 h-3.5" /> 🔢 进球单双 (Odd/Even)
+                            <Divide className="w-3.5 h-3.5 text-purple-400" /> 🔢 进球单双 (Odd/Even)
                           </span>
-                          <span className="font-mono font-bold text-purple-300">{ext.oddEven.odds ? `@${ext.oddEven.odds}` : '无真实赔率'}</span>
+                          <span className="font-mono font-bold text-purple-300 text-xs">{ext.oddEven.odds ? `@${ext.oddEven.odds}` : '无真实赔率'}</span>
                         </div>
-                        <div className="bg-slate-950/80 p-2 rounded border border-slate-800 text-[11px] space-y-1">
-                          <div className="flex items-center justify-between font-bold text-slate-200">
+                        <div className="bg-slate-950 p-2 rounded border border-slate-800 text-xs space-y-1">
+                          <div className="flex items-center justify-between font-bold text-slate-100 text-[11px]">
                             <span>推荐方向:</span>
-                            <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                            <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-200 border border-purple-500/30">
                               总进球 - {ext.oddEven.value}
                             </span>
                           </div>
-                          <p className="text-[10px] text-slate-400 leading-tight">
+                          <p className="text-[10px] text-slate-300 leading-snug">
                             {ext.oddEven.reason}
                           </p>
                         </div>
@@ -2831,32 +2831,32 @@ export const BettingRecommendationsView: React.FC<Props> = ({
 
                   {/* 2. Time Interval Betting (时间区间投注 0-15min, 16-30min, 31-45min, 46-60min, 61-75min, 76-90min) */}
                   {(marketViewTab === 'ALL_MARKETS' || marketViewTab === 'INTERVALS') && (
-                    <div className="bg-slate-900/90 p-3 rounded-lg border border-slate-800 space-y-2">
-                      <div className="font-semibold text-amber-400 flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                    <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 space-y-2 shadow-sm">
+                      <div className="font-semibold text-amber-300 flex flex-wrap items-center justify-between gap-1 text-xs">
                         <span className="flex items-center gap-1">
-                          <Clock3 className="w-3.5 h-3.5" /> ⏱️ 时间区间进球预测 (0-15min, 16-30min, 31-45min, 46-60min, 61-75min, 76-90min)
+                          <Clock3 className="w-3.5 h-3.5 text-amber-400" /> ⏱️ 时间区间进球预测 (0-15, 16-30, 31-45, 46-60, 61-75, 76-90)
                         </span>
-                        <span className="text-[10px] text-slate-500">基于分段体能与攻防热度分布</span>
+                        <span className="text-[10px] text-slate-400">基于分段体能与攻防热度分布</span>
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-[11px]">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1.5 text-xs">
                         {ext.timeIntervals.length === 0 && (
-                          <div className="col-span-full rounded border border-slate-800 bg-slate-950/80 p-3 text-center text-slate-400">
+                          <div className="col-span-full rounded border border-slate-800 bg-slate-950 p-2.5 text-center text-slate-300 text-[11px]">
                             雷速未提供可核验的分时进球分布，当前不生成固定时间段预测或虚构赔率。
                           </div>
                         )}
                         {ext.timeIntervals.map((ti, tIdx) => (
-                          <div key={tIdx} className="bg-slate-950/80 p-2 rounded border border-slate-800/80 space-y-1 text-center font-mono">
-                            <div className="text-[10px] font-bold text-slate-300">{ti.interval}</div>
+                          <div key={tIdx} className="bg-slate-950 p-2 rounded border border-slate-800 space-y-1 text-center font-mono">
+                            <div className="text-[10px] font-bold text-slate-200">{ti.interval}</div>
                             <div className={`text-[10px] font-bold py-0.5 rounded ${
                               ti.recommendation.includes('有球') || ti.recommendation.includes('强烈')
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                : 'bg-slate-800 text-slate-400'
+                                ? 'bg-amber-500/20 text-amber-200 border border-amber-500/30'
+                                : 'bg-slate-800 text-slate-300 border border-slate-700'
                             }`}>
                               {ti.recommendation}
                             </div>
-                            <div className="text-[9px] text-slate-500 flex justify-between px-1">
+                            <div className="text-[10px] text-slate-300 flex justify-between px-0.5 pt-0.5">
                               <span>信心: {ti.confidence}%</span>
-                              <span className="text-amber-400 font-bold">{ti.odds ? `@${ti.odds}` : '无赔率'}</span>
+                              <span className="text-amber-300 font-bold">{ti.odds ? `@${ti.odds}` : '无赔率'}</span>
                             </div>
                           </div>
                         ))}

@@ -1,3 +1,5 @@
+import type { UnifiedMatchStats } from '../../src/types';
+
 type JsonRecord = Record<string, any>;
 
 const object = (value: unknown): JsonRecord =>
@@ -12,6 +14,18 @@ const rate = (numerator: number, denominator: number): number | null =>
   denominator > 0 ? Number((numerator / denominator).toFixed(4)) : null;
 
 /**
+ * 提取统一数据契约中的单侧数值 (严格遵循 UnifiedMatchStats: { field: { home, away } })
+ */
+function getStatValue(stats: any, field: keyof UnifiedMatchStats, side: 'home' | 'away'): number {
+  if (!stats) return 0;
+  const statObj = stats[field];
+  if (statObj && typeof statObj === 'object') {
+    return number(statObj[side]);
+  }
+  return 0;
+}
+
+/**
  * 1. Attack Efficiency & Dangerous Attack Conversion Matrix
  */
 export function calculateAttackConversion(statistics: unknown, score?: unknown): JsonRecord | null {
@@ -19,26 +33,14 @@ export function calculateAttackConversion(statistics: unknown, score?: unknown):
   if (Object.keys(stats).length === 0) return null;
 
   const currentScore = object(score);
-  const getSideVal = (field: string, side: 'home' | 'away') => {
-    const val = stats[field];
-    if (val && typeof val === 'object') {
-      const v = side === 'home' ? (val.home ?? val.h) : (val.away ?? val.a);
-      return number(v);
-    }
-    return 0;
-  };
+  const dangerH = getStatValue(stats, 'dangerous_attacks', 'home');
+  const dangerA = getStatValue(stats, 'dangerous_attacks', 'away');
 
-  const dangerH = getSideVal('dangerous_attacks', 'home') || getSideVal('danger_attacks', 'home');
-  const dangerA = getSideVal('dangerous_attacks', 'away') || getSideVal('danger_attacks', 'away');
+  const onTargetH = getStatValue(stats, 'shots_on_target', 'home');
+  const onTargetA = getStatValue(stats, 'shots_on_target', 'away');
 
-  const onTargetH = getSideVal('shots_on_target', 'home') || getSideVal('on_target', 'home');
-  const onTargetA = getSideVal('shots_on_target', 'away') || getSideVal('on_target', 'away');
-
-  const offTargetH = getSideVal('shots_off_target', 'home') || getSideVal('off_target', 'home');
-  const offTargetA = getSideVal('shots_off_target', 'away') || getSideVal('off_target', 'away');
-
-  const shotsH = getSideVal('shots', 'home') || getSideVal('total_shots', 'home') || (onTargetH + offTargetH);
-  const shotsA = getSideVal('shots', 'away') || getSideVal('total_shots', 'away') || (onTargetA + offTargetA);
+  const shotsH = getStatValue(stats, 'shots', 'home');
+  const shotsA = getStatValue(stats, 'shots', 'away');
 
   const goalH = number(currentScore.home);
   const goalA = number(currentScore.away);
@@ -107,19 +109,10 @@ export function calculateHandicapExpectancyMetrics(
   const currentMin = Math.max(0, Math.min(90, number(minute)));
   const remainingMins = Math.max(5, 90 - currentMin);
 
-  const getSideVal = (field: string, side: 'home' | 'away') => {
-    const val = stats[field];
-    if (val && typeof val === 'object') {
-      const v = side === 'home' ? (val.home ?? val.h) : (val.away ?? val.a);
-      return number(v);
-    }
-    return 0;
-  };
-
-  const onTargetH = getSideVal('shots_on_target', 'home') || getSideVal('on_target', 'home');
-  const onTargetA = getSideVal('shots_on_target', 'away') || getSideVal('on_target', 'away');
-  const dangerH = getSideVal('dangerous_attacks', 'home') || getSideVal('danger_attacks', 'home');
-  const dangerA = getSideVal('dangerous_attacks', 'away') || getSideVal('danger_attacks', 'away');
+  const onTargetH = getStatValue(stats, 'shots_on_target', 'home');
+  const onTargetA = getStatValue(stats, 'shots_on_target', 'away');
+  const dangerH = getStatValue(stats, 'dangerous_attacks', 'home');
+  const dangerA = getStatValue(stats, 'dangerous_attacks', 'away');
   const goalH = number(currentScore.home);
   const goalA = number(currentScore.away);
   const scoreDiff = goalH - goalA; // Home lead > 0, Away lead < 0
@@ -266,27 +259,16 @@ export function calculatePurePhysicalMatchModel(
   const currentMin = Math.max(0, Math.min(90, number(minute)));
   const remainingMins = Math.max(5, 90 - currentMin);
 
-  const getSideVal = (field: string, side: 'home' | 'away') => {
-    const val = stats[field];
-    if (val && typeof val === 'object') {
-      const v = side === 'home' ? (val.home ?? val.h) : (val.away ?? val.a);
-      return number(v);
-    }
-    return 0;
-  };
-
-  const onTargetH = getSideVal('shots_on_target', 'home') || getSideVal('on_target', 'home');
-  const onTargetA = getSideVal('shots_on_target', 'away') || getSideVal('on_target', 'away');
-  const dangerH = getSideVal('dangerous_attacks', 'home') || getSideVal('danger_attacks', 'home');
-  const dangerA = getSideVal('dangerous_attacks', 'away') || getSideVal('danger_attacks', 'away');
-  const offTargetH = getSideVal('shots_off_target', 'home') || getSideVal('off_target', 'home');
-  const offTargetA = getSideVal('shots_off_target', 'away') || getSideVal('off_target', 'away');
-  const shotsH = onTargetH + offTargetH;
-  const shotsA = onTargetA + offTargetA;
-  const cornersH = getSideVal('corners', 'home');
-  const cornersA = getSideVal('corners', 'away');
-  const yellowH = getSideVal('yellow_cards', 'home') || getSideVal('yellows', 'home');
-  const yellowA = getSideVal('yellow_cards', 'away') || getSideVal('yellows', 'away');
+  const onTargetH = getStatValue(stats, 'shots_on_target', 'home');
+  const onTargetA = getStatValue(stats, 'shots_on_target', 'away');
+  const dangerH = getStatValue(stats, 'dangerous_attacks', 'home');
+  const dangerA = getStatValue(stats, 'dangerous_attacks', 'away');
+  const shotsH = getStatValue(stats, 'shots', 'home');
+  const shotsA = getStatValue(stats, 'shots', 'away');
+  const cornersH = getStatValue(stats, 'corners', 'home');
+  const cornersA = getStatValue(stats, 'corners', 'away');
+  const yellowH = getStatValue(stats, 'yellow_cards', 'home');
+  const yellowA = getStatValue(stats, 'yellow_cards', 'away');
 
   const goalH = number(currentScore.home);
   const goalA = number(currentScore.away);
@@ -296,15 +278,17 @@ export function calculatePurePhysicalMatchModel(
   let restLA = 0;
 
   if (currentMin === 0 || (onTargetH === 0 && onTargetA === 0 && dangerH === 0 && dangerA === 0)) {
-    // Pre-match / no live stats: derive purely from form & H2H prior
+    // 滚球开场前或尚未产生滚球统计时：由历史战绩/交锋加权先验期望按剩余时间比例折算
     const priorH = formPrior?.lambda_home_prior || 1.35;
     const priorA = formPrior?.lambda_away_prior || 1.15;
-    restLH = Number(priorH.toFixed(2));
-    restLA = Number(priorA.toFixed(2));
+    const remainingRatio = currentMin === 0 ? 1.0 : Math.max(0.05, (90 - currentMin) / 90);
+    restLH = Number((priorH * remainingRatio).toFixed(2));
+    restLA = Number((priorA * remainingRatio).toFixed(2));
   } else {
     // In-play: Pure physical data-first match physics
-    const rawRateH = (onTargetH * 0.32 + dangerH * 0.038 + cornersH * 0.04) / Math.max(15, currentMin);
-    const rawRateA = (onTargetA * 0.32 + dangerA * 0.038 + cornersA * 0.04) / Math.max(15, currentMin);
+    // Realistic conversion rates: on-target shot conversion ~12-15%, dangerous attack conversion ~1.5-2%, corner conversion ~2.5%
+    const rawRateH = (onTargetH * 0.15 + (shotsH - onTargetH) * 0.03 + dangerH * 0.015 + cornersH * 0.025) / Math.max(15, currentMin);
+    const rawRateA = (onTargetA * 0.15 + (shotsA - onTargetA) * 0.03 + dangerA * 0.015 + cornersA * 0.025) / Math.max(15, currentMin);
 
     let tempoH = 1.0;
     let tempoA = 1.0;
@@ -377,16 +361,23 @@ export function calculatePurePhysicalMatchModel(
       let physicalProb = 50.0;
 
       if (m.market === 'full_h2h') {
-        if (opt.side === 'home' || String(opt.line || '').includes('主')) {
+        const cleanSide = String(opt.side || '').toLowerCase();
+        if (cleanSide === 'home' || cleanSide === '1' || cleanSide === 'h') {
           physicalProb = fullSim.margin_distribution_pct.home_win_by_1 + fullSim.margin_distribution_pct.home_win_by_2 + fullSim.margin_distribution_pct.home_win_by_3_plus;
-        } else if (opt.side === 'draw' || String(opt.line || '').includes('平')) {
+        } else if (cleanSide === 'draw' || cleanSide === 'x' || cleanSide === 'd') {
+          physicalProb = fullSim.margin_distribution_pct.draw_exact;
+        } else if (cleanSide === 'away' || cleanSide === '2' || cleanSide === 'a') {
+          physicalProb = fullSim.margin_distribution_pct.away_win_exact;
+        } else if (String(opt.line || '') === '主' || String(opt.direction || '').includes('主胜')) {
+          physicalProb = fullSim.margin_distribution_pct.home_win_by_1 + fullSim.margin_distribution_pct.home_win_by_2 + fullSim.margin_distribution_pct.home_win_by_3_plus;
+        } else if (String(opt.line || '') === '平' || String(opt.line || '') === '和' || String(opt.direction || '').includes('平局')) {
           physicalProb = fullSim.margin_distribution_pct.draw_exact;
         } else {
           physicalProb = fullSim.margin_distribution_pct.away_win_exact;
         }
       } else if (m.market === 'full_total') {
         const lineNum = parseFloat(String(opt.line || '').replace(/[^\d.]/g, ''));
-        const isOver = opt.side === 'over' || /大/i.test(String(opt.line || ''));
+        const isOver = opt.side === 'over' || /大/i.test(String(opt.line || '')) || /大/i.test(String(opt.direction || ''));
         if (lineNum <= 2.5) {
           physicalProb = isOver ? fullSim.total_goals_distribution_pct.over_2_5 : fullSim.total_goals_distribution_pct.under_2_5;
         } else if (lineNum <= 3.25) {
@@ -396,16 +387,61 @@ export function calculatePurePhysicalMatchModel(
           physicalProb = isOver ? fullSim.total_goals_distribution_pct.over_3_5 : (100 - fullSim.total_goals_distribution_pct.over_3_5);
         }
       } else if (m.market === 'full_spread') {
-        const isHome = opt.side === 'home' || String(opt.line || '').includes('主');
+        const cleanSide = String(opt.side || '').toLowerCase();
+        const isHome = cleanSide === 'home' || cleanSide === '1' || cleanSide === 'h' || String(opt.line || '').startsWith('主');
         const netExpected = fullLH - fullLA;
         if (isHome) {
           physicalProb = netExpected > 0.4 ? 60 : netExpected < -0.4 ? 42 : 50;
         } else {
           physicalProb = netExpected < -0.4 ? 60 : netExpected > 0.4 ? 42 : 50;
         }
+      } else if (m.market === 'half_h2h') {
+        // Half-time 1X2 simulation from half expected goals (0.5 * 90m baseline or current first half state)
+        const halfLH = currentMin >= 45 ? number(currentScore.home) : (currentMin === 0 ? restLH * 0.45 : Math.max(0.1, (restLH * (45 - currentMin) / Math.max(1, 90 - currentMin))));
+        const halfLA = currentMin >= 45 ? number(currentScore.away) : (currentMin === 0 ? restLA * 0.45 : Math.max(0.1, (restLA * (45 - currentMin) / Math.max(1, 90 - currentMin))));
+        const halfSim = computeIndependentPoissonDistribution(halfLH, halfLA);
+        const cleanSide = String(opt.side || '').toLowerCase();
+        if (cleanSide === 'home' || cleanSide === '1' || cleanSide === 'h' || String(opt.line || '') === '主') {
+          physicalProb = halfSim.margin_distribution_pct.home_win_by_1 + halfSim.margin_distribution_pct.home_win_by_2 + halfSim.margin_distribution_pct.home_win_by_3_plus;
+        } else if (cleanSide === 'draw' || cleanSide === 'x' || cleanSide === 'd' || String(opt.line || '') === '平') {
+          physicalProb = halfSim.margin_distribution_pct.draw_exact;
+        } else {
+          physicalProb = halfSim.margin_distribution_pct.away_win_exact;
+        }
+      } else if (m.market === 'half_total') {
+        const halfLH = currentMin >= 45 ? number(currentScore.home) : (currentMin === 0 ? restLH * 0.45 : Math.max(0.1, (restLH * (45 - currentMin) / Math.max(1, 90 - currentMin))));
+        const halfLA = currentMin >= 45 ? number(currentScore.away) : (currentMin === 0 ? restLA * 0.45 : Math.max(0.1, (restLA * (45 - currentMin) / Math.max(1, 90 - currentMin))));
+        const halfSim = computeIndependentPoissonDistribution(halfLH, halfLA);
+        const isOver = opt.side === 'over' || /大/i.test(String(opt.line || '')) || /大/i.test(String(opt.direction || ''));
+        const lineNum = parseFloat(String(opt.line || '').replace(/[^\d.]/g, ''));
+        if (lineNum <= 0.75) {
+          // P(Total >= 1)
+          const pZero = (halfSim.top_scorelines.find(s => s.score === '0-0')?.prob_pct || 40);
+          physicalProb = isOver ? (100 - pZero) : pZero;
+        } else if (lineNum <= 1.25) {
+          // P(Total >= 2)
+          const pUnder2 = (halfSim.top_scorelines.filter(s => {
+            const parts = s.score.split('-').map(Number);
+            return (parts[0] + parts[1]) <= 1;
+          }).reduce((sum, s) => sum + s.prob_pct, 0));
+          physicalProb = isOver ? (100 - pUnder2) : pUnder2;
+        } else {
+          physicalProb = isOver ? 25 : 75;
+        }
+      } else if (m.market === 'half_spread') {
+        const halfLH = currentMin >= 45 ? number(currentScore.home) : (currentMin === 0 ? restLH * 0.45 : Math.max(0.1, (restLH * (45 - currentMin) / Math.max(1, 90 - currentMin))));
+        const halfLA = currentMin >= 45 ? number(currentScore.away) : (currentMin === 0 ? restLA * 0.45 : Math.max(0.1, (restLA * (45 - currentMin) / Math.max(1, 90 - currentMin))));
+        const netHalf = halfLH - halfLA;
+        const cleanSide = String(opt.side || '').toLowerCase();
+        const isHome = cleanSide === 'home' || cleanSide === '1' || cleanSide === 'h' || String(opt.line || '').startsWith('主');
+        if (isHome) {
+          physicalProb = netHalf > 0.2 ? 55 : netHalf < -0.2 ? 45 : 50;
+        } else {
+          physicalProb = netHalf < -0.2 ? 55 : netHalf > 0.2 ? 45 : 50;
+        }
       }
 
-      physicalProb = Number(Math.max(5, Math.min(95, physicalProb)).toFixed(1));
+      physicalProb = Number(Math.max(0.1, Math.min(99.9, physicalProb)).toFixed(1));
       const edge = Number((physicalProb - implied).toFixed(2));
       let verdict: PurePhysicalOptionEdge['discrepancy_verdict'] = 'FAIR_PRICING';
       if (edge >= 6.0) verdict = 'STRONG_VALUE_MISPRICING';

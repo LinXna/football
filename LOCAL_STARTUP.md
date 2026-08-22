@@ -43,10 +43,17 @@ npm install
 在项目根目录创建 `.env`，并写入：
 
 ```dotenv
+# 单 Key 模式
 GEMINI_API_KEY=你的_Gemini_API_Key
+
+# 或 多 Key 自动轮换与速率分流池（英文逗号分隔）
+GEMINI_API_KEYS=key1,key2,key3
+
+# 可选：自定义模型（未设置时默认使用系统最新模型）
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
-`npm run dev` 和 `npm start` 会自动加载 `.env`。不要把真实密钥写入会被 Git 跟踪的 `.env.example`，也不要写入前端源码。
+系统内置了多 Key 轮换、429 自动冷却（Cooldown）与速率门禁（Rate Gate）。`npm run dev` 和 `npm start` 会自动加载 `.env`。不要把真实密钥写入会被 Git 跟踪的 `.env.example`，也不要写入前端源码。
 
 如果不使用 AI 评估功能，可以不设置；滚球、非滚球分析和普通页面仍可使用。
 
@@ -159,8 +166,9 @@ Web 服务会拦截不完整的正式推荐。写入前需要满足：
 安装依赖后可执行：
 
 ```powershell
-npm run lint
-npm run build
+npm run lint       # 代码风格与 TypeScript 类型检查
+npm run test:ts    # TypeScript 单元测试与 API 集成测试
+npm run build      # 生产构建
 ```
 
 Python 回归测试：

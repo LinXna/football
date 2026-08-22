@@ -71,7 +71,7 @@ export function adaptToStandardMatch(raw: any): StandardMatchData {
   }
 
   // 3. 技术统计归一化
-  const statsRaw = raw.unified_stats || raw.live_statistics || raw.confirmed_statistics || raw.detail_context?.formal?.live_match?.confirmed_statistics || {};
+  const statsRaw = raw.unified_stats || raw.live_statistics || raw.live_facts?.stats || raw.liveStats || raw.confirmed_statistics || raw.detail_context?.formal?.live_match?.confirmed_statistics || raw.formal?.live_match?.confirmed_statistics || {};
   const unified_stats: UnifiedMatchStats = {
     possession: {
       home: safeNumber(statsRaw.possession?.home ?? statsRaw.possession_home, 50),

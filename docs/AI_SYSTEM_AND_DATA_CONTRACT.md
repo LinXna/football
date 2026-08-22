@@ -19,15 +19,15 @@
 如果本文与代码冲突，以以下实现为最终依据，并同步修正文档：
 
 - 文件路径：`server/dataFiles.ts`
-- 标准数据契约与清洗转换：`src/types.ts` (`StandardMatchData`)、`src/utils/dataAdapter.ts`
-- 数据导入：`src/components/ExportDataView.tsx`、`src/lib/leisuInterfaceImport.ts`
+- 标准数据契约与清洗转换：`src/types.ts` (`StandardMatchData`)、`src/utils/dataAdapter.ts`、`server/services/canonicalMatchModel.ts`
+- 数据导入：`src/components/ExportDataView.tsx`、`src/lib/leisuInterfaceImport.ts`、`server/routes/batchSupplementRoutes.ts`
 - Python 数据采集与规范化管道：`scripts/python/football_live.py` (`load_leisu_interface_file`)
-- Prompt 构造：`server.ts` 的 `buildPromptData`
-- Gemini 导入：`server/routes/aiReadRoutes.ts`
-- 市场校验：`server/services/verifiedMarketAssessment.ts`
-- 比分校验：`server/services/scoreValidation.ts`
-- 动能与时序增量引擎：`src/lib/snapshotDeltaEngine.ts`
-- 高阶战术量化与泊松先验：`src/lib/advancedTacticalQuantitativeEngines.ts`、`src/lib/formAndH2HDeepMining.ts`
+- Prompt 构造与分片：`server/services/promptInterfaceFeatures.ts`、`server/services/promptChunking.ts`、`server/services/promptSlimPayload.ts`
+- Gemini 评估与导入：`server/services/geminiEvaluationService.ts`、`server/routes/geminiEvaluationRoutes.ts`、`server/routes/aiReadRoutes.ts`
+- 市场校验与白名单对齐：`server/services/verifiedMarketAssessment.ts`、`server/services/marketAssessmentsNormalizer.ts`
+- 比分校验与安全熔断：`server/services/scoreValidation.ts`
+- 动能与时序增量引擎：`src/lib/snapshotDeltaEngine.ts`、`server/services/snapshotDeltaEngine.ts`
+- 高阶战术量化与泊松先验：`server/services/advancedTacticalQuantitativeEngines.ts`、`server/services/formationTacticalEngine.ts`、`server/services/formAndH2HDeepMining.ts`、`src/lib/machineQuantPrediction.ts`
 - 双重共识与四分之一盘口仲裁：`src/lib/consensusArbitration.ts`、`src/lib/quarterSettlement.ts`
 - 实施完成报告与审计详述：`docs/data_audit/06_IMPLEMENTATION_COMPLETION_REPORT.md`
 

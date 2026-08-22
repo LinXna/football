@@ -1880,7 +1880,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
             <ErrorBoundary fallbackRender={() => null}>
               {(() => {
                 const rect = hoveredLeg.anchorRect;
-                const popoverWidth = typeof window !== 'undefined' ? Math.min(880, Math.max(340, window.innerWidth - 32)) : 880;
+                const popoverWidth = typeof window !== 'undefined' ? Math.min(880, Math.max(340, window.innerWidth - 32)) : 840;
                 const popoverHeight = 480;
                 
                 // Try placing below the card

@@ -92,7 +92,7 @@ export function canonicalizeRawMatchData(raw: any): CanonicalMatchData {
   const matchInfo = raw?.match_info || raw || {};
   const livePhysical = raw?.live_match_physical_facts || {};
   const quant = raw?.quantitative_analysis || {};
-  const liveStatsRaw = raw?.unified_stats || raw?.liveStats || raw?.live_facts?.stats || {};
+  const liveStatsRaw = raw?.unified_stats || raw?.live_statistics || raw?.liveStats || raw?.live_facts?.stats || raw?.raw_leisu_formal?.live_match?.confirmed_statistics || raw?.formal?.live_match?.confirmed_statistics || {};
   const incidents = raw?.focused_incidents || livePhysical?.focused_incidents || {};
 
   // 1. Meta (雷速 match_id 作为合并赛事的唯一主键)

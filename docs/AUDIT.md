@@ -1,5 +1,20 @@
 # 复审记录
 
+## 2026-08-22 全系统文档更新与代码库拓扑深度对齐审计
+
+本轮针对系统升级后遗留的文档断层、模块路径偏差与包管理器命令进行了全面核验与同步更新：
+
+1. **包管理器统一与命令校准**：
+   - 彻底清理了 `docs/OPERATIONS.md` 中遗留的 `pnpm` 命令，全面统一为 `npm install`、`npm run dev`、`npm run build`、`npm run lint` 和 `npm run test:ts`。
+2. **后端模块化路由与服务拓扑对齐**：
+   - 更新了 `docs/ARCHITECTURE.md` 与 `docs/OPERATIONS.md`，完整记录了 `server/routes/` 9 大领域隔离路由与 `server/services/` 8 大精算与调度服务引擎的职责边界。
+3. **AI 评估与多 Key 轮换规范同步**：
+   - 在 `LOCAL_STARTUP.md` 与 `docs/AI_SYSTEM_AND_DATA_CONTRACT.md` 中明确了 `GEMINI_API_KEY` 与 `GEMINI_API_KEYS`（逗号分隔池）的双重配置支持，补充了 429 熔断冷却与速率门禁机制说明。
+4. **统一数据契约 (Canonical Contract v3.0.0) 路径修正**：
+   - 修正了 `docs/AI_SYSTEM_AND_DATA_CONTRACT.md` 中指向旧路径的引用，精准对齐 `server/services/advancedTacticalQuantitativeEngines.ts`、`server/services/canonicalMatchModel.ts` 等实际文件位置。
+
+验证结果：`npm run lint` 零错误通过，`npm run test:ts` 37 项测试通过，生产构建通过。
+
 ## 2026-08-20 全链路量化对齐、动能引擎融合与串关风控加固复审
 
 本轮针对“预测准确率与数学建模”、“动能时序与跨批次盘口融合”以及“串关去重与风控”进行端到端重构与复审：

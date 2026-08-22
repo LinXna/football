@@ -7,10 +7,28 @@
 ## 2. 目录职责
 
 ```text
-src/                    React 前端
-server.ts               Express API 和开发服务器入口
-server/jsonStore.ts     JSON 文件读取、原子写入和多文件事务
-server/routes/          按领域拆分的 API 路由
+src/                    React 前端应用
+server.ts               后端入口与 Vite 中间件整合
+server/jsonStore.ts     JSON 文件读取、原子写入、跨进程文件锁和多文件事务
+server/routes/          按领域拆分的 Express 路由模块
+  - pipelineRoutes.ts           实时与赛前数据管道读取
+  - ledgerReadRoutes.ts         台账读取
+  - ledgerMutationRoutes.ts     台账增删改与比分补录
+  - aliasReadRoutes.ts          球队别名读取与变更同步
+  - aiReadRoutes.ts             AI 历史读取与评估快照
+  - geminiEvaluationRoutes.ts   Gemini 批量/单场评估与分片请求
+  - batchSupplementRoutes.ts    批量数据补充与归一化
+  - reportReadRoutes.ts         回测与审计报告读取
+  - runtimeMaintenanceRoutes.ts 运行时数据重置与清理
+server/services/        后端量化计算与核心服务
+  - advancedTacticalQuantitativeEngines.ts  8大高阶战术与量化数学模型
+  - formationTacticalEngine.ts              阵型空间克制矩阵与边路/中场计算
+  - formAndH2HDeepMining.ts                 近期战绩与历史交锋深度挖掘
+  - leagueRegionalDNAEngine.ts              联赛地域与赛事风格基因库
+  - geminiEvaluationService.ts              Gemini 评估调度、多Key轮换与冷却
+  - scoreValidation.ts                      比分校验与数据安全熔断
+  - snapshotDeltaEngine.ts                  跨批次与单批次动能时序增量引擎
+  - canonicalMatchModel.ts                  统一 StandardMatchData 转换与清洗
 config/projectPaths.ts  项目根目录和路径解析
 scripts/python/         Python 数据处理实现
 scripts/powershell/     Windows 数据流程编排
@@ -20,6 +38,7 @@ output/                 运行时结果、状态和台账
 reports/                需要长期保留的人工报告
 ybty_export_extension/  浏览器导出扩展
 tests/                  Python 离线测试
+tests-ts/               TypeScript 单元测试与集成测试
 ```
 
 根目录的 Python、PowerShell 和 CMD 文件是兼容入口，保留它们是为了不影响现有桌面快捷方式、任务计划和旧命令。新实现位于 `scripts/` 下。
@@ -46,25 +65,37 @@ src/ React 页面、人工补充和 AI 评估
 
 ## 4. 常用操作
 
-安装前端依赖：
+安装前端和服务端依赖：
 
 ```powershell
-pnpm install
+npm install
 ```
 
-启动本地 Web 应用：
+启动本地 Web 应用（开发模式）：
 
 ```powershell
-pnpm dev
+npm run dev
 ```
 
 启动完成后可访问 `GET /api/health` 检查服务状态。
 
+代码检查与 TypeScript 类型检查：
+
+```powershell
+npm run lint
+```
+
+运行 TypeScript 单元与集成测试：
+
+```powershell
+npm run test:ts
+```
+
 生产构建和启动：
 
 ```powershell
-pnpm build
-pnpm start
+npm run build
+npm start
 ```
 
 处理当天市场文件的基础实时流程：
@@ -122,10 +153,16 @@ pnpm start
 
 ## 6. 开发与验证
 
-TypeScript 检查：
+TypeScript 检查与代码规范：
 
 ```powershell
-pnpm lint
+npm run lint
+```
+
+运行 TypeScript 单元测试与端到端集成测试：
+
+```powershell
+npm run test:ts
 ```
 
 Python 离线测试：
@@ -152,9 +189,10 @@ python recommend_prematch.py --help
 
 ## 7. 已知边界与维护规则
 
-- `server.ts` 仍是后端单体入口，包含 API、AI 调用和部分业务规则；后续应按 API 领域继续拆分路由和服务。
-- AI 评估依赖 `.env` 中的 Gemini 配置；密钥不得提交。
+- `server.ts` 作为应用组合根，负责路由注册、Vite 中间件挂载及核心服务集成；业务模块已按路由领域拆分至 `server/routes/`，算法与精算模型拆分至 `server/services/`。
+- AI 评估依赖 `.env` 中的 Gemini 配置（支持 `GEMINI_API_KEY` 单 Key 或 `GEMINI_API_KEYS` 多 Key 逗号分隔轮换）；真实密钥不得提交。
 - 可通过 `.env` 中的 `GEMINI_MODEL` 覆盖默认模型；未设置时使用项目默认模型。
 - 浏览器导出文件必须满足脚本要求的时间差和时效限制，否则流程会主动停止。
 - `output/` 中的历史验证 JSON 可能很大。需要保留的人工结论应迁移至 `reports/`，并用日期命名。
 - 执行迁移后的脚本时，优先通过根目录兼容入口或 `scripts/` 内对应流程启动器运行；不要依赖任意当前工作目录。
+- Web 界面采用 `max-w-[1760px]` 宽屏自适应与 `-webkit-font-smoothing` 亚像素平滑，在“三重视角看板”（真实盘口/机器量化/AI深度研判）及复杂多盘口下保持清晰不折行。

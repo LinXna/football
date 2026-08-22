@@ -456,23 +456,8 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
 
   const scoreVerification = resolveScoreVerification(item, mode === 'prematch_eval');
   
-  // Use canonical stats
-  const liveStatsObj = {
-    possession_home: cData.live_facts.stats.possession.home,
-    possession_away: cData.live_facts.stats.possession.away,
-    shots_home: cData.live_facts.stats.shots.home,
-    shots_away: cData.live_facts.stats.shots.away,
-    shots_on_target_home: cData.live_facts.stats.shots_on_target.home,
-    shots_on_target_away: cData.live_facts.stats.shots_on_target.away,
-    corners_home: cData.live_facts.stats.corners.home,
-    corners_away: cData.live_facts.stats.corners.away,
-    dangerous_attacks_home: cData.live_facts.stats.dangerous_attacks.home,
-    dangerous_attacks_away: cData.live_facts.stats.dangerous_attacks.away,
-    yellow_cards_home: cData.live_facts.stats.yellow_cards.home,
-    yellow_cards_away: cData.live_facts.stats.yellow_cards.away,
-    red_cards_home: cData.live_facts.stats.red_cards.home,
-    red_cards_away: cData.live_facts.stats.red_cards.away,
-  };
+  // Use canonical stats object directly
+  const liveStatsObj = cData.live_facts.stats;
 
   const minute = cData.live_facts.minute || Number(item?.minute || 0);
   const scoreObj = cData.live_facts.score;

@@ -18,31 +18,45 @@ output/ 中的候选、决策、状态和台账
 server.ts ── API ── src/ React 前端
 ```
 
-## Backend route ownership
+## Backend route ownership & Services
 
-- `server.ts` is the composition root: configuration, middleware, route registration, and the remaining AI/import orchestration live there.
+- `server.ts` is the composition root: configuration, middleware, route registration, and the unified Vite SPA server integration live there.
 - `server/routes/ledgerMutationRoutes.ts` owns ledger creation, candidate creation, AI candidate batches, review updates, score supplements, archival, and deletion. Cross-file writes use `requireJsonWrites` so ledger and decision updates commit together.
-- `server/routes/aliasReadRoutes.ts` owns alias reads and mutations. Mutations refresh live and prematch decision aliases only after alias persistence succeeds.
+- `server/routes/ledgerReadRoutes.ts` owns ledger reads, single-item lookups, and archive inspection.
+- `server/routes/aliasReadRoutes.ts` owns alias reads and mutations. Mutations refresh live and prematch decision aliases only after alias persistence succeeds via `aliasDecisionSynchronizer.ts`.
 - `server/routes/aiReadRoutes.ts` owns AI evaluation history reads and writes; this history is diagnostic and does not affect formal ledger statistics.
-- `server/routes/pipelineRoutes.ts`, `ledgerReadRoutes.ts`, and `reportReadRoutes.ts` own their respective read APIs.
-- `server/services/geminiEvaluationTypes.ts` defines the dependency boundary for the Gemini evaluation orchestrator: prompt construction, model execution, model JSON parsing, market normalization, and parlay-leg normalization are injected rather than coupled to HTTP routing.
-- `server/services/batchSupplementTypes.ts` defines the transaction dependencies for batch supplement imports: team normalization, Beijing-time calculation, and market normalization.
+- `server/routes/geminiEvaluationRoutes.ts` owns single-match and chunked batch Gemini evaluations, direct prompt extraction, and clipboard import/export parsing.
+- `server/routes/batchSupplementRoutes.ts` owns bulk fixture supplement ingestion, match key normalization, and Beijing time resolution.
+- `server/routes/pipelineRoutes.ts` and `server/routes/reportReadRoutes.ts` own pipeline reads and markdown/json backtest report retrieval.
+- `server/routes/runtimeMaintenanceRoutes.ts` owns clean/reset APIs for ephemeral `output/` files while strictly guarding aliases, formal ledger, and sources.
+- `server/services/` houses the domain engines:
+  - `advancedTacticalQuantitativeEngines.ts`: 8 advanced quantitative engines (absence impact, corner squeeze, red card dynamics, Euro-Asian spread parity, table stake incentive, goal time distribution, and fair value edge).
+  - `formationTacticalEngine.ts`: Tactical clash matrix across 12 formations and flank/midfield space analysis.
+  - `formAndH2HDeepMining.ts`: Historical head-to-head (H2H) and recent form deep extraction.
+  - `leagueRegionalDNAEngine.ts`: League regional style and tactical tempo DNA calibrations.
+  - `geminiEvaluationService.ts`, `geminiKeyCooldown.ts`, `geminiRateGate.ts`, `geminiWindowsFallback.ts`: Robust LLM execution, multi-key rotation, 429 backoff, and platform fallback.
+  - `scoreValidation.ts`: Hard score validation and data security gates.
+  - `canonicalMatchModel.ts`: Canonical `StandardMatchData` ingestion, cleansing, and normalization.
+  - `snapshotDeltaEngine.ts`: Real-time cross-snapshot and single-batch timeline delta engine.
 
 The runtime-maintenance API deliberately operates only on re-generable `output/` analysis files. It must not mutate `team_aliases*.json`, the formal ledger, ledger archives, or source inputs.
 
+## 前端视图规范与高清呈现机制
+
+- **全局标准响应式容器**：主页面布局采用标准的 `max-w-7xl` 响应式容器，保持视觉比例紧凑协调，避免页面因过度拉伸或字号膨胀造成臃肿（非大号字体设计）。
+- **排版与抗锯齿渲染**：在 `src/index.css` 与全组件中全局开启 `-webkit-font-smoothing: antialiased`、`-moz-osx-font-smoothing: grayscale` 与 `text-rendering: optimizeLegibility`，结合 `Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei"` 高清系统字体栈，通过提升对比度（纯色高对比度深色底、明亮文本色彩、`font-mono` 数字等宽）保证微小字号（10px/11px/12px）与盘口数字清晰锐利。
+- **全维度三重视角看板**：`src/components/BettingRecommendationsView.tsx` 针对“① 真实盘口 ② 机器量化推演 ③ AI 深度研判”采用高密度、高对比度紧凑卡片（`bg-slate-950`、`border-slate-800`），优化间距与结构层次，杜绝视觉发虚与排版臃肿。
+
 ## 目录规则
 
-- `src/` 只放前端代码、类型和前端工具。
-- `src/lib/apiClient.ts` 是前端访问本地 API 的统一入口；新增请求应复用它以获得一致的错误处理。
-- 非首屏的分析、台账、别名和导出页面通过 `React.lazy` 按需加载，避免在首页下载全部页面代码。
-- `server.ts` 目前是后端单体入口，所有相对路径都以项目根目录为基准。
-- `server/routes/` 存放已按领域拆出的 API 路由；`pipelineRoutes.ts` 负责实时和赛前流水线读取接口。
-- `ledgerReadRoutes.ts`、`aliasReadRoutes.ts`、`aiReadRoutes.ts` 与 `reportReadRoutes.ts` 负责各领域的只读 API；写入端点会在事务规则隔离后迁移。
-- `ledgerMutationRoutes.ts` 当前承载单文件台账删除/清空操作，并拒绝没有 ID 且未明确 `clearAll` 的空请求。
-- `server/dataFiles.ts` 集中维护运行期 JSON 文件契约，新增路由不得复制 `output/*.json` 路径字面量。
-
-路由拆分采用“小步迁移”原则：先迁移只读端点并验证实际 HTTP 响应，再迁移涉及多文件事务的写入端点；避免复制或同时维护两套业务规则。
-- `server/jsonStore.ts` 是唯一的 JSON 文件读写与事务写入实现。
+- `src/` 只放前端代码、类型和前端组件。
+- `src/lib/apiClient.ts` 是前端访问本地 API 的统一入口；提供类型化响应与一致的异常捕获。
+- 非首屏的分析、台账、别名、导出和数据补充弹窗通过 `React.lazy` 按需加载。
+- `server.ts` 作为后端集成入口，所有相对路径以项目根目录为基准。
+- `server/routes/` 存放领域隔离的 API 路由。
+- `server/services/` 集中承载算法精算模型、AI 调度与数据规范化逻辑。
+- `server/dataFiles.ts` 集中维护运行期 JSON 文件契约与物理映射。
+- `server/jsonStore.ts` 是唯一的跨进程排他锁 JSON 读写与事务写入实现。
 - `server/services/aliasDecisionSynchronizer.ts` 负责别名变更后的实时/赛前决策文件同步。
 - Python 入口负责离线采集、推荐和人工复核，不应直接依赖 React 源码。
 - `sources/` 是外部同步的只读输入。
