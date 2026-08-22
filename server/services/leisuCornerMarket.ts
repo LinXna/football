@@ -256,10 +256,18 @@ export function evaluateLeisuCornerQuantitativePricing(
     const remainingLambda = (velocityPer10 / 10) * remainingMins * phaseWeight;
     expectedTotal = Number((currentTotal + remainingLambda).toFixed(1));
     
-    // Spread projection
-    const homeShare = currentTotal > 0 ? homeCorners / currentTotal : 0.5;
-    const expHomeCorners = homeCorners + remainingLambda * homeShare;
-    const expAwayCorners = awayCorners + remainingLambda * (1 - homeShare);
+    // Spread projection with dangerous attack & field tilt blend
+    const dangH = Number(stats?.dangerous_attacks?.home ?? 0);
+    const dangA = Number(stats?.dangerous_attacks?.away ?? 0);
+    const totalDang = dangH + dangA;
+    const dangTiltH = totalDang > 0 ? (dangH / totalDang) : 0.5;
+
+    const cornerShareH = currentTotal > 0 ? homeCorners / currentTotal : 0.5;
+    // Blend current corner momentum (60%) with attacking third pressure/field tilt (40%)
+    const blendedHomeShare = Number((cornerShareH * 0.60 + dangTiltH * 0.40).toFixed(3));
+
+    const expHomeCorners = homeCorners + remainingLambda * blendedHomeShare;
+    const expAwayCorners = awayCorners + remainingLambda * (1 - blendedHomeShare);
     expectedMargin = Number((expHomeCorners - expAwayCorners).toFixed(1));
   } else {
     // Pre-match projection

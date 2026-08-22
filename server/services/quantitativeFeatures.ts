@@ -146,8 +146,8 @@ export function calculateHandicapExpectancyMetrics(
   const totalDanger = dangerH + dangerA;
   const fieldTiltH = totalDanger > 0 ? (dangerH / totalDanger) : 0.5;
   const fieldTiltA = totalDanger > 0 ? (dangerA / totalDanger) : 0.5;
-  const shotsH = onTargetH + (getSideVal('shots_off_target', 'home') || getSideVal('off_target', 'home'));
-  const shotsA = onTargetA + (getSideVal('shots_off_target', 'away') || getSideVal('off_target', 'away'));
+  const shotsH = getStatValue(stats, 'shots', 'home') || onTargetH;
+  const shotsA = getStatValue(stats, 'shots', 'away') || onTargetA;
 
   let siegeMultH = 1.0;
   let siegeMultA = 1.0;
@@ -252,7 +252,8 @@ export function calculatePurePhysicalMatchModel(
   score: unknown,
   minute: number,
   verifiedMarkets: any[] = [],
-  formPrior?: { lambda_home_prior: number; lambda_away_prior: number }
+  formPrior?: { lambda_home_prior: number; lambda_away_prior: number },
+  tacticalContext?: { goal_distribution?: any; trend_summary?: any; league_standings?: any; formation_clash?: any }
 ): PurePhysicalMatchModel | null {
   const stats = object(statistics);
   const currentScore = object(score);
@@ -319,6 +320,15 @@ export function calculatePurePhysicalMatchModel(
     if (yellowA >= 2) siegeH *= 1.15;
     if (yellowH >= 2) siegeA *= 1.15;
 
+    // 进球时段分布 (Goal Distribution): 若当前在 60 分钟以后且球队历史擅长后程发力(76-90+占比高)，给予末段动量补偿
+    if (currentMin >= 60 && tacticalContext?.goal_distribution) {
+      const gDist = tacticalContext.goal_distribution;
+      const lateHome = Number(gDist?.home?.['76-90+'] ?? gDist?.['76-90+']?.home ?? 0);
+      const lateAway = Number(gDist?.away?.['76-90+'] ?? gDist?.['76-90+']?.away ?? 0);
+      if (lateHome >= 3) siegeH *= 1.10;
+      if (lateAway >= 3) siegeA *= 1.10;
+    }
+
     restLH = Number((rawRateH * tempoH * siegeH * remainingMins).toFixed(2));
     restLA = Number((rawRateA * tempoA * siegeA * remainingMins).toFixed(2));
   }
@@ -350,6 +360,58 @@ export function calculatePurePhysicalMatchModel(
       impact_note_zh: `客队前场压迫倾角 ${tiltA}% 且射门 ${shotsA}-${shotsH}，形成单边围攻，下半场具备高破门预期。`,
     };
   }
+
+  // Helper for computing continuous Asian Handicap probability from Poisson matrix
+  const computeAsianHandicapProb = (
+    sim: IndependentPoissonDistribution,
+    lineStr: string,
+    isHome: boolean
+  ): number => {
+    let lineVal = 0;
+    const clean = String(lineStr || '').trim();
+    const numMatch = clean.match(/[-+]?\d+(\.\d+)?(\/[-+]?\d+(\.\d+)?)?/);
+    if (numMatch) {
+      const valStr = numMatch[0];
+      if (valStr.includes('/')) {
+        const parts = valStr.split('/').map(Number);
+        lineVal = (parts[0] + parts[1]) / 2;
+      } else {
+        lineVal = Number(valStr);
+      }
+    }
+    // If text starts with 受让 or +
+    if (/受让|\+/i.test(clean) && lineVal < 0) {
+      lineVal = Math.abs(lineVal);
+    } else if (/让|-/i.test(clean) && lineVal > 0) {
+      lineVal = -lineVal;
+    }
+
+    let winProb = 0;
+    let halfWinProb = 0;
+    for (const sc of sim.top_scorelines) {
+      const parts = sc.score.split('-').map(Number);
+      const hScore = parts[0];
+      const aScore = parts[1];
+      const p = sc.prob_pct;
+      const margin = isHome ? (hScore - aScore) : (aScore - hScore);
+      const effMargin = margin + (isHome ? lineVal : -lineVal);
+
+      if (effMargin >= 0.5) {
+        winProb += p;
+      } else if (effMargin === 0.25) {
+        // Half win (e.g. +0.25 on 0 margin)
+        winProb += p * 0.5;
+        halfWinProb += p * 0.5;
+      } else if (effMargin === 0) {
+        // Push: counts as 50% equivalent equity
+        winProb += p * 0.5;
+      } else if (effMargin === -0.25) {
+        // Half lose
+        halfWinProb += p * 0.25;
+      }
+    }
+    return Math.max(5.0, Math.min(95.0, winProb + halfWinProb * 0.5));
+  };
 
   // Cross-evaluate verified options
   const edgeAudit: PurePhysicalOptionEdge[] = [];
@@ -389,16 +451,11 @@ export function calculatePurePhysicalMatchModel(
       } else if (m.market === 'full_spread') {
         const cleanSide = String(opt.side || '').toLowerCase();
         const isHome = cleanSide === 'home' || cleanSide === '1' || cleanSide === 'h' || String(opt.line || '').startsWith('主');
-        const netExpected = fullLH - fullLA;
-        if (isHome) {
-          physicalProb = netExpected > 0.4 ? 60 : netExpected < -0.4 ? 42 : 50;
-        } else {
-          physicalProb = netExpected < -0.4 ? 60 : netExpected > 0.4 ? 42 : 50;
-        }
+        physicalProb = computeAsianHandicapProb(fullSim, String(opt.line || ''), isHome);
       } else if (m.market === 'half_h2h') {
-        // Half-time 1X2 simulation from half expected goals (0.5 * 90m baseline or current first half state)
-        const halfLH = currentMin >= 45 ? number(currentScore.home) : (currentMin === 0 ? restLH * 0.45 : Math.max(0.1, (restLH * (45 - currentMin) / Math.max(1, 90 - currentMin))));
-        const halfLA = currentMin >= 45 ? number(currentScore.away) : (currentMin === 0 ? restLA * 0.45 : Math.max(0.1, (restLA * (45 - currentMin) / Math.max(1, 90 - currentMin))));
+        // Half-time 1X2 simulation with smooth decay (avoid sudden zero-denominator jumps)
+        const halfLH = currentMin >= 45 ? number(currentScore.home) : (currentMin === 0 ? restLH * 0.45 : Math.max(0.05, goalH + (restLH * Math.max(0, 45 - currentMin) / Math.max(1, 90 - currentMin))));
+        const halfLA = currentMin >= 45 ? number(currentScore.away) : (currentMin === 0 ? restLA * 0.45 : Math.max(0.05, goalA + (restLA * Math.max(0, 45 - currentMin) / Math.max(1, 90 - currentMin))));
         const halfSim = computeIndependentPoissonDistribution(halfLH, halfLA);
         const cleanSide = String(opt.side || '').toLowerCase();
         if (cleanSide === 'home' || cleanSide === '1' || cleanSide === 'h' || String(opt.line || '') === '主') {
@@ -409,8 +466,8 @@ export function calculatePurePhysicalMatchModel(
           physicalProb = halfSim.margin_distribution_pct.away_win_exact;
         }
       } else if (m.market === 'half_total') {
-        const halfLH = currentMin >= 45 ? number(currentScore.home) : (currentMin === 0 ? restLH * 0.45 : Math.max(0.1, (restLH * (45 - currentMin) / Math.max(1, 90 - currentMin))));
-        const halfLA = currentMin >= 45 ? number(currentScore.away) : (currentMin === 0 ? restLA * 0.45 : Math.max(0.1, (restLA * (45 - currentMin) / Math.max(1, 90 - currentMin))));
+        const halfLH = currentMin >= 45 ? number(currentScore.home) : (currentMin === 0 ? restLH * 0.45 : Math.max(0.05, goalH + (restLH * Math.max(0, 45 - currentMin) / Math.max(1, 90 - currentMin))));
+        const halfLA = currentMin >= 45 ? number(currentScore.away) : (currentMin === 0 ? restLA * 0.45 : Math.max(0.05, goalA + (restLA * Math.max(0, 45 - currentMin) / Math.max(1, 90 - currentMin))));
         const halfSim = computeIndependentPoissonDistribution(halfLH, halfLA);
         const isOver = opt.side === 'over' || /大/i.test(String(opt.line || '')) || /大/i.test(String(opt.direction || ''));
         const lineNum = parseFloat(String(opt.line || '').replace(/[^\d.]/g, ''));
@@ -429,16 +486,12 @@ export function calculatePurePhysicalMatchModel(
           physicalProb = isOver ? 25 : 75;
         }
       } else if (m.market === 'half_spread') {
-        const halfLH = currentMin >= 45 ? number(currentScore.home) : (currentMin === 0 ? restLH * 0.45 : Math.max(0.1, (restLH * (45 - currentMin) / Math.max(1, 90 - currentMin))));
-        const halfLA = currentMin >= 45 ? number(currentScore.away) : (currentMin === 0 ? restLA * 0.45 : Math.max(0.1, (restLA * (45 - currentMin) / Math.max(1, 90 - currentMin))));
-        const netHalf = halfLH - halfLA;
+        const halfLH = currentMin >= 45 ? number(currentScore.home) : (currentMin === 0 ? restLH * 0.45 : Math.max(0.05, goalH + (restLH * Math.max(0, 45 - currentMin) / Math.max(1, 90 - currentMin))));
+        const halfLA = currentMin >= 45 ? number(currentScore.away) : (currentMin === 0 ? restLA * 0.45 : Math.max(0.05, goalA + (restLA * Math.max(0, 45 - currentMin) / Math.max(1, 90 - currentMin))));
+        const halfSim = computeIndependentPoissonDistribution(halfLH, halfLA);
         const cleanSide = String(opt.side || '').toLowerCase();
         const isHome = cleanSide === 'home' || cleanSide === '1' || cleanSide === 'h' || String(opt.line || '').startsWith('主');
-        if (isHome) {
-          physicalProb = netHalf > 0.2 ? 55 : netHalf < -0.2 ? 45 : 50;
-        } else {
-          physicalProb = netHalf < -0.2 ? 55 : netHalf > 0.2 ? 45 : 50;
-        }
+        physicalProb = computeAsianHandicapProb(halfSim, String(opt.line || ''), isHome);
       }
 
       physicalProb = Number(Math.max(0.1, Math.min(99.9, physicalProb)).toFixed(1));

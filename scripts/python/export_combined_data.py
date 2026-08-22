@@ -82,10 +82,17 @@ def source_path(status: dict[str, Any], field: str, fallback: Path) -> Path:
 def audit_count(
     name: str,
     data: dict[str, Any],
-    array_field: str,
+    array_field: str | list[str],
     count_field: str = "count",
 ) -> dict[str, Any]:
-    rows = data.get(array_field)
+    if isinstance(array_field, list):
+        rows = None
+        for f in array_field:
+            if isinstance(data.get(f), list):
+                rows = data.get(f)
+                break
+    else:
+        rows = data.get(array_field)
     declared = data.get(count_field)
     actual = len(rows) if isinstance(rows, list) else None
     return {
@@ -136,7 +143,7 @@ def build_bundle(
         }
     payload = {name: read_json(path) for name, path in paths.items()}
     ybty_audit = audit_count("YBTY赛事", payload["ybty"], "matches")
-    leisu_audit = audit_count("雷速赛事", payload["leisu"], "events")
+    leisu_audit = audit_count("雷速赛事", payload["leisu"], ["results", "events"])
     candidate_summary = (
         payload["candidates"].get("summary", {})
         if not raw_only

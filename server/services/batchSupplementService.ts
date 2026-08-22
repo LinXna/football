@@ -5,8 +5,11 @@ import { calculateExactBeijingTime as calculateBatchBeijingTime } from './beijin
 import { summarizeDecisions } from './decisionSummary';
 import { createTeamAliasResolver } from './teamAliasResolver';
 import { isPrematchScorePlaceholder, parseScoreFields, parseValidScore } from './scoreValidation';
+import type { BatchSupplementOptions } from './batchSupplementTypes';
 
-export function createBatchSupplementHandler(normalizeTeamName: (name: string) => string): express.RequestHandler {
+export function createBatchSupplementHandler(options: BatchSupplementOptions | ((name: string) => string)): express.RequestHandler {
+  const normalizeTeamName = typeof options === 'function' ? options : options.normalizeTeamName;
+
   return (req, res) => {
   try {
     const { items, mode: importMode = 'overwrite' } = req.body;

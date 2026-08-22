@@ -787,6 +787,19 @@ $$W_{prior}(t) = \frac{1}{1 + e^{0.12 \times (t - 22)}}$$
 - **`SET_PIECE_DOMINANCE` (定位球与高空轰炸)**：阵地受阻但角球密度高（90' 预期 $\ge 7$）持续制造禁区混乱；
 - **`ATTRITIONAL_DEADLOCK` (中场胶着互不着力)**：双方渗透产出皆低，优势归于均势（0）。
 
+### 15.5 亚洲让球盘连续泊松积分与角球攻防倾角融合 (Continuous Asian Handicap & Field Tilt Fusion)
+1. **亚洲让球盘连续积分 (`computeAsianHandicapProb`)**：
+   - 彻底废除离散阶梯估值，引入全场及半场 $7 \times 7$ 独立泊松矩阵双重循环积分；
+   - 自动解析半球、平半、一球等盘口线，精确计算赢半（+0.25 盘口权益 50% 转化）、输半（-0.25 盘口权益 25% 留存）与平手走盘（0 盘口 50% 权益计入），生成高精度的物理胜率曲线。
+2. **半场时间衰减平滑化 (Half-time Smooth Decay)**：
+   - 半场进球期望采用平滑时变折算 $\max(0.05, \text{Goal} + \lambda_{\text{rest}} \times \frac{\max(0, 45 - t)}{\max(1, 90 - t)})$，根除 44~45 分钟时段产生的期望断崖突变。
+3. **角球让球盘攻防倾角融合 (Corner Spread Blended Projection)**：
+   - 角球让球盘预测将当前累积角球比例（60% 权重）与前场危险进攻压迫倾角 Field Tilt（40% 权重）进行深度加权（`blendedHomeShare = cornerShare * 0.6 + dangTilt * 0.4`），解决单边围攻但角球暂时落后的预测滞后问题。
+4. **进球时段分布末段动能补偿 (Goal Distribution Late-Game Surge)**：
+   - 在 $t \ge 60$ 分钟推演中，深度引入雷速 15 分钟进球时段分布数据；当球队在 76-90+ 分钟具有历史高进球偏好（$\ge 3$ 球）时，自动赋予破门动能 $1.10\times$ 爆发加权。
+5. **标准模型数据闭环 (Canonical Match Context Normalization)**：
+   - 彻底打通交锋历史 (`head_to_head`)、近期战绩 (`recent_matches`)、联赛积分榜 (`league_standings`)、进球时段分布 (`goal_distribution`) 与盘路走势 (`trend_summary`) 五大维度的清洗与推演流转。
+
 ## 16. 验证命令
 
 ```powershell

@@ -524,7 +524,12 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
     scoreObj,
     minute,
     verifiedMarkets,
-    formAndH2HDeep?.form_weighted_poisson_prior
+    formAndH2HDeep?.form_weighted_poisson_prior,
+    {
+      goal_distribution: item?.goal_distribution || item?.tactical_context?.goal_distribution || cData.context?.goal_distribution,
+      trend_summary: item?.trend_summary || item?.tactical_context?.trend_summary || cData.context?.trend_summary,
+      league_standings: item?.league_standings || item?.tactical_context?.league_standings || cData.context?.league_standings,
+    }
   );
 
   const rawIncidents = filterPromptKeyIncidents(item, 50);

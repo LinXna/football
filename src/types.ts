@@ -165,10 +165,10 @@ export interface TacticalContext {
   formation: { home: string; away: string };
   formation_clash_verdict?: string;
   formation_clash_summary?: string;
-  standings_summary?: string;
-  home_form?: string;
-  away_form?: string;
-  h2h_summary?: string;
+  standings_summary?: any;
+  home_form?: any;
+  away_form?: any;
+  h2h_summary?: any;
   lineup_status: 'CONFIRMED' | 'PROJECTED' | 'UNKNOWN';
   key_absences_count: { home: number; away: number };
   corner_danger_level?: string;
@@ -176,6 +176,12 @@ export interface TacticalContext {
   h2h_matches?: any[];
   home_recent_matches?: any[];
   away_recent_matches?: any[];
+  // 5大雷速全量维度字段挂载
+  head_to_head?: any;
+  recent_matches?: any;
+  league_standings?: any;
+  goal_distribution?: any;
+  trend_summary?: any;
 }
 
 /**
@@ -264,6 +270,13 @@ export interface StandardMatchData {
   away_formation?: FormationType;
   intercept_reason?: string;
   snapshot_delta?: any;
+
+  // 雷速 5 大维度顶层便捷通道 (零层级损耗)
+  head_to_head?: any;
+  recent_matches?: any;
+  league_standings?: any;
+  goal_distribution?: any;
+  trend_summary?: any;
 }
 
 // 统一别名，确保全局已有引用平滑无缝升级
@@ -480,6 +493,12 @@ export function toStandardMatchData(raw: any): StandardMatchData {
     h2h_matches: Array.isArray(tc.h2h_matches) ? tc.h2h_matches : Array.isArray(raw.h2h) ? raw.h2h : Array.isArray(formalData.head_to_head) ? formalData.head_to_head : [],
     home_recent_matches: Array.isArray(tc.home_recent_matches) ? tc.home_recent_matches : Array.isArray(formalData.recent_matches?.home) ? formalData.recent_matches.home : [],
     away_recent_matches: Array.isArray(tc.away_recent_matches) ? tc.away_recent_matches : Array.isArray(formalData.recent_matches?.away) ? formalData.recent_matches.away : [],
+    // 5大雷速全量维度字段深层提取
+    head_to_head: raw.head_to_head || tc.head_to_head || formalData.head_to_head || undefined,
+    recent_matches: raw.recent_matches || tc.recent_matches || formalData.recent_matches || undefined,
+    league_standings: raw.league_standings || tc.league_standings || tc.standings_summary || tc.standings || formalData.league_standings || undefined,
+    goal_distribution: raw.goal_distribution || tc.goal_distribution || formalData.goal_distribution || undefined,
+    trend_summary: raw.trend_summary || tc.trend_summary || formalData.trend_summary || undefined,
   };
 
   // 8. 盘口快照清洗 (Market Snapshots - YBTY 权威白名单)
@@ -607,6 +626,13 @@ export function toStandardMatchData(raw: any): StandardMatchData {
     formation_clash: raw.formation_clash || undefined,
     home_formation: raw.home_formation || undefined,
     away_formation: raw.away_formation || undefined,
+
+    // 雷速 5 大维度顶层挂载
+    head_to_head: tactical_context.head_to_head,
+    recent_matches: tactical_context.recent_matches,
+    league_standings: tactical_context.league_standings,
+    goal_distribution: tactical_context.goal_distribution,
+    trend_summary: tactical_context.trend_summary,
   };
 }
 

@@ -58,6 +58,9 @@ export interface MatchRecentFormData {
   awayStats: TeamFormStats;
   h2h: H2HStats;
   rawNotes?: string[];
+  leagueStandings?: any;
+  goalDistribution?: any;
+  trendSummary?: any;
 }
 
 // Pseudo-random deterministic hash generator for consistent baseline when raw logs aren't pre-indexed
@@ -389,5 +392,8 @@ export function extractMatchRecentForm(match: DecisionItem): MatchRecentFormData
     awayStats,
     h2h,
     rawNotes,
+    leagueStandings: match.league_standings || t.league_standings || t.standings_summary || (t as any).standings,
+    goalDistribution: match.goal_distribution || t.goal_distribution,
+    trendSummary: match.trend_summary || t.trend_summary,
   };
 }

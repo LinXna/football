@@ -79,6 +79,11 @@ export interface CanonicalMatchData {
       home_absences: { missing_gk: boolean; missing_cbs: number; key_midfielders_missing: number; top_scorers_missing: number };
       away_absences: { missing_gk: boolean; missing_cbs: number; key_midfielders_missing: number; top_scorers_missing: number };
     };
+    head_to_head?: any;
+    recent_matches?: any;
+    league_standings?: any;
+    goal_distribution?: any;
+    trend_summary?: any;
   };
   attack_momentum_timeline?: any;
   verified_markets: CanonicalMarketOption[];
@@ -360,6 +365,11 @@ export function canonicalizeRawMatchData(raw: any): CanonicalMatchData {
           top_scorers_missing: Number(absencesRaw?.away_absences?.top_scorers_missing || 0),
         },
       },
+      head_to_head: raw.head_to_head || raw.tactical_context?.head_to_head || raw.formal?.head_to_head || undefined,
+      recent_matches: raw.recent_matches || raw.tactical_context?.recent_matches || raw.formal?.recent_matches || undefined,
+      league_standings: raw.league_standings || raw.tactical_context?.league_standings || raw.tactical_context?.standings_summary || raw.formal?.league_standings || undefined,
+      goal_distribution: raw.goal_distribution || raw.tactical_context?.goal_distribution || raw.formal?.goal_distribution || undefined,
+      trend_summary: raw.trend_summary || raw.tactical_context?.trend_summary || raw.formal?.trend_summary || undefined,
     },
     attack_momentum_timeline: attack_momentum_timeline || undefined,
     verified_markets: verifiedMarketsList,

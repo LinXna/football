@@ -10,13 +10,11 @@ import { normalizeParlayRecommendations } from './parlayRecommendationNormalizer
 import { enforceLiveScoreVerification, validateAssessmentAgainstVerifiedMarkets } from './verifiedMarketAssessment';
 import { normalizeYbtyMarketTypes } from './marketTypeNormalizer';
 import { normalizeMatchPredictionsAndAssessments } from './marketAssessmentsNormalizer';
+import type { GeminiEvaluationDependencies } from './geminiEvaluationTypes';
 
-export function createGeminiEvaluationHandler(deps: {
-  buildPromptData(body: any): any;
-  sanitizeMarketAssessment(item: any): any;
-  sanitizeParlayLeg(item: any, candidates?: any[]): any;
-}): express.RequestHandler {
+export function createGeminiEvaluationHandler(deps: GeminiEvaluationDependencies): express.RequestHandler {
   const { buildPromptData, sanitizeMarketAssessment, sanitizeParlayLeg } = deps;
+
   const GEMINI_MODEL = APP_CONFIG.geminiModel;
   const generateGeminiViaWindowsNetwork = (apiKey: string, prompt: string) => windowsFallback(apiKey, prompt, GEMINI_MODEL);
   return async (req, res) => {

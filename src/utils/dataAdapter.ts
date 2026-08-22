@@ -127,6 +127,12 @@ export function adaptToStandardMatch(raw: any): StandardMatchData {
     h2h_matches: Array.isArray(tcRaw.h2h_matches) ? tcRaw.h2h_matches : (Array.isArray(formalData.head_to_head) ? formalData.head_to_head : []),
     home_recent_matches: Array.isArray(tcRaw.home_recent_matches) ? tcRaw.home_recent_matches : (Array.isArray(formalData.recent_matches?.home) ? formalData.recent_matches.home : []),
     away_recent_matches: Array.isArray(tcRaw.away_recent_matches) ? tcRaw.away_recent_matches : (Array.isArray(formalData.recent_matches?.away) ? formalData.recent_matches.away : []),
+    // 雷速 5 大维度
+    head_to_head: raw.head_to_head || tcRaw.head_to_head || formalData.head_to_head || undefined,
+    recent_matches: raw.recent_matches || tcRaw.recent_matches || formalData.recent_matches || undefined,
+    league_standings: raw.league_standings || tcRaw.league_standings || tcRaw.standings_summary || formalData.league_standings || undefined,
+    goal_distribution: raw.goal_distribution || tcRaw.goal_distribution || formalData.goal_distribution || undefined,
+    trend_summary: raw.trend_summary || tcRaw.trend_summary || formalData.trend_summary || undefined,
   };
 
   // 5. 盘口快照
@@ -180,5 +186,12 @@ export function adaptToStandardMatch(raw: any): StandardMatchData {
     home_formation: raw.home_formation || undefined,
     away_formation: raw.away_formation || undefined,
     intercept_reason: raw.intercept_reason || '',
+
+    // 雷速 5 大维度顶层挂载
+    head_to_head: tactical_context.head_to_head,
+    recent_matches: tactical_context.recent_matches,
+    league_standings: tactical_context.league_standings,
+    goal_distribution: tactical_context.goal_distribution,
+    trend_summary: tactical_context.trend_summary,
   };
 }
