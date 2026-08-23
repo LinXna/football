@@ -150,6 +150,9 @@ export const BettingRecommendationsView: React.FC<Props> = ({
       });
       if (found) return { ...found, snapshot_id: snapshot.id, saved_at: snapshot.saved_at };
     }
+    if (Array.isArray(match.market_assessments) && match.market_assessments.length > 0) {
+      return match;
+    }
     return null;
   };
 
@@ -1746,6 +1749,9 @@ export const BettingRecommendationsView: React.FC<Props> = ({
               const display = line && !direction.includes(line) ? `${direction} ${line}` : direction;
               const odds = Number(assessment.odds);
               const probability = Number(assessment.probability);
+              const isReverseReasoning = Boolean((assessment as any).reverse_reasoning_detected);
+              const auditWarning = (assessment as any).audit_warnings?.[0] || (assessment as any).reverse_reasoning_detail?.note;
+
               return (
                 <div className="mt-1 border-t border-sky-800/50 pt-1 text-[10px] space-y-0.5">
                   <div className="flex flex-wrap items-center justify-between gap-1">
@@ -1754,8 +1760,23 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                   </div>
                   <div className="flex items-center justify-between gap-1 text-slate-300 text-[10px]">
                     <span className="text-slate-300">{Number.isFinite(probability) ? `胜率 ${assessment.probability}%` : '胜率 --'}</span>
-                    <span className={`rounded border px-1 py-0.2 text-[9px] font-semibold ${status.className}`}>{assessment.status === 'prediction' ? status.label : `${status.label} · ${assessment.grade || 'NO_BET'}`}</span>
+                    <div className="flex items-center gap-1">
+                      {isReverseReasoning && (
+                        <span 
+                          className="rounded border border-amber-500/60 bg-amber-950/80 px-1 py-0.2 text-[9px] font-bold text-amber-300"
+                          title={auditWarning || '系统审计：检测到比分倒推逻辑特征，非正向物理量化推导'}
+                        >
+                          ⚠️ 倒推标记
+                        </span>
+                      )}
+                      <span className={`rounded border px-1 py-0.2 text-[9px] font-semibold ${status.className}`}>{assessment.status === 'prediction' ? status.label : `${status.label} · ${assessment.grade || 'NO_BET'}`}</span>
+                    </div>
                   </div>
+                  {assessment.reason && (
+                    <div className="text-[9px] text-slate-400 leading-tight pt-0.5">
+                      <span className="text-slate-500">依据:</span> {assessment.reason}
+                    </div>
+                  )}
                 </div>
               );
             };

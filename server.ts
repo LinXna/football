@@ -1259,6 +1259,11 @@ ${JSON.stringify(requests)}
 You MUST evaluate the following matches (${batchHeader}) with rigorous football risk controls, strictly combining:
 1) [Senior Football Match Data Analyst Perspective · 专业足球数据分析员视角]: Deep-dive into technical match data (shots, shots on target, dangerous attack conversion ratio, field tilt share, xG creation efficiency, confirmed starter strength vs absences, fatigue & game phase momentum).
 2) [Professional Sports Bettor & Syndicator Perspective · 足球比赛专业投注人士视角]: Calculate market overround & fair true probability, strictly verify Positive Expected Value (Value Edge = True Prob - Implied Prob > 0), match handicap depths to realistic projected goal differences, dynamically price in-play time-decay goal expectancies, and enforce institutional bankroll risk control.
+3) [Active Web Grounding & External Intelligence Enrichment · 实时网络情报与未捕获数据主动检索]: Fully leverage your real-time web search and browsing capabilities! Actively search and verify uncaptured critical match intel: confirmed starting lineups, last-minute star injuries/absences, weather/pitch conditions (rain/wind impact on totals), tactical managerial shifts, and tournament/derby motivation context. Synthesize external verified facts seamlessly into your quantitative reasoning.
+
+[Arbitration & Settlement Protocol · 仲裁与口径准则]
+- Grounding vs Static Data: In-play physical data serves as the baseline. When web search confirms critical absences (e.g. starting GK/CB missing), apply a ±10%~20% dynamic adjustment to lambda and record verified facts in key_physical_evidence.
+- In-play Spread Settlement: In-play spread handicap is ALWAYS calculated from the CURRENT score (0:0 baseline) for the REST of the match.
 
 Return ONLY a single valid JSON object (no markdown, no conversational commentary).
 
@@ -1276,6 +1281,12 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
 
    - 【第一步：纯现场与主客场特异物理数据推演 (Pure Data-First Match Physics & Dominance Siege)】:
      * 严禁看盘说球！盘口是机构平衡资金的商业报价，绝非比赛事实！
+     * ⚠️【绝对核心铁律：单向正向量化推演，严禁比分倒推 (Forward-Only DAG & Anti-Reverse-Inference)】:
+       - 严禁以“预测比分是X-X”、“看好X-X打出”作为推导全场大小球、让球或独赢等玩法的推导前提或论据！
+       - 比分只是泊松矩阵中概率分布的统计离散展示，绝非推导其他盘口的因果前提。
+       - 所有 5 个核心玩法的评估与 reason 必须严格遵循正向计算流：
+         【物理攻防参数 λ (期望进球) + 压迫倾角与射正转化】 → 【各盘口独立公允概率计算与赔率隐含概率审计】 → 【确认正期望值 (+EV) 与证据链】。
+       - 若在 reason 中出现“预测比分为”、“看好X-X所以推荐”等倒推表述，将被系统量化审计自动标记！
      * 必须优先精读 live_match_physical_facts 中的实时攻防事实：
        - pure_physical_match_model.physical_lambdas（纯攻防推演出的剩余进球期望 λ_rest 与全场完赛期望 λ_full）；
        - pure_physical_match_model.dominant_siege_factor（单边高压围攻特征：前场压迫倾角 ≥65% 且射门绝对压制时的攻防动能强化）；
@@ -1367,7 +1378,7 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
    - For every match, market_assessments must include all 5 core real markets.
    - ⚠️【输出紧凑精炼约束 · 防止长文本截断】: 每个玩法的 reason 必须精简为 1~2 句话 (现场物理数据事实 + 战术推演 + 真实EV判定)，严禁长篇大论，确保完整输出全部 ${chunkData.length} 场比赛的合法有效 JSON 且末尾正常闭合。
 
-[Output JSON Schema Template]
+[Output JSON Schema Template — Strict Topological Order (Strict Forward-Only DAG Execution)]
 {
   "schema_version": "football_market_audit_v2",
   "summary": "matches:${chunkData.length}|recommend:N|watch:N|avoid:N",
@@ -1382,6 +1393,89 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
       "score_verified": true,
       "score_source": "ybty_verified",
       "verification_passed": true,
+
+      "step1_physical_lambdas": {
+        "lambda_home_rest": 1.15,
+        "lambda_away_rest": 0.65,
+        "lambda_total_rest": 1.80,
+        "dominant_siege": "单边围攻或均势对抗描述",
+        "key_physical_evidence": "射正4:1，前场三区倾角68%，角球爆发"
+      },
+
+      "market_assessments": [
+        {
+          "category": "全场大小球",
+          "market_option_id": "full_total__m1__o1",
+          "direction": "大 2.5",
+          "line": "2.5",
+          "odds": 1.92,
+          "probability": 59.0,
+          "grade": "B",
+          "status": "recommend",
+          "reason": "三区压迫68%且持续创造高威胁射正，λ_total_rest达1.80支撑大球正期望值",
+          "risk": "领先方防守反击控速"
+        },
+        {
+          "category": "半场大小球",
+          "market_option_id": "half_total__m1__o2",
+          "direction": "小 1.0",
+          "line": "1.0",
+          "odds": 1.85,
+          "probability": 55.0,
+          "grade": "C",
+          "status": "watch",
+          "reason": "半场防守阵型保持紧凑，破门机会多集中于下半场",
+          "risk": "偶发定位球失误"
+        },
+        {
+          "category": "全场让球",
+          "market_option_id": "full_spread__m1__o1",
+          "direction": "主队 -0.5",
+          "line": "-0.5",
+          "odds": 1.95,
+          "probability": 62.0,
+          "grade": "B",
+          "status": "recommend",
+          "reason": "主队禁区围攻形成实质破防，净胜球期望优势显著(+EV)",
+          "risk": "客队反击偷球"
+        },
+        {
+          "category": "半场让球",
+          "market_option_id": "half_spread__m1__o1",
+          "direction": "主队 -0/0.5",
+          "line": "-0/0.5",
+          "odds": 2.03,
+          "probability": 49.2,
+          "grade": "NO_BET",
+          "status": "avoid",
+          "reason": "半场剩余时间有限，让步缺乏足够安全边际",
+          "risk": "半场平局走盘或输半"
+        },
+        {
+          "category": "全场独赢1X2",
+          "market_option_id": "full_h2h__1",
+          "direction": "主胜",
+          "line": null,
+          "odds": 1.90,
+          "probability": 55.0,
+          "grade": "B",
+          "status": "recommend",
+          "reason": "公允主胜胜率显著高于机构隐含概率，具备正向价值边际",
+          "risk": "终局逼平"
+        }
+      ],
+
+      "step3_best_recommendation": {
+        "category": "全场大小球",
+        "market": "full_total",
+        "market_option_id": "full_total__m1__o1",
+        "direction": "大 2.5",
+        "line": "2.5",
+        "odds": 1.92,
+        "probability": 59.0,
+        "value_edge": 6.9,
+        "grade": "B"
+      },
       "recommendation": {
         "category": "全场大小球",
         "market": "full_total",
@@ -1393,68 +1487,12 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
         "value_edge": 6.9,
         "grade": "B"
       },
-      "market_assessments": [
-        {
-          "category": "全场大小球",
-          "market_option_id": "full_total__m1__o1",
-          "direction": "大 2.5",
-          "line": "2.5",
-          "odds": 1.92,
-          "probability": 59.0,
-          "grade": "B",
-          "status": "recommend",
-          "reason": "攻势迅猛且创造多次威胁",
-          "risk": "防守反击风险"
-        },
-        {
-          "category": "半场大小球",
-          "market_option_id": "half_total__m1__o2",
-          "direction": "小 1.0",
-          "line": "1.0",
-          "odds": 1.85,
-          "probability": 55.0,
-          "grade": "C",
-          "status": "watch",
-          "reason": "半场防守较为严密",
-          "risk": "偶发失误"
-        },
-        {
-          "category": "全场让球",
-          "market_option_id": "full_spread__m1__o1",
-          "direction": "主队 -0.5",
-          "line": "-0.5",
-          "odds": 1.95,
-          "probability": 62.0,
-          "grade": "B",
-          "status": "recommend",
-          "reason": "主队进攻压制明显且数据占优",
-          "risk": "客队反击威胁"
-        },
-        {
-          "category": "半场让球",
-          "market_option_id": "half_spread__m1__o1",
-          "direction": "主队 -0/0.5",
-          "line": "-0/0.5",
-          "odds": 2.03,
-          "probability": 49.2,
-          "grade": "NO_BET",
-          "status": "avoid",
-          "reason": "半场时间有限，让步缺乏足够安全边际",
-          "risk": "半场平局"
-        },
-        {
-          "category": "全场独赢1X2",
-          "market_option_id": "full_h2h__1",
-          "direction": "主胜",
-          "line": null,
-          "odds": 1.90,
-          "probability": 55.0,
-          "grade": "B",
-          "status": "recommend",
-          "reason": "主胜赔率具备正向价值边际",
-          "risk": "平局丢分"
-        }
-      ]
+
+      "step4_discrete_score_projection": {
+        "most_likely_score": "2-1",
+        "poisson_joint_prob_pct": 12.8,
+        "note": "仅作为泊松矩阵单点离散最高频展示，禁止作为大小球/让球推导论据"
+      }
     }
   ]
 }
@@ -1470,6 +1508,11 @@ ${JSON.stringify(chunkData, null, 2)}`;
 You MUST evaluate the following matches (${batchHeader}) objectively by synthesizing professional football match data analytics with professional sports betting quantitative models:
 1) [Senior Football Match Data Analyst Perspective · 专业足球数据分析员视角]: Synthesize real-time & pre-match technical statistics, xG creation efficiency, head-to-head patterns, home/away splits, lineup transparency, and match incidents without subjective narrative bias.
 2) [Professional Sports Bettor & Syndicator Perspective · 足球比赛专业投注人士视角]: Strictly calculate market overround and identify positive expected value (Value Edge / +EV), dynamic timeline goal expectancy decay, handicap-to-goal margin alignment, and bankroll protection.
+3) [Active Web Grounding & External Intelligence Enrichment · 实时网络情报与未捕获数据主动检索]: Actively search and verify uncaptured external intelligence via real-time web search (confirmed official lineups, sudden key player scratches, severe weather, cup rotation motives) to supplement low-transparency matches and eliminate information blindspots.
+
+[Arbitration & Settlement Protocol · 仲裁与口径准则]
+- Grounding vs Static Data: In-play physical data serves as the baseline. When web search confirms critical absences (e.g. starting GK/CB missing), apply a ±10%~20% dynamic adjustment to lambda and record verified facts in key_physical_evidence.
+- In-play Spread Settlement: In-play spread handicap is ALWAYS calculated from the CURRENT score (0:0 baseline) for the REST of the match.
 
 Return ONLY a single valid JSON object (no markdown, no conversational commentary).
 
@@ -1499,6 +1542,12 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
 
    - 【第一步：纯现场与主客场特异物理数据推演 (Pure Data-First Match Physics & Dominance Siege)】:
      * 严禁看盘说球！盘口是机构平衡资金的商业报价，绝非比赛事实！
+     * ⚠️【绝对核心铁律：单向正向量化推演，严禁比分倒推 (Forward-Only DAG & Anti-Reverse-Inference)】:
+       - 严禁以“预测比分是X-X”、“看好X-X打出”作为推导全场大小球、让球或独赢等玩法的推导前提或论据！
+       - 比分只是泊松矩阵中概率分布的统计离散展示，绝非推导其他盘口的因果前提。
+       - 所有 5 个核心玩法的评估与 reason 必须严格遵循正向计算流：
+         【物理攻防参数 λ (期望进球) + 压迫倾角与射正转化】 → 【各盘口独立公允概率计算与赔率隐含概率审计】 → 【确认正期望值 (+EV) 与证据链】。
+       - 若在 reason 中出现“预测比分为”、“看好X-X所以推荐”等倒推表述，将被系统量化审计自动标记！
      * 必须优先精读 live_match_physical_facts 中的实时攻防事实：
        - pure_physical_match_model.physical_lambdas（纯攻防推演出的剩余进球期望 λ_rest 与全场完赛期望 λ_full）；
        - pure_physical_match_model.dominant_siege_factor（单边高压围攻特征：前场压迫倾角 ≥65% 且射门绝对压制时的攻防动能强化）；
@@ -1564,7 +1613,7 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
    - ⚠️ MUST PRESERVE IDENTIFIERS VERBATIM: You must preserve match_id, leisu_match_id, match, ybty_home, and ybty_away exactly as provided in the input. Do NOT translate, modify, transliterate, or omit them.
    - For every match, market_assessments must include all 5 core real markets.
 
-[Output JSON Schema Template]
+[Output JSON Schema Template — Strict Topological Order (Strict Forward-Only DAG Execution)]
 {
   "schema_version": "football_market_audit_v2",
   "summary": "matches:${chunkData.length}|recommend:N|watch:N|avoid:N",
@@ -1579,17 +1628,15 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
       "score_verified": true,
       "score_source": "ybty_verified",
       "verification_passed": true,
-      "recommendation": {
-        "category": "全场让球",
-        "market": "full_spread",
-        "market_option_id": "full_spread__m1__o1",
-        "direction": "主队",
-        "line": "-0.5",
-        "odds": 1.95,
-        "probability": 62.0,
-        "value_edge": 10.7,
-        "grade": "B"
+
+      "step1_physical_lambdas": {
+        "lambda_home_rest": 1.20,
+        "lambda_away_rest": 0.50,
+        "lambda_total_rest": 1.70,
+        "dominant_siege": "主队高压围攻且压迫倾角占优",
+        "key_physical_evidence": "射正比5:1，三区压迫倾角66%"
       },
+
       "market_assessments": [
         {
           "category": "全场大小球",
@@ -1600,8 +1647,8 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
           "probability": 60.0,
           "grade": "B",
           "status": "recommend",
-          "reason": "攻防转换与量化数据支持",
-          "risk": "防守反击风险"
+          "reason": "攻守转化率与λ进球期望支持大球正期望值",
+          "risk": "领先方防守反击控速"
         },
         {
           "category": "半场大小球",
@@ -1612,7 +1659,7 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
           "probability": 55.0,
           "grade": "C",
           "status": "watch",
-          "reason": "半场防守数据较为严密",
+          "reason": "半场防守数据较为严密，攻势多处于试探阶段",
           "risk": "偶发失误"
         },
         {
@@ -1624,7 +1671,7 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
           "probability": 62.0,
           "grade": "B",
           "status": "recommend",
-          "reason": "量化压迫与攻守转化占优",
+          "reason": "量化压迫与攻守转化占优，净胜球期望差ΔxG达标",
           "risk": "客队反击威胁"
         },
         {
@@ -1648,10 +1695,39 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
           "probability": 55.0,
           "grade": "B",
           "status": "recommend",
-          "reason": "主胜赔率具备正向价值边际",
+          "reason": "主胜赔率具备正向价值边际(+EV)",
           "risk": "平局丢分"
         }
-      ]
+      ],
+
+      "step3_best_recommendation": {
+        "category": "全场让球",
+        "market": "full_spread",
+        "market_option_id": "full_spread__m1__o1",
+        "direction": "主队 -0.5",
+        "line": "-0.5",
+        "odds": 1.95,
+        "probability": 62.0,
+        "value_edge": 10.7,
+        "grade": "B"
+      },
+      "recommendation": {
+        "category": "全场让球",
+        "market": "full_spread",
+        "market_option_id": "full_spread__m1__o1",
+        "direction": "主队 -0.5",
+        "line": "-0.5",
+        "odds": 1.95,
+        "probability": 62.0,
+        "value_edge": 10.7,
+        "grade": "B"
+      },
+
+      "step4_discrete_score_projection": {
+        "most_likely_score": "2-0",
+        "poisson_joint_prob_pct": 14.2,
+        "note": "仅作为泊松矩阵单点离散最高频展示，禁止作为大小球/让球推导论据"
+      }
     }
   ]
 }
@@ -1660,16 +1736,29 @@ Match data list (${chunkData.length} matches):
 ${JSON.stringify(chunkData, null, 2)}`;
     };
 
+    // 3. Dedicated Gemini Gem Pure Quant Data Prompt Builder (Ultra-clean, zero bloat, tailored for the Custom Gem System Instructions)
+    const buildGemPrompt = (chunkData: any[], index: number, totalChunks: number) => {
+      const batchHeader = totalChunks > 1 ? `Batch ${index + 1}/${totalChunks} – ${chunkData.length} matches` : `Total ${chunkData.length} matches`;
+      return `[GEMINI GEM EVALUATION TASK · ${batchHeader}]
+Please execute your system quantitative betting protocols (+EV arbitrage, forward-only DAG, independent Poisson calibration, and active Google Search grounding) on the following ${chunkData.length} match(es).
+Output ONLY the standard schema JSON object containing all matches.
+
+Match Data Payload:
+${JSON.stringify(chunkData, null, 2)}`;
+    };
+
     const standardPrompts = chunks.map((chunkData, index) => buildStandardPrompt(chunkData, index, chunks.length));
     const objectivePrompts = chunks.map((chunkData, index) => buildObjectivePrompt(chunkData, index, chunks.length));
+    const gemPrompts = chunks.map((chunkData, index) => buildGemPrompt(chunkData, index, chunks.length));
     const promptStyle = body?.prompt_style || 'standard';
-    const prompts = promptStyle === 'objective' ? objectivePrompts : standardPrompts;
+    const prompts = promptStyle === 'gem' ? gemPrompts : (promptStyle === 'objective' ? objectivePrompts : standardPrompts);
 
     return {
       mode,
       prompts,
       standard_prompts: standardPrompts,
       objective_prompts: objectivePrompts,
+      gem_prompts: gemPrompts,
       prompt_style: promptStyle,
       match_count: evaluationData.length,
       evaluationData,
@@ -1697,9 +1786,9 @@ Follow the [Football Market Audit Protocol v2] strictly. Evaluate ALL ${chunkDat
 Mode: ${modeLabel}
 
 [The Three-Step Quantitative Betting Analytical Protocol]
-0. 【第一步：纯现场数据推演】: 严禁看盘说球！深入解析 quantitative_analysis.attack_conversion 中的 dangerous_attack_to_shot_ratio（破防转化率）、field_tilt_share（三区压迫）和 shot_on_target_accuracy（射正质量），排查首发阵容与换人红牌。
-1. 【第二步：推演无偏概率与比分分布】: 依据 quantitative_analysis.handicap_calibration.independent_poisson_distribution（双方独立期望进球 λ_home, λ_away 与 margin_distribution_pct 净胜球分布），先独立推导出真实比分矩阵。
-2. 【第三步：比对机构盘口寻找真实定价漏洞】: 将第二步客观概率比对机构去除抽水后的 fair_prob_pct 与盘口门槛。动态判定深盘与大小球价值：若数据强力支撑大比分穿盘，顺应数据推荐让深盘与大球；若数据证明仅为常态小胜（1-0/2-0/2-1 占主胜样本 50%+），则精准识别深盘诱上陷阱，果断将价值锁定在【受让】或【小球】。严禁教条写死，一切以数据第一性与 Value Edge (真实概率 - 机构隐含概率 > 0) 为准！
+0. 【第一步：纯现场数据推演与单向正向推导 (Forward-Only DAG & 严禁比分倒推)】: 严禁看盘说球！严禁以“预测比分为X-X”、“看好X-X所以推荐”作为推导大小球、让球或独赢的逻辑前提！必须以物理攻防数据（λ期望进球、压迫倾角与射正转化）为第一性原理，深入解析 quantitative_analysis.attack_conversion 中的 dangerous_attack_to_shot_ratio（破防转化率）、field_tilt_share（三区压迫）和 shot_on_target_accuracy（射正质量），排查首发阵容与换人红牌。
+1. 【第二步：推演无偏概率与比分分布】: 依据 quantitative_analysis.handicap_calibration.independent_poisson_distribution（双方独立期望进球 λ_home, λ_away 与 margin_distribution_pct 净胜球分布），先独立推导出真实各盘口概率与比分矩阵。比分预测仅作为离散统计展示，绝非推导前提。
+2. 【第三步：比对机构盘口寻找真实定价漏洞】: 将第二步客观概率比对机构去除抽水后的 fair_prob_pct 与盘口门槛。动态判定深盘与大小球价值：若数据强力支撑大比分穿盘，顺应数据推荐让深盘与大球；若数据证明仅为常态小胜（1-0/2-0/2-1 占主胜样本 50%+），则精准识别深盘诱上陷阱，果断将价值锁定在【受让】或【小球】。严禁教条写死，一切以数据第一性与 Value Edge (真实概率 - 机构隐含概率 > 0) 为准！若 reason 中包含倒推词将被系统审计自动标记。
 
 [Rules and Constraints]
 1. Each match must include exactly 5 real market assessments in strict order:
@@ -1710,8 +1799,8 @@ Mode: ${modeLabel}
 5. Best Overall Recommendation (recommendation field): Pick the highest-value option among the 5 real markets, balancing 大小球, 让球, 受让抗冷, 平手保护, 独赢 without defaulting to any single market!
 6. CRITICAL: The output matches array must contain exactly ${chunkData.length} objects — one per match. Never omit, merge, or use placeholder objects for any match.
 
-[Output JSON Schema — output only this, nothing else]
-{"schema_version":"football_market_audit_v2","summary":"matches:${chunkData.length}|recommend:N|watch:N|avoid:N","matches":[{"match":"original match name","ybty_home":"YBTY home","ybty_away":"YBTY away","summary":"minute|score|score_verified|final instruction","score_verified":false,"score_source":"source","verification_passed":false,"recommendation":null,"market_assessments":[{"category":"one of the 5 categories","market":"real market key","market_option_id":null,"direction":null,"line":null,"odds":null,"odds_source":null,"probability":null,"probability_scope":"simplified settlement scope","implied_probability":null,"value_edge":null,"grade":"A|B|C|NO_BET","status":"recommend|watch|avoid|unavailable","reason":"core data|status tag","evidence_refs":["input field path"],"risk":"risk tag"}]}]}
+[Output JSON Schema — output only this, nothing else, following strict topological order]
+{"schema_version":"football_market_audit_v2","summary":"matches:${chunkData.length}|recommend:N|watch:N|avoid:N","matches":[{"match":"original match name","ybty_home":"YBTY home","ybty_away":"YBTY away","summary":"minute|score|score_verified|final instruction","score_verified":false,"score_source":"source","verification_passed":false,"step1_physical_lambdas":{"lambda_home_rest":1.15,"lambda_away_rest":0.65,"lambda_total_rest":1.80,"dominant_siege":"攻防描述","key_physical_evidence":"物理指标"},"market_assessments":[{"category":"one of the 5 categories","market":"real market key","market_option_id":null,"direction":null,"line":null,"odds":null,"odds_source":null,"probability":null,"probability_scope":"simplified settlement scope","implied_probability":null,"value_edge":null,"grade":"A|B|C|NO_BET","status":"recommend|watch|avoid|unavailable","reason":"core data|status tag","evidence_refs":["input field path"],"risk":"risk tag"}],"step3_best_recommendation":null,"recommendation":null,"step4_discrete_score_projection":{"most_likely_score":"2-1","poisson_joint_prob_pct":12.8,"note":"离散统计展示"}}]}
 
 Match data list (${chunkData.length} matches):
 ${JSON.stringify(chunkData)}`;

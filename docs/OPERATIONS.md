@@ -192,6 +192,10 @@ python recommend_prematch.py --help
 - `server.ts` 作为应用组合根，负责路由注册、Vite 中间件挂载及核心服务集成；业务模块已按路由领域拆分至 `server/routes/`，算法与精算模型拆分至 `server/services/`。
 - AI 评估依赖 `.env` 中的 Gemini 配置（支持 `GEMINI_API_KEY` 单 Key 或 `GEMINI_API_KEYS` 多 Key 逗号分隔轮换）；真实密钥不得提交。
 - 可通过 `.env` 中的 `GEMINI_MODEL` 覆盖默认模型；未设置时使用项目默认模型。
+- **Gemini Gem 极简导出与格式工程**：
+  - 系统支持 **💎 专属 Gemini Gem 极简量化模式**、**🎯 标准操盘手模式** 与 **⚡ 客观纯量化模式** 三种导出；
+  - 在配置好专属 Gem 后，导出 Prompt 只携带高密度结构化物理数据 Payload（~8k 字符），无需重复发送数万字的模型与风控规则；
+  - 输入端 Prompt 保持 2 空格缩进以保护 Tokenizer 浮点数解析精度；输出端采用紧凑行结构（Compact JSON），保证零截断与极速生成。
 - 浏览器导出文件必须满足脚本要求的时间差和时效限制，否则流程会主动停止。
 - `output/` 中的历史验证 JSON 可能很大。需要保留的人工结论应迁移至 `reports/`，并用日期命名。
 - 执行迁移后的脚本时，优先通过根目录兼容入口或 `scripts/` 内对应流程启动器运行；不要依赖任意当前工作目录。

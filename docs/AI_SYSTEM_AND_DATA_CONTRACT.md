@@ -135,7 +135,19 @@ value_edge = probability - implied_probability
 
 例如 `odds=2.00`、`probability=56`，则隐含概率为 `50`，价值差为 `6`。
 
-### 2.4 比分核验
+### 2.4 单向正向量化推演与防倒推审计铁律 (Forward-Only DAG & Anti-Reverse-Inference)
+
+系统严密执行从底层客观数据到期望值 (+EV) 的单向推导，彻底斩断大模型“拍脑袋猜比分再倒推盘口”的因果倒置行为：
+
+1. **单向计算有向无环图 (Computation DAG)**：
+   $$\text{雷速攻防数据 (}\lambda\text{期望进球、压迫倾角与射正转化)} \longrightarrow \text{各盘口独立公允胜率 } P_{\text{model}} \longrightarrow \text{比对 YBTY 赔率审计 +EV 边际} \longrightarrow \text{泊松矩阵最高频比分离散展示}$$
+2. **严禁以比分作为推导论据**：
+   - 预测比分仅是泊松联合概率矩阵的离散统计最高频切片（单点发生率通常仅 10%~15%），绝非推导大小球、让球或独赢的因果前提。
+   - 所有盘口玩法的 `reason` 必须基于进球期望率 $\lambda$、三区压迫转化率与价值边际陈述，严禁出现“*因为预测比分为X-X*”、“*看好X-X所以推荐*”等倒推表述。
+3. **系统非破坏性量化审计标记**：
+   - 后端及前端审计引擎对所有评估理由执行特征扫描；若捕获到倒推模式，**完整保留原始理由文本**，并在数据中标记 `reverse_reasoning_detected: true`、附带 `audit_warnings` 并在 UI 渲染 `⚠️ 倒推标记` 徽章，供复盘与风控核验。
+
+### 2.5 比分核验
 
 滚球：
 
@@ -444,7 +456,11 @@ POST /api/ai/export-prompt
   "mode":"live_eval",
   "match_count":1,
   "prompt_count":1,
-  "prompts":["可逐段发送的prompt"],
+  "prompts":["当前选择风格对应的可发送prompt"],
+  "standard_prompts":["标准操盘手模式Prompt"],
+  "objective_prompts":["客观纯量化模式Prompt"],
+  "gem_prompts":["专属Gemini Gem极简量化Prompt"],
+  "prompt_style":"gem",
   "match_manifest":["主队 vs 客队"],
   "combined_prompt":"可一次发送的合并prompt",
   "instructions":"发送说明"
@@ -452,8 +468,27 @@ POST /api/ai/export-prompt
 ```
 
 数据过大时会分段。`prompts[]` 用于同一Gemini会话顺序发送；`combined_prompt` 用于能够容纳全文的模型。最后一段必须合并全部比赛结果。
+系统提供三类导出风格：
+- **`gem` (💎 专属 Gemini Gem 极简量化模式，默认推荐)**：规则与数学模型已完全内化至定制 Gem 的 System Instructions 中，Prompt 仅包含 100% 纯净高密度的结构化物理数据 Payload，无多余冗余，执行速度最快，杜绝截断。
+- **`standard` (🎯 标准操盘手模式)**：包含完整的六大引擎、风控铁律与业务推演协议，适用于未配置 Gem 的通用原生对话环境。
+- **`objective` (⚡ 客观纯量化模式)**：去除主观战术叙事，锁定 5 大硬性盘口量化定价。
 
 直接调用Gemini使用同一请求体发送至 `POST /api/ai/evaluate`；响应是经过后端白名单、比分和价值差复核后的评估对象。导出Prompt与直接调用共享 `buildPromptData`，不得维护两套字段协议。
+
+### 8.0.1 导出与输出端排版格式与压缩规范 (Format & Compactness Engineering)
+1. **输入端 Prompt（给 AI 读）**：
+   - 必须保持**标准换行与 2 空格层级缩进**（Pretty-print）；
+   - 绝对禁止将输入数据压缩为单行无空格字符串，以保护大模型分词器（Tokenizer）对浮点数（赔率、概率、$\lambda$）的识别精度并保留自注意力（Self-Attention）结构性先验。
+2. **输出端 JSON（让 AI 生成）**：
+   - 采用**紧凑行结构 (Compact Line-based JSON)**，每个字段独立换行，但严禁多层空行与深层空格缩进；
+   - `reason` 严格约束在 1~2 句高密度量化陈述（物理事实 + 战术推演 + 真实胜率对比机构隐含概率）；
+   - 此规范大幅减少 Token 消耗（提速 30%~50%），彻底杜绝批量评估时的输出截断（Max Tokens Truncation）。
+
+### 8.0.2 专属 Gemini Gem 系统设定 (System Instructions) 规范
+定制专属 Gem 时，需在其 Instructions 中固化：
+- **拓扑单向因果链**：严格遵循 `物理事实/λ期望 -> 5大独立盘口胜率/EV -> 最佳推荐 -> 离散比分单点展示`；
+- **仲裁与 Grounding 权责**：以现场物理攻防数据为基准底座，赋予 Google Search 实时检索首发与伤停权限，查实核心缺阵允许在 $\lambda$ 上动态浮动 $\pm 10\%\sim 20\%$ 并记录于证据链；
+- **滚球让球结算口径**：滚球让球盘口必须以【当前比分 (0:0) 重新起算，计算剩余时段净增进球】。
 
 ### 8.1 滚球Prompt
 
@@ -532,9 +567,16 @@ POST /api/ai/export-prompt
 
 要求：至少2场；`size>=2`、`count>=1`，且 `size` 不得超过已选比赛数。候选可混合滚球和赛前；每场携带自己的 `evaluation_mode`、系统推荐、最新AI评估和YBTY白名单。
 
-## 9. Gemini单场/批量评估输出契约
+## 9. Gemini单场/批量评估输出契约与硬性拓扑计算链 (Forward-Only DAG)
 
-滚球和赛前均使用 `football_market_audit_v2`：
+滚球和赛前均使用 `football_market_audit_v2`，并强制执行**严格拓扑顺序自回归生成 (Strict Autoregressive Topological Schema)** 与 **硬性数学计算链 (Chain of Computation, CoC)**：
+
+### 9.0 拓扑单向因果链 (Forward-Only DAG) 铁律
+大模型自回归输出必须严格按照物理与逻辑时间线推进，从根本上杜绝“先猜比分再倒推盘口”的伪量化行为：
+$$\text{Step 1: 物理攻防动量与 }\lambda\text{ 参数} \longrightarrow \text{Step 2: 5大核心盘口胜率与 EV 判定} \longrightarrow \text{Step 3: 最佳正向推荐} \longrightarrow \text{Step 4: 离散比分统计展示}$$
+
+- **实时网络情报主动补全 (Active Web Grounding)**：全面激活联网检索能力，针对首发伤停（Confirmed XI）、天气突变、杯赛战意进行外部补全，事实无缝融入 Step 1 与 Step 2。
+- **反倒推硬性红线**：严禁在 `reason` 中出现“预测比分为X-X所以看好大球/让球”等倒推语句。大小球必须由攻防进球期望 $\lambda$ 积分得出，让球必须由攻防净胜期望 $\Delta\text{xG}$ 导出。系统后台部署有 `detectReverseReasoning` 毫秒级审计哨兵与 `⚠️ 倒推标记`。
 
 ```json
 {
@@ -542,12 +584,33 @@ POST /api/ai/export-prompt
   "summary":"比赛:1|推荐:1|观察:0|熔断:0",
   "matches":[{
     "match":"原比赛名",
+    "match_id":"原始match_id",
+    "leisu_match_id":"原始leisu_match_id",
     "ybty_home":"YBTY主队",
     "ybty_away":"YBTY客队",
     "summary":"65'|0-1|score_verified=true|推荐",
     "score_verified":true,
     "score_source":"ybty+leisu_api",
     "verification_passed":true,
+    "step1_physical_lambdas":{
+      "lambda_home_rest":1.15,
+      "lambda_away_rest":0.65,
+      "lambda_total_rest":1.80,
+      "dominant_siege":"主队高压围攻且三区压迫倾角占优",
+      "key_physical_evidence":"射正4:1，三区压迫倾角68%，结合联网确认客队主力中卫伤退"
+    },
+    "market_assessments":[],
+    "step3_best_recommendation":{
+      "category":"全场大小球",
+      "market":"full_total",
+      "market_option_id":"full_total__m2__o1",
+      "direction":"大球",
+      "line":"1.5",
+      "odds":1.68,
+      "probability":65,
+      "value_edge":5.48,
+      "grade":"B"
+    },
     "recommendation":{
       "category":"全场大小球",
       "market":"full_total",
@@ -559,7 +622,11 @@ POST /api/ai/export-prompt
       "value_edge":5.48,
       "grade":"B"
     },
-    "market_assessments":[]
+    "step4_discrete_score_projection":{
+      "most_likely_score":"2-1",
+      "poisson_joint_prob_pct":12.8,
+      "note":"仅作为泊松矩阵单点离散最高频展示，禁止作为大小球/让球推导论据"
+    }
   }]
 }
 ```
@@ -799,6 +866,26 @@ $$W_{prior}(t) = \frac{1}{1 + e^{0.12 \times (t - 22)}}$$
    - 在 $t \ge 60$ 分钟推演中，深度引入雷速 15 分钟进球时段分布数据；当球队在 76-90+ 分钟具有历史高进球偏好（$\ge 3$ 球）时，自动赋予破门动能 $1.10\times$ 爆发加权。
 5. **标准模型数据闭环 (Canonical Match Context Normalization)**：
    - 彻底打通交锋历史 (`head_to_head`)、近期战绩 (`recent_matches`)、联赛积分榜 (`league_standings`)、进球时段分布 (`goal_distribution`) 与盘路走势 (`trend_summary`) 五大维度的清洗与推演流转。
+
+### 15.6 专属 Gemini Gem 极简量化生态与 Web UI 适配规范 (2026-08 最新同步)
+
+为实现本地量化系统与 Google Gemini Web / Gem 的零损耗闭环交互，系统制定了统一的 Gem 协议与交互规范：
+
+1. **赛前默认占位符零偏置隔离 (Zero Prior Bias via Weight Neutralization)**：
+   - 赛前状态下（`minute: 0`），技术统计默认占位符（如控球率 `50%-50%`、射门 `0-0`）的**实时物理动量权重严格置为 0.0**；
+   - 赛前期望 $\lambda$ 100% 由历史攻防得失球、主客场特异性加权、交锋深挖与做市商无偏概率驱动，对赛前默认占位符具备完全数学免疫。
+2. **专属 Gem 状态机通用架构 (Single Gem for Both Prematch & In-Play)**：
+   - 同一个专属 Gem 无缝兼容**赛前深度预估**与**滚球即时闪击**；
+   - 状态机自动根据 Payload 中的 `minute` 与 `score` 切换：
+     - `minute: 0`：启动赛前全局基本面定价与做市商深度折价挖掘；
+     - `minute > 0`：自动切换为滚球剩余时段进球期望积分与让球盘口归零重新起算。
+3. **Token 容量与扩展思考实战准则 (Token Budget & Extended Thinking Guidelines)**：
+   - **输入容量安全裕度**：9 场赛前极简高密度 Payload（约 27.6 万字符 / 7 万 Token）仅占用 Gemini 100 万上下文窗口的 **7.5%**，可一次性安全整段输入；
+   - **扩展思考 (Extended Thinking)**：强烈建议开启，促使模型执行隐式思维链（Chain-of-Thought），严密计算多盘口独立胜率与 EV，规避极端深盘（如 -4 盘、5.5 大球）的模型基准剪刀差幻觉；
+   - **输出防截断**：若接近单次 8,192 Token 输出上限而停顿，直接回复“继续”即可无缝补全闭合 JSON。
+4. **Google Gemini Gem 最新配置说明 (Native Grounding & Search Trigger)**：
+   - 最新版 Google Gemini Gem 创建页中，`Google Search` 联网能力已内化为原生默认能力（无需寻找独立复选框）；
+   - 在 Gem 的 `Instructions` 中明确声明网络检索规则即可自动触发谷歌实时搜索核实青年联赛、杯赛首发与突发情报。
 
 ## 16. 验证命令
 

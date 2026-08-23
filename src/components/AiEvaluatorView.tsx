@@ -157,9 +157,10 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
   // Export Prompt and Manual Web Gemini Import states
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
-  const [exportPromptStyle, setExportPromptStyle] = useState<'standard' | 'objective'>('standard');
+  const [exportPromptStyle, setExportPromptStyle] = useState<'standard' | 'objective' | 'gem'>('gem');
   const [exportedStandardPrompts, setExportedStandardPrompts] = useState<string[]>([]);
   const [exportedObjectivePrompts, setExportedObjectivePrompts] = useState<string[]>([]);
+  const [exportedGemPrompts, setExportedGemPrompts] = useState<string[]>([]);
   const [exportedPrompt, setExportedPrompt] = useState<string>('');
   const [exportedCombinedPrompt, setExportedCombinedPrompt] = useState<string>('');
   const [exportedPrompts, setExportedPrompts] = useState<string[]>([]);
@@ -519,12 +520,11 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
 
 
 
-  const switchExportPromptStyle = (style: 'standard' | 'objective') => {
+  const switchExportPromptStyle = (style: 'standard' | 'objective' | 'gem') => {
     setExportPromptStyle(style);
-    const sourcePrompts = style === 'objective' ? exportedObjectivePrompts : exportedStandardPrompts;
+    const sourcePrompts = style === 'gem' ? exportedGemPrompts : (style === 'objective' ? exportedObjectivePrompts : exportedStandardPrompts);
     if (sourcePrompts && sourcePrompts.length > 0) {
       const segmentCount = sourcePrompts.length;
-      const matchManifest = exportInfo?.match_count ? `[${exportInfo.match_count} 场比赛]` : '';
       const deliveryPrompts = mode === 'parlay_check' || segmentCount <= 1
         ? sourcePrompts
         : sourcePrompts.map((prompt: string, index: number) => index < segmentCount - 1
@@ -543,7 +543,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
     }
   };
 
-  const handleExportPrompt = async (targetStyle?: 'standard' | 'objective') => {
+  const handleExportPrompt = async (targetStyle?: 'standard' | 'objective' | 'gem') => {
     const activeStyle = targetStyle || exportPromptStyle;
     const requestedParlays = buildValidParlayRequests(parlayRequests, parlaySelected.length);
     if (mode === 'parlay_check' && (parlaySelected.length < 2 || requestedParlays.length === 0)) {
@@ -612,6 +612,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
       setExportPromptStyle(data.prompt_style || activeStyle);
       setExportedStandardPrompts(data.standard_prompts || []);
       setExportedObjectivePrompts(data.objective_prompts || []);
+      setExportedGemPrompts(data.gem_prompts || []);
 
       const promptSegments = Array.isArray(data.prompts) ? data.prompts : [];
       setExportedPrompts(promptSegments);
@@ -1251,6 +1252,17 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                 <div className="flex items-center gap-2 p-1 bg-slate-900 border border-slate-800 rounded-xl">
                   <button
                     type="button"
+                    onClick={() => switchExportPromptStyle('gem')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                      exportPromptStyle === 'gem'
+                        ? 'bg-emerald-500 text-slate-950 shadow-md'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <span>💎 专属 Gemini Gem 极简量化模式（推荐 · 零冗余）</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => switchExportPromptStyle('standard')}
                     className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
                       exportPromptStyle === 'standard'
@@ -1258,7 +1270,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                         : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                     }`}
                   >
-                    <span>🎯 标准操盘手模式（原网页版）</span>
+                    <span>🎯 标准操盘手模式（含完整规则）</span>
                   </button>
                   <button
                     type="button"
@@ -1269,11 +1281,20 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                         : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                     }`}
                   >
-                    <span>⚡ 客观纯量化模式（无主观策略 · 5大硬性盘口）</span>
+                    <span>⚡ 客观纯量化模式</span>
                   </button>
                 </div>
 
-                {exportPromptStyle === 'objective' ? (
+                {exportPromptStyle === 'gem' ? (
+                  <div className="bg-emerald-950/40 border border-emerald-800/50 rounded-xl p-3.5 text-xs text-emerald-200/90 space-y-1.5">
+                    <div className="font-bold flex items-center gap-1.5 text-emerald-300">
+                      <Sparkles className="w-4 h-4 shrink-0 text-emerald-400" /> 💎 专属 Gemini Gem 极简量化模式（已内化全部量化协议）：
+                    </div>
+                    <p>1. <strong>零规则冗余 · 100% 聚焦数据</strong>：由于你的 Gem 已配置好系统量化宪法，本模式仅输出纯净比赛物理数据，彻底杜绝 AI 注意力衰减与截断风险！</p>
+                    <p>2. <strong>原生 Google Search 联网补全</strong>：Gem 自动触发谷歌实时搜索核实官方首发、伤停与突发天气，并与现场数据自动仲裁。</p>
+                    <p>3. <strong>一键粘贴与极速导入</strong>：复制下方 Prompt 发送给你的专属 Gem，获取标准 JSON 结果后点击【导入网页版 Gemini 评估】完成归档！</p>
+                  </div>
+                ) : exportPromptStyle === 'objective' ? (
                   <div className="bg-sky-950/40 border border-sky-800/50 rounded-xl p-3.5 text-xs text-sky-200/90 space-y-1.5">
                     <div className="font-bold flex items-center gap-1.5 text-sky-300">
                       <Sparkles className="w-4 h-4 shrink-0 text-sky-400" /> 客观纯量化模式规范：
@@ -1306,7 +1327,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
 
             <div className="flex items-center justify-between pt-2">
               <span className="text-xs text-slate-400">
-                {activeExportPromptIndex < 0 ? `一次复制全部 ${exportInfo?.match_count || 1} 场 (${exportPromptStyle === 'objective' ? '客观纯量化' : '标准模式'})` : exportInfo?.prompt_count && exportInfo.prompt_count > 1 ? `备用分段：当前第 ${activeExportPromptIndex + 1}/${exportInfo.prompt_count} 段` : `全量 Prompt 数据已就绪 (${exportPromptStyle === 'objective' ? '客观纯量化' : '标准模式'})`}
+                {activeExportPromptIndex < 0 ? `一次复制全部 ${exportInfo?.match_count || 1} 场 (${exportPromptStyle === 'gem' ? '专属 Gem 极简量化' : exportPromptStyle === 'objective' ? '客观纯量化' : '标准操盘手'})` : exportInfo?.prompt_count && exportInfo.prompt_count > 1 ? `备用分段：当前第 ${activeExportPromptIndex + 1}/${exportInfo.prompt_count} 段` : `全量 Prompt 数据已就绪 (${exportPromptStyle === 'gem' ? '专属 Gem 极简量化' : exportPromptStyle === 'objective' ? '客观纯量化' : '标准操盘手'})`}
               </span>
               <div className="flex gap-2">
                 {exportedPrompts.length > 1 && activeExportPromptIndex >= 0 && <button onClick={showCombinedExportPrompt} className="px-3 py-2 rounded-lg bg-emerald-700 text-white text-xs">一次复制全部</button>}
@@ -1316,7 +1337,7 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                 <button onClick={() => setExportModalOpen(false)} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs font-medium hover:bg-slate-700">
                   关闭
                 </button>
-                <button onClick={handleCopyPrompt} className={`px-5 py-2 rounded-lg text-white text-xs font-bold flex items-center gap-1.5 shadow-lg ${exportPromptStyle === 'objective' ? 'bg-sky-600 hover:bg-sky-500' : 'bg-amber-600 hover:bg-amber-500'}`}>
+                <button onClick={handleCopyPrompt} className={`px-5 py-2 rounded-lg text-white text-xs font-bold flex items-center gap-1.5 shadow-lg ${exportPromptStyle === 'gem' ? 'bg-emerald-600 hover:bg-emerald-500' : exportPromptStyle === 'objective' ? 'bg-sky-600 hover:bg-sky-500' : 'bg-amber-600 hover:bg-amber-500'}`}>
                   {copiedPrompt ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
                   {copiedPrompt ? '✅ 已复制！' : activeExportPromptIndex < 0 ? '一键复制全部 Prompt' : exportedPrompts.length > 1 ? `复制第 ${activeExportPromptIndex + 1} 段` : '一键复制 Prompt'}
                 </button>

@@ -22,9 +22,40 @@ export const ALL_CATEGORIES = BETTABLE_CATEGORIES;
 export const ALL_12_CATEGORIES = BETTABLE_CATEGORIES;
 
 /**
+ * Detects whether an assessment or recommendation's reason contains reverse-deduction
+ * patterns (e.g. using a discrete predicted score to justify totals or handicap lines).
+ * NOTE: As per user specification, we DO NOT rewrite or replace the text; we flag it clearly.
+ */
+export function detectReverseReasoning(text: string): { detected: boolean; snippet?: string; note?: string } {
+  if (!text || typeof text !== 'string') return { detected: false };
+  const patterns = [
+    /预测(?:全场)?比分(?:为|是|在)?\s*[\d\s:：-]+/i,
+    /看好\s*\d+[-:：]\d+\s*(?:所以|因此|故而|打出|因而|推荐)/i,
+    /基于\s*\d+[-:：]\d+\s*(?:比分|预测)?\s*(?:所以|因此|故而|推荐|判定)/i,
+    /打出\s*\d+[-:：]\d+\s*(?:所以|因此|故而|推荐|看好)/i,
+    /预计\s*\d+[-:：]\d+\s*(?:完场|终局|所以|因此|判定)/i,
+    /终局\s*\d+[-:：]\d+\s*(?:所以|因此|判定|支持)/i,
+    /比分\s*\d+[-:：]\d+\s*(?:所以|因此|支持)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      return {
+        detected: true,
+        snippet: match[0],
+        note: `检测到理由引用具体比分作为推导依据（倒推倾向：“${match[0]}”），已标记供量化审计。`,
+      };
+    }
+  }
+  return { detected: false };
+}
+
+/**
  * Normalizes match evaluation output from AI:
  * - Keeps only 5 core real bettable markets (filters out non-betting predictions).
  * - Fills in any missing real market categories with standard defaults.
+ * - Detects and flags any reverse reasoning without mutating original reasoning text.
  */
 export function normalizeMatchPredictionsAndAssessments(match: any): any {
   if (!match || typeof match !== 'object') return match;
@@ -143,10 +174,42 @@ export function normalizeMatchPredictionsAndAssessments(match: any): any {
     });
   }
 
+  // Inspect for reverse reasoning in each assessment (flagging without rewriting)
+  const auditedAssessments = assessments.map((item) => {
+    const check = detectReverseReasoning(item?.reason || '');
+    if (check.detected) {
+      return {
+        ...item,
+        reverse_reasoning_detected: true,
+        reverse_reasoning_detail: check,
+        audit_warnings: Array.isArray(item.audit_warnings)
+          ? [...item.audit_warnings, check.note]
+          : [check.note],
+      };
+    }
+    return item;
+  });
+
+  let auditedRecommendation = match.recommendation;
+  if (auditedRecommendation && typeof auditedRecommendation === 'object') {
+    const recCheck = detectReverseReasoning(auditedRecommendation.reason || '');
+    if (recCheck.detected) {
+      auditedRecommendation = {
+        ...auditedRecommendation,
+        reverse_reasoning_detected: true,
+        reverse_reasoning_detail: recCheck,
+        audit_warnings: Array.isArray(auditedRecommendation.audit_warnings)
+          ? [...auditedRecommendation.audit_warnings, recCheck.note]
+          : [recCheck.note],
+      };
+    }
+  }
+
   return {
     ...match,
+    recommendation: auditedRecommendation,
     pro_strategy_guide: proStrategy,
     bankroll_guidance: bankrollGuidance,
-    market_assessments: assessments,
+    market_assessments: auditedAssessments,
   };
 }

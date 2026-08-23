@@ -265,6 +265,8 @@ export interface StandardMatchData {
   lineups?: LineupData;
   risks?: string[];
   evidence?: string[];
+  market_assessments?: any[];
+  prediction?: any;
   formation_clash?: FormationClashResult;
   home_formation?: FormationType;
   away_formation?: FormationType;
@@ -329,7 +331,7 @@ export function toStandardMatchData(raw: any): StandardMatchData {
   const minute = !isNaN(rawMinute) && rawMinute >= 0 ? Math.floor(rawMinute) : 0;
   const isPrematch = minute === 0 || raw.export_mode === 'prematch' || String(raw.status || raw.match_status || '').toUpperCase().includes('PRE');
   const matchStatus = raw.match_status || (isPrematch ? 'PREMATCH' : (minute > 0 ? 'IN_PLAY' : 'PREMATCH'));
-  const decisionStatus = raw.status && ['WATCH', 'PASS', 'RESEARCH'].includes(raw.status) ? raw.status : (isPrematch ? 'RESEARCH' : 'WATCH');
+  const decisionStatus = raw.status ? String(raw.status) : (isPrematch ? 'RESEARCH' : 'WATCH');
 
   // 4. 比分与双源交叉核验 (防假比分安全防线)
   let scoreHome = 0;
@@ -622,6 +624,8 @@ export function toStandardMatchData(raw: any): StandardMatchData {
     risks: Array.isArray(raw.risks) ? raw.risks : [],
     evidence: Array.isArray(raw.evidence) ? raw.evidence : [],
     intercept_reason: raw.intercept_reason || '',
+    market_assessments: Array.isArray(raw.market_assessments) ? raw.market_assessments : undefined,
+    prediction: raw.prediction || undefined,
     snapshot_delta: raw.snapshot_delta || null,
     formation_clash: raw.formation_clash || undefined,
     home_formation: raw.home_formation || undefined,
@@ -902,4 +906,7 @@ export interface AIMarketAssessment {
   status: 'recommend' | 'watch' | 'prediction' | 'avoid' | 'unavailable';
   reason: string;
   pro_trader_tip?: string;
+  reverse_reasoning_detected?: boolean;
+  reverse_reasoning_detail?: { detected: boolean; snippet?: string; note?: string };
+  audit_warnings?: string[];
 }
