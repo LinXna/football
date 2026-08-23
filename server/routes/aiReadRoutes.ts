@@ -170,14 +170,28 @@ export function registerAiManualImportRoutes(app: express.Express, deps: { parse
           return sameTeams(entry?.home, entry?.away, stored.ybty_home, stored.ybty_away);
         });
         const source = wrapper || {};
+        const extractRawMarkets = (item: any): any[] => {
+          if (!item) return [];
+          if (Array.isArray(item.verified_ybty_markets) && item.verified_ybty_markets.length > 0) return item.verified_ybty_markets;
+          if (Array.isArray(item.ybty_raw_markets) && item.ybty_raw_markets.length > 0) return item.ybty_raw_markets;
+          if (Array.isArray(item.market_snapshots) && item.market_snapshots.length > 0) return item.market_snapshots;
+          if (Array.isArray(item.markets) && item.markets.length > 0) return item.markets;
+          return [];
+        };
+
+        const resolvedRawMarkets = extractRawMarkets(stored).length > 0
+          ? extractRawMarkets(stored)
+          : (extractRawMarkets(source).length > 0
+              ? extractRawMarkets(source)
+              : (Array.isArray(ybty?.markets) && ybty.markets.length > 0 ? ybty.markets : []));
+
         return {
           ...source,
           ...stored,
           match_id: stored.match_id || stored.leisu_match_id || source.match_id || source.leisu_match_id || ybty?.match_id,
           leisu_match_id: stored.leisu_match_id || stored.match_id || source.leisu_match_id || source.match_id || ybty?.match_id,
-          ybty_raw_markets: Array.isArray(stored.ybty_raw_markets) && stored.ybty_raw_markets.length > 0
-            ? stored.ybty_raw_markets
-            : normalizeYbtyMarketTypes(ybty?.markets || source.ybty_raw_markets || []),
+          ybty_raw_markets: normalizeYbtyMarketTypes(resolvedRawMarkets),
+          verified_ybty_markets: normalizeYbtyMarketTypes(resolvedRawMarkets),
         };
       });
 
@@ -190,7 +204,15 @@ export function registerAiManualImportRoutes(app: express.Express, deps: { parse
           || sourceMatches.find((item: any) => normalizeName(item.match) === normalizeName(match.match))
           || sourceMatches.find((item: any) => normalizeName(item.ybty_home) === normalizeName(match.ybty_home) && normalizeName(item.ybty_away) === normalizeName(match.ybty_away))
           || sourceMatches.find((item: any) => cleanTeam(item.ybty_home) === cleanTeam(match.ybty_home) && cleanTeam(item.ybty_away) === cleanTeam(match.ybty_away));
-        const verifiedMarkets = normalizeYbtyMarketTypes(source?.ybty_raw_markets || []);
+        
+        const rawSourceMarkets = (Array.isArray(source?.verified_ybty_markets) && source.verified_ybty_markets.length > 0)
+          ? source.verified_ybty_markets
+          : ((Array.isArray(source?.ybty_raw_markets) && source.ybty_raw_markets.length > 0)
+              ? source.ybty_raw_markets
+              : ((Array.isArray(source?.market_snapshots) && source.market_snapshots.length > 0)
+                  ? source.market_snapshots
+                  : (Array.isArray(source?.markets) ? source.markets : [])));
+        const verifiedMarkets = normalizeYbtyMarketTypes(rawSourceMarkets);
         const scoreVerification = resolveScoreVerification(source, mode === 'prematch_eval');
         const scoreVerified = scoreVerification.verified || match.score_verified === true || /\|true\|/i.test(match.summary || '');
         const scoreSource = match.score_verified === true ? (match.score_source || 'verified') : scoreVerification.source;

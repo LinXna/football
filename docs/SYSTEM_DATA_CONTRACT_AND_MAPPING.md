@@ -1,6 +1,6 @@
 # 全系统统一数据契约与赋值链路标准规范文档
 # CODEX SYSTEM UNIFIED DATA SCHEMA & MAPPING CONTRACT
-**版本**: `2.8.0-CANONICAL`  
+**版本**: `3.3.0-CANONICAL`  
 **状态**: `LOCKED_CANONICAL` (全系统唯一最高数据法律，所有模块开发、维护、解析必须无条件遵循)  
 **约束级别**: `CRITICAL_LAW`  
 **生效范围**: 前端组件 (`src/components/`), 业务逻辑与管道 (`src/lib/`, `src/utils/`), 后端服务 (`server/`), AI Prompt 注入层与导出模块。
@@ -464,6 +464,31 @@ export interface StandardMatchData {
    - 统一接入 `verifiedMarket` 提取 `ou_market` 与 `handicap_market`。
 4. **数据标准化双向填充 (`src/types.ts`)**：
    - `toStandardMatchData` 在清洗 `market_snapshots` 时，自动双向对齐 `options` 数组与 `home_or_over_odds` / `away_or_under_odds` / `draw_odds`。
+
+---
+
+## 7. AI 评估输出、双向择优与显式期望值 (+EV) 规范 (v3.3.0)
+
+### 7.1 双向双边择优输出法则 (Bilateral Best-Action Optimization)
+1. **彻底根治单边主队/上盘死板锚定**：
+   - 针对让球盘（`full_spread`/`half_spread`）及大小球盘（`full_total`/`half_total`），AI 与量化引擎必须同时计算 Side A 与 Side B 两侧的公允胜率与期望值 (+EV)。
+   - `market_assessments` 列表必须且只能输出该玩法中 +EV 更高、更具备正向投资价值的那一方（如主队深盘是诱上陷阱时，必须输出客队受让方向）。严禁将明知亏损的主队作为条目主体输出 `C (Avoid)` 而遗漏客队受让。
+
+### 7.2 显式 +EV 与四分之一盘微积分折算标准
+1. **期望值与隐含率**：
+   - $\text{Implied Prob} = 100 / \text{Odds}$；
+   - $\text{Value Edge} (\text{EV} \%)= (\mathbb{E}[\text{Payout}] - 1) \times 100\%$；
+   - 前端看板、Prompt 生成与后端数据管道必须显式保留并展示 `implied_probability` 与 `value_edge`。
+2. **四分之一盘微积分期望折算**：
+   $$\mathbb{E}[\text{Payout}] = P(\text{Full Win}) \times \text{Odds} + P(\text{Half Win}) \times \left(1 + \frac{\text{Odds}-1}{2}\right) + P(\text{Half Loss}) \times 0.5$$
+3. **评级与仓位控制阈值**：
+   - **A 级 (Recommend)**：$\text{Value Edge} \ge +8.0\%$（具备显著正期望值的主力仓位）；
+   - **B 级 (Watch)**：$+2.0\% \le \text{Value Edge} < +8.0\%$（轻度溢价/对冲观察）；
+   - **C 级 (Avoid)**：$\text{Value Edge} < +2.0\%$ 或负期望（机构抽水或诱盘，严禁下注）。
+
+### 7.3 联赛地域 DNA 衰减与小样本贝叶斯平滑
+- 针对哥伦甲、阿甲等慢节奏低产联赛（前几轮小样本 < 6 场），禁止将历史场均数据直接线性相乘。
+- 必须向联赛固有基准（南美赛事 $\lambda_{\text{base}} \approx 2.10\sim 2.25$）进行 $30\%\sim 50\%$ 的贝叶斯回拉平滑，防止生成过度失真的进球期望。
 
 ---
 

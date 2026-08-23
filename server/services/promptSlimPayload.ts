@@ -17,6 +17,7 @@ import {
 import { deepMineFormAndH2H } from './formAndH2HDeepMining';
 import { buildMasterTacticalSynthesis } from './advancedTacticalQuantitativeEngines';
 import { evaluateLeisuCornerQuantitativePricing } from './leisuCornerMarket';
+import { calculateMachineQuantAnalysis } from '../../src/lib/machineQuantPrediction';
 
 const BETTABLE_MARKET = /^(full|half)_(h2h|spread|total)$/;
 const KEY_EVENT = /进球|破门|goal|红牌|red card|黄牌|yellow card|角球|corner|半场结束|中场|half.?time|下半场开始|second half|点球|penalty|var|取消进球|伤退|受伤|injur|换人|substitut|中断|暂停/i;
@@ -506,6 +507,7 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
     return {
       market: m.market,
       overround_pct: analysis.overround_pct,
+      evaluation_rule: 'Dual-side Evaluation: Calculate mathematical EV for both Side A & Side B independently. Pick the one with higher positive value_edge as your market_assessment result.',
       fair_options: analysis.fair_options.map((opt) => ({
         option_id: opt.option_id,
         line: opt.line,
@@ -513,6 +515,7 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
         odds: opt.odds,
         fair_odds: opt.fair_odds,
         fair_prob_pct: opt.fair_prob_pct,
+        market_option_id: opt.option_id,
       })),
     };
   }).filter(Boolean);
@@ -569,6 +572,7 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
       pure_physical_match_model: purePhysicalModel || undefined,
     },
     quantitative_analysis: {
+      machine_quant_v2: calculateMachineQuantAnalysis(item),
       handicap_calibration: handicapCalibration || undefined,
       five_markets_coupling_audit: fiveMarketsCoupling || undefined,
       form_and_h2h_deep_metrics: {

@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { calculateExactBeijingTime } from '../server/services/beijingTime';
 import { normalizeMarketLabel } from '../server/services/marketLabels';
 import { createRecommendationIdentity } from '../server/services/recommendationIdentity';
-import { classifyMarket, evaluateQuarterSettlement } from '../src/lib/quarterSettlement';
+import { classifyMarket, evaluateQuarterSettlement, formatAsianLine, parseQuarterLine } from '../src/lib/quarterSettlement';
 import { isPlausibleHalfTimeScore, isPrematchScorePlaceholder, parseScoreFields, parseValidScore, resolveScoreVerification } from '../server/services/scoreValidation';
 import { createTeamAliasResolver } from '../server/services/teamAliasResolver';
 import { buildCalibrationReport, calibrationSamplesFromLedger } from '../server/services/predictionCalibration';
@@ -576,6 +576,23 @@ test('parseModelJson repairs JSON with missing commas and trailing commas from L
   assert.equal(parsed.summary, 'ok');
   assert.equal(parsed.ticket.size, 8);
   assert.equal(parsed.ticket.legs.length, 2);
+});
+
+test('quarter line parsing and formatting correctly preserves deep negative handicap lines without sign inversion', () => {
+  // Test parseQuarterLine directly
+  assert.equal(parseQuarterLine('-1.5/2'), -1.75);
+  assert.equal(parseQuarterLine('-1.5/-2'), -1.75);
+  assert.equal(parseQuarterLine('-0.5/1'), -0.75);
+  assert.equal(parseQuarterLine('-0/0.5'), -0.25);
+  assert.equal(parseQuarterLine('+0/0.5'), 0.25);
+  assert.equal(parseQuarterLine('1.5/2'), 1.75);
+
+  // Test formatAsianLine
+  assert.equal(formatAsianLine(-1.75), '-1.5/-2');
+  assert.equal(formatAsianLine(-0.75), '-0.5/-1');
+  assert.equal(formatAsianLine(-0.25), '-0/-0.5');
+  assert.equal(formatAsianLine(1.75), '1.5/2');
+  assert.equal(formatAsianLine(0.25), '0/0.5');
 });
 
 

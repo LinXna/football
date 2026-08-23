@@ -71,6 +71,52 @@
 4. **贝叶斯先验时间衰减 (Bayesian Time-Decay)**：
    - 阵型几何克制等静态先验在比赛进行至 20~25 分钟时权重衰减超 50%，30 分钟后完全让位给实战 UPTS 物理表现。
 
+## 赛前量化精算与足球计量经济学方法论 (Prematch Econometric & Tactical Quant Framework v2.5)
+
+系统在赛前推演（`calculatePrematchQuantAnalysis`）中，采用经过欧洲顶级体育量化基金检验的实证计量经济学方法体系：
+
+### 1. Dixon-Coles 低比分二元相关性泊松修正模型 (Dixon-Coles Bivariate Poisson)
+依据 Mark J. Dixon & Stuart G. Coles (1997) 经典文献《Modelling Association Football Scores and Inefficiencies in the Football Betting Market》：
+- 独立泊松假设认为主客队进球数相互独立，这在足球比赛中存在明显的结构性缺陷——当比赛处于 0-0 或 1-1 平局时，双方为了稳妥保分会收缩防线、降低攻防节奏，导致低比分平局事件实际发生率显著高于独立二项分布预测；
+- 系统引入相关性修正函数 $\tau(x, y, \lambda_H, \lambda_A, \rho)$（基准相关系数 $\rho = -0.07$）：
+  $$\tau(x, y) = \begin{cases}
+  1 - \lambda_H \lambda_A \rho & (x=0, y=0) \\
+  1 + \lambda_A \rho & (x=1, y=0) \\
+  1 + \lambda_H \rho & (x=0, y=1) \\
+  1 - \rho & (x=1, y=1) \\
+  1.0 & (\text{其他比分})
+  \end{cases}$$
+- 展开为 $8 \times 8$（0~7 球）二元概率矩阵后进行全概率归一化，精准消除了全场 1X2 平局及大小球低比分定价的系统性负偏差。
+
+### 2. 历史交锋 (H2H) 时效衰减与主客同态加权 (Temporal Half-Life & Venue Weighting)
+现代职业足球战术周期更迭极快（平均战术与人员半衰期约 1~1.5 年）：
+- **指数时间衰减**：设定半衰期 $T_{\text{half}} = 438$ 天（1.2 年），权重为 $w(t) = \exp\left(-\frac{\Delta t}{438}\right)$；
+- **3 年硬性截断**：$\Delta t > 1095$ 天的历史交锋彻底剔除（球员阵容、主教练体系均已发生根本变化）；
+- **主客场同态加权**：相同主客场对阵权重乘以 $1.25$，颠倒主客场乘以 $0.80$；
+- **贝叶斯样本量平滑收缩**：
+  $$\lambda_{\text{H2H, final}} = \lambda_{\text{weighted}} \cdot \min\left(1.0, \frac{N}{4.0}\right) + \lambda_{\text{baseline}} \cdot \left(1 - \min\left(1.0, \frac{N}{4.0}\right)\right)$$
+  当交锋记录不足 4 场时，自动向联赛基准总进球（$2.65$ 球）平滑收缩，避免单场极端大比分主导推演。
+
+### 3. 双层近期走势分解模型 (Two-Tier Form Analysis)
+为防止“主场龙客场虫”或“假性客场连胜”的样本污染，系统将近期战绩拆分为双层结构：
+- **Layer 1（65% 纯净主客场环境）**：主队仅取主场真实进球/失球期望，客队仅取客场真实进球/失球期望；
+- **Layer 2（35% 交叉环境）**：主队客场表现与客队主场表现作为基础实力底座；
+- **近 6 场时间递减衰减向量**：$[0.28, 0.23, 0.18, 0.14, 0.10, 0.07]$，赋予最新一场比赛近 $4\times$ 于第 6 场比赛的权重。
+
+### 4. 联赛积分梯队与 6 大博弈陷阱排查 (Standings Traps & Tactical Payoffs)
+- **中游散步陷阱 (`MID_TABLE_COMPLACENCY`)**：双方排第 8~14 名，既无欧战/升级希望又无降级之忧，战意松弛，领先易控节奏，对强行穿深盘实施 $25\%$ 信心惩罚；
+- **保级保平默契陷阱 (`MUTUAL_DRAW_SURVIVAL`)**：赛季中后段保级区直接对话且分差 $\le 1$ 分，各拿 1 分均为理性纳什均衡，系统调高平局修正因子 $\tau_{\text{draw}} +0.12$，触发小球防御；
+- **悬崖保级死磕陷阱 (`RELEGATION_DESPERATION`)**：客队身陷降级区死磕防守，破坏强队阵地战进攻流畅度。
+
+### 5. 动态半场动力学模型 (Dynamic First-Half Kinetics)
+- 提取双方赛季真实的 $0\sim 45$ 分钟进球占比；
+- 在 $[0.35, 0.52]$ 动态区间内计算半场期望进球 $\lambda_{\text{half}} = \lambda_{\text{full}} \times \text{Ratio}_{\text{half}}$，替代固定静态比例。
+
+### 6. 数据资产完备度分级与 EV 削顶防御 (Data Completeness Tiering)
+- `FULL_A`：首发名单确认、有效交锋 $\ge 3$、近期走势 $\ge 4$、积分榜完备。允许最高置信度，EV 上限 $35\%$；
+- `STANDARD_B`：基础战绩完备。EV 削顶上限 $22\%$，防止小样本暴冲；
+- `DEGRADED_C`：数据严重缺失。置信度强制定为 `LOW`，EV 上限强制限幅 $\le 8\%$，系统平滑退化为纯市场共识。
+
 ## 预测使用边界与单向推演铁律 (Forward-Only DAG)
 
 1. **单向因果推演链（严禁比分倒推）**：

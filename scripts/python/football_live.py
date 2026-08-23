@@ -582,15 +582,21 @@ def authoritative_match_state(
     ybty_home_score = score_value(market.home_score)
     ybty_away_score = score_value(market.away_score)
     ybty_minute = elapsed_minute(market.clock) if mode == "live" else None
-    provider_score_source = event.get("_score_source") or (
-        "leisu_interface" if event.get("_provider") == "leisu" or "leisu" in str(event.get("_source", "")).lower() else "provider_api"
+    
+    raw_provider_score_source = event.get("_score_source")
+    is_reliable_provider = bool(
+        raw_provider_score_source in {"score_canvas", "leisu_interface", "leisu_api", "provider_api", "leisu_text_live", "confirmed_statistics"}
+        or (not raw_provider_score_source and (event.get("detail_context") or event.get("_provider") == "leisu_interface"))
+    )
+    provider_score_source = raw_provider_score_source or (
+        "leisu_interface" if is_reliable_provider else None
     )
     provider_score = {
         "home": score_value(event.get("homeScore", {}).get("current") if isinstance(event.get("homeScore"), dict) else event.get("home_score")),
         "away": score_value(event.get("awayScore", {}).get("current") if isinstance(event.get("awayScore"), dict) else event.get("away_score")),
     }
     ybty_score_complete = None not in (ybty_home_score, ybty_away_score)
-    provider_score_complete = None not in (provider_score["home"], provider_score["away"])
+    provider_score_complete = is_reliable_provider and None not in (provider_score["home"], provider_score["away"])
 
     score_verified = False
     if ybty_score_complete and provider_score_complete:

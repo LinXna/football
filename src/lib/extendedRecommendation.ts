@@ -1,5 +1,6 @@
 import { DecisionItem, toStandardMatchData } from '../types';
 import { formatAsianLine } from './quarterSettlement';
+import { selectMainMarketLine } from './machineQuantPrediction';
 
 export interface CorrectScoreOption { score: string; odds: number | null; probPercent: number; }
 export interface BTTSOption { value: '是' | '否' | '数据不足'; odds: number | null; probability: number | null; reason: string; }
@@ -181,7 +182,29 @@ export function verifiedMarket(item: DecisionItem | null | undefined, marketType
     candidates.push(...(item as any).ybty_data.markets);
   }
 
-  // Find matching market by type or label
+  // 1. 尝试使用主盘口优选引擎 selectMainMarketLine 锁定最平衡主力盘
+  const normalizedCategory = marketType.toLowerCase();
+  let targetCat: 'full_total' | 'half_total' | 'full_spread' | 'half_spread' | 'full_h2h' | 'half_h2h' | null = null;
+  if (normalizedCategory.includes('total') || normalizedCategory.includes('大小')) {
+    targetCat = (normalizedCategory.includes('half') || normalizedCategory.includes('半场')) ? 'half_total' : 'full_total';
+  } else if (normalizedCategory.includes('spread') || normalizedCategory.includes('handicap') || normalizedCategory.includes('让球')) {
+    targetCat = (normalizedCategory.includes('half') || normalizedCategory.includes('半场')) ? 'half_spread' : 'full_spread';
+  } else if (normalizedCategory.includes('h2h') || normalizedCategory.includes('1x2') || normalizedCategory.includes('独赢')) {
+    targetCat = (normalizedCategory.includes('half') || normalizedCategory.includes('半场')) ? 'half_h2h' : 'full_h2h';
+  }
+
+  if (targetCat && candidates.length > 0) {
+    const mainSel = selectMainMarketLine(candidates, targetCat);
+    if (mainSel.mainMarket && mainSel.options.length > 0) {
+      return {
+        market: marketType,
+        market_type_verified: mainSel.mainMarket.is_verified ?? true,
+        options: mainSel.options
+      };
+    }
+  }
+
+  // 2. 传统匹配兜底
   for (const m of candidates) {
     const rawKey = m.market_type || m.market || m.category || m.market_label || m.market_title || '';
     if (matchesMarketCategory(marketType, rawKey)) {

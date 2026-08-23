@@ -2479,9 +2479,18 @@ export const BettingRecommendationsView: React.FC<Props> = ({
                           <span className="bg-slate-800 text-slate-200 text-[10px] px-2 py-0.5 rounded font-mono border border-slate-700">
                             量化模型全量推演，不受风控评级拦截
                           </span>
+                          {quant.dataQualityBadge && (
+                            <span className="text-[10px] px-2 py-0.5 rounded font-mono border bg-slate-950/80 border-slate-700 text-slate-200">
+                              {quant.dataQualityBadge}
+                            </span>
+                          )}
                         </div>
                         <span className="text-[10px] text-slate-300 font-mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-                          {quant.dominanceStatus === 'STERILE_POSSESSION' ? '⚠️ 战术识别: 假象控球/穿透乏力' : quant.dominanceStatus === 'HOME_DOMINANT' ? '🔥 战术识别: 主队高压' : quant.dominanceStatus === 'AWAY_DOMINANT' ? '⚡ 战术识别: 客队反击强劲' : '⚖️ 战术识别: 均衡对抗'}
+                          {quant.engineMode === 'PREMATCH_QUANT' ? (
+                            <span>🎯 赛前泊松期望: <strong>{quant.expectedRemainingGoals}</strong> 球</span>
+                          ) : (
+                            <span>{quant.dominanceStatus === 'STERILE_POSSESSION' ? '⚠️ 战术识别: 假象控球/穿透乏力' : quant.dominanceStatus === 'HOME_DOMINANT' ? '🔥 战术识别: 主队高压' : quant.dominanceStatus === 'AWAY_DOMINANT' ? '⚡ 战术识别: 客队反击强劲' : '⚖️ 战术识别: 均衡对抗'}</span>
+                          )}
                         </span>
                       </div>
 

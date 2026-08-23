@@ -391,28 +391,34 @@ export function deepMineFormAndH2H(item: any): FormAndH2HDeepMiningResult {
   const h2hDeep = extractH2HDeepConfrontation(h2hMatches, homeName, awayName);
 
   // 4. Form-Weighted Poisson Expectancy Prior Calculation
-  // League baseline expected goal ~ 1.35
-  const LEAGUE_BENCHMARK = 1.35;
+  // Standard benchmark: Home ~ 1.45, Away ~ 1.15 (Total ~ 2.60)
+  const LEAGUE_BENCHMARK = 1.30;
   const homeAttack = Math.max(0.4, homeAtHome.goals_scored_avg || homeOverall.goals_scored_avg || 1.4);
   const awayDefense = Math.max(0.4, awayOnRoad.goals_conceded_avg || awayOverall.goals_conceded_avg || 1.3);
   const awayAttack = Math.max(0.3, awayOnRoad.goals_scored_avg || awayOverall.goals_scored_avg || 1.1);
   const homeDefense = Math.max(0.3, homeAtHome.goals_conceded_avg || homeOverall.goals_conceded_avg || 1.1);
 
-  // Cross-multiplying home attack efficiency with away defensive vulnerability
-  let lambdaHome = (homeAttack * awayDefense) / LEAGUE_BENCHMARK;
-  let lambdaAway = (awayAttack * homeDefense) / LEAGUE_BENCHMARK;
+  // Apply Dixon-Coles Bayesian Shrinkage (prevent small-sample runaway inflation e.g. 4.5+ goals)
+  const homeAttRatio = Math.max(0.6, Math.min(1.6, homeAttack / LEAGUE_BENCHMARK));
+  const awayDefRatio = Math.max(0.6, Math.min(1.6, awayDefense / LEAGUE_BENCHMARK));
+  const awayAttRatio = Math.max(0.5, Math.min(1.5, awayAttack / LEAGUE_BENCHMARK));
+  const homeDefRatio = Math.max(0.5, Math.min(1.5, homeDefense / LEAGUE_BENCHMARK));
+
+  // Regularized lambdas with mean-reversion
+  let lambdaHome = 1.45 * Math.pow(homeAttRatio * awayDefRatio, 0.65);
+  let lambdaAway = 1.15 * Math.pow(awayAttRatio * homeDefRatio, 0.65);
 
   // Apply H2H stylistic weight if valid encounters >= 2
   if (h2hDeep.total_matches >= 2) {
-    const h2hHomeFactor = h2hDeep.home_avg_goals / LEAGUE_BENCHMARK;
-    const h2hAwayFactor = h2hDeep.away_avg_goals / LEAGUE_BENCHMARK;
-    lambdaHome = lambdaHome * 0.75 + (lambdaHome * h2hHomeFactor) * 0.25;
-    lambdaAway = lambdaAway * 0.75 + (lambdaAway * h2hAwayFactor) * 0.25;
+    const h2hHomeFactor = Math.max(0.6, Math.min(1.5, h2hDeep.home_avg_goals / LEAGUE_BENCHMARK));
+    const h2hAwayFactor = Math.max(0.5, Math.min(1.5, h2hDeep.away_avg_goals / LEAGUE_BENCHMARK));
+    lambdaHome = lambdaHome * 0.80 + (1.45 * h2hHomeFactor) * 0.20;
+    lambdaAway = lambdaAway * 0.80 + (1.15 * h2hAwayFactor) * 0.20;
   }
 
-  // Constrain within physical bounds
-  lambdaHome = Number(Math.max(0.35, Math.min(4.2, lambdaHome)).toFixed(2));
-  lambdaAway = Number(Math.max(0.25, Math.min(3.8, lambdaAway)).toFixed(2));
+  // Constrain within realistic single-match physical bounds (Max 2.8 for single side prior, Total 1.8~3.6)
+  lambdaHome = Number(Math.max(0.60, Math.min(2.80, lambdaHome)).toFixed(2));
+  lambdaAway = Number(Math.max(0.40, Math.min(2.40, lambdaAway)).toFixed(2));
   const lambdaTotal = Number((lambdaHome + lambdaAway).toFixed(2));
   const projectedMargin = Number((lambdaHome - lambdaAway).toFixed(2));
 

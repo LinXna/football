@@ -1546,7 +1546,22 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                             return `${dir} ${line} ${market.odds ? `@${market.odds}` : ''}`.replace(/\s+/g, ' ').trim();
                           })()}
                         </div>
-                        <div className="mt-1 text-slate-400">概率：{market.probability ?? '--'}%{market.status === 'prediction' ? ' · 预测项（非投注评级）' : ` · 等级：${market.grade}`}{market.value_edge !== null && market.value_edge !== undefined ? ` · 价值差：${market.value_edge > 0 ? '+' : ''}${market.value_edge}%` : ''}</div>
+                        <div className="mt-1 text-slate-400">
+                          <span>概率：{market.probability ?? '--'}%</span>
+                          {market.implied_probability ? <span className="ml-1.5 text-slate-500 font-mono text-[11px]">(机构: {market.implied_probability}%)</span> : null}
+                          {market.status === 'prediction' ? ' · 预测项（非投注评级）' : ` · 等级：${market.grade}`}
+                          {market.value_edge !== null && market.value_edge !== undefined ? (
+                            <span className={`ml-1.5 font-bold font-mono px-1.5 py-0.5 rounded text-[11px] ${
+                              Number(market.value_edge) >= 8
+                                ? 'bg-emerald-950 text-emerald-300 border border-emerald-600/80'
+                                : Number(market.value_edge) > 0
+                                ? 'bg-sky-950 text-sky-300 border border-sky-600/80'
+                                : 'bg-rose-950/80 text-rose-300 border border-rose-800/80'
+                            }`}>
+                              {Number(market.value_edge) > 0 ? '+' : ''}{market.value_edge}% EV
+                            </span>
+                          ) : null}
+                        </div>
                         {market.probability_scope && <div className="mt-1 text-[10px] text-slate-500">概率对象：{market.probability_scope}</div>}
                         {market.pro_trader_tip && <div className="mt-1 text-[11px] text-indigo-300 font-medium">💡 操盘时机：{market.pro_trader_tip}</div>}
                         {Array.isArray(market.alternatives) && market.alternatives.length > 0 && (
@@ -2321,6 +2336,17 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                                       <div className="flex items-center gap-1.5 font-mono text-xs shrink-0">
                                         <span className="text-amber-300 font-bold bg-amber-950/90 px-1.5 py-0.5 rounded border border-amber-800/80">{oddsText}</span>
                                         <span className="text-sky-300 font-medium text-[11px] bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">{probText}</span>
+                                        {ass?.value_edge !== null && ass?.value_edge !== undefined && (
+                                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                            Number(ass.value_edge) >= 8
+                                              ? 'bg-emerald-950 text-emerald-300 border border-emerald-600'
+                                              : Number(ass.value_edge) > 0
+                                              ? 'bg-sky-950 text-sky-300 border border-sky-600'
+                                              : 'bg-rose-950 text-rose-300 border border-rose-800'
+                                          }`}>
+                                            {Number(ass.value_edge) > 0 ? '+' : ''}{ass.value_edge}% EV
+                                          </span>
+                                        )}
                                         {badgeText && (
                                           <span className={`px-1.5 py-0.5 rounded text-[10px] border ${badgeClass}`}>
                                             {badgeText}
@@ -2419,7 +2445,18 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                                 <div key={`${assessment.category}-${assessmentIndex}`} className="rounded border border-slate-700 bg-slate-950 p-2">
                                   <div className="font-semibold text-slate-200">{assessment.category}</div>
                                   <div className="mt-1 text-emerald-300">{assessment.direction || '--'} {assessment.line ?? ''} {assessment.odds ? `@${assessment.odds}` : ''}</div>
-                                  <div className="mt-1 text-slate-500">概率 {assessment.probability ?? '--'}% · {assessment.grade} · {assessment.status}</div>
+                                  <div className="mt-1 text-slate-500 flex flex-wrap items-center gap-1.5">
+                                    <span>概率 {assessment.probability ?? '--'}%</span>
+                                    {assessment.implied_probability ? <span className="text-slate-600 font-mono text-[10px]">(机构: {assessment.implied_probability}%)</span> : null}
+                                    <span>· {assessment.grade} · {assessment.status}</span>
+                                    {assessment.value_edge !== null && assessment.value_edge !== undefined && (
+                                      <span className={`font-mono text-[10px] font-bold px-1 rounded ${
+                                        Number(assessment.value_edge) >= 8 ? 'text-emerald-400 bg-emerald-950/80' : Number(assessment.value_edge) > 0 ? 'text-sky-400 bg-sky-950/80' : 'text-rose-400 bg-rose-950/80'
+                                      }`}>
+                                        {Number(assessment.value_edge) > 0 ? '+' : ''}{assessment.value_edge}% EV
+                                      </span>
+                                    )}
+                                  </div>
                                   <div className="mt-1 text-slate-400">{assessment.reason}</div>
                                 </div>
                               ))}

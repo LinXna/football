@@ -97,6 +97,8 @@ export function normalizeMatchPredictionsAndAssessments(match: any): any {
       line: rec.line || null,
       odds: Number(rec.odds) || null,
       probability: Number(rec.probability) || null,
+      implied_probability: Number.isFinite(Number(rec.implied_probability)) ? Number(rec.implied_probability) : (Number(rec.odds) > 1 ? Number((100 / Number(rec.odds)).toFixed(1)) : null),
+      value_edge: Number.isFinite(Number(rec.value_edge)) ? Number(rec.value_edge) : null,
       grade: rec.grade || 'B',
       status: rec.grade === 'A' || rec.grade === 'B' ? 'recommend' : rec.grade === 'C' ? 'watch' : 'avoid',
       reason: rec.reason || 'AI推荐方向',

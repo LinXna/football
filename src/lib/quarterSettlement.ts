@@ -60,14 +60,16 @@ export function parseQuarterLine(lineInput: string | number): number {
   // Handle fractional split notation like "2/2.5", "2.5/3", "-0/0.5", "-0.5/-1", "+0.5/+1"
   const splitMatch = str.match(/^([+-]?\d*(?:\.\d+)?)\/([+-]?\d*(?:\.\d+)?)$/);
   if (splitMatch) {
-    const v1 = parseFloat(splitMatch[1]);
-    let v2 = parseFloat(splitMatch[2]);
-    // Backward compatibility for the legacy formatter, which emitted -0.5/1
-    // for -0.75. An unsigned second leg following a negative first leg belongs
-    // to the same negative handicap: -0.5/-1.
-    if (v1 < 0 && !splitMatch[2].startsWith('-') && !splitMatch[2].startsWith('+')) {
-      v2 = -Math.abs(v2);
-    }
+    const isFirstNegative = splitMatch[1].startsWith('-');
+    const isSecondNegative = splitMatch[2].startsWith('-');
+    const v1Abs = Math.abs(parseFloat(splitMatch[1]) || 0);
+    const v2Abs = Math.abs(parseFloat(splitMatch[2]) || 0);
+    
+    // If either has a negative sign or is -0, propagate negative handicap
+    const isNegative = isFirstNegative || isSecondNegative;
+    const v1 = isNegative ? -v1Abs : v1Abs;
+    const v2 = isNegative ? -v2Abs : v2Abs;
+
     if (!isNaN(v1) && !isNaN(v2)) {
       return (v1 + v2) / 2;
     }
@@ -109,11 +111,11 @@ export function formatAsianLine(rawLine: string | number): string {
   if (frac === 25) {
     const low = Math.floor(abs);
     const high = low + 0.5;
-    return isNegative ? `-${low}/${high}` : `${low}/${high}`;
+    return isNegative ? `-${low}/-${high}` : `${low}/${high}`;
   } else if (frac === 75) {
     const low = Math.floor(abs) + 0.5;
     const high = Math.floor(abs) + 1;
-    return isNegative ? `-${low}/${high}` : `${low}/${high}`;
+    return isNegative ? `-${low}/-${high}` : `${low}/${high}`;
   }
 
   return str;

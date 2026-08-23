@@ -895,10 +895,12 @@ export interface AIAnalysisResponse {
 export interface AIMarketAssessment {
   category: string;
   market: string;
+  market_option_id?: string | null;
   direction: string;
   line: string | number | null;
   odds: number | null;
   probability: number | null;
+  implied_probability?: number | null;
   probability_scope?: string;
   alternatives?: Array<{ direction: string; probability: number }>;
   value_edge?: number | null;

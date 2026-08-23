@@ -170,7 +170,14 @@ export function validateParlayLegAgainstCandidate(leg: any, candidate: any): any
     direction = /平|draw/i.test(lineText) ? '平局' : lineText.includes(away) || /客|away/i.test(lineText) ? '客胜' : lineText.includes(home) || /主|home/i.test(lineText) ? '主胜' : '';
     line = null;
   }
-  const markets = normalizeYbtyMarketTypes(candidate?.ybty_raw_markets || []) as VerifiedMarket[];
+  const rawCandidateMarkets = Array.isArray(candidate?.verified_ybty_markets) && candidate.verified_ybty_markets.length > 0
+    ? candidate.verified_ybty_markets
+    : (Array.isArray(candidate?.ybty_raw_markets) && candidate.ybty_raw_markets.length > 0
+        ? candidate.ybty_raw_markets
+        : (Array.isArray(candidate?.market_snapshots) && candidate.market_snapshots.length > 0
+            ? candidate.market_snapshots
+            : (Array.isArray(candidate?.markets) ? candidate.markets : [])));
+  const markets = normalizeYbtyMarketTypes(rawCandidateMarkets) as VerifiedMarket[];
   const validated = validateAssessmentAgainstVerifiedMarkets({ ...leg, category, direction, line }, markets);
   return validated.ybty_market_verified === true
     ? { ...leg, line: category.includes('让球') ? `${direction === '客队' ? away : home} ${validated.line}`.trim() : category.includes('大小球') ? `${direction} ${validated.line}`.trim() : direction, odds: validated.odds, ybty_market_verified: true, odds_source: 'ybty_verified' }
