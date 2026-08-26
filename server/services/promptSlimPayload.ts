@@ -507,7 +507,7 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
     return {
       market: m.market,
       overround_pct: analysis.overround_pct,
-      evaluation_rule: 'Dual-side Evaluation: Calculate mathematical EV for both Side A & Side B independently. Pick the one with higher positive value_edge as your market_assessment result.',
+      evaluation_rule: 'Cross-Tier & Dual-Side Evaluation: Compare all available lines (m1 main line, m2/m3 secondary lines) and all option sides. Select the single option with the highest mathematical +EV / optimal risk-reward as your market_assessment result for this category.',
       fair_options: analysis.fair_options.map((opt) => ({
         option_id: opt.option_id,
         line: opt.line,
@@ -520,7 +520,8 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
     };
   }).filter(Boolean);
 
-  const matchId = cData.meta.match_id || undefined;
+  const matchId = cData.meta.match_id || `${homeTeam}_vs_${awayTeam}`.replace(/\s+/g, '_');
+  const leisuMatchId = cData.meta.leisu_match_id || matchId;
 
   const purePhysicalModel = calculatePurePhysicalMatchModel(
     liveStatsObj,
@@ -552,7 +553,7 @@ export function buildSlimPromptMatch(item: any, mode: string): any {
     match_info: {
       match: `${homeTeam} vs ${awayTeam}`,
       match_id: matchId,
-      leisu_match_id: cData.meta.leisu_match_id || matchId,
+      leisu_match_id: leisuMatchId,
       league,
       ybty_home: homeTeam,
       ybty_away: awayTeam,

@@ -1,0 +1,155 @@
+{
+  "schema_version": 2,
+  "export_version": "2.8.0",
+  "captured_at": "2026-08-23T01:04:18.978Z",
+  "matches": [
+    {
+      "league": "哥伦比亚甲级联赛",
+      "home": "麦德林独立",
+      "away": "库库塔",
+      "clock_status": "即将开赛",
+      "markets": {
+        "full_h2h": {
+          "home_odds": 1.18,
+          "draw_odds": 5.6,
+          "away_odds": 10
+        },
+        "full_spread_main": {
+          "line_index": 0,
+          "home_selection": "-1.5/2",
+          "home_odds": 1.76,
+          "away_selection": "+1.5/2",
+          "away_odds": 2.06
+        },
+        "full_spread_subs": [
+          {
+            "line_index": 1,
+            "home_selection": "-2",
+            "home_odds": 2.07,
+            "away_selection": "+2",
+            "away_odds": 1.75
+          },
+          {
+            "line_index": 2,
+            "home_selection": "-1.5",
+            "home_odds": 1.61,
+            "away_selection": "+1.5",
+            "away_odds": 2.26
+          }
+        ],
+        "full_total_main": {
+          "line_index": 0,
+          "line": "3",
+          "over_odds": 2,
+          "under_odds": 1.8
+        },
+        "full_total_subs": [
+          {
+            "line_index": 1,
+            "line": "2.5/3",
+            "over_odds": 1.71,
+            "under_odds": 2.09
+          },
+          {
+            "line_index": 2,
+            "line": "2.5",
+            "over_odds": 1.57,
+            "under_odds": 2.29
+          }
+        ],
+        "half_h2h": {
+          "home_odds": 1.61,
+          "draw_odds": 2.42,
+          "away_odds": 11
+        },
+        "half_spread_main": {
+          "line_index": 0,
+          "home_selection": "-0.5/1",
+          "home_odds": 1.82,
+          "away_selection": "+0.5/1",
+          "away_odds": 2
+        },
+        "half_total_main": {
+          "line_index": 0,
+          "line": "1/1.5",
+          "over_odds": 1.99,
+          "under_odds": 1.83
+        }
+      }
+    },
+    {
+      "league": "美国职业大联盟",
+      "home": "温哥华白帽",
+      "away": "达拉斯FC",
+      "clock_status": "25分钟后开赛",
+      "markets": {
+        "full_h2h": {
+          "home_odds": 1.42,
+          "draw_odds": 5.2,
+          "away_odds": 6.3
+        },
+        "full_spread_main": {
+          "line_index": 0,
+          "home_selection": "-1/1.5",
+          "home_odds": 1.85,
+          "away_selection": "+1/1.5",
+          "away_odds": 2.05
+        },
+        "full_spread_subs": [
+          {
+            "line_index": 1,
+            "home_selection": "-1.5",
+            "home_odds": 2.06,
+            "away_selection": "+1.5",
+            "away_odds": 1.84
+          },
+          {
+            "line_index": 2,
+            "home_selection": "-1",
+            "home_odds": 1.63,
+            "away_selection": "+1",
+            "away_odds": 2.36
+          }
+        ],
+        "full_total_main": {
+          "line_index": 0,
+          "line": "3/3.5",
+          "over_odds": 1.88,
+          "under_odds": 2
+        },
+        "full_total_subs": [
+          {
+            "line_index": 1,
+            "line": "3.5",
+            "over_odds": 2.11,
+            "under_odds": 1.78
+          },
+          {
+            "line_index": 2,
+            "line": "3",
+            "over_odds": 1.64,
+            "under_odds": 2.31
+          }
+        ],
+        "half_h2h": {
+          "home_odds": 1.87,
+          "draw_odds": 2.55,
+          "away_odds": 6.4
+        },
+        "half_spread_main": {
+          "line_index": 0,
+          "home_selection": "-0.5",
+          "home_odds": 1.87,
+          "away_selection": "+0.5",
+          "away_odds": 2.03
+        },
+        "half_total_main": {
+          "line_index": 0,
+          "line": "1/1.5",
+          "over_odds": 1.82,
+          "under_odds": 2.06
+        }
+      }
+    }
+  ]
+}

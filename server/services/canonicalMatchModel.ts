@@ -101,12 +101,15 @@ export function canonicalizeRawMatchData(raw: any): CanonicalMatchData {
   const incidents = raw?.focused_incidents || livePhysical?.focused_incidents || {};
 
   // 1. Meta (雷速 match_id 作为合并赛事的唯一主键)
-  const match_id = String(raw.match_id || raw.id || '');
-  const leisu_match_id = match_id;
-  const league_name = String(matchInfo.league || raw.league || raw.league_name || '常规职业联赛');
+  const rawId = raw.match_id || raw.id || matchInfo.match_id || matchInfo.id || '';
   const home_team = String(matchInfo.ybty_home || raw.ybty_home || matchInfo.home || raw.home || '主队');
   const away_team = String(matchInfo.ybty_away || raw.ybty_away || matchInfo.away || raw.away || '客队');
   const start_time_beijing = String(matchInfo.start_time_beijing || raw.start_time_beijing || raw.time || '');
+  
+  // Deterministic fallback ID if not provided: e.g. "medellin_vs_cucuta_2026-08-23"
+  const match_id = String(rawId || `${home_team}_vs_${away_team}${start_time_beijing ? '_' + start_time_beijing.slice(0, 10) : ''}`.replace(/\s+/g, '_'));
+  const leisu_match_id = String(raw.leisu_match_id || matchInfo.leisu_match_id || match_id);
+  const league_name = String(matchInfo.league || raw.league || raw.league_name || '常规职业联赛');
 
   // 2. Minute & Score
   let minute = Number(matchInfo.minute ?? raw.minute ?? 0);

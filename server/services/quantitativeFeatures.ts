@@ -1,4 +1,5 @@
 import type { UnifiedMatchStats } from '../../src/types';
+import { parseQuarterLine } from '../../src/lib/quarterSettlement';
 
 type JsonRecord = Record<string, any>;
 
@@ -423,24 +424,27 @@ export function calculatePurePhysicalMatchModel(
       let physicalProb = 50.0;
 
       if (m.market === 'full_h2h') {
-        const cleanSide = String(opt.side || '').toLowerCase();
+        const cleanSide = String(opt.side || '').toLowerCase().trim();
         if (cleanSide === 'home' || cleanSide === '1' || cleanSide === 'h') {
           physicalProb = fullSim.margin_distribution_pct.home_win_by_1 + fullSim.margin_distribution_pct.home_win_by_2 + fullSim.margin_distribution_pct.home_win_by_3_plus;
         } else if (cleanSide === 'draw' || cleanSide === 'x' || cleanSide === 'd') {
           physicalProb = fullSim.margin_distribution_pct.draw_exact;
         } else if (cleanSide === 'away' || cleanSide === '2' || cleanSide === 'a') {
           physicalProb = fullSim.margin_distribution_pct.away_win_exact;
-        } else if (String(opt.line || '') === '主' || String(opt.direction || '').includes('主胜')) {
+        } else if (String(opt.direction || '').includes('主胜') || String(opt.line || '').includes('主胜')) {
           physicalProb = fullSim.margin_distribution_pct.home_win_by_1 + fullSim.margin_distribution_pct.home_win_by_2 + fullSim.margin_distribution_pct.home_win_by_3_plus;
-        } else if (String(opt.line || '') === '平' || String(opt.line || '') === '和' || String(opt.direction || '').includes('平局')) {
+        } else if (String(opt.direction || '').includes('平局') || String(opt.line || '').includes('平局') || String(opt.line || '') === '平' || String(opt.line || '') === '和') {
           physicalProb = fullSim.margin_distribution_pct.draw_exact;
         } else {
           physicalProb = fullSim.margin_distribution_pct.away_win_exact;
         }
       } else if (m.market === 'full_total') {
-        const lineNum = parseFloat(String(opt.line || '').replace(/[^\d.]/g, ''));
+        const lineNum = parseQuarterLine(opt.line ?? opt.direction ?? 2.5);
         const isOver = opt.side === 'over' || /大/i.test(String(opt.line || '')) || /大/i.test(String(opt.direction || ''));
-        if (lineNum <= 2.5) {
+        if (lineNum <= 2.25) {
+          physicalProb = isOver ? fullSim.total_goals_distribution_pct.over_2_5 : fullSim.total_goals_distribution_pct.under_2_5;
+        } else if (lineNum <= 2.75) {
+          const pOver = (fullSim.total_goals_distribution_pct.over_2_5 * 0.8 + (100 - fullSim.total_goals_distribution_pct.under_2_5) * 0.2);
           physicalProb = isOver ? fullSim.total_goals_distribution_pct.over_2_5 : fullSim.total_goals_distribution_pct.under_2_5;
         } else if (lineNum <= 3.25) {
           const pOver = (fullSim.total_goals_distribution_pct.over_2_5 + fullSim.total_goals_distribution_pct.over_3_5) / 2;
@@ -457,10 +461,16 @@ export function calculatePurePhysicalMatchModel(
         const halfLH = currentMin >= 45 ? number(currentScore.home) : (currentMin === 0 ? restLH * 0.45 : Math.max(0.05, goalH + (restLH * Math.max(0, 45 - currentMin) / Math.max(1, 90 - currentMin))));
         const halfLA = currentMin >= 45 ? number(currentScore.away) : (currentMin === 0 ? restLA * 0.45 : Math.max(0.05, goalA + (restLA * Math.max(0, 45 - currentMin) / Math.max(1, 90 - currentMin))));
         const halfSim = computeIndependentPoissonDistribution(halfLH, halfLA);
-        const cleanSide = String(opt.side || '').toLowerCase();
-        if (cleanSide === 'home' || cleanSide === '1' || cleanSide === 'h' || String(opt.line || '') === '主') {
+        const cleanSide = String(opt.side || '').toLowerCase().trim();
+        if (cleanSide === 'home' || cleanSide === '1' || cleanSide === 'h') {
           physicalProb = halfSim.margin_distribution_pct.home_win_by_1 + halfSim.margin_distribution_pct.home_win_by_2 + halfSim.margin_distribution_pct.home_win_by_3_plus;
-        } else if (cleanSide === 'draw' || cleanSide === 'x' || cleanSide === 'd' || String(opt.line || '') === '平') {
+        } else if (cleanSide === 'draw' || cleanSide === 'x' || cleanSide === 'd') {
+          physicalProb = halfSim.margin_distribution_pct.draw_exact;
+        } else if (cleanSide === 'away' || cleanSide === '2' || cleanSide === 'a') {
+          physicalProb = halfSim.margin_distribution_pct.away_win_exact;
+        } else if (String(opt.direction || '').includes('主胜') || String(opt.line || '').includes('主胜')) {
+          physicalProb = halfSim.margin_distribution_pct.home_win_by_1 + halfSim.margin_distribution_pct.home_win_by_2 + halfSim.margin_distribution_pct.home_win_by_3_plus;
+        } else if (String(opt.direction || '').includes('平局') || String(opt.line || '').includes('平局') || String(opt.line || '') === '平' || String(opt.line || '') === '和') {
           physicalProb = halfSim.margin_distribution_pct.draw_exact;
         } else {
           physicalProb = halfSim.margin_distribution_pct.away_win_exact;
@@ -470,20 +480,30 @@ export function calculatePurePhysicalMatchModel(
         const halfLA = currentMin >= 45 ? number(currentScore.away) : (currentMin === 0 ? restLA * 0.45 : Math.max(0.05, goalA + (restLA * Math.max(0, 45 - currentMin) / Math.max(1, 90 - currentMin))));
         const halfSim = computeIndependentPoissonDistribution(halfLH, halfLA);
         const isOver = opt.side === 'over' || /大/i.test(String(opt.line || '')) || /大/i.test(String(opt.direction || ''));
-        const lineNum = parseFloat(String(opt.line || '').replace(/[^\d.]/g, ''));
+        const lineNum = parseQuarterLine(opt.line ?? opt.direction ?? 1.0);
+        
+        // Exact Poisson probability calculation for half time goals
+        const pZero = halfSim.top_scorelines.find(s => s.score === '0-0')?.prob_pct || (poissonProb(0, halfLH) * poissonProb(0, halfLA) * 100);
+        const pUnder2 = halfSim.top_scorelines.filter(s => {
+          const parts = s.score.split('-').map(Number);
+          return (parts[0] + parts[1]) <= 1;
+        }).reduce((sum, s) => sum + s.prob_pct, 0) || ((poissonProb(0, halfLH)*poissonProb(0, halfLA) + poissonProb(1, halfLH)*poissonProb(0, halfLA) + poissonProb(0, halfLH)*poissonProb(1, halfLA)) * 100);
+        const pUnder3 = halfSim.top_scorelines.filter(s => {
+          const parts = s.score.split('-').map(Number);
+          return (parts[0] + parts[1]) <= 2;
+        }).reduce((sum, s) => sum + s.prob_pct, 0);
+
         if (lineNum <= 0.75) {
-          // P(Total >= 1)
-          const pZero = (halfSim.top_scorelines.find(s => s.score === '0-0')?.prob_pct || 40);
+          // Line 0.5 or 0.5/1: Under means 0 goals (or half win on 1 goal)
           physicalProb = isOver ? (100 - pZero) : pZero;
         } else if (lineNum <= 1.25) {
-          // P(Total >= 2)
-          const pUnder2 = (halfSim.top_scorelines.filter(s => {
-            const parts = s.score.split('-').map(Number);
-            return (parts[0] + parts[1]) <= 1;
-          }).reduce((sum, s) => sum + s.prob_pct, 0));
+          // Line 1.0 or 1/1.5: Under means <= 1 goal
           physicalProb = isOver ? (100 - pUnder2) : pUnder2;
+        } else if (lineNum <= 1.75) {
+          // Line 1.5 or 1.5/2: Under means <= 2 goals
+          physicalProb = isOver ? (100 - pUnder3) : pUnder3;
         } else {
-          physicalProb = isOver ? 25 : 75;
+          physicalProb = isOver ? (100 - pUnder3) : pUnder3;
         }
       } else if (m.market === 'half_spread') {
         const halfLH = currentMin >= 45 ? number(currentScore.home) : (currentMin === 0 ? restLH * 0.45 : Math.max(0.05, goalH + (restLH * Math.max(0, 45 - currentMin) / Math.max(1, 90 - currentMin))));

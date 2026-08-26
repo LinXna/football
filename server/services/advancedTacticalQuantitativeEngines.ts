@@ -10,6 +10,7 @@ import {
   LeagueRegionalProfile,
   REGIONAL_TACTICAL_ENCYCLOPEDIA,
 } from './leagueRegionalDNAEngine';
+import { parseQuarterLine } from '../../src/lib/quarterSettlement';
 
 export type { FormationClashResult, FormationType, LeagueRegionalProfile };
 export { FORMATION_ENCYCLOPEDIA, REGIONAL_TACTICAL_ENCYCLOPEDIA, detectLeagueRegionalDNA };
@@ -460,7 +461,7 @@ export function evaluateEuroAsianParity(
   if (spreadMarket?.options?.length) {
     const homeOpt = spreadMarket.options.find((o: any) => /主|home/i.test(String(o.side || o.option_id || '')));
     if (homeOpt && homeOpt.line !== null && homeOpt.line !== undefined) {
-      const lineNum = parseFloat(String(homeOpt.line).replace(/[^\d.-]/g, ''));
+      const lineNum = parseQuarterLine(homeOpt.line);
       if (!isNaN(lineNum)) actualSpread = lineNum;
     }
   }
@@ -477,17 +478,23 @@ export function evaluateEuroAsianParity(
   }
 
   const theoSpread = convertEuroToTheoreticalSpread(euroH);
-  const diff = Number((actualSpread - theoSpread).toFixed(2));
+  // Compare in handicap terms: if theoSpread is -2.25 and actual is -1.75:
+  // Actual is shallower than theo (gives less handicap advantage to favorite).
+  // diff > 0 means actual gives deeper handicap than theoretical (e.g. actual -2.5 vs theo -2.0 -> deep)
+  // diff < 0 means actual gives shallower handicap than theoretical (e.g. actual -1.75 vs theo -2.25 -> shallow)
+  const theoDepth = -theoSpread; // e.g. -(-2.25) = 2.25
+  const actualDepth = -actualSpread; // e.g. -(-1.75) = 1.75
+  const diff = Number((actualDepth - theoDepth).toFixed(2)); // e.g. 1.75 - 2.25 = -0.50
 
   let verdict: EuroAsianParityMetrics['parity_verdict'] = 'BALANCED_PARITY';
   let note = '';
 
-  if (diff >= 0.5) {
+  if (diff >= 0.4) {
     verdict = 'DEEP_SPREAD_TRAP';
-    note = `【欧亚背离・深开诱上陷阱】欧赔主胜@${euroH.toFixed(2)}对应理论让球盘仅为 ${theoSpread > 0 ? '+' : ''}${theoSpread}，实际亚盘强开至 ${actualSpread > 0 ? '+' : ''}${actualSpread} (深开+${diff}球)，存在利用强队名气强拉门槛的诱上嫌疑，强烈建议提防小胜走盘，锁定客队受让价值！`;
-  } else if (diff <= -0.5) {
+    note = `【欧亚背离・深开诱上陷阱】欧赔主胜@${euroH.toFixed(2)}对应理论让球盘为 ${theoSpread > 0 ? '+' : ''}${theoSpread}，实际亚盘强开至 ${actualSpread > 0 ? '+' : ''}${actualSpread} (强开深盘+${diff}球)，存在利用强队名气强拉门槛的诱上嫌疑，强烈建议提防小胜走盘，锁定客队受让价值！`;
+  } else if (diff <= -0.4) {
     verdict = 'SHALLOW_SPREAD_DISCOUNT';
-    note = `【欧亚背离・浅开便宜陷阱/真降阻上】欧赔主胜@${euroH.toFixed(2)}理论支撑 ${theoSpread > 0 ? '+' : ''}${theoSpread} 盘口，实际亚盘仅让 ${actualSpread > 0 ? '+' : ''}${actualSpread} (浅开${diff}球)，机构让步乏力，需严格审视主胜真实战意与穿盘阻力。`;
+    note = `【欧亚背离・浅开便宜陷阱/降盘防大胜】欧赔主胜@${euroH.toFixed(2)}理论支撑 ${theoSpread > 0 ? '+' : ''}${theoSpread} 盘口，实际亚盘仅让 ${actualSpread > 0 ? '+' : ''}${actualSpread} (浅开${Math.abs(diff)}球)，机构让步乏力，需严格审视主胜真实战意与穿盘阻力。`;
   } else {
     verdict = 'BALANCED_PARITY';
     note = `欧亚指数高度吻合：欧赔@${euroH.toFixed(2)}与亚盘让步 ${actualSpread > 0 ? '+' : ''}${actualSpread} 处于合理均衡区间。`;

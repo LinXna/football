@@ -1,0 +1,4748 @@
+{
+  "sample_version": "1.0.0",
+  "generated_at": "2026-08-26T19:31:44.813Z",
+  "description": "Layer 02 标准赛事对象 (CanonicalMatch) 与 AI Slim Brief 提炼样本",
+  "canonical_match": {
+    "canonical_id": "巴西甲级联赛_沙佩科人SC_vs_圣保罗SP",
+    "created_at": "2026-08-26T19:31:44.813Z",
+    "completeness_tier": "TIER_INVALID",
+    "missing_reasons": [
+      "SCORE_MISMATCH"
+    ],
+    "alignment": {
+      "status": "UNMATCHED",
+      "confidence_score": 3,
+      "home_team_match": {
+        "ybty_name": "沙佩科人SC",
+        "leisu_name": "谢周三",
+        "is_alias_exact_hit": false,
+        "raw_text_similarity": 0
+      },
+      "away_team_match": {
+        "ybty_name": "圣保罗SP",
+        "leisu_name": "布拉德福德",
+        "is_alias_exact_hit": false,
+        "raw_text_similarity": 0
+      },
+      "league_match_score": 0.1667,
+      "alignment_reason": "相似度过低 (综合置信分: 3)，判定为未匹配"
+    },
+    "league_name": "巴西甲级联赛",
+    "home_team_name": "沙佩科人SC",
+    "away_team_name": "圣保罗SP",
+    "timing": {
+      "stage": "LIVE",
+      "beijing_start_time": "2026-08-20 19:00:00",
+      "start_time_source": "LEISU_SUPPLEMENTED",
+      "minute": 63,
+      "is_half_time": false,
+      "is_extra_time": false,
+      "is_overtime_or_penalty": false
+    },
+    "score": {
+      "home_score": 0,
+      "away_score": 0,
+      "home_half_score": 0,
+      "away_half_score": 0,
+      "score_verified": false,
+      "score_source": "UNVERIFIED",
+      "is_mismatch_detected": true,
+      "mismatch_details": "比分冲突: YBTY(0-0) vs 雷速(0-1)"
+    },
+    "markets": {
+      "full_h2h": {
+        "home_odds": 3.9,
+        "draw_odds": 2.99,
+        "away_odds": 2.16
+      },
+      "full_spread_main": {
+        "line_index": 0,
+        "home_selection": "+0.5",
+        "home_odds": 1.81,
+        "away_selection": "-0.5",
+        "away_odds": 2.09
+      },
+      "full_spread_subs": [
+        {
+          "line_index": 1,
+          "home_selection": "+0/0.5",
+          "home_odds": 2.13,
+          "away_selection": "-0/0.5",
+          "away_odds": 1.78
+        },
+        {
+          "line_index": 2,
+          "home_selection": "+0.5/1",
+          "home_odds": 1.56,
+          "away_selection": "-0.5/1",
+          "away_odds": 2.51
+        }
+      ],
+      "full_total_main": {
+        "line_index": 0,
+        "line": "1.5/2",
+        "over_odds": 1.82,
+        "under_odds": 2.06
+      },
+      "full_total_subs": [
+        {
+          "line_index": 1,
+          "line": "2",
+          "over_odds": 2.2,
+          "under_odds": 1.71
+        },
+        {
+          "line_index": 2,
+          "line": "1.5",
+          "over_odds": 1.62,
+          "under_odds": 2.35
+        }
+      ],
+      "half_h2h": {
+        "home_odds": 6.3,
+        "draw_odds": 1.59,
+        "away_odds": 3.35
+      },
+      "half_spread_main": {
+        "line_index": 0,
+        "home_selection": "+0/0.5",
+        "home_odds": 1.57,
+        "away_selection": "-0/0.5",
+        "away_odds": 2.49
+      },
+      "half_total_main": {
+        "line_index": 0,
+        "line": "0.5",
+        "over_odds": 2.14,
+        "under_odds": 1.75
+      }
+    },
+    "reference": {
+      "leisu_match_id": "4562395",
+      "leisu_home_name": "谢周三",
+      "leisu_away_name": "布拉德福德",
+      "leisu_league_name": "英甲",
+      "stats": {
+        "corners": {
+          "home": 6,
+          "away": 7
+        },
+        "yellow_cards": {
+          "home": 1,
+          "away": 0
+        },
+        "red_cards": {
+          "home": 0,
+          "away": 0
+        },
+        "attacks": {
+          "home": 61,
+          "away": 70
+        },
+        "dangerous_attacks": {
+          "home": 38,
+          "away": 30
+        },
+        "possession": {
+          "home": 60,
+          "away": 40
+        },
+        "shots_on_target": {
+          "home": 3,
+          "away": 3
+        },
+        "shots_off_target": {
+          "home": 5,
+          "away": 3
+        },
+        "shots": {
+          "home": 8,
+          "away": 6
+        }
+      },
+      "attack_momentum": {
+        "available": true,
+        "segment_count": 2,
+        "nominal_segment_minutes": 45,
+        "data": [
+          [
+            -12,
+            -16,
+            32,
+            58,
+            -50,
+            78,
+            38,
+            14,
+            68,
+            68,
+            100,
+            4,
+            -12,
+            -80,
+            -78,
+            -50,
+            -44,
+            -20,
+            64,
+            -20,
+            100,
+            -14,
+            -40,
+            0,
+            20,
+            0,
+            -56,
+            22,
+            -8,
+            52,
+            -10,
+            -10,
+            24,
+            22,
+            100,
+            56,
+            -6,
+            14,
+            -44,
+            52,
+            80,
+            0,
+            -20,
+            2,
+            -78,
+            -20
+          ],
+          [
+            -18,
+            -60,
+            0,
+            -26,
+            72,
+            -44,
+            -54,
+            -50,
+            -78,
+            22,
+            100,
+            -20,
+            38,
+            54,
+            26,
+            44,
+            -100
+          ]
+        ]
+      },
+      "timeline_events": [
+        {
+          "minute": null,
+          "type": 0,
+          "type_name": "系统提示/准备",
+          "side": "neutral",
+          "text": "大家好，欢迎收看本场比赛直播，球员们正在热身，比赛即将开始"
+        },
+        {
+          "minute": null,
+          "type": 0,
+          "type_name": "系统提示/准备",
+          "side": "neutral",
+          "text": "本场比赛场地情况：良好"
+        },
+        {
+          "minute": null,
+          "type": 0,
+          "type_name": "系统提示/准备",
+          "side": "neutral",
+          "text": "本场比赛天气情况：局部有云"
+        },
+        {
+          "minute": null,
+          "type": 10,
+          "type_name": "开球",
+          "side": "neutral",
+          "text": "随着主裁判一声哨响，上半场比赛开始，本场开球：谢周三"
+        },
+        {
+          "minute": 4,
+          "type": 22,
+          "type_name": "射偏",
+          "side": "home",
+          "text": "4' - 第1个射偏 - (谢周三)"
+        },
+        {
+          "minute": 4,
+          "type": 22,
+          "type_name": "射偏",
+          "side": "home",
+          "text": "4' - 第2个射偏 - (谢周三)"
+        },
+        {
+          "minute": 6,
+          "type": 21,
+          "type_name": "射正",
+          "side": "home",
+          "text": "6' - 第1个射正 - (谢周三)"
+        },
+        {
+          "minute": 6,
+          "type": 5,
+          "type_name": "越位",
+          "side": "home",
+          "text": "6' - 第1个越位 - (谢周三)"
+        },
+        {
+          "minute": 7,
+          "type": 2,
+          "type_name": "角球",
+          "side": "home",
+          "text": "7' - 7分钟，谢周三获得本场第1个角球"
+        },
+        {
+          "minute": 7,
+          "type": 21,
+          "type_name": "射正",
+          "side": "home",
+          "text": "7' - 第2个射正 - (谢周三)"
+        },
+        {
+          "minute": 8,
+          "type": 22,
+          "type_name": "射偏",
+          "side": "home",
+          "text": "8' - 第3个射偏 - (谢周三)"
+        },
+        {
+          "minute": 13,
+          "type": 2,
+          "type_name": "角球",
+          "side": "home",
+          "text": "13' - 第2个角球 - (谢周三)"
+        },
+        {
+          "minute": 13,
+          "type": 2,
+          "type_name": "角球",
+          "side": "home",
+          "text": "13' - 第3个角球 - (谢周三)"
+        },
+        {
+          "minute": 13,
+          "type": 22,
+          "type_name": "射偏",
+          "side": "home",
+          "text": "13' - 第4个射偏 - (谢周三)"
+        },
+        {
+          "minute": 19,
+          "type": 2,
+          "type_name": "角球",
+          "side": "away",
+          "text": "19' - 第4个角球 - (布拉德福德)"
+        },
+        {
+          "minute": 21,
+          "type": 2,
+          "type_name": "角球",
+          "side": "home",
+          "text": "21' - 第5个角球 - (谢周三)"
+        },
+        {
+          "minute": 26,
+          "type": 22,
+          "type_name": "射偏",
+          "side": "away",
+          "text": "26' - 第5个射偏 - (布拉德福德)"
+        },
+        {
+          "minute": 27,
+          "type": 22,
+          "type_name": "射偏",
+          "side": "away",
+          "text": "27' - 第6个射偏 - (布拉德福德)"
+        },
+        {
+          "minute": 29,
+          "type": 22,
+          "type_name": "射偏",
+          "side": "home",
+          "text": "29' - 第7个射偏 - (谢周三)"
+        },
+        {
+          "minute": 30,
+          "type": 22,
+          "type_name": "射偏",
+          "side": "home",
+          "text": "30' - 第8个射偏 - (谢周三)"
+        },
+        {
+          "minute": 34,
+          "type": 5,
+          "type_name": "越位",
+          "side": "home",
+          "text": "34' - 第2个越位 - (谢周三)"
+        },
+        {
+          "minute": 37,
+          "type": 2,
+          "type_name": "角球",
+          "side": "home",
+          "text": "37' - 第6个角球 - (谢周三)"
+        },
+        {
+          "minute": 37,
+          "type": 22,
+          "type_name": "射偏",
+          "side": "away",
+          "text": "37' - 第9个射偏 - (布拉德福德)"
+        },
+        {
+          "minute": 38,
+          "type": 2,
+          "type_name": "角球",
+          "side": "away",
+          "text": "38' - 第7个角球 - (布拉德福德)"
+        },
+        {
+          "minute": 39,
+          "type": 2,
+          "type_name": "角球",
+          "side": "away",
+          "text": "39' - 第8个角球 - (布拉德福德)"
+        },
+        {
+          "minute": 40,
+          "type": 22,
+          "type_name": "射偏",
+          "side": "home",
+          "text": "40' - 第10个射偏 - (谢周三)"
+        },
+        {
+          "minute": 41,
+          "type": 2,
+          "type_name": "角球",
+          "side": "home",
+          "text": "41' - 第9个角球 - (谢周三)"
+        },
+        {
+          "minute": 42,
+          "type": 22,
+          "type_name": "射偏",
+          "side": "home",
+          "text": "42' - 第11个射偏 - (谢周三)"
+        },
+        {
+          "minute": 44,
+          "type": 21,
+          "type_name": "射正",
+          "side": "home",
+          "text": "44' - 第3个射正 - (谢周三)"
+        },
+        {
+          "minute": 45,
+          "type": 11,
+          "type_name": "半场结束",
+          "side": "neutral",
+          "text": "45' - 随着裁判一声哨响，上半场结束，目前比分0-0"
+        },
+        {
+          "minute": 47,
+          "type": 2,
+          "type_name": "角球",
+          "side": "away",
+          "text": "47' - 第10个角球，本场比赛的第十个角球已经产生！"
+        },
+        {
+          "minute": 47,
+          "type": 1,
+          "type_name": "进球",
+          "side": "away",
+          "text": "47' - 第1个进球！球进啦！鲍德温(布拉德福德 射门 (助攻: 彭宁顿))取得本场比赛领先！"
+        },
+        {
+          "minute": 47,
+          "type": 22,
+          "type_name": "射偏",
+          "side": "away",
+          "text": "47' - 第12个射偏 - (布拉德福德)"
+        },
+        {
+          "minute": 47,
+          "type": 22,
+          "type_name": "射偏",
+          "side": "away",
+          "text": "47' - 第13个射偏 - (布拉德福德)"
+        },
+        {
+          "minute": 47,
+          "type": 21,
+          "type_name": "射正",
+          "side": "away",
+          "text": "47' - 第4个射正 - (布拉德福德)"
+        },
+        {
+          "minute": 53,
+          "type": 2,
+          "type_name": "角球",
+          "side": "away",
+          "text": "53' - 第11个角球 - (布拉德福德)"
+        },
+        {
+          "minute": 53,
+          "type": 21,
+          "type_name": "射正",
+          "side": "away",
+          "text": "53' - 第5个射正 - (布拉德福德)"
+        },
+        {
+          "minute": 53,
+          "type": 21,
+          "type_name": "射正",
+          "side": "away",
+          "text": "53' - 第6个射正 - (布拉德福德)"
+        },
+        {
+          "minute": 54,
+          "type": 2,
+          "type_name": "角球",
+          "side": "away",
+          "text": "54' - 第12个角球 - (布拉德福德)"
+        },
+        {
+          "minute": 54,
+          "type": 2,
+          "type_name": "角球",
+          "side": "away",
+          "text": "54' - 第13个角球 - (布拉德福德)"
+        },
+        {
+          "minute": 55,
+          "type": 21,
+          "type_name": "射正",
+          "side": "away",
+          "text": "55' - 第7个射正 - (布拉德福德)"
+        },
+        {
+          "minute": 56,
+          "type": 22,
+          "type_name": "射偏",
+          "side": "home",
+          "text": "56' - 第14个射偏 - (谢周三)"
+        },
+        {
+          "minute": 56,
+          "type": 22,
+          "type_name": "射偏",
+          "side": "home",
+          "text": "56' - 第15个射偏 - (谢周三)"
+        },
+        {
+          "minute": 61,
+          "type": 3,
+          "type_name": "黄牌",
+          "side": "home",
+          "text": "61' - 第1张黄牌，裁判出示了本场比赛的第一张黄牌，给了谢周三"
+        },
+        {
+          "minute": 62,
+          "type": 5,
+          "type_name": "越位",
+          "side": "away",
+          "text": "62' - 第3个越位 - (布拉德福德)"
+        },
+        {
+          "minute": 63,
+          "type": 22,
+          "type_name": "射偏",
+          "side": "away",
+          "text": "63' - 第16个射偏 - (布拉德福德)"
+        }
+      ],
+      "lineups": {
+        "confirmed": true,
+        "venue": {
+          "name": "希尔斯堡球场",
+          "city": "谢菲尔德",
+          "country": "England",
+          "capacity": 34835
+        },
+        "home_formation": "4-2-3-1",
+        "away_formation": "3-4-2-1",
+        "home_manager": "佩德森",
+        "away_manager": "亚历山大",
+        "home_starters": [
+          {
+            "player_id": 1809241,
+            "team_id": 10101,
+            "name": "奥特格巴约",
+            "shirt_number": 22,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.9,
+            "age": 21,
+            "height": 188,
+            "market_value": 800000,
+            "market_value_text": "80万欧",
+            "position": "后卫",
+            "position_name": "后卫",
+            "position_code": "D",
+            "incidents": []
+          },
+          {
+            "player_id": 18364,
+            "team_id": 10101,
+            "name": "L.库珀",
+            "shirt_number": 6,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.8,
+            "age": 34,
+            "height": 186,
+            "market_value": 200000,
+            "market_value_text": "20万欧",
+            "position": "后卫",
+            "position_name": "后卫",
+            "position_code": "D",
+            "incidents": []
+          },
+          {
+            "player_id": 20158,
+            "team_id": 10101,
+            "name": "班南",
+            "shirt_number": 10,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": true,
+            "best_player": false,
+            "rating": 6.6,
+            "age": 36,
+            "height": 170,
+            "market_value": 200000,
+            "market_value_text": "20万欧",
+            "position": "中场",
+            "position_name": "中场",
+            "position_code": "M",
+            "incidents": []
+          },
+          {
+            "player_id": 1139698,
+            "team_id": 10101,
+            "name": "米切尔",
+            "shirt_number": 16,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.5,
+            "age": 26,
+            "height": 178,
+            "market_value": 3000000,
+            "market_value_text": "300万欧",
+            "position": "中场",
+            "position_name": "中场",
+            "position_code": "M",
+            "incidents": [
+              {
+                "type": 3,
+                "type_name": "黄牌",
+                "time": 61,
+                "reason_type": "犯规",
+                "reason_desc": "犯规"
+              }
+            ]
+          },
+          {
+            "player_id": 56736,
+            "team_id": 10101,
+            "name": "拉姆利",
+            "shirt_number": 1,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.5,
+            "age": 31,
+            "height": 190,
+            "market_value": 400000,
+            "market_value_text": "40万欧",
+            "position": "守门员",
+            "position_name": "守门员",
+            "position_code": "G",
+            "incidents": []
+          },
+          {
+            "player_id": 1178560,
+            "team_id": 10101,
+            "name": "巴里",
+            "shirt_number": 11,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.4,
+            "age": 23,
+            "height": 174,
+            "market_value": 2500000,
+            "market_value_text": "250万欧",
+            "position": "前锋",
+            "position_name": "中场",
+            "position_code": "F",
+            "incidents": []
+          },
+          {
+            "player_id": 111891,
+            "team_id": 10101,
+            "name": "斯拉特利",
+            "shirt_number": 8,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.4,
+            "age": 27,
+            "height": 175,
+            "market_value": 700000,
+            "market_value_text": "70万欧",
+            "position": "中场",
+            "position_name": "中场",
+            "position_code": "M",
+            "incidents": []
+          },
+          {
+            "player_id": 1892132,
+            "team_id": 10101,
+            "name": "格雷",
+            "shirt_number": 24,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.3,
+            "age": 17,
+            "height": 181,
+            "market_value": 700000,
+            "market_value_text": "70万欧",
+            "position": "中场",
+            "position_name": "中场",
+            "position_code": "M",
+            "incidents": []
+          },
+          {
+            "player_id": 45233,
+            "team_id": 10101,
+            "name": "洛韦",
+            "shirt_number": 9,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.2,
+            "age": 32,
+            "height": 183,
+            "market_value": 500000,
+            "market_value_text": "50万欧",
+            "position": "前锋",
+            "position_name": "前锋",
+            "position_code": "F",
+            "incidents": []
+          },
+          {
+            "player_id": 52055,
+            "team_id": 10101,
+            "name": "洛维",
+            "shirt_number": 3,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.1,
+            "age": 29,
+            "height": 175,
+            "market_value": 1800000,
+            "market_value_text": "180万欧",
+            "position": "后卫",
+            "position_name": "后卫",
+            "position_code": "D",
+            "incidents": []
+          },
+          {
+            "player_id": 104630,
+            "team_id": 10101,
+            "name": "瓦莱里",
+            "shirt_number": 7,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6,
+            "age": 27,
+            "height": 185,
+            "market_value": 1500000,
+            "market_value_text": "150万欧",
+            "position": "后卫",
+            "position_name": "后卫",
+            "position_code": "D",
+            "incidents": []
+          }
+        ],
+        "away_starters": [
+          {
+            "player_id": 1095285,
+            "team_id": 10102,
+            "name": "鲍德温",
+            "shirt_number": 15,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": true,
+            "rating": 8.3,
+            "age": 29,
+            "height": 182,
+            "market_value": 300000,
+            "market_value_text": "30万欧",
+            "position": "后卫",
+            "position_name": "后卫",
+            "position_code": "D",
+            "incidents": [
+              {
+                "type": 1,
+                "type_name": "进球",
+                "time": 47,
+                "reason_type": null,
+                "reason_desc": null
+              }
+            ]
+          },
+          {
+            "player_id": 1152707,
+            "team_id": 10102,
+            "name": "麦克拉肯",
+            "shirt_number": 21,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.8,
+            "age": 26,
+            "height": 190,
+            "market_value": 500000,
+            "market_value_text": "50万欧",
+            "position": "守门员",
+            "position_name": "守门员",
+            "position_code": "G",
+            "incidents": []
+          },
+          {
+            "player_id": 910858,
+            "team_id": 10102,
+            "name": "纽夫维尔",
+            "shirt_number": 7,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.7,
+            "age": 26,
+            "height": 183,
+            "market_value": 700000,
+            "market_value_text": "70万欧",
+            "position": "中场",
+            "position_name": "中场",
+            "position_code": "M",
+            "incidents": []
+          },
+          {
+            "player_id": 1562724,
+            "team_id": 10102,
+            "name": "波因顿",
+            "shirt_number": 23,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.6,
+            "age": 22,
+            "height": 0,
+            "market_value": 550000,
+            "market_value_text": "55万欧",
+            "position": "中场",
+            "position_name": "中场",
+            "position_code": "M",
+            "incidents": []
+          },
+          {
+            "player_id": 50617,
+            "team_id": 10102,
+            "name": "杰克逊",
+            "shirt_number": 19,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.5,
+            "age": 32,
+            "height": 181,
+            "market_value": 200000,
+            "market_value_text": "20万欧",
+            "position": "前锋",
+            "position_name": "中场",
+            "position_code": "F",
+            "incidents": []
+          },
+          {
+            "player_id": 54622,
+            "team_id": 10102,
+            "name": "比斯利",
+            "shirt_number": 9,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.5,
+            "age": 29,
+            "height": 185,
+            "market_value": 300000,
+            "market_value_text": "30万欧",
+            "position": "前锋",
+            "position_name": "前锋",
+            "position_code": "F",
+            "incidents": []
+          },
+          {
+            "player_id": 70080,
+            "team_id": 10102,
+            "name": "吉莱斯皮",
+            "shirt_number": 5,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.4,
+            "age": 30,
+            "height": 180,
+            "market_value": 400000,
+            "market_value_text": "40万欧",
+            "position": "后卫",
+            "position_name": "后卫",
+            "position_code": "D",
+            "incidents": []
+          },
+          {
+            "player_id": 32490,
+            "team_id": 10102,
+            "name": "萨尔切维奇",
+            "shirt_number": 10,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": true,
+            "best_player": false,
+            "rating": 6.4,
+            "age": 34,
+            "height": 183,
+            "market_value": 50000,
+            "market_value_text": "5万欧",
+            "position": "中场",
+            "position_name": "中场",
+            "position_code": "M",
+            "incidents": []
+          },
+          {
+            "player_id": 1107851,
+            "team_id": 10102,
+            "name": "图雷",
+            "shirt_number": 3,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.3,
+            "age": 31,
+            "height": 177,
+            "market_value": 225000,
+            "market_value_text": "22.5万欧",
+            "position": "后卫",
+            "position_name": "中场",
+            "position_code": "D",
+            "incidents": []
+          },
+          {
+            "player_id": 73196,
+            "team_id": 10102,
+            "name": "康纳利",
+            "shirt_number": 6,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.2,
+            "age": 28,
+            "height": 183,
+            "market_value": 550000,
+            "market_value_text": "55万欧",
+            "position": "后卫",
+            "position_name": "中场",
+            "position_code": "D",
+            "incidents": []
+          },
+          {
+            "player_id": 53371,
+            "team_id": 10102,
+            "name": "彭宁顿",
+            "shirt_number": 28,
+            "status": 1,
+            "status_name": "首发",
+            "starter": true,
+            "captain": false,
+            "best_player": false,
+            "rating": 6.1,
+            "age": 31,
+            "height": 185,
+            "market_value": 250000,
+            "market_value_text": "25万欧",
+            "position": "后卫",
+            "position_name": "后卫",
+            "position_code": "D",
+            "incidents": [
+              {
+                "type": 99,
+                "type_name": "助攻",
+                "time": 47,
+                "reason_type": null,
+                "reason_desc": null
+              }
+            ]
+          }
+        ],
+        "home_substitutes": [
+          {
+            "player_id": 29145,
+            "team_id": 10101,
+            "name": "帕尔默",
+            "shirt_number": 2,
+            "status": 0,
+            "status_name": "替补",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": 0,
+            "age": 34,
+            "height": 188,
+            "market_value": 100000,
+            "market_value_text": "10万欧",
+            "position": "后卫",
+            "position_name": "后卫",
+            "position_code": "D",
+            "incidents": []
+          },
+          {
+            "player_id": 100104,
+            "team_id": 10101,
+            "name": "杜鲁曼",
+            "shirt_number": 27,
+            "status": 0,
+            "status_name": "替补",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": 0,
+            "age": 30,
+            "height": 186,
+            "market_value": 75000,
+            "market_value_text": "7.5万欧",
+            "position": "守门员",
+            "position_name": "守门员",
+            "position_code": "G",
+            "incidents": []
+          },
+          {
+            "player_id": 1459015,
+            "team_id": 10101,
+            "name": "伯斯托",
+            "shirt_number": 48,
+            "status": 0,
+            "status_name": "替补",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": 0,
+            "age": 23,
+            "height": 187,
+            "market_value": 2800000,
+            "market_value_text": "280万欧",
+            "position": "后卫",
+            "position_name": "前锋",
+            "position_code": "D",
+            "incidents": []
+          },
+          {
+            "player_id": 1636241,
+            "team_id": 10101,
+            "name": "莫里森",
+            "shirt_number": 20,
+            "status": 0,
+            "status_name": "替补",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": 0,
+            "age": 19,
+            "height": 170,
+            "market_value": 0,
+            "market_value_text": "-",
+            "position": "中场",
+            "position_name": "中场",
+            "position_code": "M",
+            "incidents": []
+          },
+          {
+            "player_id": 1618396,
+            "team_id": 10101,
+            "name": "桑顿",
+            "shirt_number": 37,
+            "status": 0,
+            "status_name": "替补",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": 0,
+            "age": 20,
+            "height": 177,
+            "market_value": 500000,
+            "market_value_text": "50万欧",
+            "position": "中场",
+            "position_name": "中场",
+            "position_code": "M",
+            "incidents": []
+          },
+          {
+            "player_id": 1364847,
+            "team_id": 10101,
+            "name": "斯温克尔",
+            "shirt_number": 26,
+            "status": 0,
+            "status_name": "替补",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": 0,
+            "age": 22,
+            "height": 172,
+            "market_value": 250000,
+            "market_value_text": "25万欧",
+            "position": "后卫",
+            "position_name": "后卫",
+            "position_code": "D",
+            "incidents": []
+          },
+          {
+            "player_id": 54893,
+            "team_id": 10101,
+            "name": "桑托斯",
+            "shirt_number": 4,
+            "status": 0,
+            "status_name": "替补",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": 0,
+            "age": 31,
+            "height": 196,
+            "market_value": 350000,
+            "market_value_text": "35万欧",
+            "position": "后卫",
+            "position_name": "后卫",
+            "position_code": "D",
+            "incidents": []
+          }
+        ],
+        "away_substitutes": [
+          {
+            "player_id": 1326756,
+            "team_id": 10102,
+            "name": "斯万",
+            "shirt_number": 24,
+            "status": 0,
+            "status_name": "替补",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": 0,
+            "age": 25,
+            "height": 0,
+            "market_value": 350000,
+            "market_value_text": "35万欧",
+            "position": "前锋",
+            "position_name": "前锋",
+            "position_code": "F",
+            "incidents": []
+          },
+          {
+            "player_id": 31583,
+            "team_id": 10102,
+            "name": "鲍威尔",
+            "shirt_number": 25,
+            "status": 0,
+            "status_name": "替补",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": 0,
+            "age": 32,
+            "height": 183,
+            "market_value": 150000,
+            "market_value_text": "15万欧",
+            "position": "中场",
+            "position_name": "中场",
+            "position_code": "M",
+            "incidents": []
+          },
+          {
+            "player_id": 56227,
+            "team_id": 10102,
+            "name": "菲利普斯",
+            "shirt_number": 8,
+            "status": 0,
+            "status_name": "替补",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": 0,
+            "age": 28,
+            "height": 180,
+            "market_value": 650000,
+            "market_value_text": "65万欧",
+            "position": "中场",
+            "position_name": "中场",
+            "position_code": "M",
+            "incidents": []
+          },
+          {
+            "player_id": 910769,
+            "team_id": 10102,
+            "name": "拉普斯利",
+            "shirt_number": 32,
+            "status": 0,
+            "status_name": "替补",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": 0,
+            "age": 28,
+            "height": 180,
+            "market_value": 250000,
+            "market_value_text": "25万欧",
+            "position": "中场",
+            "position_name": "中场",
+            "position_code": "M",
+            "incidents": []
+          },
+          {
+            "player_id": 49445,
+            "team_id": 10102,
+            "name": "道森",
+            "shirt_number": 1,
+            "status": 0,
+            "status_name": "替补",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": 0,
+            "age": 31,
+            "height": 193,
+            "market_value": 300000,
+            "market_value_text": "30万欧",
+            "position": "守门员",
+            "position_name": "守门员",
+            "position_code": "G",
+            "incidents": []
+          },
+          {
+            "player_id": 1496664,
+            "team_id": 10102,
+            "name": "卡特怀特",
+            "shirt_number": 20,
+            "status": 0,
+            "status_name": "替补",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": 0,
+            "age": 21,
+            "height": 175,
+            "market_value": 150000,
+            "market_value_text": "15万欧",
+            "position": "中场",
+            "position_name": "中场",
+            "position_code": "M",
+            "incidents": []
+          },
+          {
+            "player_id": 1406128,
+            "team_id": 10102,
+            "name": "韦尔奇",
+            "shirt_number": 2,
+            "status": 0,
+            "status_name": "替补",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": 0,
+            "age": 22,
+            "height": 197,
+            "market_value": 250000,
+            "market_value_text": "25万欧",
+            "position": "后卫",
+            "position_name": "后卫",
+            "position_code": "D",
+            "incidents": []
+          }
+        ],
+        "home_injuries": [
+          {
+            "player_id": 1182435,
+            "team_id": 10101,
+            "name": "伯纳德",
+            "shirt_number": 5,
+            "status": 2,
+            "status_name": "伤停",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": null,
+            "age": 25,
+            "height": 188,
+            "market_value": 1000000,
+            "market_value_text": "100万欧",
+            "position": "后卫",
+            "position_name": "后卫",
+            "position_code": "D",
+            "incidents": []
+          },
+          {
+            "player_id": 1371192,
+            "team_id": 10101,
+            "name": "奥尼安戈",
+            "shirt_number": 21,
+            "status": 2,
+            "status_name": "伤停",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": null,
+            "age": 23,
+            "height": 190,
+            "market_value": 350000,
+            "market_value_text": "35万欧",
+            "position": "中场",
+            "position_name": "中场",
+            "position_code": "M",
+            "incidents": []
+          },
+          {
+            "player_id": 1739644,
+            "team_id": 10101,
+            "name": "西凯拉",
+            "shirt_number": 23,
+            "status": 2,
+            "status_name": "伤停",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": null,
+            "age": 21,
+            "height": 180,
+            "market_value": 0,
+            "market_value_text": "-",
+            "position": "后卫",
+            "position_name": "后卫",
+            "position_code": "D",
+            "incidents": []
+          },
+          {
+            "player_id": 1940074,
+            "team_id": 0,
+            "name": "麦基",
+            "shirt_number": 0,
+            "status": 2,
+            "status_name": "伤停",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": null,
+            "age": 20,
+            "height": 0,
+            "market_value": 0,
+            "market_value_text": "-",
+            "position": "后卫",
+            "position_name": "后卫",
+            "position_code": "D",
+            "incidents": []
+          }
+        ],
+        "away_injuries": [
+          {
+            "player_id": 100786,
+            "team_id": 10102,
+            "name": "亨弗里斯",
+            "shirt_number": 11,
+            "status": 2,
+            "status_name": "伤停",
+            "starter": false,
+            "captain": false,
+            "best_player": false,
+            "rating": null,
+            "age": 28,
+            "height": 185,
+            "market_value": 550000,
+            "market_value_text": "55万欧",
+            "position": "前锋",
+            "position_name": "前锋",
+            "position_code": "F",
+            "incidents": []
+          }
+        ],
+        "home_market_value": "1230万欧",
+        "away_market_value": "402.5万欧",
+        "home_average_age": "27.5岁",
+        "away_average_age": "28.9岁"
+      },
+      "tactical_context": {
+        "head_to_head_count": 6,
+        "home_recent_matches_count": 40,
+        "away_recent_matches_count": 40,
+        "h2h_raw": [
+          {
+            "match_id": 3775098,
+            "season_id": null,
+            "competition_id": 100,
+            "status_id": 8,
+            "match_time": 1661884200,
+            "neutral": null,
+            "home_team_id": 10102,
+            "away_team_id": 10101,
+            "home_scores": [
+              3,
+              1,
+              0,
+              0,
+              3,
+              0,
+              0
+            ],
+            "away_scores": [
+              1,
+              1,
+              0,
+              0,
+              10,
+              0,
+              0
+            ],
+            "opening_odds": [
+              "0.82,-0.25,1.02,0",
+              "2.88,3.3,2.25,0",
+              "0.97,2.5,0.88,0",
+              ""
+            ],
+            "current_odds": [
+              "0.95,-0.25,0.9,0",
+              "3.0,3.4,2.15,0",
+              "0.9,2.5,0.95,0",
+              ""
+            ],
+            "home_stats": {
+              "attack": 95,
+              "dangerous_attack": 40,
+              "ball_possession": 42,
+              "shots": 17,
+              "was_shots": 8,
+              "corner_kicks": 3,
+              "fouls": 0,
+              "yellow_cards": 0,
+              "red_cards": 0,
+              "free_kicks": 0
+            },
+            "away_stats": {
+              "attack": 115,
+              "dangerous_attack": 44,
+              "ball_possession": 58,
+              "shots": 8,
+              "was_shots": 17,
+              "corner_kicks": 9,
+              "fouls": 0,
+              "yellow_cards": 0,
+              "red_cards": 0,
+              "free_kicks": 0
+            }
+          },
+          {
+            "match_id": 154270,
+            "season_id": null,
+            "competition_id": 100,
+            "status_id": 8,
+            "match_time": 1314729900,
+            "neutral": null,
+            "home_team_id": 10102,
+            "away_team_id": 10101,
+            "home_scores": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              3
+            ],
+            "away_scores": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1
+            ],
+            "opening_odds": [
+              "",
+              "3.1,3.5,2.2,0",
+              "",
+              ""
+            ],
+            "current_odds": [
+              "",
+              "3.1,3.5,2.2,0",
+              "",
+              ""
+            ],
+            "home_stats": {},
+            "away_stats": {}
+          },
+          {
+            "match_id": 108389,
+            "season_id": null,
+            "competition_id": 84,
+            "status_id": 8,
+            "match_time": 1108220400,
+            "neutral": null,
+            "home_team_id": 10101,
+            "away_team_id": 10102,
+            "home_scores": [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "away_scores": [
+              2,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "opening_odds": [
+              "",
+              "1.72,3.4,4.33,0",
+              "",
+              ""
+            ],
+            "current_odds": [
+              "",
+              "1.72,3.4,4.33,0",
+              "",
+              ""
+            ],
+            "home_stats": {},
+            "away_stats": {}
+          },
+          {
+            "match_id": 108554,
+            "season_id": null,
+            "competition_id": 84,
+            "status_id": 8,
+            "match_time": 1098540000,
+            "neutral": null,
+            "home_team_id": 10102,
+            "away_team_id": 10101,
+            "home_scores": [
+              3,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "away_scores": [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "opening_odds": [
+              "",
+              "",
+              "",
+              ""
+            ],
+            "current_odds": [
+              "",
+              "",
+              "",
+              ""
+            ],
+            "home_stats": {},
+            "away_stats": {}
+          },
+          {
+            "match_id": 2492834,
+            "season_id": null,
+            "competition_id": 82,
+            "status_id": 8,
+            "match_time": 948038340,
+            "neutral": null,
+            "home_team_id": 10101,
+            "away_team_id": 10102,
+            "home_scores": [
+              2,
+              0,
+              0,
+              0,
+              -1,
+              0,
+              0
+            ],
+            "away_scores": [
+              0,
+              0,
+              0,
+              0,
+              -1,
+              0,
+              0
+            ],
+            "opening_odds": [
+              "",
+              "",
+              "",
+              ""
+            ],
+            "current_odds": [
+              "",
+              "",
+              "",
+              ""
+            ],
+            "home_stats": {},
+            "away_stats": {}
+          },
+          {
+            "match_id": 2492640,
+            "season_id": null,
+            "competition_id": 82,
+            "status_id": 8,
+            "match_time": 934646340,
+            "neutral": null,
+            "home_team_id": 10102,
+            "away_team_id": 10101,
+            "home_scores": [
+              1,
+              0,
+              0,
+              0,
+              -1,
+              0,
+              0
+            ],
+            "away_scores": [
+              1,
+              1,
+              0,
+              0,
+              -1,
+              0,
+              0
+            ],
+            "opening_odds": [
+              "",
+              "",
+              "",
+              ""
+            ],
+            "current_odds": [
+              "",
+              "",
+              "",
+              ""
+            ],
+            "home_stats": {},
+            "away_stats": {}
+          }
+        ],
+        "home_recent_matches": [
+          {
+            "match_id": 4562385,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1786802400,
+            "match_date": "2026-08-15T14:00:00.000Z",
+            "home_team_id": 12503,
+            "home_team_name": "莱顿东方",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 1,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 2
+            },
+            "result": "赢",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4567206,
+            "league_id": 99,
+            "league_name": "英联杯",
+            "match_time": 1786197600,
+            "match_date": "2026-08-08T14:00:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10007,
+            "away_team_name": "博尔顿",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "result": "赢",
+            "goals": 1,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4602669,
+            "league_id": 24,
+            "league_name": "球会友谊",
+            "match_time": 1785596400,
+            "match_date": "2026-08-01T15:00:00.000Z",
+            "home_team_id": 10497,
+            "home_team_name": "奥尔德姆",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 4,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 4,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4601517,
+            "league_id": 24,
+            "league_name": "球会友谊",
+            "match_time": 1785583800,
+            "match_date": "2026-08-01T11:30:00.000Z",
+            "home_team_id": 10861,
+            "home_team_name": "阿克灵顿",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "result": "和",
+            "goals": 0,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4590147,
+            "league_id": 24,
+            "league_name": "球会友谊",
+            "match_time": 1784376000,
+            "match_date": "2026-07-18T12:00:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10174,
+            "away_team_name": "普雷斯顿",
+            "halftime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 3,
+              "away": 2
+            },
+            "result": "赢",
+            "goals": 5,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 4585438,
+            "league_id": 24,
+            "league_name": "球会友谊",
+            "match_time": 1784053800,
+            "match_date": "2026-07-14T18:30:00.000Z",
+            "home_team_id": 11273,
+            "home_team_name": "哈尔勒姆",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "result": "和",
+            "goals": 0,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 4579905,
+            "league_id": 24,
+            "league_name": "球会友谊",
+            "match_time": 1783767600,
+            "match_date": "2026-07-11T11:00:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10005,
+            "away_team_name": "阿森纳",
+            "halftime_score": {
+              "home": 0,
+              "away": 2
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 3
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 4351811,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1777721400,
+            "match_date": "2026-05-02T11:30:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10005,
+            "away_team_name": "阿森纳",
+            "halftime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 1
+            },
+            "result": "赢",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4351779,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1777125600,
+            "match_date": "2026-04-25T14:00:00.000Z",
+            "home_team_id": 10571,
+            "home_team_name": "牛津联",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 4,
+              "away": 1
+            },
+            "result": "输",
+            "goals": 5,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4351748,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1776883500,
+            "match_date": "2026-04-22T18:45:00.000Z",
+            "home_team_id": 10004,
+            "home_team_name": "托特纳姆热刺",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 1,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351738,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1776520800,
+            "match_date": "2026-04-18T14:00:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10179,
+            "away_team_name": "查尔顿",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 1
+            },
+            "result": "和",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351699,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1775907000,
+            "match_date": "2026-04-11T11:30:00.000Z",
+            "home_team_id": 10245,
+            "home_team_name": "考文垂",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "result": "和",
+            "goals": 0,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351689,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1775484000,
+            "match_date": "2026-04-06T14:00:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10247,
+            "away_team_name": "莱斯特城",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 1
+            },
+            "result": "和",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351666,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1775224800,
+            "match_date": "2026-04-03T14:00:00.000Z",
+            "home_team_id": 10246,
+            "home_team_name": "斯托克城",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351632,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1774105200,
+            "match_date": "2026-03-21T15:00:00.000Z",
+            "home_team_id": 10538,
+            "home_team_name": "赫尔城",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 2,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 3,
+              "away": 1
+            },
+            "result": "输",
+            "goals": 4,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4351615,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1773500400,
+            "match_date": "2026-03-14T15:00:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10257,
+            "away_team_name": "伊普斯维奇",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 2
+            },
+            "result": "输",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "和",
+              "class": "draw"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351582,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1773171900,
+            "match_date": "2026-03-10T19:45:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10022,
+            "away_team_name": "沃特福德",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 1
+            },
+            "result": "和",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351555,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1772895600,
+            "match_date": "2026-03-07T15:00:00.000Z",
+            "home_team_id": 10011,
+            "home_team_name": "德比郡",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 2,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 1
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "走",
+              "class": "draw"
+            }
+          },
+          {
+            "match_id": 4351543,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1772290800,
+            "match_date": "2026-02-28T15:00:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10182,
+            "away_team_name": "南安普顿",
+            "halftime_score": {
+              "home": 0,
+              "away": 2
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 3
+            },
+            "result": "输",
+            "goals": 4,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4351520,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1772048700,
+            "match_date": "2026-02-25T19:45:00.000Z",
+            "home_team_id": 10184,
+            "home_team_name": "诺维奇",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351484,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1771761600,
+            "match_date": "2026-02-22T12:00:00.000Z",
+            "home_team_id": 10021,
+            "home_team_name": "谢菲尔德联",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 1
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351467,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1771081200,
+            "match_date": "2026-02-14T15:00:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10681,
+            "away_team_name": "米尔沃尔",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 2
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4351445,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1770552000,
+            "match_date": "2026-02-08T12:00:00.000Z",
+            "home_team_id": 11844,
+            "home_team_name": "斯旺西",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 4,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 4,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4351257,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1770147900,
+            "match_date": "2026-02-03T19:45:00.000Z",
+            "home_team_id": 10006,
+            "home_team_name": "曼城",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 1,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351421,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1769862600,
+            "match_date": "2026-01-31T12:30:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10498,
+            "away_team_name": "雷克瑟姆",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 1
+            },
+            "result": "输",
+            "goals": 1,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351401,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1769266800,
+            "match_date": "2026-01-24T15:00:00.000Z",
+            "home_team_id": 10130,
+            "home_team_name": "布里斯托尔城",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351391,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1768938300,
+            "match_date": "2026-01-20T19:45:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10008,
+            "away_team_name": "伯明翰",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 2
+            },
+            "result": "输",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351378,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1768662000,
+            "match_date": "2026-01-17T15:00:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10185,
+            "away_team_name": "朴茨茅斯",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 1
+            },
+            "result": "输",
+            "goals": 1,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4462138,
+            "league_id": 98,
+            "league_name": "足总杯",
+            "match_time": 1768057200,
+            "match_date": "2026-01-10T15:00:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10118,
+            "away_team_name": "布伦特福德",
+            "halftime_score": {
+              "home": 0,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 2
+            },
+            "result": "输",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351368,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1767528000,
+            "match_date": "2026-01-04T12:00:00.000Z",
+            "home_team_id": 10290,
+            "home_team_name": "女王公园巡游者",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 3,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4351350,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1767279600,
+            "match_date": "2026-01-01T15:00:00.000Z",
+            "home_team_id": 10174,
+            "home_team_name": "普雷斯顿",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 3,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4351339,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1767037500,
+            "match_date": "2025-12-29T19:45:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10006,
+            "away_team_name": "曼城",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "result": "和",
+            "goals": 0,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351325,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1766761200,
+            "match_date": "2025-12-26T15:00:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10538,
+            "away_team_name": "赫尔城",
+            "halftime_score": {
+              "home": 1,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 2
+            },
+            "result": "和",
+            "goals": 4,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4351308,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1766242800,
+            "match_date": "2025-12-20T15:00:00.000Z",
+            "home_team_id": 10257,
+            "home_team_name": "伊普斯维奇",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 3,
+              "away": 1
+            },
+            "result": "输",
+            "goals": 4,
+            "handicap_trend": {
+              "result": "和",
+              "class": "draw"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4351297,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1765828800,
+            "match_date": "2025-12-15T20:00:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10011,
+            "away_team_name": "德比郡",
+            "halftime_score": {
+              "home": 0,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 3
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4351279,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1765309500,
+            "match_date": "2025-12-09T19:45:00.000Z",
+            "home_team_id": 10022,
+            "home_team_name": "沃特福德",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 0,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 1
+            },
+            "result": "和",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351252,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1764428400,
+            "match_date": "2025-11-29T15:00:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10174,
+            "away_team_name": "普雷斯顿",
+            "halftime_score": {
+              "home": 2,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 3
+            },
+            "result": "输",
+            "goals": 5,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4351232,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1764186300,
+            "match_date": "2025-11-26T19:45:00.000Z",
+            "home_team_id": 10681,
+            "home_team_name": "米尔沃尔",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 1,
+            "handicap_trend": {
+              "result": "和",
+              "class": "draw"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351226,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1763899200,
+            "match_date": "2025-11-23T12:00:00.000Z",
+            "home_team_id": 10101,
+            "home_team_name": "谢周三",
+            "away_team_id": 10021,
+            "away_team_name": "谢菲尔德联",
+            "halftime_score": {
+              "home": 0,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 3
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4351208,
+            "league_id": 83,
+            "league_name": "英冠",
+            "match_time": 1762614000,
+            "match_date": "2025-11-08T15:00:00.000Z",
+            "home_team_id": 10182,
+            "home_team_name": "南安普顿",
+            "away_team_id": 10101,
+            "away_team_name": "谢周三",
+            "halftime_score": {
+              "home": 2,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 3,
+              "away": 1
+            },
+            "result": "输",
+            "goals": 4,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          }
+        ],
+        "away_recent_matches": [
+          {
+            "match_id": 4562381,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1786802400,
+            "match_date": "2026-08-15T14:00:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 10127,
+            "away_team_name": "彼得堡联",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "result": "赢",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4607400,
+            "league_id": 99,
+            "league_name": "英联杯",
+            "match_time": 1786197600,
+            "match_date": "2026-08-08T14:00:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 11528,
+            "away_team_name": "罗奇代尔",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "result": "赢",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4601585,
+            "league_id": 24,
+            "league_name": "球会友谊",
+            "match_time": 1785592800,
+            "match_date": "2026-08-01T14:00:00.000Z",
+            "home_team_id": 24781,
+            "home_team_name": "索尔福德市",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 1,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 2
+            },
+            "result": "和",
+            "goals": 4,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4596103,
+            "league_id": 24,
+            "league_name": "球会友谊",
+            "match_time": 1785349800,
+            "match_date": "2026-07-29T18:30:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 10174,
+            "away_team_name": "普雷斯顿",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 3,
+              "away": 2
+            },
+            "result": "赢",
+            "goals": 5,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4592389,
+            "league_id": 24,
+            "league_name": "球会友谊",
+            "match_time": 1784907300,
+            "match_date": "2026-07-24T15:35:00.000Z",
+            "home_team_id": 40540,
+            "home_team_name": "格蒙登",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 0,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 4
+            },
+            "result": "赢",
+            "goals": 4,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 4586098,
+            "league_id": 24,
+            "league_name": "球会友谊",
+            "match_time": 1784313000,
+            "match_date": "2026-07-17T18:30:00.000Z",
+            "home_team_id": 10861,
+            "home_team_name": "阿克灵顿",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 1,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4579486,
+            "league_id": 24,
+            "league_name": "球会友谊",
+            "match_time": 1783769400,
+            "match_date": "2026-07-11T11:30:00.000Z",
+            "home_team_id": 10733,
+            "home_team_name": "夏利法斯",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 1,
+              "away": 4
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 6
+            },
+            "result": "赢",
+            "goals": 7,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4565979,
+            "league_id": 24,
+            "league_name": "球会友谊",
+            "match_time": 1783173600,
+            "match_date": "2026-07-04T14:00:00.000Z",
+            "home_team_id": 21747,
+            "home_team_name": "联合曼彻斯特",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 2
+            },
+            "result": "赢",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4538617,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1778785200,
+            "match_date": "2026-05-14T19:00:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 10007,
+            "away_team_name": "博尔顿",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 1
+            },
+            "result": "输",
+            "goals": 1,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4538596,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1778353200,
+            "match_date": "2026-05-09T19:00:00.000Z",
+            "home_team_id": 10007,
+            "home_team_name": "博尔顿",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 1,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351331,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1777730400,
+            "match_date": "2026-05-02T14:00:00.000Z",
+            "home_team_id": 11352,
+            "home_team_name": "埃克塞特城",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 0,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 2
+            },
+            "result": "赢",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4351254,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1777125600,
+            "match_date": "2026-04-25T14:00:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 10007,
+            "away_team_name": "博尔顿",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 1
+            },
+            "result": "和",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "和",
+              "class": "draw"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4350574,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1776797100,
+            "match_date": "2026-04-21T18:45:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 10256,
+            "away_team_name": "普利茅斯",
+            "halftime_score": {
+              "home": 0,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 1
+            },
+            "result": "和",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4351143,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1776511800,
+            "match_date": "2026-04-18T11:30:00.000Z",
+            "home_team_id": 10129,
+            "home_team_name": "巴恩斯利",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 2
+            },
+            "result": "和",
+            "goals": 4,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4350986,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1775916000,
+            "match_date": "2026-04-11T14:00:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 10862,
+            "away_team_name": "斯蒂夫尼奇",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 1
+            },
+            "result": "输",
+            "goals": 1,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4350949,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1775484000,
+            "match_date": "2026-04-06T14:00:00.000Z",
+            "home_team_id": 11115,
+            "home_team_name": "韦康比流浪者",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 2
+            },
+            "result": "赢",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4350715,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1775224800,
+            "match_date": "2026-04-03T14:00:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 11428,
+            "away_team_name": "北安普顿",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "result": "赢",
+            "goals": 1,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4350419,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1774105200,
+            "match_date": "2026-03-21T15:00:00.000Z",
+            "home_team_id": 11412,
+            "home_team_name": "伯顿",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 1
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4350322,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1773776700,
+            "match_date": "2026-03-17T19:45:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 10570,
+            "away_team_name": "曼斯菲尔德",
+            "halftime_score": {
+              "home": 0,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 1
+            },
+            "result": "和",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4350272,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1773500400,
+            "match_date": "2026-03-14T15:00:00.000Z",
+            "home_team_id": 10248,
+            "home_team_name": "维冈竞技",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "走",
+              "class": "draw"
+            }
+          },
+          {
+            "match_id": 4349311,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1773258300,
+            "match_date": "2026-03-11T19:45:00.000Z",
+            "home_team_id": 11501,
+            "home_team_name": "维尔港",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 0,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 2
+            },
+            "result": "赢",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4350147,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1772895600,
+            "match_date": "2026-03-07T15:00:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 12503,
+            "away_team_name": "莱顿东方",
+            "halftime_score": {
+              "home": 1,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 1
+            },
+            "result": "赢",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4350073,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1772290800,
+            "match_date": "2026-02-28T15:00:00.000Z",
+            "home_team_id": 10177,
+            "home_team_name": "雷丁",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 1
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4349391,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1771962300,
+            "match_date": "2026-02-24T19:45:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 10173,
+            "away_team_name": "罗瑟汉姆",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "result": "赢",
+            "goals": 1,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4349996,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1771687800,
+            "match_date": "2026-02-21T15:30:00.000Z",
+            "home_team_id": 11843,
+            "home_team_name": "AFC温布尔登",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 3,
+              "away": 1
+            },
+            "result": "输",
+            "goals": 4,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4349986,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1771357500,
+            "match_date": "2026-02-17T19:45:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 10817,
+            "away_team_name": "斯托克港",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "result": "赢",
+            "goals": 1,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4349936,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1771081200,
+            "match_date": "2026-02-14T15:00:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 10127,
+            "away_team_name": "彼得堡联",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "result": "赢",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4349859,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1770467400,
+            "match_date": "2026-02-07T12:30:00.000Z",
+            "home_team_id": 11840,
+            "home_team_name": "卢顿",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 1
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4349732,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1769862600,
+            "match_date": "2026-01-31T12:30:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 10533,
+            "away_team_name": "唐卡斯特",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "result": "赢",
+            "goals": 1,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4349631,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1769543100,
+            "match_date": "2026-01-27T19:45:00.000Z",
+            "home_team_id": 12913,
+            "home_team_name": "林肯城",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 3,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4349461,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1769257800,
+            "match_date": "2026-01-24T12:30:00.000Z",
+            "home_team_id": 10114,
+            "home_team_name": "哈德斯菲尔德",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 1,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4349423,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1768653000,
+            "match_date": "2026-01-17T12:30:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 10023,
+            "away_team_name": "卡迪夫城",
+            "halftime_score": {
+              "home": 0,
+              "away": 2
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 2
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4349377,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1767538800,
+            "match_date": "2026-01-04T15:00:00.000Z",
+            "home_team_id": 10128,
+            "home_team_name": "布莱克浦",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 0,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 2
+            },
+            "result": "赢",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4349369,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1767279600,
+            "match_date": "2026-01-01T15:00:00.000Z",
+            "home_team_id": 10570,
+            "home_team_name": "曼斯菲尔德",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 3,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4349357,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1767037500,
+            "match_date": "2025-12-29T19:45:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 11501,
+            "away_team_name": "维尔港",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "result": "赢",
+            "goals": 1,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4349345,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1766761200,
+            "match_date": "2025-12-26T15:00:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 10248,
+            "away_team_name": "维冈竞技",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 1
+            },
+            "result": "赢",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4349331,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1766242800,
+            "match_date": "2025-12-20T15:00:00.000Z",
+            "home_team_id": 12503,
+            "home_team_name": "莱顿东方",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 1,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 1
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4349321,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1765638000,
+            "match_date": "2025-12-13T15:00:00.000Z",
+            "home_team_id": 10102,
+            "home_team_name": "布拉德福德",
+            "away_team_id": 10177,
+            "away_team_name": "雷丁",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "result": "赢",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4349276,
+            "league_id": 84,
+            "league_name": "英甲",
+            "match_time": 1765024200,
+            "match_date": "2025-12-06T12:30:00.000Z",
+            "home_team_id": 10256,
+            "home_team_name": "普利茅斯",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 1
+            },
+            "result": "赢",
+            "goals": 1,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4458223,
+            "league_id": 100,
+            "league_name": "英锦赛",
+            "match_time": 1764702000,
+            "match_date": "2025-12-02T19:00:00.000Z",
+            "home_team_id": 10007,
+            "home_team_name": "博尔顿",
+            "away_team_id": 10102,
+            "away_team_name": "布拉德福德",
+            "halftime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 3,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          }
+        ]
+      },
+      "odds_matrix": {
+        "company_name": "3*",
+        "initial": {
+          "asian_handicap": {
+            "home_odds": 1,
+            "line": 0.25,
+            "away_odds": 0.85
+          },
+          "match_winner": {
+            "home_odds": 2.2,
+            "draw_odds": 3.3,
+            "away_odds": 3
+          },
+          "total_goals": {
+            "over_odds": 1,
+            "line": 2.5,
+            "under_odds": 0.85
+          },
+          "corners": {
+            "over_odds": 0.72,
+            "line": 9.5,
+            "under_odds": 1
+          }
+        },
+        "pregame": {
+          "asian_handicap": {
+            "home_odds": 0.7,
+            "line": -0.25,
+            "away_odds": 1.1
+          },
+          "match_winner": {
+            "home_odds": 2.62,
+            "draw_odds": 3.4,
+            "away_odds": 2.45
+          },
+          "total_goals": {
+            "over_odds": 1.1,
+            "line": 2.75,
+            "under_odds": 0.7
+          },
+          "corners": {
+            "over_odds": 0.72,
+            "line": 9.5,
+            "under_odds": 1
+          }
+        },
+        "live": {
+          "asian_handicap": {
+            "home_odds": 1.2,
+            "line": 0.25,
+            "away_odds": 0.7
+          },
+          "match_winner": {
+            "home_odds": 9.5,
+            "draw_odds": 3.75,
+            "away_odds": 1.44
+          },
+          "total_goals": {
+            "over_odds": 0.92,
+            "line": 2,
+            "under_odds": 0.92
+          },
+          "corners": {
+            "over_odds": 0.61,
+            "line": 16.5,
+            "under_odds": 1.2
+          }
+        }
+      },
+      "league_standings": {
+        "has_data": true,
+        "home_team": {
+          "team_id": 10101,
+          "team_name": "谢周三",
+          "competition_id": 84,
+          "competition_name": "英甲",
+          "season": "2026-2027",
+          "overall": {
+            "title": "总",
+            "position": 6,
+            "matches_played": 1,
+            "won": 1,
+            "draw": 0,
+            "loss": 0,
+            "goals_scored": 2,
+            "goals_conceded": 1,
+            "goal_difference": 1,
+            "points": 3,
+            "win_rate": "100%"
+          },
+          "home": {
+            "title": "主",
+            "position": 11,
+            "matches_played": 0,
+            "won": 0,
+            "draw": 0,
+            "loss": 0,
+            "goals_scored": 0,
+            "goals_conceded": 0,
+            "goal_difference": 0,
+            "points": 0,
+            "win_rate": null
+          },
+          "away": {
+            "title": "客",
+            "position": 3,
+            "matches_played": 1,
+            "won": 1,
+            "draw": 0,
+            "loss": 0,
+            "goals_scored": 2,
+            "goals_conceded": 1,
+            "goal_difference": 1,
+            "points": 3,
+            "win_rate": "100%"
+          }
+        },
+        "away_team": {
+          "team_id": 10102,
+          "team_name": "布拉德福德",
+          "competition_id": 84,
+          "competition_name": "英甲",
+          "season": "2026-2027",
+          "overall": {
+            "title": "总",
+            "position": 3,
+            "matches_played": 1,
+            "won": 1,
+            "draw": 0,
+            "loss": 0,
+            "goals_scored": 2,
+            "goals_conceded": 0,
+            "goal_difference": 2,
+            "points": 3,
+            "win_rate": "100%"
+          },
+          "home": {
+            "title": "主",
+            "position": 2,
+            "matches_played": 1,
+            "won": 1,
+            "draw": 0,
+            "loss": 0,
+            "goals_scored": 2,
+            "goals_conceded": 0,
+            "goal_difference": 2,
+            "points": 3,
+            "win_rate": "100%"
+          },
+          "away": {
+            "title": "客",
+            "position": 10,
+            "matches_played": 0,
+            "won": 0,
+            "draw": 0,
+            "loss": 0,
+            "goals_scored": 0,
+            "goals_conceded": 0,
+            "goal_difference": 0,
+            "points": 0,
+            "win_rate": null
+          }
+        }
+      },
+      "goal_distribution": {
+        "has_data": true,
+        "home_team": {
+          "all": {
+            "matches_count": 1,
+            "scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 1,
+                "percentage": 50
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 1,
+                "percentage": 50
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ],
+            "first_scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 1,
+                "percentage": 100
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ]
+          },
+          "home": {
+            "matches_count": 0,
+            "scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ],
+            "first_scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ]
+          },
+          "away": {
+            "matches_count": 1,
+            "scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 1,
+                "percentage": 50
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 1,
+                "percentage": 50
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ],
+            "first_scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 1,
+                "percentage": 100
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ]
+          }
+        },
+        "away_team": {
+          "all": {
+            "matches_count": 1,
+            "scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 1,
+                "percentage": 50
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 1,
+                "percentage": 50
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ],
+            "first_scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 1,
+                "percentage": 100
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ]
+          },
+          "home": {
+            "matches_count": 1,
+            "scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 1,
+                "percentage": 50
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 1,
+                "percentage": 50
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ],
+            "first_scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 1,
+                "percentage": 100
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ]
+          },
+          "away": {
+            "matches_count": 0,
+            "scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ],
+            "first_scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "ai_evaluation_brief": {
+    "match_id": "巴西甲级联赛_沙佩科人SC_vs_圣保罗SP",
+    "league": "巴西甲级联赛",
+    "kickoff_time": "2026-08-20 19:00:00",
+    "status_summary": "LIVE 63' (0-0)",
+    "teams": {
+      "home": "沙佩科人SC",
+      "away": "圣保罗SP"
+    },
+    "score_verification": {
+      "is_verified": false,
+      "current_score": "0 - 0"
+    },
+    "core_markets": {
+      "ah_main": {
+        "handicap": "+0.5",
+        "home_odds": 1.81,
+        "away_odds": 2.09
+      },
+      "ou_main": {
+        "handicap": "1.5/2",
+        "over_odds": 1.82,
+        "under_odds": 2.06
+      },
+      "euro_1x2": {
+        "home_win": 3.9,
+        "draw": 2.99,
+        "away_win": 2.16
+      },
+      "ah_half": null,
+      "ou_half": null
+    },
+    "condensed_features": {
+      "possession": {
+        "home": 60,
+        "away": 40
+      },
+      "shots_on_target": {
+        "home": 3,
+        "away": 3
+      },
+      "dangerous_attacks": {
+        "home": 38,
+        "away": 30
+      },
+      "corners": {
+        "home": 6,
+        "away": 7
+      },
+      "recent_momentum_5min": null,
+      "recent_momentum_15min": null,
+      "formations": {
+        "home": "4-2-3-1",
+        "away": "3-4-2-1"
+      },
+      "h2h_summary": null,
+      "league_rank": null
+    },
+    "data_deficits": [
+      "SCORE_MISMATCH"
+    ]
+  }
+}

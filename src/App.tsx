@@ -8,7 +8,10 @@ import {
   toStandardMatchData 
 } from './types';
 import { BettingRecommendationsView } from './components/BettingRecommendationsView';
+import { CanonicalMatchCenter } from './components/CanonicalMatchCenter';
+import { SystemAlertHubModal } from './components/SystemAlertHubModal';
 import { requestJson } from './lib/apiClient';
+import { SystemAlertEvent, UnknownEnumReport } from '../refactor/00_common/errors';
 
 import { 
   Activity, 
@@ -21,7 +24,9 @@ import {
   ShieldCheck,
   Trophy,
   CheckSquare,
-  AlertCircle
+  AlertCircle,
+  Layers,
+  ShieldAlert
 } from 'lucide-react';
 import { UnverifiedScoresModal } from './components/UnverifiedScoresModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -34,7 +39,7 @@ const TeamAliasesView = lazy(() => import('./components/TeamAliasesView').then((
 const ExportDataView = lazy(() => import('./components/ExportDataView').then(({ ExportDataView }) => ({ default: ExportDataView })));
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'recommendations' | 'live' | 'prematch' | 'ai' | 'ledger' | 'aliases' | 'export'>('recommendations');
+  const [activeTab, setActiveTab] = useState<'canonical' | 'recommendations' | 'live' | 'prematch' | 'ai' | 'ledger' | 'aliases' | 'export'>('canonical');
 
   // Live Data
   const [livePipeline, setLivePipeline] = useState<PipelineStatus>({});
@@ -58,10 +63,37 @@ export default function App() {
   // Selected Match for AI Evaluator
   const [selectedMatchForAi, setSelectedMatchForAi] = useState<DecisionItem | null>(null);
 
-  // Unverified Scores Modal State
+  // Modals
   const [showUnverifiedModal, setShowUnverifiedModal] = useState<boolean>(false);
+  const [isAlertHubOpen, setIsAlertHubOpen] = useState<boolean>(false);
+
+  // System Alerts & Unknown Enums
+  const [systemAlerts, setSystemAlerts] = useState<SystemAlertEvent[]>([]);
+  const [unknownEnums, setUnknownEnums] = useState<UnknownEnumReport[]>([]);
 
   const [loading, setLoading] = useState(true);
+
+  const fetchAlertsData = async () => {
+    try {
+      const data = await requestJson<{ success: boolean; alerts: SystemAlertEvent[]; unknown_enums: UnknownEnumReport[] }>('/api/refactor/alerts');
+      if (data && data.success) {
+        setSystemAlerts(data.alerts || []);
+        setUnknownEnums(data.unknown_enums || []);
+      }
+    } catch (err) {
+      // 静默
+    }
+  };
+
+  const handleClearSystemAlerts = async () => {
+    try {
+      await fetch('/api/refactor/alerts/clear', { method: 'POST' });
+      setSystemAlerts([]);
+      setUnknownEnums([]);
+    } catch (err) {
+      console.error('清空告警失败', err);
+    }
+  };
 
   const fetchLiveData = async () => {
     try {
@@ -117,6 +149,7 @@ export default function App() {
   const reloadAll = async () => {
     setLoading(true);
     await Promise.all([
+      fetchAlertsData(),
       fetchLiveData(),
       fetchPrematchData(),
       fetchLedgerData(),
@@ -128,6 +161,8 @@ export default function App() {
 
   useEffect(() => {
     reloadAll();
+    const interval = setInterval(fetchAlertsData, 8000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleSelectForAi = (match: DecisionItem) => {
@@ -194,6 +229,26 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* 系统告警与数据质量审计中心入口按钮 */}
+            <button
+              id="btn-open-alert-hub"
+              onClick={() => setIsAlertHubOpen(true)}
+              className={`px-3 py-1.5 rounded-lg transition-all border flex items-center gap-1.5 text-xs font-semibold shadow-sm ${
+                systemAlerts.length > 0 || unknownEnums.length > 0
+                  ? "bg-amber-950/70 border-amber-700/80 text-amber-300 hover:bg-amber-900/80"
+                  : "bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200"
+              }`}
+              title="打开统一系统告警与数据质量审计中心"
+            >
+              <ShieldAlert className={`w-3.5 h-3.5 ${systemAlerts.length > 0 ? "text-amber-400 animate-pulse" : "text-slate-500"}`} />
+              <span>系统审计与告警</span>
+              {(systemAlerts.length > 0 || unknownEnums.length > 0) && (
+                <span className="px-1.5 py-0.2 text-[10px] bg-amber-600 text-white font-mono rounded-full">
+                  {systemAlerts.length || unknownEnums.length}
+                </span>
+              )}
+            </button>
+
             {/* Unified Unverified Scores Center Header Entry Point */}
             <button
               onClick={() => setShowUnverifiedModal(true)}
@@ -224,6 +279,18 @@ export default function App() {
         {/* Navigation Tabs */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-1 overflow-x-auto border-t border-slate-800/60 pt-1 pb-1">
           <button
+            id="tab-canonical-center"
+            onClick={() => setActiveTab('canonical')}
+            className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-2 transition-all whitespace-nowrap ${
+              activeTab === 'canonical'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'text-blue-400 hover:text-blue-200 hover:bg-blue-950/40 border border-blue-800/40'
+            }`}
+          >
+            <Layers className="w-4 h-4 text-blue-400" /> 标准赛事数据中心 (SSOT)
+          </button>
+
+          <button
             onClick={() => setActiveTab('recommendations')}
             className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all whitespace-nowrap ${
               activeTab === 'recommendations'
@@ -238,74 +305,82 @@ export default function App() {
             onClick={() => setActiveTab('live')}
             className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all whitespace-nowrap ${
               activeTab === 'live'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                ? 'bg-slate-800 text-white border border-slate-700'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
             }`}
           >
-            <Activity className="w-4 h-4 text-emerald-400" /> 滚球分析库 ({liveDecisions.length})
+            <Activity className="w-4 h-4 text-rose-400" /> 滚球决策 ({liveDecisions.length})
           </button>
 
           <button
             onClick={() => setActiveTab('prematch')}
             className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all whitespace-nowrap ${
               activeTab === 'prematch'
-                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm'
+                ? 'bg-slate-800 text-white border border-slate-700'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
             }`}
           >
-            <Calendar className="w-4 h-4 text-sky-400" /> 非滚球分析 ({prematchDecisions.length})
+            <Calendar className="w-4 h-4 text-blue-400" /> 赛前决策 ({prematchDecisions.length})
           </button>
 
           <button
             onClick={() => setActiveTab('ai')}
             className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all whitespace-nowrap ${
               activeTab === 'ai'
-                ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-sm'
+                ? 'bg-slate-800 text-white border border-slate-700'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
             }`}
           >
-            <Sparkles className="w-4 h-4 text-indigo-400" /> AI 智能评估与风控
+            <Sparkles className="w-4 h-4 text-purple-400" /> AI 决策与研判
           </button>
 
           <button
             onClick={() => setActiveTab('ledger')}
             className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all whitespace-nowrap ${
               activeTab === 'ledger'
-                ? 'bg-teal-500/20 text-teal-300 border border-teal-500/40 shadow-sm'
+                ? 'bg-slate-800 text-white border border-slate-700'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
             }`}
           >
-            <FileCheck2 className="w-4 h-4 text-teal-400" /> 推荐台账与复盘 ({ledger.length})
+            <FileCheck2 className="w-4 h-4 text-emerald-400" /> 推荐台账 ({ledger.length})
           </button>
 
           <button
             onClick={() => setActiveTab('aliases')}
             className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all whitespace-nowrap ${
               activeTab === 'aliases'
-                ? 'bg-violet-500/20 text-violet-300 border border-violet-500/40 shadow-sm'
+                ? 'bg-slate-800 text-white border border-slate-700'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
             }`}
           >
-            <Users className="w-4 h-4 text-violet-400" /> 球队别名库
+            <Users className="w-4 h-4 text-amber-400" /> 球队别名库 ({Object.keys(manualAliases).length + Object.keys(autoAliases).length})
           </button>
 
           <button
             onClick={() => setActiveTab('export')}
             className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all whitespace-nowrap ${
               activeTab === 'export'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                ? 'bg-slate-800 text-white border border-slate-700'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
             }`}
           >
-            <Download className="w-4 h-4 text-amber-400" /> 整合数据导出
+            <Download className="w-4 h-4 text-cyan-400" /> 整合数据导出
           </button>
         </div>
       </header>
 
-      {/* Main App Content View Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
-        <Suspense fallback={<div className="py-16 text-center text-sm text-slate-400">正在加载页面…</div>}>
+      {/* Main Content View Container */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <Suspense fallback={
+          <div className="flex items-center justify-center py-20">
+            <RefreshCw className="w-8 h-8 text-emerald-500 animate-spin" />
+          </div>
+        }>
           <ErrorBoundary>
+            {activeTab === 'canonical' && (
+              <CanonicalMatchCenter />
+            )}
+
             {activeTab === 'recommendations' && (
               <BettingRecommendationsView
                 liveMatches={liveDecisions}
@@ -317,8 +392,8 @@ export default function App() {
 
             {activeTab === 'live' && (
               <LiveMatchesView
-                decisions={liveDecisions}
                 pipelineStatus={livePipeline}
+                decisions={liveDecisions}
                 summary={liveSummary}
                 onSelectForAi={handleSelectForAi}
                 onRefreshAll={reloadAll}
@@ -327,8 +402,8 @@ export default function App() {
 
             {activeTab === 'prematch' && (
               <PrematchMatchesView
-                decisions={prematchDecisions}
                 pipelineStatus={prematchPipeline}
+                decisions={prematchDecisions}
                 summary={prematchSummary}
                 brief={prematchBrief}
                 onSelectForAi={handleSelectForAi}
@@ -376,6 +451,15 @@ export default function App() {
         liveMatches={liveDecisions}
         prematchMatches={prematchDecisions}
         onRefreshAll={reloadAll}
+      />
+
+      {/* Unified System Alert Hub Modal */}
+      <SystemAlertHubModal
+        isOpen={isAlertHubOpen}
+        onClose={() => setIsAlertHubOpen(false)}
+        alerts={systemAlerts}
+        unknownEnums={unknownEnums}
+        onClearAlerts={handleClearSystemAlerts}
       />
 
       {/* Footer */}

@@ -16,6 +16,7 @@ import { registerReportReadRoutes } from './server/routes/reportReadRoutes';
 import { registerRuntimeMaintenanceRoutes } from './server/routes/runtimeMaintenanceRoutes';
 import { registerGeminiEvaluationRoutes } from './server/routes/geminiEvaluationRoutes';
 import { registerBatchSupplementRoutes } from './server/routes/batchSupplementRoutes';
+import { registerCanonicalRoutes } from './server/routes/canonicalRoutes';
 import { synchronizeDecisionAliases } from './server/services/aliasDecisionSynchronizer';
 import { parseModelJson } from './server/services/modelJson';
 import { generateGeminiViaWindowsNetwork as generateGeminiViaWindowsNetworkService } from './server/services/geminiWindowsFallback';
@@ -1352,11 +1353,16 @@ Return ONLY a single valid JSON object (no markdown, no conversational commentar
    - 独赢 1X2 替代玩法引导: 当独赢赔率在 1.05~1.25 处于低收益鸡肋区间（缺乏安全边际）或 0-0/2-2 胶着时，评为 NO_BET / avoid，并在 reason 中明确引导转投具备退款/走盘保护的“让球 0（平手盘）/ 让球 -0.5”。
 
 3. Mandatory 5 Real Betting Markets (Each match's market_assessments MUST evaluate ALL 5 core markets across independent dimensions):
-   - 全场大小球 (full_total): 基于总进球期望 λ_total、禁区压迫与射正转化独立定价。
-   - 半场大小球 (half_total: If this match has no half_total options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
-   - 全场让球 (full_spread): 必须严格比对净胜球预期 ΔxG 与盘口深度，深度 ≥ 1.5 时强制执行大小球容量审计，积极挖掘受让抗冷与平手保护价值。
-   - 半场让球 (half_spread: If this match has no half_spread options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
-   - 全场独赢1X2 (full_h2h: If this match has no full_h2h options in verified_ybty_markets, output status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
+   - ⚠️【跨盘口档位与全选项横向选优 · 严禁机械默认选取 m1 (Cross-Tier Market Line Selection & Arbitration)】:
+     * 在 verified_ybty_markets 与 fair_market_pricing 中，同一玩法类别通常包含多个不同盘口深度/门槛的档位（包括 m1 主盘、m2 副盘、m3 极端盘，以及双方各自的让/受让、大/小方向）；
+     * 在输出 market_assessments 时，你必须在对应类别下【横向遍历比对该类别全部可用档位 (包括 m1/m2/m3 所有 option_id)】；
+     * 综合权衡真实模型胜率、赔率赔付率、+EV 价值边际与安全垫厚度（四分之一盘输半/赢半保护、平手走盘退款保护），挑选出全期望收益最高、风险收益比最佳的一个最优具体 market_option_id 输出！
+     * 绝对严禁未加比对直接机械选取第一组 m1，充分发挥全盘口数据的比选价值！
+   - 全场大小球 (full_total): 基于总进球期望 λ_total、禁区压迫与射正转化独立定价，并在 m1/m2/m3 全部大小球档位中优选最佳 line。
+   - 半场大小球 (half_total: 在半场大小球全部档位中优选最佳 line；若该场无 half_total 盘口，输出 status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
+   - 全场让球 (full_spread): 必须严格比对净胜球预期 ΔxG 与全部让球/受让盘口深度，深度 ≥ 1.5 时强制执行大小球容量审计，积极在 m1/m2/m3 中挖掘受让抗冷与平手保护价值。
+   - 半场让球 (half_spread: 在半场让球/受让全部档位中优选最佳 line；若该场无 half_spread 盘口，输出 status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
+   - 全场独赢1X2 (full_h2h: 若该场无 full_h2h 盘口，输出 status="unavailable", grade="NO_BET", direction="盘口未提供", line=null, odds=null)
    
    For each available market:
    - ONLY select valid options from this match's verified_ybty_markets (except for Dominant Lead Suspended Odds as defined above)! Copy option_id verbatim to market_option_id.
@@ -1826,6 +1832,7 @@ const handleGeminiEvaluation = createGeminiEvaluationHandler({
 });
 
 registerGeminiEvaluationRoutes(app, handleGeminiEvaluation);
+registerCanonicalRoutes(app);
 
 // ---------------- VITE & SERVER SETUP ----------------
 
