@@ -9,19 +9,22 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
 - **当前任务目标 (Goal)**：
-  1. 落地标准赛事卡片就地展开多维面板 (Canonical Match Multi-Dimensional Inspector)：
-     - 🎯 **YBTY 盘口全集**：全场让球(主盘+副盘)、全场大小(主盘+副盘)、全场独赢、半场让球/大小/独赢；
-     - 📊 **雷速增强数据**：实时技术统计(射门/射正/角球/危攻/控球率/红黄牌)、积分榜与联赛排名、近期战绩与历史交锋、进球时间分布；
-     - 🔗 **两端对齐诊断**：对齐状态、置信度得分(0-100%)、队名原始文字相似度与别名比对、决策溯源；
-     - 💻 **`{}` 原生合并 JSON 审查**：支持格式化高亮查看当前 `CanonicalMatch` 纯净数据对象，附带一键复制与单场文件下载；
-  2. 在页面顶部提供【📥 导出全部合并数据 (.json)】按钮，支持一键下载当前批次所有对齐合并后的 `CanonicalMatch[]` 原始 JSON 文件。
+  1. 【向导主客队两列样式换回】：将向导赛事卡片内的对阵区域换回上一版经典的左右两列卡片分栏样式（`grid grid-cols-1 md:grid-cols-2 gap-3`），YBTY (法定对阵) 与 雷速 (关联比对) 各自独立卡片封装，内容保持当前完整字段；
+  2. 【联赛顺序字符与简称模糊匹配】：重构 `matchAligner.ts`，对联赛及队名全面支持【按字符顺序子序列/简称/缩写匹配】（如“俄罗斯甲级联赛”按文字顺序精准匹配雷速名“俄甲”）；
+  3. 【根治时间与状态字段提取】：彻底消除代码中硬编码的“滚球进行中/进行中”占位，完整提取并透传 YBTY 原始数据中的 `clock`、`clock_status`（如“中场休息”）、`commence_time`，以及雷速的 `minute`、`status_text`（如“中场”）、`commence_time`。
 - **改动文件清单 (Target Files)**：
-  - `refactor/HANDOVER_AND_PROGRESS.md` (更新工作快照)
-  - `src/components/CanonicalMatchCenter.tsx` (卡片折叠展开多维面板、JSON 审查与全局导出)
+  - `refactor/01_data_ingestion/ybty/types.ts` & `ybtyLiveExtractor.ts` & `ybtyPrematchExtractor.ts` (透传 clock_status, commence_time, countdown, captured_at)
+  - `refactor/02_canonical_model/types.ts` & `canonicalMatchAssembler.ts` (时间状态与时钟完整透传)
+  - `refactor/02_canonical_model/matchAligner.ts` (实现顺序字符与联赛简称匹配算法及内置权威联赛字典)
+  - `server/routes/canonicalRoutes.ts` (全量透传原始时间字段)
+  - `src/components/CanonicalMatchCenter.tsx` (两列分栏样式复原、真实时间/时钟/状态呈现)
 - **状态标记 (Status)**：`DONE`
 - **交付物与下一步 (Deliverables & Next Step)**：
-  - 交付物：已完整上线标准赛事对齐卡片就地展开的多维数据查看器（盘口全集、雷速统计增强、交锋与阵容、对齐诊断、原生合并 JSON）与全局 JSON 导出功能。
-  - 下一步：推进 Layer 03 确定性量化特征计算（去抽水公允概率、危攻斜率、泊松时间衰减与 EV 计算）。
+  - 交付物：
+    1. Step 2 对齐向导两列分栏卡片样式（保留 YBTY 与雷速完整对阵、时间、比分）；
+    2. 联赛顺序子序列（`isSequentialSubsequence`）与等级规范化（如“俄罗斯甲级联赛” $\leftrightarrow$ “俄甲”）模糊匹配机制；
+    3. 溯源根治 YBTY 与雷速真实时间、时钟状态（如“中场休息”、“20:06”）与比分全链路透传，彻底消除虚构占位符。
+  - 下一步：推进确定性量化特征提取与纯 Forward 泊松时间衰减推演模型。
 
 ---
 

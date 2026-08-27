@@ -136,6 +136,11 @@ export function parseYbtyLiveMatch(rawMatch: YbtyRawLiveMatch): ParsedYbtyLiveMa
     away_score: awayScore,
     clock: clock,
     clock_status: clockStatus,
+    added_time: rawMatch.added_time || null,
+    countdown: rawMatch.countdown || null,
+    commence_time: rawMatch.commence_time || null,
+    _pre_start_text: rawMatch._pre_start_text || null,
+    captured_at: rawMatch.captured_at,
     markets: marketsGroup,
   };
 }

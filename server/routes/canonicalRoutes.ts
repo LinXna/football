@@ -38,6 +38,7 @@ const REFACTOR_STORAGE = {
   prematchLeisuDefault: "refactor/fixtures/leisu_v2.8.0_interface_sample.json",
 
   manualAliases: "team_aliases.json",
+  leagueAliases: "league_aliases.json",
 };
 
 /**
@@ -46,6 +47,17 @@ const REFACTOR_STORAGE = {
 function assembleMatchesForMode(mode: "live" | "prematch"): {
   canonicalMatches: CanonicalMatch[];
   aiBriefs: AiEvaluationBrief[];
+  leisuCandidates: Array<{
+    match_id: string;
+    competition: string;
+    home_team: string;
+    away_team: string;
+    minute: number | null;
+    score: { home: number; away: number } | null;
+    commence_time: string | null;
+    status_text: string;
+    is_live: boolean;
+  }>;
   metadata: {
     mode: string;
     ybtySource: string;
@@ -57,8 +69,9 @@ function assembleMatchesForMode(mode: "live" | "prematch"): {
 } {
   const isLive = mode === "live";
 
-  // 1. 读取别名库
-  const manualAliases = readJsonFile<Record<string, string>>(REFACTOR_STORAGE.manualAliases, {});
+  // 1. 读取队名与联赛别名库
+  const manualAliases = readJsonFile<Record<string, string | string[]>>(REFACTOR_STORAGE.manualAliases, {});
+  const leagueAliases = readJsonFile<Record<string, string | string[]>>(REFACTOR_STORAGE.leagueAliases, {});
 
   // 2. 读取 YBTY 数据
   const ybtyActivePath = isLive ? REFACTOR_STORAGE.liveYbtyActive : REFACTOR_STORAGE.prematchYbtyActive;
@@ -85,6 +98,11 @@ function assembleMatchesForMode(mode: "live" | "prematch"): {
           away_score: m.away_score,
           clock: m.clock,
           clock_status: m.clock_status,
+          added_time: m.added_time,
+          countdown: m.countdown,
+          commence_time: m.commence_time,
+          _pre_start_text: m._pre_start_text,
+          captured_at: m.captured_at,
           is_live: true,
           markets: m.markets,
         }));
@@ -98,6 +116,10 @@ function assembleMatchesForMode(mode: "live" | "prematch"): {
           away_score: null,
           clock: null,
           clock_status: m.clock_status,
+          countdown: m.countdown,
+          commence_time: m.commence_time,
+          _pre_start_text: m._pre_start_text,
+          captured_at: m.captured_at,
           is_live: false,
           markets: m.markets,
         }));
@@ -153,7 +175,8 @@ function assembleMatchesForMode(mode: "live" | "prematch"): {
     const { best_match, decision } = findBestLeisuMatch(
       ybtyMatch,
       parsedLeisuMatches,
-      manualAliases
+      manualAliases,
+      leagueAliases
     );
 
     if (!decision) continue;
@@ -170,9 +193,22 @@ function assembleMatchesForMode(mode: "live" | "prematch"): {
     aiBriefs.push(brief);
   }
 
+  const leisuCandidates = parsedLeisuMatches.map((m) => ({
+    match_id: m.match_id,
+    competition: m.competition,
+    home_team: m.home_team,
+    away_team: m.away_team,
+    minute: m.minute,
+    score: m.score,
+    commence_time: m.commence_time,
+    status_text: m.status_text,
+    is_live: m.is_live,
+  }));
+
   return {
     canonicalMatches,
     aiBriefs,
+    leisuCandidates,
     metadata: {
       mode,
       ybtySource,
@@ -221,6 +257,52 @@ export function registerCanonicalRoutes(app: express.Express): void {
       alerts: systemAlertBus.getHistory(),
       unknown_enums: commonEnumRegistry.getAllUnknownReports(),
     });
+  });
+
+  /**
+   * GET /api/league-aliases
+   * 获取联赛标准映射与别名库
+   */
+  app.get("/api/league-aliases", (_req, res) => {
+    try {
+      const aliases = readJsonFile<Record<string, string | string[]>>(REFACTOR_STORAGE.leagueAliases, {});
+      res.json({ success: true, aliases });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/league-aliases
+   * 新增或更新联赛别名映射
+   */
+  app.post("/api/league-aliases", (req, res) => {
+    try {
+      const { canonical_name, alias } = req.body;
+      if (!canonical_name || !alias) {
+        return res.status(400).json({ success: false, error: "canonical_name and alias are required" });
+      }
+
+      const aliases = readJsonFile<Record<string, string | string[]>>(REFACTOR_STORAGE.leagueAliases, {});
+      const existing = aliases[canonical_name];
+
+      if (Array.isArray(existing)) {
+        if (!existing.includes(alias)) {
+          aliases[canonical_name] = [...existing, alias];
+        }
+      } else if (typeof existing === "string") {
+        if (existing !== alias) {
+          aliases[canonical_name] = [existing, alias];
+        }
+      } else {
+        aliases[canonical_name] = [alias];
+      }
+
+      writeJsonFile(REFACTOR_STORAGE.leagueAliases, aliases);
+      res.json({ success: true, message: `联赛别名已保存: ${canonical_name} -> ${alias}`, aliases });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
   });
 
   /**

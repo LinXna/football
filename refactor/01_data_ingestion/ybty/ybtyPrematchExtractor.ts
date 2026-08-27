@@ -73,6 +73,10 @@ export function parseYbtyPrematchMatch(
     home: rawMatch.home,
     away: rawMatch.away,
     clock_status: clockStatus,
+    countdown: rawMatch.countdown || null,
+    commence_time: rawMatch.commence_time || null,
+    _pre_start_text: rawMatch._pre_start_text || null,
+    captured_at: rawMatch.captured_at,
     markets: marketsGroup,
   };
 }

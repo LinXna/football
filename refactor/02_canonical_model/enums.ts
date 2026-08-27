@@ -10,7 +10,17 @@ export enum MatchAlignmentStatus {
   MATCHED_BY_ALIAS = "MATCHED_BY_ALIAS",       // 通过静态别名库 100% 命中
   MATCHED_AUTO = "MATCHED_AUTO",               // 纯文本顺序高相似度自动对齐 (Score >= 85)
   NEEDS_MANUAL_SELECTION = "NEEDS_MANUAL_SELECTION", // 低置信度待选 (50 <= Score < 85)，需人工确认
+  SWAPPED_HOME_AWAY = "SWAPPED_HOME_AWAY",     // ⚠️ 严重警报：检测到主客场颠倒
   UNMATCHED = "UNMATCHED",                     // 未匹配 (Score < 50)
+}
+
+/**
+ * 联赛对齐匹配状态
+ */
+export enum LeagueMatchStatus {
+  MATCHED_BY_ALIAS = "MATCHED_BY_ALIAS",       // 枚举/别名库精确命中 (绿色)
+  MATCHED_FUZZY = "MATCHED_FUZZY",             // 模糊匹配 (相似度 >= 0.6，黄色)
+  UNMATCHED = "UNMATCHED",                     // 未匹配 (红色/灰色)
 }
 
 /**

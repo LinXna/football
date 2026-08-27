@@ -10,6 +10,7 @@
 
 import {
   MatchAlignmentStatus,
+  LeagueMatchStatus,
   MatchStage,
   DataCompletenessTier,
   MissingDataReason,
@@ -45,8 +46,24 @@ export interface GenericYbtyMatch {
   away_score?: number | null;
   clock?: string | null;
   clock_status?: string;
+  added_time?: string | null;
+  countdown?: string | null;
+  commence_time?: string | null;
+  _pre_start_text?: string | null;
+  captured_at?: string;
   is_live: boolean;
   markets: CleanMarketsGroup;
+}
+
+/**
+ * 联赛映射与匹配打分结果
+ */
+export interface LeagueMatchResult {
+  ybty_league: string;
+  leisu_league: string;
+  status: LeagueMatchStatus;
+  similarity: number;           // 0.0 ~ 1.0
+  is_alias_exact_hit: boolean;
 }
 
 /**
@@ -67,7 +84,9 @@ export interface MatchAlignmentDecision {
   confidence_score: number;       // 0 ~ 100 综合置信分
   home_team_match: TeamNameMatchResult;
   away_team_match: TeamNameMatchResult;
+  league_match: LeagueMatchResult;
   league_match_score: number;     // 0 ~ 1.0 联赛相似度
+  is_swapped_suspected: boolean;  // 是否疑似主客颠倒 (YBTY主=雷速客, YBTY客=雷速主)
   alignment_reason: string;       // 对齐决策文字说明
 }
 
@@ -93,6 +112,9 @@ export interface CanonicalTimingState {
   beijing_start_time: string;     // YYYY-MM-DD HH:mm:ss
   start_time_source: "YBTY_EXACT" | "YBTY_ESTIMATED" | "LEISU_SUPPLEMENTED";
   minute: number | null;          // 滚球进行分钟 (取自雷速，如 73)
+  ybty_clock: string | null;      // YBTY 时钟 (如 "23:23", "45'", "HT")
+  ybty_status_text: string | null;// YBTY 状态 (如 "中场休息", "加时", "即将开赛")
+  leisu_status_text: string | null;// 雷速 状态 (如 "中场", "下半场", "上半场")
   is_half_time: boolean;          // 是否中场休息
   is_extra_time: boolean;         // 是否加时赛
   is_overtime_or_penalty: boolean;// 是否点球大战

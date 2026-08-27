@@ -72,23 +72,51 @@ export function assembleCanonicalMatch(
   let beijingStartTime: string;
   let startTimeSource: "YBTY_EXACT" | "YBTY_ESTIMATED" | "LEISU_SUPPLEMENTED";
 
-  if (ybtyMatch.clock && ybtyMatch.clock.length > 5 && ybtyMatch.clock.includes("-")) {
+  if (ybtyMatch.commence_time && ybtyMatch.commence_time.trim()) {
+    beijingStartTime = formatToBeijingTime(ybtyMatch.commence_time);
+    startTimeSource = "YBTY_EXACT";
+  } else if (ybtyMatch.clock && ybtyMatch.clock.length > 5 && ybtyMatch.clock.includes("-")) {
     beijingStartTime = formatToBeijingTime(ybtyMatch.clock);
     startTimeSource = "YBTY_EXACT";
+  } else if (ybtyMatch.countdown && ybtyMatch.captured_at) {
+    const minsMatch = ybtyMatch.countdown.match(/(\d+)/);
+    if (minsMatch) {
+      const mins = parseInt(minsMatch[1], 10);
+      const capDate = new Date(ybtyMatch.captured_at);
+      const estimatedMs = capDate.getTime() + mins * 60 * 1000;
+      beijingStartTime = formatToBeijingTime(estimatedMs);
+      startTimeSource = "YBTY_ESTIMATED";
+    } else if (leisuMatch && leisuMatch.commence_time) {
+      beijingStartTime = formatToBeijingTime(leisuMatch.commence_time);
+      startTimeSource = "LEISU_SUPPLEMENTED";
+    } else {
+      beijingStartTime = formatToBeijingTime(ybtyMatch.captured_at);
+      startTimeSource = "YBTY_ESTIMATED";
+    }
   } else if (leisuMatch && leisuMatch.commence_time) {
     beijingStartTime = formatToBeijingTime(leisuMatch.commence_time);
     startTimeSource = "LEISU_SUPPLEMENTED";
   } else {
-    beijingStartTime = formatToBeijingTime(null);
+    beijingStartTime = formatToBeijingTime(ybtyMatch.captured_at || null);
     startTimeSource = "YBTY_ESTIMATED";
   }
+
+  const isHalfTime =
+    ybtyMatch.clock_status === "中场休息" ||
+    ybtyMatch.clock === "HT" ||
+    leisuMatch?.status_text === "中场" ||
+    leisuMatch?.status_text === "中场休息" ||
+    false;
 
   const timing: CanonicalTimingState = {
     stage,
     beijing_start_time: beijingStartTime,
     start_time_source: startTimeSource,
     minute: leisuMatch?.minute ?? null,
-    is_half_time: leisuMatch?.status_text === "中场" || false,
+    ybty_clock: ybtyMatch.clock || null,
+    ybty_status_text: ybtyMatch.clock_status || ybtyMatch._pre_start_text || null,
+    leisu_status_text: leisuMatch?.status_text || null,
+    is_half_time: isHalfTime,
     is_extra_time: false,
     is_overtime_or_penalty: false,
   };

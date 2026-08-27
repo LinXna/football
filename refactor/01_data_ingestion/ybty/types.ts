@@ -152,6 +152,11 @@ export interface ParsedYbtyLiveMatch {
   away_score: number | null;
   clock: string | null;
   clock_status: string;
+  added_time?: string | null;
+  countdown?: string | null;
+  commence_time?: string | null;
+  _pre_start_text?: string | null;
+  captured_at?: string;
   markets: CleanMarketsGroup;
 }
 
@@ -167,6 +172,10 @@ export interface ParsedYbtyPrematchMatch {
   home: string;
   away: string;
   clock_status: string;
+  countdown?: string | null;
+  commence_time?: string | null;
+  _pre_start_text?: string | null;
+  captured_at?: string;
   markets: CleanMarketsGroup;
 }
 
