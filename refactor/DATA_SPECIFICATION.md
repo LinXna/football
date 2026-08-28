@@ -15,7 +15,9 @@
 | `refactor/00_common/` | **【00 全局基石】** 全局跨模块枚举 (`enums.ts`)、统一领域异常与弹窗通知总线 (`errors.ts`)。 |
 | `refactor/01_data_ingestion/ybty/` | **【01 接入层】** YBTY 数据强类型契约 (`types.ts`)、专属枚举分类管理 (`enums.ts`)、滚球提取器 (`ybtyLiveExtractor.ts`) 与赛前提取器 (`ybtyPrematchExtractor.ts`)。 |
 | `refactor/01_data_ingestion/leisu/` | **【01 接入层】** 雷速数据强类型契约 (`types.ts`)、专属枚举分类管理 (`enums.ts`) 与接口数据提取器 (`leisuInterfaceExtractor.ts`)。 |
+| `refactor/02_canonical_model/` | **【02 核心实体层】** 标准赛事契约 (`types.ts`)、对齐枚举分类 (`enums.ts`)、纯文本顺序实体对齐器 (`matchAligner.ts`) 与双源标准赛事装配器 (`canonicalMatchAssembler.ts`)。 |
 | `refactor/samples/01_data_ingestion/` | **【样例数据区】** 存放清洗提取后生成的标准 JSON 样例文件与中英文档索引 ([`README.md`](./samples/01_data_ingestion/README.md))。 |
+| `refactor/samples/02_canonical_model/` | **【样例数据区】** 存放标准赛事对象 (`CanonicalMatch`) 与 AI 提炼包 (`AiEvaluationBrief`) 样本与说明文档 ([`README.md`](./samples/02_canonical_model/README.md))。 |
 | `refactor/fixtures/` | **【测试样本区】** 存放用于单元测试的真实原始抓取数据文件。 |
 | `refactor/tests/` | **【测试用例区】** 存放针对各模块的单元测试脚本与断言验证。 |
 
@@ -439,6 +441,206 @@
 | $D = 0$ | `PUSH` (走水) | $0.0$ | 全额退还本金 |
 | $D = -0.25$ | `HALF_LOSS` (输半) | $- 0.5$ | 四分之一盘半盘输，半盘走水（损失 50% 本金） |
 | $D \le -0.5$ | `LOSS` (全输) | $- 1.0$ | 完全未穿盘，损失全部本金 |
+
+---
+
+## 六、Layer 02: CanonicalMatch 标准赛事合并实体规范 (纯净未计算)
+
+* 模块路径：`refactor/02_canonical_model/`
+* 样例文件路径：`refactor/samples/02_canonical_model/canonical_match_sample.json`
+* 样例中英文档索引：`refactor/samples/02_canonical_model/README.md`
+* 装配器实现：`refactor/02_canonical_model/canonicalMatchAssembler.ts`
+* 实体对齐器实现：`refactor/02_canonical_model/matchAligner.ts`
+* 强类型定义：`refactor/02_canonical_model/types.ts`
+* 专属枚举管理：`refactor/02_canonical_model/enums.ts`
+
+### 1. 核心定位与设计红线 (Core Architecture Laws)
+
+`CanonicalMatch` 是全量化评估系统全生命周期流转的**唯一标准赛事实体 (Single Source of Truth, SSOT)**。它在第 4 步导入核准后，将 YBTY 交易盘口数据与雷速全量基本面/时序数据进行深度绑定装配：
+
+1. **纯净未计算原则 (Pure Uncalculated State)**：
+   - 处于 Layer 02 的 `CanonicalMatch` 仅负责多源数据的清洗、融合、对齐与完整度判定；
+   - **绝对不包含任何主观量化计算或衍生特征**（如泊松推演剩余进球期望、剥水公允赔率、+EV 价值、进攻危攻斜率等全部留给 Layer 03 `03_quant_engine` 纯函数计算）；
+   - 保留最客观、无偏的原始融合状态。
+2. **权责分工与数据流向绝对边界 (Strict Data Flow & Responsibility Boundary)**：
+   - **YBTY 盘口数据**：**深度参与计算与预测**。负责提供让球/大小球/独赢/主副盘精确盘口线与赔率，用于 Layer 03 剥水公允概率、+EV 计算与盘口深度比对；
+   - **YBTY 队名与联赛名**：**纯出票展示与投注映射，绝不参与预测计算**。仅用于在管理面板、推荐结果中直观展示，让你在 YBTY 上零认知转换直接出票；
+   - **雷速全量数据**：**深度参与计算与预测**。负责提供开赛时间转换 (`beijing_start_time`)、进行分钟 (`minute`)、比分画布校验 (`score_verified`)、8 大攻防技术统计 (`stats`)、动量波形时序 (`attack_momentum`)、首发阵型阵容 (`lineups`)、联赛积分榜 (`league_standings`) 与时段进球分布 (`goal_distribution`)。
+3. **导入拦截与深度绑定 (Pre-Import Gate & Deep Binding)**：
+   - YBTY 与雷速匹配不上的比赛，在导入弹窗中明确展示并禁止勾选导入；
+   - 只有经人工视觉确认并勾选导入的比赛，才正式生成 `CanonicalMatch`；
+   - 进入系统的每场合法比赛均深度绑定雷速 `match_id` 与全量基本面数据。
+4. **比分冲突一票熔断机制 (Score Mismatch Safety Fuse)**：
+   - 滚球赛事若检测到 YBTY 与雷速即时比分不一致，立即标记 `is_mismatch_detected = true` 并将完整度降为 `TIER_INVALID`，下游严格阻断 AI 推荐与串关准入。
+
+---
+
+### 2. CanonicalMatch 顶层字段规范 (Top-Level Fields)
+
+```json
+{
+  "canonical_id": "英甲_谢周三_vs_布拉德福德",
+  "created_at": "2026-08-28T02:22:54.233Z",
+  "completeness_tier": "TIER_1_FULL",
+  "missing_reasons": [],
+  "alignment": { ... },
+  "league_name": "英甲",
+  "home_team_name": "谢周三",
+  "away_team_name": "布拉德福德",
+  "timing": { ... },
+  "score": { ... },
+  "markets": { ... },
+  "reference": { ... }
+}
+```
+
+| 字段名称 (`Key`) | 类型 | 示例值 | 中文含义与权威业务说明 |
+| :--- | :--- | :--- | :--- |
+| `canonical_id` | `string` | `"英甲_谢周三_vs_布拉德福德"` | **赛事全局唯一业务主键**。规则：`${league_name}_${home_team_name}_vs_${away_team_name}`，由 YBTY 法定原名规范清洗生成，作为全系统跨模块通信与推荐台账唯一索引。 |
+| `created_at` | `string` | `"2026-08-28T02:22:54.233Z"` | **实体装配 UTC ISO 8601 时间戳**。记录装配流水线执行的具体时点。 |
+| `completeness_tier` | `DataCompletenessTier` | `"TIER_1_FULL"` | **数据完整度分级**（`TIER_1_FULL`, `TIER_2_BASIC`, `TIER_3_SPARSE`, `TIER_INVALID`），作为风控与推荐门槛准入核心依据。 |
+| `missing_reasons` | `MissingDataReason[]` | `[]` | **数据缺口枚举清单**。显式罗列当前赛事缺失的维度（如阵型、时序、积分或比分未校验）。 |
+| `alignment` | `MatchAlignmentDecision` | `{...}` | **数据源关联溯源与对齐元数据**。作为入库审计凭证与排错追溯元数据，记录对齐状态、置信分、关联 ID 与说明。主系统量化与分析层不依赖底层算分过程。 |
+| `league_name` | `string` | `"英甲"` | **YBTY 原始法定联赛名**。系统法定基准。 |
+| `home_team_name` | `string` | `"谢周三"` | **YBTY 原始法定主队名**。系统法定基准，推荐与出票一律以此为准。 |
+| `away_team_name` | `string` | `"布拉德福德"` | **YBTY 原始法定客队名**。系统法定基准，推荐与出票一律以此为准。 |
+| `timing` | `CanonicalTimingState` | `{...}` | **标准时点与进行状态**。包含北京开赛时间、时间来源、滚球分钟、半场/加时标记。 |
+| `score` | `CanonicalScoreState` | `{...}` | **双源校验比分状态**。包含即时比分、半场比分、校验源、校验标记与冲突警告。 |
+| `markets` | `CleanMarketsGroup` | `{...}` | **YBTY 法定交易盘口组**（全场/半场独赢、全场/半场让球主副盘、全场/半场大小球主副盘）。 |
+| `reference` | `CanonicalLeisuReference \| null` | `{...}` / `null` | **雷速基本面与时序增强包**。未匹配雷速或数据缺失时为 `null`。 |
+
+---
+
+### 3. 核心子模块强类型结构拆解
+
+#### (1) 数据源关联溯源元数据 (`alignment: MatchAlignmentDecision`)
+
+> ⚠️ **架构权责边界**：  
+> 队名清洗、别名学习、文本相似度比对与主客颠倒排查已**在 Layer 01/02 智能导入向导阶段一次性完成**。进入 `CanonicalMatch` 标准实体后，仅保留最简对齐结论与溯源元数据，严禁在后续量化与分析层暴露或依赖底层相似度算分过程。
+
+```typescript
+export interface MatchAlignmentDecision {
+  status: MatchAlignmentStatus;        // 对齐状态枚举
+  confidence_score: number;            // 0 ~ 100 综合置信分
+  home_team_match: TeamNameMatchResult;// 主队匹配明细 (含 raw_text_similarity, is_alias_exact_hit)
+  away_team_match: TeamNameMatchResult;// 客队匹配明细
+  league_match: LeagueMatchResult;     // 联赛匹配明细 (含 similarity, is_alias_exact_hit)
+  league_match_score: number;          // 0.0 ~ 1.0 联赛相似度
+  is_swapped_suspected: boolean;       // ⚠️ 是否疑似主客场颠倒
+  alignment_reason: string;            // 对齐决策文字说明
+}
+```
+
+* **对齐状态枚举 (`MatchAlignmentStatus`)**：
+  - `MATCHED_BY_ALIAS`：通过别名库精确命中（置信分 100）；
+  - `MATCHED_AUTO`：纯文本顺序高相似度自动对齐（置信分 $\ge 85$）；
+  - `NEEDS_MANUAL_SELECTION`：低置信度待选（$50 \le \text{分} < 85$），需人工确认；
+  - `SWAPPED_HOME_AWAY`：主客颠倒严重警报；
+  - `UNMATCHED`：未匹配（置信分 $< 50$）。
+
+#### (2) 标准时点与进行状态 (`timing: CanonicalTimingState`)
+
+时间统一标准化转换为**北京时间 (UTC+8, 格式 `YYYY-MM-DD HH:mm:ss`)**，杜绝裸露的 'T'、'Z' 或 UTC 零时区时间。
+
+```typescript
+export interface CanonicalTimingState {
+  stage: MatchStage;                  // PREMATCH (赛前) | LIVE (滚球) | FINISHED (完场)
+  beijing_start_time: string;         // YYYY-MM-DD HH:mm:ss 标准北京时间
+  start_time_source: "YBTY_EXACT" | "YBTY_ESTIMATED" | "LEISU_SUPPLEMENTED";
+  minute: number | null;              // 滚球进行分钟 (取自雷速，如 73；赛前为 null)
+  ybty_clock: string | null;          // YBTY 即时时钟 (如 "23:23", "45'", "HT")
+  ybty_status_text: string | null;    // YBTY 状态文本 (如 "中场休息", "加时", "即将开赛")
+  leisu_status_text: string | null;   // 雷速状态文本 (如 "中场", "下半场", "上半场")
+  is_half_time: boolean;              // 是否中场休息
+  is_extra_time: boolean;             // 是否加时赛
+  is_overtime_or_penalty: boolean;    // 是否点球大战
+}
+```
+
+#### (3) 双源校验比分状态 (`score: CanonicalScoreState`)
+
+```typescript
+export interface CanonicalScoreState {
+  home_score: number;                 // 即时主队得分
+  away_score: number;                 // 即时客队得分
+  home_half_score: number | null;     // 半场主队得分
+  away_half_score: number | null;     // 半场客队得分
+  score_verified: boolean;            // 是否通过可靠校验 (YBTY一致且雷速比分画布校验通过)
+  score_source: "LEISU_CANVAS" | "LEISU_INTERFACE" | "YBTY_DIRECT" | "UNVERIFIED";
+  is_mismatch_detected: boolean;      // 是否检测到双源比分冲突
+  mismatch_details?: string | null;   // 冲突明细 (如 "比分冲突: YBTY(0-0) vs 雷速(0-1)")
+}
+```
+
+#### (4) 雷速全量基本面增强包 (`reference: CanonicalLeisuReference`)
+
+```typescript
+export interface CanonicalLeisuReference {
+  leisu_match_id: string;             // 雷速比赛唯一 ID
+  leisu_home_name: string;            // 雷速主队名
+  leisu_away_name: string;            // 雷速客队名
+  leisu_league_name: string;          // 雷速联赛名
+  stats: ParsedLeisuStats | null;     // 8 大核心攻防统计
+  attack_momentum: ParsedLeisuMomentum | null; // 分钟级压迫动量波形
+  timeline_events: ParsedLeisuTimelineEvent[]; // 正向时序文字直播事件
+  lineups: ParsedLeisuLineup | null;  // 首发阵型与球员身价/年龄名单
+  tactical_context: ParsedLeisuTacticalContext | null; // 历史交锋与近期战绩
+  odds_matrix: ParsedLeisuOddsMatrix | null;   // 初/即/滚三阶段参考赔率
+  league_standings: ParsedLeagueStandings | null; // 联赛总/主/客积分榜与排名
+  goal_distribution: ParsedGoalDistribution | null; // 6 大时段进球分布与首球偏好
+}
+```
+
+---
+
+### 4. 数据完整度分级与风控准入依据
+
+| 完整度等级 (`DataCompletenessTier`) | 判定标准 | 风控与推荐准入权限 |
+| :--- | :--- | :--- |
+| `TIER_1_FULL` | 阵型/首发、攻防统计、动量波形、积分榜与进球分布**全维度具备**，且比分核验通过 | **全量准入**：支持生成 A/B/C 级正式单场推荐与多组正式串关。 |
+| `TIER_2_BASIC` | 具备 8 大攻防统计与基础数据，但阵型未公布或缺少部分动量时序 | **受限准入**：最高只允许 B 级推荐，且同一方向最多进入一组串关。 |
+| `TIER_3_SPARSE` | 未匹配到雷速或仅有基础盘口比分，缺少深度统计 | **严禁推荐**：仅作行情监控，严禁进入正式 AI 评估与串关。 |
+| `TIER_INVALID` | 检测到双源比分冲突、主客颠倒或源头数据损坏 | **一票熔断**：标记为脏数据，禁止一切评估与投注。 |
+
+---
+
+### 5. 极简 AI 提炼包规范 (`AiEvaluationBrief`)
+
+为了避免将上万行 DOM 结构与冗长字段直接喂给大模型导致 Token 暴涨和注意力分散，装配器内置了 `extractAiEvaluationBrief(canonicalMatch)` 纯函数，提纯为每场仅占 **200~400 Tokens** 的超轻量高信息密度载体：
+
+```typescript
+export interface AiEvaluationBrief {
+  match_id: string;                    // 唯一主键
+  league: string;                      // 联赛
+  kickoff_time: string;                // 北京开赛时间
+  status_summary: string;              // 例如 "LIVE 68' (1-0, 0红)" 或 "PREMATCH"
+  teams: { home: string; away: string };// YBTY 法定队名
+  score_verification: {
+    is_verified: boolean;
+    current_score: string;             // "1 - 0"
+  };
+  core_markets: {
+    ah_main?: { handicap: string; home_odds: number; away_odds: number } | null;
+    ou_main?: { handicap: string; over_odds: number; under_odds: number } | null;
+    euro_1x2?: { home_win: number; draw: number; away_win: number } | null;
+    ah_half?: { handicap: string; home_odds: number; away_odds: number } | null;
+    ou_half?: { handicap: string; over_odds: number; under_odds: number } | null;
+  };
+  condensed_features: {
+    possession?: { home: number; away: number } | null;
+    shots_on_target?: { home: number; away: number } | null;
+    dangerous_attacks?: { home: number; away: number } | null;
+    corners?: { home: number; away: number } | null;
+    recent_momentum_5min?: { home: number; away: number } | null;
+    recent_momentum_15min?: { home: number; away: number } | null;
+    formations?: { home: string; away: string } | null; // 如 "4-3-3 vs 5-3-2"
+    h2h_summary?: string | null;                        // 如 "10场 4胜3平3负"
+    league_rank?: { home: number; away: number } | null;
+  };
+  data_deficits: string[];             // 明确的数据缺口提示，供 AI 评估时作不稳定性熔断
+}
+```
+
 
 
 

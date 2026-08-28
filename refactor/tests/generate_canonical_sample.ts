@@ -25,25 +25,28 @@ function generateSample() {
   const parsedYbtyLive = parseYbtyLiveRoot(rawYbtyLive);
   const parsedLeisu = parseLeisuInterfaceExport(rawLeisu);
 
+  // 构造真实匹配的别名与联赛
   const aliases: Record<string, string> = {
-    "沙佩科人SC": "沙佩科恩斯",
-    "圣保罗SP": "圣保罗",
+    "谢周三": "谢周三",
+    "布拉德福德": "布拉德福德",
+    "英甲": "英甲",
   };
 
   const sampleMatch = parsedYbtyLive.matches[0];
+  // 模拟 YBTY 抓取到该场赛事实时盘口
   const genericMatch: GenericYbtyMatch = {
-    league: sampleMatch.league,
-    home: sampleMatch.home,
-    away: sampleMatch.away,
-    home_score: sampleMatch.home_score,
-    away_score: sampleMatch.away_score,
-    clock: sampleMatch.clock,
-    clock_status: sampleMatch.clock_status,
+    league: "英甲",
+    home: "谢周三",
+    away: "布拉德福德",
+    home_score: 0,
+    away_score: 1,
+    clock: "63:00",
+    clock_status: "63:00",
     is_live: true,
     markets: sampleMatch.markets,
   };
 
-  const matchedLeisu = parsedLeisu.matches[0]; // 关联雷速全特征样本
+  const matchedLeisu = parsedLeisu.matches[0]; // 关联雷速全特征样本 (谢周三 vs 布拉德福德)
   const { decision } = findBestLeisuMatch(genericMatch, [matchedLeisu], aliases);
 
   const canonical = assembleCanonicalMatch(genericMatch, matchedLeisu, decision!);

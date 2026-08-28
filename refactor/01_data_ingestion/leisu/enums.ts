@@ -422,12 +422,12 @@ class LeisuEnumManager {
         return { id: competitionId, name: LEISU_COMPETITION_NAMES[competitionId], is_known: true };
       }
       if (this.dynamicCompetitionMap.has(competitionId)) {
-        return { id: competitionId, name: this.dynamicCompetitionMap.get(competitionId)!, is_known: true };
+        return { id: competitionId, name: this.dynamicCompetitionMap.get(competitionId)!, is_known: false };
       }
       // 数据源自带名称：系统自动学习入库，无需用户手动维护
       if (rawName) {
         this.dynamicCompetitionMap.set(competitionId, rawName);
-        return { id: competitionId, name: rawName, is_known: true };
+        return { id: competitionId, name: rawName, is_known: false };
       }
       // 真正的孤儿未知赛事 ID (既未收录又无名称)
       commonEnumRegistry.recordUnknownEnum({
@@ -469,12 +469,12 @@ class LeisuEnumManager {
         return { id: teamId, name: LEISU_TEAM_NAMES[teamId], is_known: true };
       }
       if (this.dynamicTeamMap.has(teamId)) {
-        return { id: teamId, name: this.dynamicTeamMap.get(teamId)!, is_known: true };
+        return { id: teamId, name: this.dynamicTeamMap.get(teamId)!, is_known: false };
       }
       // 数据源自带名称：系统自动学习入库，无需用户手动维护
       if (rawName) {
         this.dynamicTeamMap.set(teamId, rawName);
-        return { id: teamId, name: rawName, is_known: true };
+        return { id: teamId, name: rawName, is_known: false };
       }
       // 真正的孤儿未知球队 ID (既未收录又无名称)
       commonEnumRegistry.recordUnknownEnum({

@@ -1,53 +1,62 @@
 {
   "sample_version": "1.0.0",
-  "generated_at": "2026-08-26T19:31:44.813Z",
+  "generated_at": "2026-08-28T02:22:54.233Z",
   "description": "Layer 02 标准赛事对象 (CanonicalMatch) 与 AI Slim Brief 提炼样本",
   "canonical_match": {
-    "canonical_id": "巴西甲级联赛_沙佩科人SC_vs_圣保罗SP",
-    "created_at": "2026-08-26T19:31:44.813Z",
-    "completeness_tier": "TIER_INVALID",
-    "missing_reasons": [
-      "SCORE_MISMATCH"
-    ],
+    "canonical_id": "英甲_谢周三_vs_布拉德福德",
+    "created_at": "2026-08-28T02:22:54.233Z",
+    "completeness_tier": "TIER_1_FULL",
+    "missing_reasons": [],
     "alignment": {
-      "status": "UNMATCHED",
-      "confidence_score": 3,
+      "status": "MATCHED_BY_ALIAS",
+      "confidence_score": 100,
       "home_team_match": {
-        "ybty_name": "沙佩科人SC",
+        "ybty_name": "谢周三",
         "leisu_name": "谢周三",
-        "is_alias_exact_hit": false,
-        "raw_text_similarity": 0
+        "is_alias_exact_hit": true,
+        "raw_text_similarity": 1
       },
       "away_team_match": {
-        "ybty_name": "圣保罗SP",
+        "ybty_name": "布拉德福德",
         "leisu_name": "布拉德福德",
-        "is_alias_exact_hit": false,
-        "raw_text_similarity": 0
+        "is_alias_exact_hit": true,
+        "raw_text_similarity": 1
       },
-      "league_match_score": 0.1667,
-      "alignment_reason": "相似度过低 (综合置信分: 3)，判定为未匹配"
+      "league_match": {
+        "ybty_league": "英甲",
+        "leisu_league": "英甲",
+        "status": "MATCHED_BY_ALIAS",
+        "similarity": 1,
+        "is_alias_exact_hit": true
+      },
+      "league_match_score": 1,
+      "is_swapped_suspected": false,
+      "alignment_reason": "主客两队均命中静态别名库 (100% 精确匹配)"
     },
-    "league_name": "巴西甲级联赛",
-    "home_team_name": "沙佩科人SC",
-    "away_team_name": "圣保罗SP",
+    "league_name": "英甲",
+    "home_team_name": "谢周三",
+    "away_team_name": "布拉德福德",
     "timing": {
       "stage": "LIVE",
-      "beijing_start_time": "2026-08-20 19:00:00",
+      "beijing_start_time": "2026-08-21 03:00:00",
       "start_time_source": "LEISU_SUPPLEMENTED",
       "minute": 63,
+      "ybty_clock": "63:00",
+      "ybty_status_text": "63:00",
+      "leisu_status_text": "下半场",
       "is_half_time": false,
       "is_extra_time": false,
       "is_overtime_or_penalty": false
     },
     "score": {
       "home_score": 0,
-      "away_score": 0,
+      "away_score": 1,
       "home_half_score": 0,
       "away_half_score": 0,
-      "score_verified": false,
-      "score_source": "UNVERIFIED",
-      "is_mismatch_detected": true,
-      "mismatch_details": "比分冲突: YBTY(0-0) vs 雷速(0-1)"
+      "score_verified": true,
+      "score_source": "LEISU_INTERFACE",
+      "is_mismatch_detected": false,
+      "mismatch_details": null
     },
     "markets": {
       "full_h2h": {
@@ -4684,17 +4693,17 @@
     }
   },
   "ai_evaluation_brief": {
-    "match_id": "巴西甲级联赛_沙佩科人SC_vs_圣保罗SP",
-    "league": "巴西甲级联赛",
-    "kickoff_time": "2026-08-20 19:00:00",
-    "status_summary": "LIVE 63' (0-0)",
+    "match_id": "英甲_谢周三_vs_布拉德福德",
+    "league": "英甲",
+    "kickoff_time": "2026-08-21 03:00:00",
+    "status_summary": "LIVE 63' (0-1)",
     "teams": {
-      "home": "沙佩科人SC",
-      "away": "圣保罗SP"
+      "home": "谢周三",
+      "away": "布拉德福德"
     },
     "score_verification": {
-      "is_verified": false,
-      "current_score": "0 - 0"
+      "is_verified": true,
+      "current_score": "0 - 1"
     },
     "core_markets": {
       "ah_main": {
@@ -4738,11 +4747,12 @@
         "home": "4-2-3-1",
         "away": "3-4-2-1"
       },
-      "h2h_summary": null,
-      "league_rank": null
+      "h2h_summary": "共6场历史交锋记录",
+      "league_rank": {
+        "home": 6,
+        "away": 3
+      }
     },
-    "data_deficits": [
-      "SCORE_MISMATCH"
-    ]
+    "data_deficits": []
   }
 }

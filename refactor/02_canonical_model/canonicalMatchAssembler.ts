@@ -29,20 +29,33 @@ import {
 import { ParsedLeisuMatch } from "../01_data_ingestion/leisu/types";
 
 /**
- * 格式化时间戳/相对时间为标准北京时间字符串 (YYYY-MM-DD HH:mm:ss)
+ * 格式化时间戳/ISO字符串/相对时间为标准北京时间字符串 (YYYY-MM-DD HH:mm:ss 或 YYYY-MM-DD HH:mm)
+ * 严格转换为 UTC+8 北京时间，杜绝裸露的 'T'、'Z' 或原始 UTC 零时区时间
  */
 export function formatToBeijingTime(rawTime: string | number | null | undefined): string {
   if (!rawTime) {
     const now = new Date();
-    return now.toISOString().replace("T", " ").substring(0, 19);
+    const beijingMs = now.getTime() + (8 * 3600 * 1000);
+    const bj = new Date(beijingMs);
+    return bj.toISOString().replace("T", " ").substring(0, 19);
   }
 
-  // 1. 如果本身就是标准日期格式
-  if (typeof rawTime === "string" && rawTime.includes("-") && rawTime.includes(":")) {
-    return rawTime.replace("T", " ").substring(0, 19);
+  // 1. 如果是 ISO 字符串 (例如 2026-08-12T18:00:00.000Z) 或含 T/Z 字符串，必须按 UTC+8 转为北京时间
+  if (typeof rawTime === "string" && (rawTime.includes("T") || rawTime.endsWith("Z"))) {
+    const parsed = new Date(rawTime);
+    if (!isNaN(parsed.getTime())) {
+      const beijingMs = parsed.getTime() + (8 * 3600 * 1000);
+      const bj = new Date(beijingMs);
+      return bj.toISOString().replace("T", " ").substring(0, 19);
+    }
   }
 
-  // 2. 如果是 Unix 毫秒/秒时间戳
+  // 2. 如果已经包含空格分隔的标准日期格式 (如 2026-08-12 18:00:00)
+  if (typeof rawTime === "string" && rawTime.includes("-") && rawTime.includes(":") && !rawTime.includes("T")) {
+    return rawTime.replace(/Z/g, "").trim().substring(0, 19);
+  }
+
+  // 3. 如果是 Unix 毫秒/秒时间戳
   const num = typeof rawTime === "number" ? rawTime : parseInt(rawTime, 10);
   if (!isNaN(num)) {
     const ms = num < 10000000000 ? num * 1000 : num;
@@ -53,7 +66,7 @@ export function formatToBeijingTime(rawTime: string | number | null | undefined)
     return beijingDate.toISOString().replace("T", " ").substring(0, 19);
   }
 
-  return String(rawTime);
+  return String(rawTime).replace("T", " ").replace(/Z/g, "").trim();
 }
 
 /**

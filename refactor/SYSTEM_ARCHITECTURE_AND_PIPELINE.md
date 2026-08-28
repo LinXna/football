@@ -45,13 +45,18 @@
 
 ---
 
-## 三、标准数据契约草案（待确认与讨论）
+## 三、标准数据契约权威定义 (Canonical Data Contracts & SSOT)
 
-*(本节将在接下来的“数据确认讨论”中逐步填入定稿的 TypeScript 强类型定义)*
+全系统核心强类型契约已定稿并集中维护，完整中文字段与业务语义详见 [`refactor/DATA_SPECIFICATION.md`](./DATA_SPECIFICATION.md)：
 
-- **YBTY 盘口契约**：定义滚球/赛前独赢、让球、大小球的原始字段与赔率格式。
-- **雷速攻防与基本面契约**：定义危攻时序、射正、控球、红黄牌、首发阵型、伤停状态的标准格式。
-- **统一赛事契约 (`CanonicalMatch`)**：系统全链路流转的唯一核心数据接口。
+1. **YBTY 盘口契约 (`refactor/01_data_ingestion/ybty/types.ts`)**：
+   - 滚球盘口 (`ParsedYbtyLiveMatch`) 与赛前盘口 (`ParsedYbtyPrematchMatch`)；
+   - 包含主盘、副盘让球 (`full_spread_main` / `full_spread_subs`)、大小球 (`full_total_main` / `full_total_subs`) 与独赢 (`full_h2h`)。
+2. **雷速基本面与时序契约 (`refactor/01_data_ingestion/leisu/types.ts`)**：
+   - 包含 8 大攻防技术统计 (`ParsedLeisuStats`)、分钟级压迫动量波形 (`ParsedLeisuMomentum`)、正向时序事件 (`ParsedLeisuTimelineEvent`)、阵容阵型 (`ParsedLeisuLineup`)、联赛积分榜 (`ParsedLeagueStandings`) 与进球时段分布 (`ParsedGoalDistribution`)。
+3. **统一标准赛事契约 (`refactor/02_canonical_model/types.ts`)**：
+   - 全系统核心实体模型 **`CanonicalMatch`**：以 YBTY 原始数据为第一法定执行源，融合雷速增强包与比分校验状态，纯净未计算；
+   - 极简 AI 提炼包 **`AiEvaluationBrief`**：面向大模型的高密度提纯载体 (200~400 tokens/场)。
 
 ---
 

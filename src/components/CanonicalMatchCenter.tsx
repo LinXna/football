@@ -46,6 +46,39 @@ import {
   CanonicalMatch,
   AiEvaluationBrief,
 } from "../../refactor/02_canonical_model/types";
+import { CleanMarketsGroup } from "../../refactor/01_data_ingestion/ybty/types";
+import { RecentFormComparator } from "./RecentFormComparator";
+
+function getMarketsSummary(mkts?: CleanMarketsGroup | null) {
+  if (!mkts) return { count: 0, text: "0个玩法" };
+  let count = 0;
+  let items: string[] = [];
+  if (mkts.full_h2h) {
+    count++;
+    items.push("全场独赢");
+  }
+  if (mkts.full_spread_main) {
+    count += 1 + (mkts.full_spread_subs?.length || 0);
+    items.push(`全场让球(${1 + (mkts.full_spread_subs?.length || 0)}盘)`);
+  }
+  if (mkts.full_total_main) {
+    count += 1 + (mkts.full_total_subs?.length || 0);
+    items.push(`全场大小(${1 + (mkts.full_total_subs?.length || 0)}盘)`);
+  }
+  if (mkts.half_h2h) {
+    count++;
+    items.push("半场独赢");
+  }
+  if (mkts.half_spread_main) {
+    count++;
+    items.push("半场让球");
+  }
+  if (mkts.half_total_main) {
+    count++;
+    items.push("半场大小");
+  }
+  return { count, text: items.join(" / ") || "暂无盘口" };
+}
 import {
   MatchAlignmentStatus,
   LeagueMatchStatus,
@@ -155,7 +188,6 @@ export const CanonicalMatchCenter: React.FC = () => {
   const [importPendingMatches, setImportPendingMatches] = useState<ImportPendingMatch[]>([]);
   const [selectedImportMatchIds, setSelectedImportMatchIds] = useState<string[]>([]);
   const [importBatchProcessing, setImportBatchProcessing] = useState<boolean>(false);
-  const [alignmentCardStyle, setAlignmentCardStyle] = useState<"tactical" | "sports" | "clean">("tactical");
 
   // 手动关联雷速赛事弹窗与搜索状态
   const [manualPickerMatchId, setManualPickerMatchId] = useState<string | null>(null);
@@ -205,45 +237,6 @@ export const CanonicalMatchCenter: React.FC = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
-
-  // 一键确认并持久化别名映射
-  const handleAddAlias = async (canonicalName: string, aliasName: string) => {
-    if (!canonicalName || !aliasName) return;
-    const key = `${canonicalName}::${aliasName}`;
-    setAliasUpdatingKey(key);
-    setAliasFeedback(null);
-    try {
-      const res = await fetch("/api/aliases", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          canonical_name: canonicalName,
-          alias: aliasName,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setAliasFeedback({
-          success: true,
-          message: `已成功将 [${aliasName}] 绑定为 [${canonicalName}] 的法定别名并永久保存！`,
-        });
-        setTimeout(() => setAliasFeedback(null), 4000);
-        await fetchCanonicalData();
-      } else {
-        setAliasFeedback({
-          success: false,
-          message: `保存别名失败: ${data.error || "未知原因"}`,
-        });
-      }
-    } catch (err: any) {
-      setAliasFeedback({
-        success: false,
-        message: `网络错误: ${err.message || "请求异常"}`,
-      });
-    } finally {
-      setAliasUpdatingKey(null);
-    }
   };
 
   // 核心辅助方法：从 Canonical 赛事清单中构建待核验对齐候选列表，并按置信度升序排序（低的排在前面，疑似主客颠倒置顶）
@@ -503,9 +496,37 @@ export const CanonicalMatchCenter: React.FC = () => {
             message: `数据初筛装配完成！共识别 ${newMatches.length} 场赛事，检测到 ${unconfirmedMatches.length} 场待核验或低置信赛事（已按匹配度由低到高排列）。`,
           });
         } else {
+          // 100% 赛事完全对齐：后台并发静默沉淀全部新别名映射，实现一次导入永久自动对齐
+          (async () => {
+            for (const m of newMatches) {
+              if (m.reference) {
+                if (!m.alignment?.home_team_match?.is_alias_exact_hit && m.reference.leisu_home_name) {
+                  fetch("/api/aliases", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      canonical_name: m.home_team_name,
+                      alias: m.reference.leisu_home_name,
+                    }),
+                  }).catch(() => {});
+                }
+                if (!m.alignment?.away_team_match?.is_alias_exact_hit && m.reference.leisu_away_name) {
+                  fetch("/api/aliases", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      canonical_name: m.away_team_name,
+                      alias: m.reference.leisu_away_name,
+                    }),
+                  }).catch(() => {});
+                }
+              }
+            }
+          })();
+
           setImportFeedback({
             success: true,
-            message: data.message || "数据智能识别并精准对齐装配成功（100% 赛事精准命中）！",
+            message: data.message || "数据智能识别并精准对齐装配成功（100% 赛事精准命中，别名已自动沉淀）！",
           });
           setTimeout(() => {
             setShowImportModal(false);
@@ -934,15 +955,7 @@ export const CanonicalMatchCenter: React.FC = () => {
     return { name: `队伍(ID:${teamId})`, isCurrent: "other" };
   };
 
-  // 待人工核验数量统计
-  const needsManualCount = matches.filter(
-    (m) =>
-      m.alignment.status === MatchAlignmentStatus.NEEDS_MANUAL_SELECTION ||
-      m.alignment.status === MatchAlignmentStatus.UNMATCHED ||
-      (!m.alignment.home_team_match.is_alias_exact_hit && m.alignment.confidence_score < 85) ||
-      (!m.alignment.away_team_match.is_alias_exact_hit && m.alignment.confidence_score < 85)
-  ).length;
-
+  // 缺口赛事数量统计
   const matchesWithGapsCount = matches.filter((m) => m.missing_reasons.length > 0).length;
 
   const filteredMatches = matches.filter((m) => {
@@ -956,14 +969,7 @@ export const CanonicalMatchCenter: React.FC = () => {
     const matchesTier =
       tierFilter === "ALL" || m.completeness_tier === tierFilter;
 
-    const matchesManualReview =
-      !filterOnlyManualReview ||
-      m.alignment.status === MatchAlignmentStatus.NEEDS_MANUAL_SELECTION ||
-      m.alignment.status === MatchAlignmentStatus.UNMATCHED ||
-      (!m.alignment.home_team_match.is_alias_exact_hit && m.alignment.confidence_score < 85) ||
-      (!m.alignment.away_team_match.is_alias_exact_hit && m.alignment.confidence_score < 85);
-
-    return matchesSearch && matchesTier && matchesManualReview;
+    return matchesSearch && matchesTier;
   });
 
   const getTierBadge = (tier: DataCompletenessTier) => {
@@ -994,37 +1000,6 @@ export const CanonicalMatchCenter: React.FC = () => {
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-950/60 text-rose-300 border border-rose-500/50">
             <XCircle className="w-3.5 h-3.5 text-rose-400" />
             TIER INVALID (冲突熔断)
-          </span>
-        );
-      default:
-        return null;
-    }
-  };
-
-  const getAlignmentBadge = (status: MatchAlignmentStatus, confidence: number) => {
-    switch (status) {
-      case MatchAlignmentStatus.MATCHED_BY_ALIAS:
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-950/60 text-purple-300 border border-purple-600/40">
-            别名命中 100%
-          </span>
-        );
-      case MatchAlignmentStatus.MATCHED_AUTO:
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-950/60 text-blue-300 border border-blue-600/40">
-            自动匹配 {confidence}%
-          </span>
-        );
-      case MatchAlignmentStatus.NEEDS_MANUAL_SELECTION:
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-950/60 text-amber-300 border border-amber-600/40">
-            低置信待确认 {confidence}%
-          </span>
-        );
-      case MatchAlignmentStatus.UNMATCHED:
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-slate-800 text-slate-400 border border-slate-700">
-            未匹配
           </span>
         );
       default:
@@ -1165,23 +1140,6 @@ export const CanonicalMatchCenter: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 overflow-x-auto flex-wrap">
-          {/* 便捷核验过滤器 */}
-          <button
-            id="filter-manual-review"
-            onClick={() => setFilterOnlyManualReview(!filterOnlyManualReview)}
-            className={`text-xs px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 font-medium whitespace-nowrap ${
-              filterOnlyManualReview
-                ? "bg-amber-600 text-white shadow-xs"
-                : "bg-slate-950 text-amber-300 hover:bg-slate-800 border border-amber-800/40"
-            }`}
-            title="一键筛选出需要人工核验或相似度偏低的赛事"
-          >
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span>⚠️ 待人工核验 ({needsManualCount})</span>
-          </button>
-
-          <div className="h-4 w-px bg-slate-800 mx-1 hidden sm:block"></div>
-
           <span className="text-xs text-slate-400 whitespace-nowrap">完整度:</span>
           {["ALL", DataCompletenessTier.TIER_1_FULL, DataCompletenessTier.TIER_2_BASIC, DataCompletenessTier.TIER_3_SPARSE, DataCompletenessTier.TIER_INVALID].map((tier) => (
             <button
@@ -1228,21 +1186,12 @@ export const CanonicalMatchCenter: React.FC = () => {
         <div className="space-y-4">
           {filteredMatches.map((m, idx) => {
             const brief = aiBriefs.find((b) => b.match_id === m.canonical_id);
-            const needsReview =
-              m.alignment.status === MatchAlignmentStatus.NEEDS_MANUAL_SELECTION ||
-              m.alignment.status === MatchAlignmentStatus.UNMATCHED ||
-              (!m.alignment.home_team_match.is_alias_exact_hit && m.alignment.confidence_score < 85) ||
-              (!m.alignment.away_team_match.is_alias_exact_hit && m.alignment.confidence_score < 85);
 
             return (
               <div
                 key={m.canonical_id || idx}
                 id={`match-card-${idx}`}
-                className={`bg-slate-900 rounded-xl p-5 border shadow-sm transition-all space-y-4 ${
-                  needsReview
-                    ? "border-amber-700/60 bg-slate-900/95"
-                    : "border-slate-800 hover:border-blue-500/50"
-                }`}
+                className="bg-slate-900 rounded-xl p-5 border border-slate-800 hover:border-blue-500/50 shadow-sm transition-all space-y-4"
               >
                 {/* 卡片头部：联赛、时间、完整度与状态 */}
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800/80">
@@ -1265,9 +1214,6 @@ export const CanonicalMatchCenter: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
-                    {/* 实体对齐状态 */}
-                    {getAlignmentBadge(m.alignment.status, m.alignment.confidence_score)}
-
                     {/* 数据完整度定级 */}
                     {getTierBadge(m.completeness_tier)}
 
@@ -1280,6 +1226,12 @@ export const CanonicalMatchCenter: React.FC = () => {
                         } else {
                           setExpandedMatchId(m.canonical_id);
                           setActiveTabByMatch((prev) => ({ ...prev, [m.canonical_id]: "diagnostics" }));
+                          setTimeout(() => {
+                            const el = document.getElementById(`match-card-${idx}`);
+                            if (el) {
+                              el.scrollIntoView({ behavior: "smooth", block: "start" });
+                            }
+                          }, 60);
                         }
                       }}
                       className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors ${
@@ -1287,13 +1239,13 @@ export const CanonicalMatchCenter: React.FC = () => {
                           ? "bg-amber-950/60 text-amber-300 border-amber-700 hover:bg-amber-900/60"
                           : "bg-emerald-950/60 text-emerald-300 border-emerald-700 hover:bg-emerald-900/60"
                       }`}
-                      title="点击直接在下拉明细中查看 7 维全景数据体检报告"
+                      title="点击就地展开 11 维核心数据特征就绪体检清单"
                     >
                       <Shield className="w-3.5 h-3.5" />
                       <span>
                         {m.missing_reasons.length > 0
                           ? `缺口体检 (${m.missing_reasons.length}项)`
-                          : "✅ 7维全齐备"}
+                          : "✅ 11维全齐备"}
                       </span>
                     </button>
                   </div>
@@ -1334,17 +1286,9 @@ export const CanonicalMatchCenter: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* 中间：对齐箭头与相似度 */}
-                  <div className="lg:col-span-2 text-center flex flex-col items-center justify-center text-slate-400 space-y-1">
-                    <ArrowRight className="w-4 h-4 text-blue-400" />
-                    <span className="text-[10px] font-mono text-slate-500">
-                      主:{m.alignment.home_team_match.raw_text_similarity} / 客:{m.alignment.away_team_match.raw_text_similarity}
-                    </span>
-                    {needsReview && (
-                      <span className="text-[10px] px-1.5 py-0.5 bg-amber-950 text-amber-300 rounded border border-amber-800 font-medium">
-                        待人工确认
-                      </span>
-                    )}
+                  {/* 中间：对齐箭头 */}
+                  <div className="lg:col-span-2 text-center flex flex-col items-center justify-center text-slate-500">
+                    <ArrowRight className="w-5 h-5 text-slate-600" />
                   </div>
 
                   {/* 右侧：雷速对齐参考队名与特征摘要 */}
@@ -1357,29 +1301,9 @@ export const CanonicalMatchCenter: React.FC = () => {
                       <div className="space-y-1">
                         <div className="text-sm font-medium text-slate-300 flex items-center justify-between">
                           <span>{m.reference.leisu_home_name}</span>
-                          {!m.alignment.home_team_match.is_alias_exact_hit && (
-                            <button
-                              onClick={() => handleAddAlias(m.home_team_name, m.reference!.leisu_home_name)}
-                              disabled={aliasUpdatingKey === `${m.home_team_name}::${m.reference.leisu_home_name}`}
-                              className="text-[11px] px-2 py-0.5 bg-emerald-900/70 hover:bg-emerald-800 text-emerald-200 rounded border border-emerald-700/60 transition-colors"
-                              title="将此雷速队名添加为 YBTY 队名的法定别名"
-                            >
-                              + 确认别名
-                            </button>
-                          )}
                         </div>
                         <div className="text-sm font-medium text-slate-300 flex items-center justify-between">
                           <span>{m.reference.leisu_away_name}</span>
-                          {!m.alignment.away_team_match.is_alias_exact_hit && (
-                            <button
-                              onClick={() => handleAddAlias(m.away_team_name, m.reference!.leisu_away_name)}
-                              disabled={aliasUpdatingKey === `${m.away_team_name}::${m.reference.leisu_away_name}`}
-                              className="text-[11px] px-2 py-0.5 bg-emerald-900/70 hover:bg-emerald-800 text-emerald-200 rounded border border-emerald-700/60 transition-colors"
-                              title="将此雷速队名添加为 YBTY 队名的法定别名"
-                            >
-                              + 确认别名
-                            </button>
-                          )}
                         </div>
                       </div>
                     ) : (
@@ -1430,9 +1354,18 @@ export const CanonicalMatchCenter: React.FC = () => {
                     <button
                       id={`btn-toggle-expand-${idx}`}
                       onClick={() => {
-                        setExpandedMatchId(expandedMatchId === m.canonical_id ? null : m.canonical_id);
-                        if (!activeTabByMatch[m.canonical_id]) {
+                        const isExpanding = expandedMatchId !== m.canonical_id;
+                        setExpandedMatchId(isExpanding ? m.canonical_id : null);
+                        if (isExpanding && !activeTabByMatch[m.canonical_id]) {
                           setActiveTabByMatch((prev) => ({ ...prev, [m.canonical_id]: "markets" }));
+                        }
+                        if (isExpanding) {
+                          setTimeout(() => {
+                            const el = document.getElementById(`match-card-${idx}`);
+                            if (el) {
+                              el.scrollIntoView({ behavior: "smooth", block: "start" });
+                            }
+                          }, 60);
                         }
                       }}
                       className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg transition-all border ${
@@ -1475,8 +1408,7 @@ export const CanonicalMatchCenter: React.FC = () => {
                           { id: "diagnostics", label: `🛡️ 11维体检 (${m.missing_reasons.length > 0 ? `${m.missing_reasons.length}项缺口` : "全齐备"})`, icon: Shield },
                           { id: "markets", label: "🎯 YBTY 盘口全集", icon: Target },
                           { id: "stats", label: "📊 雷速统计增强", icon: BarChart2 },
-                          { id: "h2h", label: "⚔️ 历史交锋与阵容", icon: Users },
-                          { id: "alignment", label: "🔗 两端对齐诊断", icon: CheckCircle },
+                          { id: "h2h", label: "⚔️ 近期战绩/交锋/阵容", icon: Users },
                           { id: "json", label: "{} 完整合并 JSON", icon: Code },
                         ].map((tab) => {
                           const currentTab = activeTabByMatch[m.canonical_id] || "markets";
@@ -1524,13 +1456,13 @@ export const CanonicalMatchCenter: React.FC = () => {
                           </div>
 
                           <div className="bg-slate-900/90 p-3 rounded-lg border border-slate-800">
-                            <div className="text-[11px] text-slate-500 font-medium">实体对齐置信度</div>
+                            <div className="text-[11px] text-slate-500 font-medium">盘口覆盖与深度</div>
                             <div className="mt-1 flex items-center gap-2">
-                              <span className="text-sm font-bold text-emerald-400 font-mono">
-                                {m.alignment.confidence_score}%
+                              <span className="text-sm font-bold text-blue-400 font-mono">
+                                {getMarketsSummary(m.markets).count} 个玩法
                               </span>
-                              <span className="text-[11px] text-slate-400 font-mono">
-                                ({m.alignment.status})
+                              <span className="text-[11px] text-slate-400 font-mono truncate max-w-[200px]" title={getMarketsSummary(m.markets).text}>
+                                ({getMarketsSummary(m.markets).text})
                               </span>
                             </div>
                           </div>
@@ -2174,27 +2106,20 @@ export const CanonicalMatchCenter: React.FC = () => {
                                     );
                                   })}
                                 </div>
-                              ) : (m.reference.tactical_context?.home_recent_matches || []).length > 0 ? (
-                                <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                                  {m.reference.tactical_context?.home_recent_matches?.slice(0, 5).map((rec, rIdx) => (
-                                    <div key={rIdx} className="bg-slate-900/80 p-2 rounded text-xs flex justify-between items-center font-mono border border-slate-800">
-                                      <span className="text-slate-500">{rec.match_date || "-"}</span>
-                                      <span className="text-slate-400">{rec.league_name || "-"}</span>
-                                      <span className="font-semibold text-slate-200">
-                                        {rec.home_team_name} <strong className="text-blue-400">{rec.fulltime_score?.home ?? "-"} : {rec.fulltime_score?.away ?? "-"}</strong> {rec.away_team_name}
-                                      </span>
-                                      <span className="text-slate-500 text-[11px]">
-                                        (半: {rec.halftime_score?.home ?? "-"}:{rec.halftime_score?.away ?? "-"})
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
                               ) : (
                                 <div className="text-xs text-slate-500 italic py-2">暂无历史交战明细</div>
                               )}
                             </div>
 
-                            {/* 2. 阵容与战意分析 (优雅占位与风险提示) */}
+                            {/* 2. 近期战绩比对展板 (左主右客, 可选10-15-20-30, 全部/主/客, 联赛名筛选, 全场+半场比分) */}
+                            <RecentFormComparator
+                              homeTeamName={m.reference.leisu_home_name || m.home_team_name}
+                              awayTeamName={m.reference.leisu_away_name || m.away_team_name}
+                              homeRecentMatches={m.reference.tactical_context?.home_recent_matches || []}
+                              awayRecentMatches={m.reference.tactical_context?.away_recent_matches || []}
+                            />
+
+                            {/* 3. 阵容与战意分析 (优雅占位与风险提示) */}
                             {m.reference.lineups && (() => {
                               const hasStarters =
                                 (m.reference.lineups.home_starters && m.reference.lineups.home_starters.length > 0) ||
@@ -2255,64 +2180,6 @@ export const CanonicalMatchCenter: React.FC = () => {
                       </div>
                     )}
 
-                    {/* TAB 4: 🔗 两端对齐诊断 (Alignment Diagnostics - Read-only Audit) */}
-                    {(activeTabByMatch[m.canonical_id] || "markets") === "alignment" && (
-                      <div className="bg-slate-950/70 p-3.5 rounded-lg border border-slate-800 space-y-3">
-                        <div className="text-xs font-bold text-slate-300 flex items-center justify-between">
-                          <span>实体对齐仲裁诊断报告 (Entity Alignment Audit)</span>
-                          <span className="font-mono text-emerald-400 font-bold">
-                            置信度总分: {m.alignment.confidence_score}% ({m.alignment.status})
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                          {/* 主队映射 */}
-                          <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800 space-y-1.5 font-mono">
-                            <div className="text-slate-400 flex items-center justify-between">
-                              <span>主队映射比对:</span>
-                              <span className={m.alignment.home_team_match.is_alias_exact_hit ? "text-purple-400 font-semibold" : "text-blue-300"}>
-                                {m.alignment.home_team_match.is_alias_exact_hit ? "✅ 别名库已收录" : "⚡ 文本对齐映射"}
-                              </span>
-                            </div>
-                            <div className="text-slate-200">YBTY (法定): <strong className="text-blue-400">{m.alignment.home_team_match.ybty_name}</strong></div>
-                            <div className="text-slate-200">雷速 (数据源): <strong className="text-blue-300">{m.alignment.home_team_match.leisu_name || "无关联"}</strong></div>
-                            <div className="text-[11px] text-slate-400">
-                              原文字符相似度: <strong className="text-slate-200">{m.alignment.home_team_match.raw_text_similarity}</strong>
-                            </div>
-                          </div>
-
-                          {/* 客队映射 */}
-                          <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800 space-y-1.5 font-mono">
-                            <div className="text-slate-400 flex items-center justify-between">
-                              <span>客队映射比对:</span>
-                              <span className={m.alignment.away_team_match.is_alias_exact_hit ? "text-purple-400 font-semibold" : "text-amber-300"}>
-                                {m.alignment.away_team_match.is_alias_exact_hit ? "✅ 别名库已收录" : "⚡ 文本对齐映射"}
-                              </span>
-                            </div>
-                            <div className="text-slate-200">YBTY (法定): <strong className="text-amber-400">{m.alignment.away_team_match.ybty_name}</strong></div>
-                            <div className="text-slate-200">雷速 (数据源): <strong className="text-amber-300">{m.alignment.away_team_match.leisu_name || "无关联"}</strong></div>
-                            <div className="text-[11px] text-slate-400">
-                              原文字符相似度: <strong className="text-slate-200">{m.alignment.away_team_match.raw_text_similarity}</strong>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="bg-slate-900/60 p-2.5 rounded text-xs border border-slate-800 space-y-1">
-                          <div className="text-slate-400 font-semibold">对齐仲裁依据说明:</div>
-                          <div className="text-slate-200 font-mono text-[11px]">{m.alignment.alignment_reason}</div>
-                        </div>
-
-                        <div className="p-3 bg-slate-900/40 rounded-lg border border-slate-800 text-[11px] text-slate-400 space-y-1">
-                          <div className="font-semibold text-slate-300 flex items-center gap-1">
-                            <Info className="w-3.5 h-3.5 text-blue-400" />
-                            <span>实体对齐规范说明</span>
-                          </div>
-                          <p>
-                            队名别名映射与核验已前置在【智能数据导入向导】中完成治理与持久化。标准赛事中心纯净呈现已清洗的 11 维量化数据特征、交易盘口及分析。
-                          </p>
-                        </div>
-                      </div>
-                    )}
 
                     {/* TAB 5: {} 完整合并 JSON (Raw Canonical JSON) */}
                     {(activeTabByMatch[m.canonical_id] || "markets") === "json" && (
@@ -2395,9 +2262,9 @@ export const CanonicalMatchCenter: React.FC = () => {
                   <div className="mt-1">{getTierBadge(selectedDiagnosticMatch.completeness_tier)}</div>
                 </div>
                 <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                  <div className="text-[11px] text-slate-500">实体对齐置信度</div>
-                  <div className="mt-1 text-sm font-bold text-emerald-400 font-mono">
-                    {selectedDiagnosticMatch.alignment.confidence_score}% ({selectedDiagnosticMatch.alignment.status})
+                  <div className="text-[11px] text-slate-500">盘口覆盖与深度</div>
+                  <div className="mt-1 text-sm font-bold text-blue-400 font-mono">
+                    {getMarketsSummary(selectedDiagnosticMatch.markets).count} 个玩法 ({getMarketsSummary(selectedDiagnosticMatch.markets).text})
                   </div>
                 </div>
                 <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
@@ -3021,42 +2888,6 @@ export const CanonicalMatchCenter: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-3 text-slate-400 font-mono text-[11px] flex-wrap">
-                    {/* 排版字体风格实时切换器 */}
-                    <div className="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-800">
-                      <span className="text-slate-400 font-sans text-xs">排版字体风格:</span>
-                      <button
-                        onClick={() => setAlignmentCardStyle("tactical")}
-                        className={`px-2 py-0.5 rounded text-xs transition-colors ${
-                          alignmentCardStyle === "tactical"
-                            ? "bg-blue-600 text-white font-bold"
-                            : "text-slate-400 hover:text-slate-200"
-                        }`}
-                      >
-                        方案A (战术等宽)
-                      </button>
-                      <button
-                        onClick={() => setAlignmentCardStyle("sports")}
-                        className={`px-2 py-0.5 rounded text-xs transition-colors ${
-                          alignmentCardStyle === "sports"
-                            ? "bg-emerald-600 text-white font-bold"
-                            : "text-slate-400 hover:text-slate-200"
-                        }`}
-                      >
-                        方案B (体育大字看板)
-                      </button>
-                      <button
-                        onClick={() => setAlignmentCardStyle("clean")}
-                        className={`px-2 py-0.5 rounded text-xs transition-colors ${
-                          alignmentCardStyle === "clean"
-                            ? "bg-purple-600 text-white font-bold"
-                            : "text-slate-400 hover:text-slate-200"
-                        }`}
-                      >
-                        方案C (极简清爽)
-                      </button>
-                    </div>
-
-                    <span>|</span>
                     <span className="inline-flex items-center gap-1">
                       <ArrowUpDown className="w-3 h-3 text-purple-400" />
                       已按匹配度升序（低置信/颠倒优先排在顶部）
@@ -3084,30 +2915,36 @@ export const CanonicalMatchCenter: React.FC = () => {
                         const isSelected = selectedImportMatchIds.includes(cand.canonical_id);
                         const isLiveMatch = cand.is_live || mode === "live";
 
-                        // 联赛匹配状态配色与文案管理
+                        // 联赛匹配状态配色与文案：已对齐直接标绿显示联赛名；未对齐显示匹配率
                         const getLeagueStatusBadge = () => {
                           if (cand.league_status === LeagueMatchStatus.MATCHED_BY_ALIAS) {
                             return (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-950/80 text-emerald-300 border border-emerald-800">
-                                <Check className="w-3 h-3 text-emerald-400" />
-                                联赛精准对齐 (
-                                {cand.league_alias_hit ? "别名库" : "完全一致"})
+                              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-950/90 text-emerald-300 border border-emerald-700/80">
+                                {cand.league_name}
                               </span>
                             );
                           }
                           if (cand.league_status === LeagueMatchStatus.MATCHED_FUZZY) {
                             return (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-amber-950/80 text-amber-300 border border-amber-800">
-                                <AlertTriangle className="w-3 h-3 text-amber-400" />
-                                联赛模糊匹配 ({(cand.league_similarity * 100).toFixed(0)}%)
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-950/90 text-amber-300 border border-amber-700/80">
+                                  {cand.league_name}
+                                </span>
+                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-400 border border-amber-800/60">
+                                  {(cand.league_similarity * 100).toFixed(0)}%
+                                </span>
+                              </div>
                             );
                           }
                           return (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-rose-950/80 text-rose-300 border border-rose-800">
-                              <XCircle className="w-3 h-3 text-rose-400" />
-                              联赛未匹配
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                                {cand.league_name}
+                              </span>
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-rose-950/80 text-rose-300 border border-rose-800">
+                                未对齐
+                              </span>
+                            </div>
                           );
                         };
 
@@ -3141,12 +2978,9 @@ export const CanonicalMatchCenter: React.FC = () => {
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="text-[11px] font-mono text-slate-400">#{idx + 1}</span>
                                   {getLeagueStatusBadge()}
-                                  <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-800 text-slate-200 border border-slate-700">
-                                    {cand.league_name}
-                                  </span>
                                   {cand.leisu_league && cand.leisu_league !== cand.ybty_league && (
                                     <span className="text-xs text-slate-400 font-mono">
-                                      (雷速名: {cand.leisu_league})
+                                      ({cand.leisu_league})
                                     </span>
                                   )}
                                   <span className="text-xs text-slate-400 font-mono">
@@ -3183,226 +3017,83 @@ export const CanonicalMatchCenter: React.FC = () => {
                               </div>
                             </div>
 
-                            {/* 核心双列卡片对比结构 (左: YBTY 法定对阵, 右: 雷速 关联比对) */}
-                            {alignmentCardStyle === "tactical" && (
-                              /* 方案 A: 经典战术高对比等宽风格 (上一版经典) */
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
-                                {/* 1. YBTY 来源行 */}
-                                <div className="p-3 rounded-lg bg-blue-950/20 border border-blue-900/40 space-y-2">
-                                  <div className="flex items-center justify-between text-xs font-mono text-blue-300">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="px-1.5 py-0.5 rounded bg-blue-900/80 text-blue-200 font-bold text-[10px]">
-                                        YBTY
-                                      </span>
-                                      <span className="font-semibold text-blue-300">法定对阵</span>
-                                      <span className="text-[10px] text-slate-500 font-normal">(单一事实来源)</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <span>
-                                        时间: <strong className="text-blue-200 font-semibold">{cand.ybty_time}</strong>
-                                      </span>
-                                      {isLiveMatch && (
-                                        <span>
-                                          比分: <strong className="text-emerald-400 font-bold">{cand.ybty_score}</strong>
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center justify-between font-mono text-sm pt-0.5 tracking-tight">
-                                    <strong className="text-blue-300 font-bold">{cand.ybty_home}</strong>
-                                    <span className="text-slate-500 font-normal text-xs px-2">VS</span>
-                                    <strong className="text-cyan-300 font-bold">{cand.ybty_away}</strong>
-                                  </div>
-                                </div>
-
-                                {/* 2. 雷速 来源行 */}
-                                <div className="p-3 rounded-lg bg-slate-900/90 border border-slate-800 space-y-2">
-                                  <div className="flex items-center justify-between text-xs font-mono text-emerald-300">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="px-1.5 py-0.5 rounded bg-emerald-900/80 text-emerald-200 font-bold text-[10px]">
-                                        雷速
-                                      </span>
-                                      <span className="font-semibold text-emerald-300">关联比对</span>
-                                      <span className="text-[10px] text-slate-500 font-normal">
-                                        {cand.leisu_match_id ? `(ID: ${cand.leisu_match_id})` : "(特征比对源)"}
-                                      </span>
-                                    </div>
-                                    {cand.leisu_home && cand.leisu_away ? (
-                                      <div className="flex items-center gap-2">
-                                        <span>
-                                          时间: <strong className="text-emerald-200 font-semibold">{cand.leisu_time || "-"}</strong>
-                                        </span>
-                                        {isLiveMatch && (
-                                          <span>
-                                            比分: <strong className="text-emerald-400 font-bold">{cand.leisu_score || "-"}</strong>
-                                          </span>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <span className="text-[10px] text-slate-500 font-normal">未关联</span>
-                                    )}
-                                  </div>
-
-                                  <div className="flex items-center justify-between font-mono text-sm pt-0.5 tracking-tight">
-                                    {cand.leisu_home && cand.leisu_away ? (
-                                      <>
-                                        <span className={cand.home_alias_hit ? "text-emerald-300 font-bold" : "text-amber-200 font-bold"}>
-                                          {cand.leisu_home}
-                                        </span>
-                                        <span className="text-slate-500 font-normal text-xs px-2">VS</span>
-                                        <span className={cand.away_alias_hit ? "text-emerald-300 font-bold" : "text-amber-200 font-bold"}>
-                                          {cand.leisu_away}
-                                        </span>
-                                      </>
-                                    ) : (
-                                      <div className="flex items-center justify-between w-full">
-                                        <span className="text-rose-400 text-xs italic font-sans">尚未匹配雷速对应赛事</span>
-                                        <button
-                                          onClick={() => {
-                                            setManualPickerMatchId(cand.canonical_id);
-                                            setManualPickerSearch(cand.ybty_home);
-                                          }}
-                                          className="px-2 py-0.5 bg-blue-900 hover:bg-blue-800 text-blue-100 rounded text-xs transition-colors font-sans"
-                                        >
-                                          手动在雷速池中搜索选择...
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            {alignmentCardStyle === "sports" && (
-                              /* 方案 B: 现代体育看板大字醒目风格 */
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
-                                {/* 1. YBTY 来源行 */}
-                                <div className="p-3.5 rounded-xl bg-slate-900/90 border border-blue-600/30 space-y-2.5 shadow-sm">
-                                  <div className="flex items-center justify-between text-xs">
-                                    <div className="flex items-center gap-2">
-                                      <span className="px-2 py-0.5 rounded-md bg-blue-600 text-white font-black text-[11px] uppercase tracking-wider">
-                                        YBTY
-                                      </span>
-                                      <span className="text-slate-400 text-xs font-medium">法定基准盘口</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 bg-slate-950/80 px-2 py-0.5 rounded-md border border-slate-800 text-xs">
-                                      <span className="text-slate-400">时间: <strong className="text-blue-300">{cand.ybty_time}</strong></span>
-                                      {isLiveMatch && (
-                                        <span className="text-slate-400">比分: <strong className="text-emerald-400 font-extrabold text-sm">{cand.ybty_score}</strong></span>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center justify-between pt-1">
-                                    <span className="text-base font-extrabold text-white tracking-normal">{cand.ybty_home}</span>
-                                    <span className="bg-slate-800 px-2 py-0.5 rounded text-[11px] text-slate-400 font-bold mx-2">VS</span>
-                                    <span className="text-base font-extrabold text-cyan-200 tracking-normal">{cand.ybty_away}</span>
-                                  </div>
-                                </div>
-
-                                {/* 2. 雷速 来源行 */}
-                                <div className="p-3.5 rounded-xl bg-slate-900/90 border border-emerald-600/30 space-y-2.5 shadow-sm">
-                                  <div className="flex items-center justify-between text-xs">
-                                    <div className="flex items-center gap-2">
-                                      <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-black text-[11px] uppercase tracking-wider">
-                                        雷速
-                                      </span>
-                                      <span className="text-slate-400 text-xs font-medium">多维特征比对</span>
-                                    </div>
-                                    {cand.leisu_home && cand.leisu_away ? (
-                                      <div className="flex items-center gap-2 bg-slate-950/80 px-2 py-0.5 rounded-md border border-slate-800 text-xs">
-                                        <span className="text-slate-400">时间: <strong className="text-emerald-300">{cand.leisu_time || "-"}</strong></span>
-                                        {isLiveMatch && (
-                                          <span className="text-slate-400">比分: <strong className="text-emerald-400 font-extrabold text-sm">{cand.leisu_score || "-"}</strong></span>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <span className="text-xs text-rose-400 font-medium">未关联特征</span>
-                                    )}
-                                  </div>
-
-                                  <div className="flex items-center justify-between pt-1">
-                                    {cand.leisu_home && cand.leisu_away ? (
-                                      <>
-                                        <span className={`text-base font-extrabold ${cand.home_alias_hit ? "text-emerald-400" : "text-amber-300"}`}>
-                                          {cand.leisu_home}
-                                        </span>
-                                        <span className="bg-slate-800 px-2 py-0.5 rounded text-[11px] text-slate-400 font-bold mx-2">VS</span>
-                                        <span className={`text-base font-extrabold ${cand.away_alias_hit ? "text-emerald-400" : "text-amber-300"}`}>
-                                          {cand.leisu_away}
-                                        </span>
-                                      </>
-                                    ) : (
-                                      <div className="flex items-center justify-between w-full py-0.5">
-                                        <span className="text-rose-400 text-xs italic">尚未匹配雷速对应赛事</span>
-                                        <button
-                                          onClick={() => {
-                                            setManualPickerMatchId(cand.canonical_id);
-                                            setManualPickerSearch(cand.ybty_home);
-                                          }}
-                                          className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded text-xs font-bold transition-colors"
-                                        >
-                                          手动搜索绑定
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            {alignmentCardStyle === "clean" && (
-                              /* 方案 C: 极简轻量工整风格 */
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 mb-3">
-                                {/* 1. YBTY 来源行 */}
-                                <div className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[10px] px-1 rounded bg-blue-900/60 text-blue-300 font-mono">YBTY</span>
-                                    <span className="text-xs font-semibold text-slate-200">
-                                      {cand.ybty_home} <span className="text-slate-600 font-normal">/</span> {cand.ybty_away}
+                            {/* 核心双行通栏流式对比结构 (上行: YBTY, 下行: 雷速；格式: 徽章 队名 vs 队名 比赛时间 比分) */}
+                            <div className="space-y-1.5 mb-3">
+                              {/* 1. YBTY 来源行 (主客队名统一使用高亮亮青色) */}
+                              <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-blue-950/25 border border-blue-900/40">
+                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                  <span className="px-1.5 py-0.5 rounded bg-blue-900/80 text-blue-200 font-bold text-[10px] shrink-0">
+                                    YBTY
+                                  </span>
+                                  <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                                    <span className="font-bold text-sm text-cyan-200 tracking-tight">
+                                      {cand.ybty_home}
+                                    </span>
+                                    <span className="text-slate-500 font-medium text-xs px-1">
+                                      vs
+                                    </span>
+                                    <span className="font-bold text-sm text-cyan-200 tracking-tight">
+                                      {cand.ybty_away}
                                     </span>
                                   </div>
-                                  <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400">
-                                    <span>{cand.ybty_time}</span>
-                                    {isLiveMatch && <strong className="text-emerald-400 font-bold">{cand.ybty_score}</strong>}
-                                  </div>
                                 </div>
 
-                                {/* 2. 雷速 来源行 */}
-                                <div className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="font-mono text-xs font-semibold text-slate-300 bg-slate-950/80 px-2 py-0.5 rounded border border-slate-800" title="开赛/时钟时间">
+                                    {cand.ybty_time}
+                                  </span>
+                                  <span className="font-mono font-bold text-xs text-emerald-400 bg-slate-950/80 px-2 py-0.5 rounded border border-slate-800 min-w-[32px] text-center" title="实时比分">
+                                    {cand.ybty_score || "-"}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* 2. 雷速 来源行 */}
+                              <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-800">
+                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                  <span className="px-1.5 py-0.5 rounded bg-emerald-900/80 text-emerald-200 font-bold text-[10px] shrink-0">
+                                    雷速
+                                  </span>
                                   {cand.leisu_home && cand.leisu_away ? (
-                                    <>
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-[10px] px-1 rounded bg-emerald-900/60 text-emerald-300 font-mono">雷速</span>
-                                        <span className="text-xs font-semibold text-slate-200">
-                                          <span className={cand.home_alias_hit ? "text-emerald-300" : "text-amber-200"}>{cand.leisu_home}</span>
-                                          <span className="text-slate-600 font-normal mx-1">/</span>
-                                          <span className={cand.away_alias_hit ? "text-emerald-300" : "text-amber-200"}>{cand.leisu_away}</span>
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400">
-                                        <span>{cand.leisu_time || "-"}</span>
-                                        {isLiveMatch && <strong className="text-emerald-400 font-bold">{cand.leisu_score || "-"}</strong>}
-                                      </div>
-                                    </>
+                                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                                      <span className={`font-bold text-sm tracking-tight ${cand.home_alias_hit ? "text-emerald-300" : "text-amber-200"}`}>
+                                        {cand.leisu_home}
+                                      </span>
+                                      <span className="text-slate-500 font-medium text-xs px-1">
+                                        vs
+                                      </span>
+                                      <span className={`font-bold text-sm tracking-tight ${cand.away_alias_hit ? "text-emerald-300" : "text-amber-200"}`}>
+                                        {cand.leisu_away}
+                                      </span>
+                                    </div>
                                   ) : (
                                     <div className="flex items-center justify-between w-full">
-                                      <span className="text-xs text-slate-500 italic">雷速未匹配</span>
+                                      <span className="text-rose-400 text-xs italic">尚未匹配雷速对应赛事</span>
                                       <button
                                         onClick={() => {
                                           setManualPickerMatchId(cand.canonical_id);
                                           setManualPickerSearch(cand.ybty_home);
                                         }}
-                                        className="text-xs text-blue-400 hover:text-blue-300"
+                                        className="px-2 py-0.5 bg-blue-900/80 hover:bg-blue-800 text-blue-100 rounded text-xs transition-colors"
                                       >
-                                        关联...
+                                        手动搜索选择...
                                       </button>
                                     </div>
                                   )}
                                 </div>
+
+                                {cand.leisu_home && cand.leisu_away && (
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <span className="font-mono text-xs font-semibold text-slate-300 bg-slate-950/80 px-2 py-0.5 rounded border border-slate-800" title="开赛/时钟时间">
+                                        {cand.leisu_time || "-"}
+                                      </span>
+                                      <span className="font-mono font-bold text-xs text-emerald-400 bg-slate-950/80 px-2 py-0.5 rounded border border-slate-800 min-w-[32px] text-center" title="实时比分">
+                                        {cand.leisu_score || "-"}
+                                      </span>
+                                    </div>
+                                )}
                               </div>
-                            )}
+                            </div>
 
                             {/* 映射状态与多功能纠正操作工具栏 */}
                             <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-800/80 text-xs">
