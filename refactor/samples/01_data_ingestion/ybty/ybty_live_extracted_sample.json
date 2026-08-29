@@ -1,159 +1,405 @@
 {
   "schema_version": 2,
   "export_version": "2.8.0",
-  "captured_at": "2026-08-23T21:55:11.819Z",
+  "captured_at": "2026-08-20T20:20:13.747Z",
   "matches": [
     {
-      "league": "巴西甲级联赛",
-      "home": "沙佩科人SC",
-      "away": "圣保罗SP",
+      "league": "英格兰甲级联赛",
+      "home": "谢周三",
+      "away": "布拉德福德城",
       "home_score": 0,
-      "away_score": 0,
-      "clock": "23:23",
-      "clock_status": "23:23",
+      "away_score": 1,
+      "clock": "62:25",
+      "clock_status": "62:25",
+      "added_time": null,
+      "countdown": null,
+      "commence_time": null,
+      "_pre_start_text": null,
+      "captured_at": "2026-08-20T20:20:09.318Z",
       "markets": {
         "full_h2h": {
-          "home_odds": 3.9,
-          "draw_odds": 2.99,
-          "away_odds": 2.16
+          "home_odds": 8.7,
+          "draw_odds": 3.75,
+          "away_odds": 1.43
         },
         "full_spread_main": {
           "line_index": 0,
-          "home_selection": "+0.5",
-          "home_odds": 1.81,
-          "away_selection": "-0.5",
-          "away_odds": 2.09
+          "home_selection": "-0/0.5",
+          "home_odds": 2.2,
+          "away_selection": "+0/0.5",
+          "away_odds": 1.71
         },
         "full_spread_subs": [
           {
             "line_index": 1,
-            "home_selection": "+0/0.5",
-            "home_odds": 2.13,
-            "away_selection": "-0/0.5",
-            "away_odds": 1.78
+            "home_selection": "0",
+            "home_odds": 1.6,
+            "away_selection": "0",
+            "away_odds": 2.38
           },
           {
             "line_index": 2,
-            "home_selection": "+0.5/1",
-            "home_odds": 1.56,
-            "away_selection": "-0.5/1",
-            "away_odds": 2.51
-          }
-        ],
-        "full_total_main": {
-          "line_index": 0,
-          "line": "1.5/2",
-          "over_odds": 1.82,
-          "under_odds": 2.06
-        },
-        "full_total_subs": [
-          {
-            "line_index": 1,
-            "line": "2",
-            "over_odds": 2.2,
-            "under_odds": 1.71
-          },
-          {
-            "line_index": 2,
-            "line": "1.5",
-            "over_odds": 1.62,
-            "under_odds": 2.35
-          }
-        ],
-        "half_h2h": {
-          "home_odds": 6.3,
-          "draw_odds": 1.59,
-          "away_odds": 3.35
-        },
-        "half_spread_main": {
-          "line_index": 0,
-          "home_selection": "+0/0.5",
-          "home_odds": 1.57,
-          "away_selection": "-0/0.5",
-          "away_odds": 2.49
-        },
-        "half_total_main": {
-          "line_index": 0,
-          "line": "0.5",
-          "over_odds": 2.14,
-          "under_odds": 1.75
-        }
-      }
-    },
-    {
-      "league": "巴西甲级联赛",
-      "home": "桑托斯SP",
-      "away": "迈拉索尔SP",
-      "home_score": 0,
-      "away_score": 0,
-      "clock": "20:06",
-      "clock_status": "20:06",
-      "markets": {
-        "full_h2h": {
-          "home_odds": 1.83,
-          "draw_odds": 3.25,
-          "away_odds": 4.95
-        },
-        "full_spread_main": {
-          "line_index": 0,
-          "home_selection": "-0.5",
-          "home_odds": 1.82,
-          "away_selection": "+0.5",
-          "away_odds": 2.08
-        },
-        "full_spread_subs": [
-          {
-            "line_index": 1,
-            "home_selection": "-0.5/1",
-            "home_odds": 2.09,
-            "away_selection": "+0.5/1",
-            "away_odds": 1.81
-          },
-          {
-            "line_index": 2,
-            "home_selection": "-0/0.5",
-            "home_odds": 1.56,
-            "away_selection": "+0/0.5",
-            "away_odds": 2.51
+            "home_selection": "-0.5",
+            "home_odds": 2.69,
+            "away_selection": "+0.5",
+            "away_odds": 1.47
           }
         ],
         "full_total_main": {
           "line_index": 0,
           "line": "2",
-          "over_odds": 1.86,
-          "under_odds": 2.02
+          "over_odds": 1.91,
+          "under_odds": 1.95
         },
         "full_total_subs": [
           {
             "line_index": 1,
             "line": "2/2.5",
-            "over_odds": 2.2,
-            "under_odds": 1.71
+            "over_odds": 2.4,
+            "under_odds": 1.57
           },
           {
             "line_index": 2,
             "line": "1.5/2",
+            "over_odds": 1.56,
+            "under_odds": 2.42
+          }
+        ],
+        "half_h2h": null,
+        "half_spread_main": null,
+        "half_total_main": null
+      }
+    },
+    {
+      "league": "玻利维亚杯",
+      "home": "时刻准备",
+      "away": "奥鲁罗",
+      "home_score": 2,
+      "away_score": 1,
+      "clock": "58:16",
+      "clock_status": "58:16",
+      "added_time": null,
+      "countdown": null,
+      "commence_time": null,
+      "_pre_start_text": null,
+      "captured_at": "2026-08-20T20:20:09.874Z",
+      "markets": {
+        "full_h2h": {
+          "home_odds": 1.1,
+          "draw_odds": 6.2,
+          "away_odds": 18
+        },
+        "full_spread_main": {
+          "line_index": 0,
+          "home_selection": "-0.5",
+          "home_odds": 1.78,
+          "away_selection": "+0.5",
+          "away_odds": 2.04
+        },
+        "full_spread_subs": [
+          {
+            "line_index": 1,
+            "home_selection": "-0.5/1",
+            "home_odds": 2.11,
+            "away_selection": "+0.5/1",
+            "away_odds": 1.72
+          },
+          {
+            "line_index": 2,
+            "home_selection": "-0/0.5",
+            "home_odds": 1.49,
+            "away_selection": "+0/0.5",
+            "away_odds": 2.49
+          }
+        ],
+        "full_total_main": {
+          "line_index": 0,
+          "line": "4.5",
+          "over_odds": 1.96,
+          "under_odds": 1.84
+        },
+        "full_total_subs": [
+          {
+            "line_index": 1,
+            "line": "4/4.5",
+            "over_odds": 1.62,
+            "under_odds": 2.21
+          },
+          {
+            "line_index": 2,
+            "line": "4.5/5",
+            "over_odds": 2.25,
+            "under_odds": 1.6
+          }
+        ],
+        "half_h2h": null,
+        "half_spread_main": null,
+        "half_total_main": null
+      }
+    },
+    {
+      "league": "欧洲联赛资格赛 - 附加赛",
+      "home": "本菲卡",
+      "away": "奥胡斯",
+      "home_score": 3,
+      "away_score": 1,
+      "clock": "58:11",
+      "clock_status": "58:11",
+      "added_time": null,
+      "countdown": null,
+      "commence_time": null,
+      "_pre_start_text": null,
+      "captured_at": "2026-08-20T20:20:10.430Z",
+      "markets": {
+        "full_h2h": null,
+        "full_spread_main": {
+          "line_index": 0,
+          "home_selection": "-1",
+          "home_odds": 1.83,
+          "away_selection": "+1",
+          "away_odds": 2.05
+        },
+        "full_spread_subs": [
+          {
+            "line_index": 1,
+            "home_selection": "-1/1.5",
+            "home_odds": 2.16,
+            "away_selection": "+1/1.5",
+            "away_odds": 1.74
+          },
+          {
+            "line_index": 2,
+            "home_selection": "-0.5/1",
+            "home_odds": 1.57,
+            "away_selection": "+0.5/1",
+            "away_odds": 2.44
+          }
+        ],
+        "full_total_main": {
+          "line_index": 0,
+          "line": "5.5",
+          "over_odds": 1.84,
+          "under_odds": 2.02
+        },
+        "full_total_subs": [
+          {
+            "line_index": 1,
+            "line": "5.5/6",
+            "over_odds": 2.14,
+            "under_odds": 1.73
+          },
+          {
+            "line_index": 2,
+            "line": "5/5.5",
+            "over_odds": 1.56,
+            "under_odds": 2.42
+          }
+        ],
+        "half_h2h": null,
+        "half_spread_main": null,
+        "half_total_main": null
+      }
+    },
+    {
+      "league": "西班牙甲级联赛",
+      "home": "巴列卡诺",
+      "away": "阿拉维斯",
+      "home_score": 1,
+      "away_score": 0,
+      "clock": "58:06",
+      "clock_status": "58:06",
+      "added_time": null,
+      "countdown": null,
+      "commence_time": null,
+      "_pre_start_text": null,
+      "captured_at": "2026-08-20T20:20:10.430Z",
+      "markets": {
+        "full_h2h": {
+          "home_odds": 1.41,
+          "draw_odds": 4,
+          "away_odds": 10
+        },
+        "full_spread_main": {
+          "line_index": 0,
+          "home_selection": "+0/0.5",
+          "home_odds": 1.75,
+          "away_selection": "-0/0.5",
+          "away_odds": 2.17
+        },
+        "full_spread_subs": [
+          {
+            "line_index": 1,
+            "home_selection": "0",
+            "home_odds": 2.53,
+            "away_selection": "0",
+            "away_odds": 1.55
+          },
+          {
+            "line_index": 2,
+            "home_selection": "+0.5",
+            "home_odds": 1.48,
+            "away_selection": "-0.5",
+            "away_odds": 2.72
+          }
+        ],
+        "full_total_main": {
+          "line_index": 0,
+          "line": "2",
+          "over_odds": 2.04,
+          "under_odds": 1.84
+        },
+        "full_total_subs": [
+          {
+            "line_index": 1,
+            "line": "1.5/2",
             "over_odds": 1.61,
             "under_odds": 2.36
+          },
+          {
+            "line_index": 2,
+            "line": "2/2.5",
+            "over_odds": 2.53,
+            "under_odds": 1.53
+          }
+        ],
+        "half_h2h": null,
+        "half_spread_main": null,
+        "half_total_main": null
+      }
+    },
+    {
+      "league": "冰岛女子超级联赛",
+      "home": "斯塔尔南(女)",
+      "away": "布列达布利克(女)",
+      "home_score": 0,
+      "away_score": 0,
+      "clock": "47:34",
+      "clock_status": "47:34",
+      "added_time": null,
+      "countdown": null,
+      "commence_time": null,
+      "_pre_start_text": null,
+      "captured_at": "2026-08-20T20:20:10.986Z",
+      "markets": {
+        "full_h2h": {
+          "home_odds": 5.2,
+          "draw_odds": 3.1,
+          "away_odds": 1.58
+        },
+        "full_spread_main": {
+          "line_index": 0,
+          "home_selection": "+0.5/1",
+          "home_odds": 1.98,
+          "away_selection": "-0.5/1",
+          "away_odds": 1.84
+        },
+        "full_spread_subs": [
+          {
+            "line_index": 1,
+            "home_selection": "+1",
+            "home_odds": 1.66,
+            "away_selection": "-1",
+            "away_odds": 2.19
+          }
+        ],
+        "full_total_main": {
+          "line_index": 0,
+          "line": "2",
+          "over_odds": 1.79,
+          "under_odds": 2.01
+        },
+        "full_total_subs": [
+          {
+            "line_index": 1,
+            "line": "2/2.5",
+            "over_odds": 2.06,
+            "under_odds": 1.74
+          }
+        ],
+        "half_h2h": null,
+        "half_spread_main": null,
+        "half_total_main": null
+      }
+    },
+    {
+      "league": "阿根廷联赛后备队",
+      "home": "博卡青年后备队",
+      "away": "科尔多瓦中央后备队",
+      "home_score": 0,
+      "away_score": 0,
+      "clock": "20:32",
+      "clock_status": "20:32",
+      "added_time": null,
+      "countdown": null,
+      "commence_time": null,
+      "_pre_start_text": null,
+      "captured_at": "2026-08-20T20:20:11.540Z",
+      "markets": {
+        "full_h2h": {
+          "home_odds": 1.43,
+          "draw_odds": 3.45,
+          "away_odds": 7.4
+        },
+        "full_spread_main": {
+          "line_index": 0,
+          "home_selection": "-1",
+          "home_odds": 1.8,
+          "away_selection": "+1",
+          "away_odds": 2.02
+        },
+        "full_spread_subs": [
+          {
+            "line_index": 1,
+            "home_selection": "-1/1.5",
+            "home_odds": 2.14,
+            "away_selection": "+1/1.5",
+            "away_odds": 1.69
+          },
+          {
+            "line_index": 2,
+            "home_selection": "-0.5/1",
+            "home_odds": 1.57,
+            "away_selection": "+0.5/1",
+            "away_odds": 2.33
+          }
+        ],
+        "full_total_main": {
+          "line_index": 0,
+          "line": "2",
+          "over_odds": 1.83,
+          "under_odds": 1.97
+        },
+        "full_total_subs": [
+          {
+            "line_index": 1,
+            "line": "2/2.5",
+            "over_odds": 2.14,
+            "under_odds": 1.67
+          },
+          {
+            "line_index": 2,
+            "line": "1.5/2",
+            "over_odds": 1.59,
+            "under_odds": 2.26
           }
         ],
         "half_h2h": {
-          "home_odds": 2.81,
-          "draw_odds": 1.77,
-          "away_odds": 6.1
+          "home_odds": 2.38,
+          "draw_odds": 1.72,
+          "away_odds": 8.3
         },
         "half_spread_main": {
           "line_index": 0,
           "home_selection": "-0/0.5",
-          "home_odds": 2.19,
+          "home_odds": 1.87,
           "away_selection": "+0/0.5",
-          "away_odds": 1.74
+          "away_odds": 1.95
         },
         "half_total_main": {
           "line_index": 0,
           "line": "0.5",
-          "over_odds": 1.82,
-          "under_odds": 2.06
+          "over_odds": 1.83,
+          "under_odds": 1.97
         }
       }
     }

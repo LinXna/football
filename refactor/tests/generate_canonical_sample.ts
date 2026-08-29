@@ -16,8 +16,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function generateSample() {
-  const ybtyLivePath = path.resolve(__dirname, "../fixtures/ybty_v2.8.0_live_2026-08-23T21-55-11-819Z.json");
-  const leisuPath = path.resolve(__dirname, "../fixtures/leisu_v2.8.0_interface_sample.json");
+  const ybtyLivePath = path.resolve(__dirname, "../fixtures/ybty_v2.8.0_live_2026-08-20T20-20-13-747Z.json");
+  const leisuPath = path.resolve(__dirname, "../fixtures/leisu_v2.8.0_interface_data_2026-08-20T20-20-34-708Z.json");
 
   const rawYbtyLive = JSON.parse(fs.readFileSync(ybtyLivePath, "utf-8"));
   const rawLeisu = JSON.parse(fs.readFileSync(leisuPath, "utf-8"));
@@ -25,28 +25,28 @@ function generateSample() {
   const parsedYbtyLive = parseYbtyLiveRoot(rawYbtyLive);
   const parsedLeisu = parseLeisuInterfaceExport(rawLeisu);
 
-  // 构造真实匹配的别名与联赛
-  const aliases: Record<string, string> = {
-    "谢周三": "谢周三",
-    "布拉德福德": "布拉德福德",
-    "英甲": "英甲",
-  };
-
-  const sampleMatch = parsedYbtyLive.matches[0];
-  // 模拟 YBTY 抓取到该场赛事实时盘口
+  // 1. 获取目标比赛：谢周三 vs 布拉德福德城 (雷速 ID: 4562395)
+  const ybtyTarget = parsedYbtyLive.matches.find(m => m.home === "谢周三" && m.away === "布拉德福德城") || parsedYbtyLive.matches[0];
   const genericMatch: GenericYbtyMatch = {
-    league: "英甲",
-    home: "谢周三",
-    away: "布拉德福德",
-    home_score: 0,
-    away_score: 1,
-    clock: "63:00",
-    clock_status: "63:00",
+    league: ybtyTarget.league,
+    home: ybtyTarget.home,
+    away: ybtyTarget.away,
+    home_score: ybtyTarget.home_score !== null ? ybtyTarget.home_score : 0,
+    away_score: ybtyTarget.away_score !== null ? ybtyTarget.away_score : 1,
+    clock: ybtyTarget.clock || "62:25",
+    clock_status: ybtyTarget.clock_status || "62:25",
     is_live: true,
-    markets: sampleMatch.markets,
+    markets: ybtyTarget.markets,
   };
 
-  const matchedLeisu = parsedLeisu.matches[0]; // 关联雷速全特征样本 (谢周三 vs 布拉德福德)
+  const matchedLeisu = parsedLeisu.matches.find(m => String(m.match_id) === "4562395") || parsedLeisu.matches[0];
+  
+  const aliases: Record<string, string> = {
+    "英格兰甲级联赛": "英甲",
+    "谢周三": "谢周三",
+    "布拉德福德城": "布拉德福德",
+  };
+
   const { decision } = findBestLeisuMatch(genericMatch, [matchedLeisu], aliases);
 
   const canonical = assembleCanonicalMatch(genericMatch, matchedLeisu, decision!);
@@ -68,6 +68,8 @@ function generateSample() {
   const outputPath = path.join(targetDir, "canonical_match_sample.json");
   fs.writeFileSync(outputPath, JSON.stringify(sampleOutput, null, 2), "utf-8");
   console.log(`✅ Sample written to ${outputPath}`);
+  console.log(`Canonical ID: ${canonical.canonical_id}`);
+  console.log(`Teams: ${canonical.home_team_name} vs ${canonical.away_team_name}`);
 }
 
 generateSample();

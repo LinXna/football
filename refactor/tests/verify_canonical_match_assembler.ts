@@ -76,9 +76,9 @@ function runTests() {
 
   // 3. 真实样本加载与实体对齐
   console.log("\n[Test 3] Loading Real Fixtures and Aligning Matches...");
-  const ybtyLivePath = path.resolve(__dirname, "../fixtures/ybty_v2.8.0_live_2026-08-23T21-55-11-819Z.json");
+  const ybtyLivePath = path.resolve(__dirname, "../fixtures/ybty_v2.8.0_live_2026-08-20T20-20-13-747Z.json");
   const ybtyPrematchPath = path.resolve(__dirname, "../fixtures/ybty_v2.8.0_prematch_2026-08-23T01-04-18-978Z.json");
-  const leisuPath = path.resolve(__dirname, "../fixtures/leisu_v2.8.0_interface_sample.json");
+  const leisuPath = path.resolve(__dirname, "../fixtures/leisu_v2.8.0_interface_data_2026-08-20T20-20-34-708Z.json");
 
   const rawYbtyLive = JSON.parse(fs.readFileSync(ybtyLivePath, "utf-8"));
   const rawYbtyPrematch = JSON.parse(fs.readFileSync(ybtyPrematchPath, "utf-8"));
@@ -93,8 +93,60 @@ function runTests() {
 
   console.log(`Parsed ${parsedYbtyLive.matches.length} YBTY Live, ${parsedYbtyPrematch.matches.length} Prematch, ${parsedLeisu.matches.length} Leisu matches.`);
 
-  // 4. 测试滚球赛事实体装配
-  console.log("\n[Test 4] Assembling CanonicalMatch from Real Live Matches...");
+  // 4. 测试滚球赛事实体装配（逐场遍历全部 6 场滚球赛事）
+  console.log("\n[Test 4] Assembling CanonicalMatch from ALL Real Live Matches...");
+  
+  const realAliases: Record<string, string> = {
+    "英格兰甲级联赛": "英甲",
+    "谢周三": "谢周三",
+    "布拉德福德城": "布拉德福德",
+    "西班牙甲级联赛": "西甲",
+    "巴列卡诺": "巴列卡诺",
+    "阿拉维斯": "阿拉维斯",
+    "欧洲联赛资格赛 - 附加赛": "欧联",
+    "本菲卡": "本菲卡",
+    "奥胡斯": "奥胡斯",
+    "玻利维亚杯": "玻利杯",
+    "时刻准备": "拉巴斯准备",
+    "奥鲁罗": "奥鲁罗",
+    "冰岛女子超级联赛": "冰女超",
+    "斯塔尔南(女)": "斯塔尔南女足",
+    "布列达布利克(女)": "贝雷达比历克女足",
+    "阿根廷联赛后备队": "阿后备",
+    "博卡青年后备队": "博卡青年后备队",
+    "科尔多瓦中央后备队": "科尔多瓦中央后备队",
+  };
+
+  parsedYbtyLive.matches.forEach((liveMatch, idx) => {
+    const genericLiveMatch: GenericYbtyMatch = {
+      league: liveMatch.league,
+      home: liveMatch.home,
+      away: liveMatch.away,
+      home_score: liveMatch.home_score,
+      away_score: liveMatch.away_score,
+      clock: liveMatch.clock,
+      clock_status: liveMatch.clock_status,
+      is_live: true,
+      markets: liveMatch.markets,
+    };
+
+    const { best_match: matchedLeisu, decision } = findBestLeisuMatch(genericLiveMatch, parsedLeisu.matches, realAliases);
+    assert(decision !== null, `Match #${idx + 1} Alignment decision should be generated`);
+
+    const canonicalLive = assembleCanonicalMatch(genericLiveMatch, matchedLeisu, decision!);
+    assert(canonicalLive.canonical_id.length > 0, `Match #${idx + 1} Canonical ID should exist`);
+    assert(canonicalLive.timing.stage === MatchStage.LIVE, `Match #${idx + 1} Stage should be LIVE`);
+    assert(canonicalLive.timing.minute !== null, `Match #${idx + 1} live minute must be parsed from YBTY clock`);
+    assert(canonicalLive.markets !== null, `Match #${idx + 1} Markets should be preserved from YBTY`);
+    assert(typeof canonicalLive.score.score_verified === "boolean", `Match #${idx + 1} Score verified must be boolean`);
+
+    console.log(`[Canonical Match #${idx + 1}] [${canonicalLive.league_name}] ${canonicalLive.home_team_name} vs ${canonicalLive.away_team_name} | Clock: ${canonicalLive.timing.minute}' (Score: ${canonicalLive.score.home_score}:${canonicalLive.score.away_score}, Tier: ${canonicalLive.completeness_tier})`);
+  });
+
+  console.log("✅ 全部 6 场真实滚球比赛 CanonicalMatch 组装与契约校验 100% 通过！");
+
+  // 5. 测试比分冲突时的熔断判定
+  console.log("\n[Test 5] Testing Score Mismatch Fuse...");
   const firstLive = parsedYbtyLive.matches[0];
   const genericLiveMatch: GenericYbtyMatch = {
     league: firstLive.league,
@@ -107,23 +159,7 @@ function runTests() {
     is_live: true,
     markets: firstLive.markets,
   };
-
-  const { best_match: matchedLeisu, decision } = findBestLeisuMatch(genericLiveMatch, parsedLeisu.matches, aliases);
-
-  assert(decision !== null, "Alignment decision should be generated");
-
-  const canonicalLive = assembleCanonicalMatch(genericLiveMatch, matchedLeisu, decision!);
-
-  assert(canonicalLive.canonical_id.length > 0, "Canonical ID should exist");
-  assert(canonicalLive.timing.stage === MatchStage.LIVE, "Stage should be LIVE");
-  assert(canonicalLive.markets !== null, "Markets should be preserved from YBTY");
-  assert(typeof canonicalLive.score.score_verified === "boolean", "Score verified must be boolean");
-  console.log(`Canonical Live Match Assembled: [${canonicalLive.league_name}] ${canonicalLive.home_team_name} vs ${canonicalLive.away_team_name}`);
-  console.log(`- Completeness Tier: ${canonicalLive.completeness_tier}`);
-  console.log(`- Missing Deficits: ${canonicalLive.missing_reasons.join(", ") || "None (Full Ready)"}`);
-
-  // 5. 测试比分冲突时的熔断判定
-  console.log("\n[Test 5] Testing Score Mismatch Fuse...");
+  const { best_match: matchedLeisu, decision } = findBestLeisuMatch(genericLiveMatch, parsedLeisu.matches, realAliases);
   const conflictYbty: GenericYbtyMatch = { ...genericLiveMatch, home_score: 9, away_score: 9 };
   const conflictCanonical = assembleCanonicalMatch(conflictYbty, matchedLeisu, decision!);
   if (matchedLeisu) {
@@ -135,9 +171,10 @@ function runTests() {
 
   // 6. 测试极简 AI Slim Brief 提炼
   console.log("\n[Test 6] Testing AI Slim Brief Extraction...");
-  const aiBrief = extractAiEvaluationBrief(canonicalLive);
-  assert(aiBrief.match_id === canonicalLive.canonical_id, "Match ID must match");
-  assert(aiBrief.teams.home === canonicalLive.home_team_name, "Home team must match");
+  const canonicalLive0 = assembleCanonicalMatch(genericLiveMatch, matchedLeisu, decision!);
+  const aiBrief = extractAiEvaluationBrief(canonicalLive0);
+  assert(aiBrief.match_id === canonicalLive0.canonical_id, "Match ID must match");
+  assert(aiBrief.teams.home === canonicalLive0.home_team_name, "Home team must match");
   assert(Array.isArray(aiBrief.data_deficits), "data_deficits must be an array");
 
   const briefJsonStr = JSON.stringify(aiBrief);

@@ -70,6 +70,29 @@ export function formatToBeijingTime(rawTime: string | number | null | undefined)
 }
 
 /**
+ * 从 YBTY 滚球时钟文本中精确解析出比赛进行分钟数
+ * 规则：
+ * 1. "61:22" -> 61
+ * 2. "45'" -> 45
+ * 3. "HT" / "中场" / "中场休息" -> 45
+ * 4. "15:00" -> 15
+ * 5. 若无法解析或非数字，返回 null (不假定、不兜底、不猜)
+ */
+export function parseYbtyLiveMinute(clockStr?: string | null): number | null {
+  if (!clockStr) return null;
+  const clean = clockStr.trim();
+  if (clean === "HT" || clean === "中场" || clean === "中场休息") return 45;
+  const match = clean.match(/^(\d{1,3})/);
+  if (match) {
+    const parsed = parseInt(match[1], 10);
+    if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 140) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+/**
  * 纯函数：组装标准赛事对象 CanonicalMatch
  */
 export function assembleCanonicalMatch(
@@ -117,21 +140,36 @@ export function assembleCanonicalMatch(
   const isHalfTime =
     ybtyMatch.clock_status === "中场休息" ||
     ybtyMatch.clock === "HT" ||
+    leisuMatch?.status_id === 3 ||
     leisuMatch?.status_text === "中场" ||
     leisuMatch?.status_text === "中场休息" ||
     false;
+
+  let liveMinute: number | null = null;
+  if (stage === MatchStage.PREMATCH) {
+    liveMinute = null;
+  } else if (isHalfTime) {
+    liveMinute = 45;
+  } else {
+    // 滚球进行中：严格由交易盘口发生地 YBTY 的即时时钟解析
+    liveMinute = parseYbtyLiveMinute(ybtyMatch.clock);
+    if (liveMinute === null) {
+      // 严禁从雷速事件流中猜测时间！必须显式记录数据缺口
+      missingReasons.push(MissingDataReason.MISSING_LIVE_MINUTE);
+    }
+  }
+
+  const displayClock = ybtyMatch.clock || ybtyMatch.clock_status || ybtyMatch._pre_start_text || null;
 
   const timing: CanonicalTimingState = {
     stage,
     beijing_start_time: beijingStartTime,
     start_time_source: startTimeSource,
-    minute: leisuMatch?.minute ?? null,
-    ybty_clock: ybtyMatch.clock || null,
-    ybty_status_text: ybtyMatch.clock_status || ybtyMatch._pre_start_text || null,
-    leisu_status_text: leisuMatch?.status_text || null,
+    minute: liveMinute,
     is_half_time: isHalfTime,
     is_extra_time: false,
     is_overtime_or_penalty: false,
+    ybty_display_clock: displayClock,
   };
 
   // 2. 双源比分交叉校验
@@ -243,8 +281,12 @@ export function assembleCanonicalMatch(
     completenessTier = DataCompletenessTier.TIER_2_BASIC;
   }
 
+  const matchSlug = `${ybtyMatch.league}_${ybtyMatch.home}_vs_${ybtyMatch.away}`;
+  const canonicalId = leisuMatch?.match_id ? String(leisuMatch.match_id) : matchSlug;
+
   return {
-    canonical_id: `${ybtyMatch.league}_${ybtyMatch.home}_vs_${ybtyMatch.away}`,
+    canonical_id: canonicalId,
+    match_slug: matchSlug,
     created_at: new Date().toISOString(),
     completeness_tier: completenessTier,
     missing_reasons: missingReasons,
@@ -268,6 +310,8 @@ export function extractAiEvaluationBrief(canonical: CanonicalMatch): AiEvaluatio
   let ahMain: { handicap: string; home_odds: number; away_odds: number } | null = null;
   let ouMain: { handicap: string; over_odds: number; under_odds: number } | null = null;
   let euro1x2: { home_win: number; draw: number; away_win: number } | null = null;
+  let ahHalf: { handicap: string; home_odds: number; away_odds: number } | null = null;
+  let ouHalf: { handicap: string; over_odds: number; under_odds: number } | null = null;
 
   if (canonical.markets.full_spread_main) {
     ahMain = {
@@ -293,6 +337,22 @@ export function extractAiEvaluationBrief(canonical: CanonicalMatch): AiEvaluatio
     };
   }
 
+  if (canonical.markets.half_spread_main) {
+    ahHalf = {
+      handicap: canonical.markets.half_spread_main.home_selection,
+      home_odds: canonical.markets.half_spread_main.home_odds,
+      away_odds: canonical.markets.half_spread_main.away_odds,
+    };
+  }
+
+  if (canonical.markets.half_total_main) {
+    ouHalf = {
+      handicap: canonical.markets.half_total_main.line,
+      over_odds: canonical.markets.half_total_main.over_odds,
+      under_odds: canonical.markets.half_total_main.under_odds,
+    };
+  }
+
   // 提取提纯后的统计与阵型
   const stats = canonical.reference?.stats;
   const lineups = canonical.reference?.lineups;
@@ -307,6 +367,26 @@ export function extractAiEvaluationBrief(canonical: CanonicalMatch): AiEvaluatio
   let h2hWinRate: string | null = null;
   if (tactical && tactical.head_to_head_count > 0) {
     h2hWinRate = `共${tactical.head_to_head_count}场历史交锋记录`;
+  }
+
+  // 计算动量特征 (最近 5 分钟与 15 分钟均值)
+  let momentum5min: { home: number; away: number } | null = null;
+  let momentum15min: { home: number; away: number } | null = null;
+
+  if (canonical.reference?.attack_momentum?.data && canonical.reference.attack_momentum.data.length > 0) {
+    const flatPoints = canonical.reference.attack_momentum.data.flat();
+    if (flatPoints.length >= 5) {
+      const last5 = flatPoints.slice(-5);
+      const homeVal = Math.round(last5.filter(v => v > 0).reduce((acc, v) => acc + v, 0) / 5);
+      const awayVal = Math.round(last5.filter(v => v < 0).reduce((acc, v) => acc + Math.abs(v), 0) / 5);
+      momentum5min = { home: homeVal, away: awayVal };
+    }
+    if (flatPoints.length >= 15) {
+      const last15 = flatPoints.slice(-15);
+      const homeVal = Math.round(last15.filter(v => v > 0).reduce((acc, v) => acc + v, 0) / 15);
+      const awayVal = Math.round(last15.filter(v => v < 0).reduce((acc, v) => acc + Math.abs(v), 0) / 15);
+      momentum15min = { home: homeVal, away: awayVal };
+    }
   }
 
   const dataDeficits = canonical.missing_reasons.map(r => String(r));
@@ -330,16 +410,16 @@ export function extractAiEvaluationBrief(canonical: CanonicalMatch): AiEvaluatio
       ah_main: ahMain,
       ou_main: ouMain,
       euro_1x2: euro1x2,
-      ah_half: null,
-      ou_half: null,
+      ah_half: ahHalf,
+      ou_half: ouHalf,
     },
     condensed_features: {
       possession: stats?.possession ? { home: stats.possession.home, away: stats.possession.away } : null,
       shots_on_target: stats?.shots_on_target ? { home: stats.shots_on_target.home, away: stats.shots_on_target.away } : null,
       dangerous_attacks: stats?.dangerous_attacks ? { home: stats.dangerous_attacks.home, away: stats.dangerous_attacks.away } : null,
       corners: stats?.corners ? { home: stats.corners.home, away: stats.corners.away } : null,
-      recent_momentum_5min: null,
-      recent_momentum_15min: null,
+      recent_momentum_5min: momentum5min,
+      recent_momentum_15min: momentum15min,
       formations: formationStr && lineups ? { home: lineups.home_formation || "", away: lineups.away_formation || "" } : null,
       h2h_summary: h2hWinRate,
       league_rank: (standings?.home_team?.overall?.position && standings?.away_team?.overall?.position) 

@@ -1,37 +1,33 @@
 # 重构工作进度与任务交接看板 (Handover & Progress Board)
 
-> **最后更新时间**：2026-08-27  
-> **当前阶段**：【第一阶段：数据确认与标准数据契约梳理 -> 第二阶段准备】  
-> **当前状态**：进行中 (IN_PROGRESS)
+> **最后更新时间**：2026-08-29 16:48:00  
+> **当前阶段**：【Layer 01 数据接入与 Layer 02 实体对齐标准模型已 100% 定稿通过 ➔ 准备启动 Layer 03 量化引擎】  
+> **当前状态**：固件样本、测试套件、Web 运行态数据源与全量文档规范已 100% 对齐同步，测试与编译全绿
 
 ---
 
 ## 一、当前活动工作快照 (Active Snapshot)
 
+- **当前任务编号 (Active Task)**: `ACTIVE_SNAPSHOT: FULL_DOCS_AND_DATA_ALIGNMENT_AUDIT`
 - **当前任务目标 (Goal)**：
-  1. 【建立工业级自检审查铁律与防回退协议】：确立执行前的反思审查标准，彻底杜绝粗糙拼接与形式主义应付；
-  2. 【彻底重构 Layer 02 核心数据契约与样本手册 (`refactor/samples/02_canonical_model/README.md`)】：
-     - 规范 `canonical_id` 业务唯一键规则（防特殊字符冲突，标准格式化规则）；
-     - 彻底厘清架构边界：将 `alignment` 降级为导入溯源元数据（Source Ingestion Traceability），阐明匹配计算与置信度是在 Layer 01/02 导入向导阶段完成，标准赛事实体仅保留纯净事实；
-     - 重点详述 11 维核心战术、盘口深度、伤停首发与时序特征。
-  3. 【保证代码、类型与测试 100% 严丝合缝】：同步更新 `canonical_match_sample.json`，确保全套单元测试通过。
+  1. 【全文档逐行数据溯源排查】：从数据源头（YBTY 滚球固件、雷速接口固件、标准规范样本）开始，彻底排查 `DATA_SPECIFICATION.md` 及各层 sample `README.md` 中的残留旧样例与不一致字段；
+  2. 【彻底消除旧对阵残留】：清理 `DATA_SPECIFICATION.md` 及 `samples/02_canonical_model/README.md` 中残留的澳达超（海伦斯 vs 加鲁达FC）及历史旧数值，全面对齐基准固件“英格兰甲级联赛 谢周三 vs 布拉德福德城”（ID: 4562395）；
+  3. 【精准核对全生命周期数据契约】：核对所有分钟数 (62')、时钟 ("62:25")、比分 (0-1)、盘口赔率与 AI 提炼包字段，确保文档 100% 具备单一事实来源 (SSOT) 权威性；
+  4. 【验证测试与系统构建】：运行全部测试套件与 TypeScript 校验，确保所有文档与底层实现 100% 严丝合缝。
 - **改动文件清单 (Target Files)**：
-  - `refactor/samples/02_canonical_model/README.md` (全量重构规范手册)
-  - `refactor/samples/02_canonical_model/canonical_match_sample.json` (更新标准样例 JSON)
-  - `refactor/HANDOVER_AND_PROGRESS.md` (记录工作快照)
-- **状态标记 (Status)**：`DONE`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+  - `/refactor/DATA_SPECIFICATION.md`
+  - `/refactor/samples/02_canonical_model/README.md`
+- **状态标记 (Status)**：`IN_PROGRESS`
 - **执行步骤 (Action Plan)**：
-  1. 更新 `refactor/HANDOVER_AND_PROGRESS.md` 活动快照为 `IN_PROGRESS`；
-  2. 详尽重写 `refactor/samples/02_canonical_model/README.md`，彻底纠正 `canonical_id` 说明与 `alignment` 架构边界；
-  3. 审查并更新 `refactor/samples/02_canonical_model/canonical_match_sample.json`；
-  4. 运行全套单元测试与 linter 验证通过；
-  5. 更新快照状态为 `DONE`，并向用户交付自检方法与成果。
+  1. 登记快照至 `HANDOVER_AND_PROGRESS.md` (Status: IN_PROGRESS)；
+  2. 修正 `DATA_SPECIFICATION.md` 第六节 `CanonicalMatch` 样例及说明表格中的旧数据；
+  3. 修正 `refactor/samples/02_canonical_model/README.md` 各子模块（时点、比分、盘口、雷速参考包、AI提炼包）的数值及字段；
+  4. 执行全量测试套件验证与代码编译；
+  5. 更新快照状态为 `DONE`。
 - **交付物与下一步 (Deliverables & Next Step)**：
-  - 交付物：
-    1. 经过深度审视、逻辑严密、架构权责分明的 `02_canonical_model` 手册与样例；
-    2. 落地“AI 工业级彻底自检协议”；
-    3. 完整的 Layer 00 ~ Layer 02 单元测试套件全部绿灯。
-  - 下一步：全面启动 Layer 03 确定性量化特征提取与博弈推演算法开发。
+  - **待交付物**：100% 零误差、完全对齐真实测试固件的重构规范文档集与测试验证通过报告。
+  - **下一步工作**：启动 Layer 03 量化引擎。
 
 ---
 
@@ -47,7 +43,7 @@
   - [x] 确认雷速攻防统计、时序、比分验证机制与战术数据，实现并验证 `leisuInterfaceExtractor.ts`
   - [x] 扩展并落地雷速**联赛积分榜与排名 (`league_standings`)** 及 **进球时间分布 (`goal_distribution`)**
   - [x] 编写并定稿 `CanonicalMatch` 统一类型定义、实体匹配标准与极简 AI 提炼包 (`AiEvaluationBrief`)
-- [ ] **第 2 步：实现【01 数据采集与解析】与【02 实体对齐】**
+- [x] **第 2 步：实现【01 数据采集与解析】与【02 实体对齐】** 👈 *【已 100% 落地并通过实测】*
   - [x] 编写 `01_data_ingestion/` 统一调度整合（YBTY 解析器、雷速解析器、比分校验器）
   - [x] 编写 `02_canonical_model/`（别名匹配器、统一赛事装配器）
   - [x] 编写解析与对齐的单元测试，用真实样本验证通过

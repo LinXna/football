@@ -85,6 +85,10 @@ export enum LeisuKnownCompetitionId {
   CHINESE_SUPER = 210,      // 中超
   J1_LEAGUE = 230,          // 日职联
   K_LEAGUE_1 = 240,         // 韩K联
+  ICELAND_WOMEN_PREMIER = 281, // 冰女超
+  BOLIVIA_CUP = 482,        // 玻利维亚杯
+  ARGENTINA_RESERVE = 1699, // 阿后备
+  ICELAND_WOMEN_CUP = 2193, // 冰岛女杯 / 冰岛室内女足
 }
 
 export const LEISU_COMPETITION_NAMES: Record<number, string> = {
@@ -112,6 +116,10 @@ export const LEISU_COMPETITION_NAMES: Record<number, string> = {
   [LeisuKnownCompetitionId.CHINESE_SUPER]: "中超",
   [LeisuKnownCompetitionId.J1_LEAGUE]: "日职联",
   [LeisuKnownCompetitionId.K_LEAGUE_1]: "韩K联",
+  [LeisuKnownCompetitionId.ICELAND_WOMEN_PREMIER]: "冰女超",
+  [LeisuKnownCompetitionId.BOLIVIA_CUP]: "玻利杯",
+  [LeisuKnownCompetitionId.ARGENTINA_RESERVE]: "阿后备",
+  [LeisuKnownCompetitionId.ICELAND_WOMEN_CUP]: "冰女杯",
 };
 
 // ==========================================

@@ -111,13 +111,11 @@ export interface CanonicalTimingState {
   stage: MatchStage;
   beijing_start_time: string;     // YYYY-MM-DD HH:mm:ss
   start_time_source: "YBTY_EXACT" | "YBTY_ESTIMATED" | "LEISU_SUPPLEMENTED";
-  minute: number | null;          // 滚球进行分钟 (取自雷速，如 73)
-  ybty_clock: string | null;      // YBTY 时钟 (如 "23:23", "45'", "HT")
-  ybty_status_text: string | null;// YBTY 状态 (如 "中场休息", "加时", "即将开赛")
-  leisu_status_text: string | null;// 雷速 状态 (如 "中场", "下半场", "上半场")
+  minute: number | null;          // 滚球进行分钟 (严格由 YBTY 即时盘口时钟 ybty_display_clock 解析，中场锁定 45，赛前为 null；雷速不提供滚球时钟)
   is_half_time: boolean;          // 是否中场休息
   is_extra_time: boolean;         // 是否加时赛
   is_overtime_or_penalty: boolean;// 是否点球大战
+  ybty_display_clock: string | null; // YBTY 页面原生时钟显示（如 "61:22", "HT", "即将开赛"，用于出票核对）
 }
 
 /**
@@ -143,7 +141,8 @@ export interface CanonicalLeisuReference {
  */
 export interface CanonicalMatch {
   // 1. 唯一标识与元数据
-  canonical_id: string;                  // 格式: HASH(LEAGUE_HOME_AWAY_DATE)
+  canonical_id: string;                  // 严格确立为雷速赛事 ID (leisu_match_id，如 "4562395")
+  match_slug: string;                    // 业务对阵标识: ${league}_${home}_vs_${away}
   created_at: string;                    // ISO 时间戳
   completeness_tier: DataCompletenessTier;
   missing_reasons: MissingDataReason[];  // 缺失原因列表

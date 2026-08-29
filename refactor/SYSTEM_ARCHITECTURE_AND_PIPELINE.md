@@ -68,17 +68,26 @@
   - `line < 0`（如 `-0.25`, `-0.5`, `-1.0`）：**主受让**（客队让球方，对应 YBTY `"+0/0.5"`, `"+0.5"`, `"+1.0"`）；
   - `line = 0`：**平手盘**（互不让球，对应 YBTY `"0"` / `"0.0"`）。
 
-### 2. 滚球让球盘 0:0 实时重置模型 (Live 0:0 Reset Rule)
+### 2. 滚球即时时钟权威来源与雷速时间轴准则 (Live Clock SSOT & Timeline Integrity)
+- **YBTY 是滚球即时时钟的唯一法定事实来源 (SSOT)**：
+  - 交易盘口产生在 YBTY 端，计算剩余比赛时间、衰减率（Decay Rate）和泊松期望（Forward Poisson）的即时分钟 `live_minute` **必须严格且唯一从 `ybty.clock` 解析**（如 `"62:25"` $\rightarrow$ `62`）；中歇期锁定为 `45`；赛前固定为 `null`。
+- **严禁将雷速 `text_live` 文字直播时间当成比赛当前进行的时间标签**：
+  - 雷速的 `text_live`（文字直播）中的时间标签（如 `time: "63'"`）是**离散历史事件发生时刻 (Event Incident Timestamp)**，绝对不是连续滚动的当前比赛时钟！若比赛过去 10 分钟无重大事件，最新文字直播时间将严重滞后；
+  - **严禁任何模块、任何算法、任何解释使用 `text_live` 倒推或代表比赛即时进行分钟**。
+- **雷速端时间轴交叉印证的唯一合法途径**：
+  - 如需在雷速端交叉校验比赛进行时间轴，**只能且必须使用动量走势点阵长度 (`attack_momentum_timeline.data`)**（上半场点数 + 下半场点数 = 雷速采集的进行分钟数）。
+
+### 3. 滚球让球盘 0:0 实时重置模型 (Live 0:0 Reset Rule)
 - 滚球让球盘必须基于“推荐时刻双方比分重置为 0:0”计算后续时段净胜期望 $\Delta G = (\text{Final}_{\text{home}} - \text{LiveRec}_{\text{home}}) - (\text{Final}_{\text{away}} - \text{LiveRec}_{\text{away}})$。
 - 严禁使用全场已发生比分或完场比分直接减让球线！
 
-### 3. 纯 Forward 泊松推演与时间衰减模型 (Poisson Time-Decay)
+### 4. 纯 Forward 泊松推演与时间衰减模型 (Poisson Time-Decay)
 - 基于比赛剩余时间 $90 - t$、现场危攻斜率与攻守强度动态推导剩余进球期望 $\lambda_{\text{home\_rest}}, \lambda_{\text{away\_rest}}$，杜绝由比分预测倒推大小球。
 
-### 4. 公允赔率与 +EV 价值计算 (Shin / Proportional De-Vig)
+### 5. 公允赔率与 +EV 价值计算 (Shin / Proportional De-Vig)
 - 采用标准剥水算法剥除庄家 Overround，计算无偏公允概率 $P_{\text{fair}}$ 与真实期望价值 $\text{EV} = P_{\text{fair}} \times \text{Odds} - 1$。
 
-### 5. 精确核销判定公式 (Exact Settlement Formula)
+### 6. 精确核销判定公式 (Exact Settlement Formula)
 - 设净胜差值 $D = \Delta G - \text{line}$（以投注主队为例）：
   - $D \ge +0.5 \implies$ `WIN` (全赢)
   - $D = +0.25 \implies$ `HALF_WIN` (赢半)

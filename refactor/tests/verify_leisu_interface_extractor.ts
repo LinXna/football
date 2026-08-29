@@ -20,7 +20,7 @@ function runTests() {
 
   const fixturePath = path.resolve(
     process.cwd(),
-    "refactor/fixtures/leisu_v2.8.0_interface_sample.json"
+    "refactor/fixtures/leisu_v2.8.0_interface_data_2026-08-20T20-20-34-708Z.json"
   );
   if (!fs.existsSync(fixturePath)) {
     throw new Error(`找不到测试固件文件: ${fixturePath}`);
@@ -36,8 +36,8 @@ function runTests() {
   if (parsed.export_type !== "leisu_interface_data") {
     throw new Error(`export_type 错误: 期望 "leisu_interface_data", 实际 "${parsed.export_type}"`);
   }
-  if (parsed.matches.length !== 2) {
-    throw new Error(`matches.length 错误: 期望 2, 实际 ${parsed.matches.length}`);
+  if (parsed.matches.length !== 6) {
+    throw new Error(`matches.length 错误: 期望 6, 实际 ${parsed.matches.length}`);
   }
 
   console.log(`✅ 成功解析顶层元数据:`);
@@ -213,11 +213,47 @@ function runTests() {
 
   console.log(`  - 队伍ID: 主队 ${m1.home_team_id}, 客队 ${m1.away_team_id} (用于别名与对齐系统首选锁定)`);
   console.log(`  - 球场信息: ${m1.venue?.name} (${m1.venue?.city}, ${m1.venue?.country}) 容量: ${m1.venue?.capacity}`);
-  console.log(`  - 状态: ${m1.status_text} (分钟: ${m1.minute}') | 比分: ${m1.score.home}:${m1.score.away} (已核验: ${m1.score_verified})`);
+  console.log(`  - 状态: ${m1.status_text} | 比分: ${m1.score?.home}:${m1.score?.away} (已核验: ${m1.score_verified})`);
   console.log(`  - 联赛排名与积分: 主队第${homeStanding.overall?.position}名 (${homeStanding.overall?.points}分) vs 客队第${awayStanding.overall?.position}名 (${awayStanding.overall?.points}分)`);
   console.log(`  - 时段进球偏好: 主队首开纪录主要集中在 16-30' (占比 100%)`);
   console.log(`  - 时序事件: 共 ${m1.timeline_events.length} 项 (覆盖进球、角球、黄牌、越位5、射正21、射偏22等)`);
   console.log(`  - 阵容球员: 主队首发 ${m1.lineups.home_starters.length}人, 客队首发 ${m1.lineups.away_starters.length}人 (含评分、身价、事件incidents)`);
+
+  // 2.2 遍历校验其余5场比赛核心契约
+  console.log("\n=== 遍历校验其余全部赛事核心契约 ===");
+  
+  // 第2场: 巴列卡诺 vs 阿拉维斯
+  const m2 = parsed.matches[1];
+  console.log(`[第 2 场] ${m2.competition} | ${m2.home_team} vs ${m2.away_team} (MatchID: ${m2.match_id})`);
+  if (m2.match_id !== "4565335" || m2.competition_id !== 120 || m2.home_team !== "巴列卡诺" || m2.away_team !== "阿拉维斯") throw new Error("第2场解析错误");
+  if (m2.score?.home !== 1 || m2.score?.away !== 0 || !m2.score_verified) throw new Error("第2场比分错误");
+  if (!m2.stats.possession || m2.stats.corners.home !== 5 || m2.stats.corners.away !== 2) throw new Error("第2场技术统计错误");
+
+  // 第3场: 本菲卡 vs 奥胡斯
+  const m3 = parsed.matches[2];
+  console.log(`[第 3 场] ${m3.competition} | ${m3.home_team} vs ${m3.away_team} (MatchID: ${m3.match_id})`);
+  if (m3.match_id !== "4608875" || m3.competition_id !== 47 || m3.home_team !== "本菲卡" || m3.away_team !== "奥胡斯") throw new Error("第3场解析错误");
+  if (m3.score?.home !== 3 || m3.score?.away !== 1 || !m3.score_verified) throw new Error("第3场比分错误");
+
+  // 第4场: 拉巴斯准备 vs 奥鲁罗
+  const m4 = parsed.matches[3];
+  console.log(`[第 4 场] ${m4.competition} | ${m4.home_team} vs ${m4.away_team} (MatchID: ${m4.match_id})`);
+  if (m4.match_id !== "4614026" || m4.competition_id !== 482 || m4.home_team !== "拉巴斯准备" || m4.away_team !== "奥鲁罗") throw new Error("第4场解析错误");
+  if (m4.score?.home !== 2 || m4.score?.away !== 1 || !m4.score_verified) throw new Error("第4场比分错误");
+
+  // 第5场: 斯塔尔南女足 vs 贝雷达比历克女足
+  const m5 = parsed.matches[4];
+  console.log(`[第 5 场] ${m5.competition} | ${m5.home_team} vs ${m5.away_team} (MatchID: ${m5.match_id})`);
+  if (m5.match_id !== "4480038" || m5.competition_id !== 281 || m5.home_team !== "斯塔尔南女足" || m5.away_team !== "贝雷达比历克女足") throw new Error("第5场解析错误");
+  if (m5.score?.home !== 0 || m5.score?.away !== 0 || !m5.score_verified) throw new Error("第5场比分错误");
+
+  // 第6场: 博卡青年后备队 vs 科尔多瓦中央后备队
+  const m6 = parsed.matches[5];
+  console.log(`[第 6 场] ${m6.competition} | ${m6.home_team} vs ${m6.away_team} (MatchID: ${m6.match_id})`);
+  if (m6.match_id !== "4614087" || m6.competition_id !== 1699 || m6.home_team !== "博卡青年后备队" || m6.away_team !== "科尔多瓦中央后备队") throw new Error("第6场解析错误");
+  if (m6.score?.home !== 0 || m6.score?.away !== 0 || !m6.score_verified) throw new Error("第6场比分错误");
+
+  console.log("✅ 全部 6 场雷速赛事遍历解析断言 100% 通过");
 
   // 3. 验证枚举管理器未知类型收集告警机制
   const unknownTimeline = leisuEnumManager.resolveTimelineEventType(8888, "某未知测试事件");

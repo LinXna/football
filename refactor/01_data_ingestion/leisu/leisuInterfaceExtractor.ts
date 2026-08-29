@@ -101,20 +101,6 @@ export function isLiveStatus(statusId: number): boolean {
   return statusId >= LeisuMatchStatus.FIRST_HALF && statusId <= LeisuMatchStatus.PENALTY_SHOOTOUT;
 }
 
-export function extractLatestMinute(liveMatch?: LeisuRawLiveMatch | null): number | null {
-  if (!liveMatch || !Array.isArray(liveMatch.text_live)) return null;
-  let maxMin = 0;
-  for (const entry of liveMatch.text_live) {
-    const timeStr = String(entry.time || "");
-    const match = timeStr.match(/(\d{1,3})/);
-    if (match) {
-      const min = parseInt(match[1], 10);
-      if (min > maxMin) maxMin = min;
-    }
-  }
-  return maxMin > 0 ? maxMin : null;
-}
-
 export function parseMetricPair(pair?: LeisuRawMetricPair | null): MetricPair {
   return {
     home: safeNumber(pair?.home, 0),
@@ -592,7 +578,6 @@ export function parseLeisuResult(rawResult: LeisuRawResult): ParsedLeisuMatch | 
   const statusId = safeNumber(liveMatch?.status_id, LeisuMatchStatus.NOT_STARTED);
   const statusText = parseStatusIdToText(statusId);
   const isLive = isLiveStatus(statusId);
-  const minute = extractLatestMinute(liveMatch);
 
   // 比分提取与核验
   let score: ScorePair | null = null;
@@ -662,7 +647,6 @@ export function parseLeisuResult(rawResult: LeisuRawResult): ParsedLeisuMatch | 
     status_id: statusId,
     status_text: statusText,
     is_live: isLive,
-    minute,
     score,
     half_score: halfScore,
     score_verified: scoreVerified,

@@ -114,6 +114,12 @@
 - **严禁 AI 凭常识、通用大模型直觉或非标经验擅自发明或修改业务规则**。
 - 所有关于盘口结算机制、滚球 0:0 重置净胜、泊松时间衰减推演、+EV 剥水计算等业务与数学标准，必须 100% 严格以 `refactor/SYSTEM_ARCHITECTURE_AND_PIPELINE.md` 中定义的规则为唯一准绳。
 
+### 6.3 滚球即时时钟与雷速数据源物理边界硬性禁令 (Live Clock & Leisu Physical Boundary)
+- **雷速 `text_live` 严禁充当时钟禁令**：
+  - **严禁**将雷速 `text_live` 文字直播中的时间标签（如 `"63'"`）作为比赛正在进行的即时时间标签！文字直播时间仅代表离散历史事件发生时刻（Event Incident Time），存在天然无事件停滞与延迟；
+  - 滚球即时比赛分钟数（`live_minute`）**唯一法定事实来源 (SSOT) 必须严格由 YBTY 盘口时钟 (`ybty.clock`) 解析**；
+  - 雷速端若需印证比赛进行时间轴，**只能且必须使用动量走势点阵长度 (`attack_momentum_timeline.data`)**。任何违反此物理边界的代码与推论一律视为严重违规。
+
 ---
 
 ## 第七章：模块化枚举分类管理与公共基础设施抽离法典 (Modular Enums & Common Infrastructure)

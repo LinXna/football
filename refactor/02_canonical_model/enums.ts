@@ -55,4 +55,5 @@ export enum MissingDataReason {
   NO_LEAGUE_STANDINGS = "NO_LEAGUE_STANDINGS",           // 缺少联赛积分榜数据
   NO_GOAL_DISTRIBUTION = "NO_GOAL_DISTRIBUTION",         // 缺少时段进球分布数据
   NO_ODDS_MARKETS = "NO_ODDS_MARKETS",                   // YBTY 缺少有效交易盘口
+  MISSING_LIVE_MINUTE = "MISSING_LIVE_MINUTE",           // 滚球状态下 YBTY 缺少有效进行中时钟/分钟数
 }

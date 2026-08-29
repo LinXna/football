@@ -28,14 +28,14 @@ import { sniffIngressPayload } from "../../refactor/01_data_ingestion/ingressSni
 // 重构系统专有文件路径（完全物理隔离，零外部 output/ 依赖）
 const REFACTOR_STORAGE = {
   liveYbtyActive: "refactor/fixtures/active_live_ybty.json",
-  liveYbtyDefault: "refactor/fixtures/ybty_v2.8.0_live_2026-08-23T21-55-11-819Z.json",
+  liveYbtyDefault: "refactor/fixtures/ybty_v2.8.0_live_2026-08-20T20-20-13-747Z.json",
   liveLeisuActive: "refactor/fixtures/active_live_leisu.json",
-  liveLeisuDefault: "refactor/fixtures/leisu_v2.8.0_interface_sample.json",
+  liveLeisuDefault: "refactor/fixtures/leisu_v2.8.0_interface_data_2026-08-20T20-20-34-708Z.json",
   
   prematchYbtyActive: "refactor/fixtures/active_prematch_ybty.json",
   prematchYbtyDefault: "refactor/fixtures/ybty_v2.8.0_prematch_2026-08-23T01-04-18-978Z.json",
   prematchLeisuActive: "refactor/fixtures/active_prematch_leisu.json",
-  prematchLeisuDefault: "refactor/fixtures/leisu_v2.8.0_interface_sample.json",
+  prematchLeisuDefault: "refactor/fixtures/leisu_v2.8.0_interface_data_2026-08-23T01-04-37-353Z.json",
 
   manualAliases: "team_aliases.json",
   leagueAliases: "league_aliases.json",

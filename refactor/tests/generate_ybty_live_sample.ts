@@ -11,7 +11,7 @@ function generateSample() {
     process.cwd(),
     "refactor",
     "fixtures",
-    "ybty_v2.8.0_live_2026-08-23T21-55-11-819Z.json"
+    "ybty_v2.8.0_live_2026-08-20T20-20-13-747Z.json"
   );
   if (!fs.existsSync(fixturePath)) {
     console.error("❌ 样本原始文件不存在:", fixturePath);

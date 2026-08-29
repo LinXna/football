@@ -566,7 +566,6 @@ export interface ParsedLeisuMatch {
   status_id: LeisuMatchStatus | number;
   status_text: string;
   is_live: boolean;
-  minute: number | null;
   score: ScorePair | null;
   half_score: ScorePair | null;
   score_verified: boolean;

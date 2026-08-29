@@ -9,7 +9,7 @@ import { parseLeisuInterfaceExport } from "../01_data_ingestion/leisu/leisuInter
 function generateLeisuSample() {
   const fixturePath = path.resolve(
     process.cwd(),
-    "refactor/fixtures/leisu_v2.8.0_interface_sample.json"
+    "refactor/fixtures/leisu_v2.8.0_interface_data_2026-08-20T20-20-34-708Z.json"
   );
   const outputPath = path.resolve(
     process.cwd(),

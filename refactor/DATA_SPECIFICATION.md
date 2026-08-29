@@ -36,7 +36,7 @@
 {
   "schema_version": 2,
   "export_version": "2.8.0",
-  "captured_at": "2026-08-23T21:55:11.819Z",
+  "captured_at": "2026-08-20T20:20:13.747Z",
   "matches": []
 }
 ```
@@ -45,7 +45,7 @@
 | :--- | :--- | :--- | :--- |
 | `schema_version` | `number` | `2` | **协议大版本号**。作为入口强类型守卫，若插件重大改版导致版本不匹配则直接拦截，防止崩溃。 |
 | `export_version` | `string` | `"2.8.0"` | **导出插件版本号**。用于排查浏览器插件版本与 DOM 解析兼容性。 |
-| `captured_at` | `string` | `"2026-08-23T21:55:11.819Z"` | **全量抓取时间戳 (UTC ISO 8601)**。全文件仅存一份，用于时效性判定与赛事匹配时间窗口对齐。 |
+| `captured_at` | `string` | `"2026-08-20T20:20:13.747Z"` | **全量抓取时间戳 (UTC ISO 8601)**。全文件仅存一份，用于时效性判定与赛事匹配时间窗口对齐。 |
 | `matches` | `Array` | `[...]` | **滚球赛事明细列表**。包含本批次抓取到的全部滚球赛事。 |
 
 ---
@@ -54,26 +54,26 @@
 
 ```json
 {
-  "league": "巴西甲级联赛",
-  "home": "沙佩科人SC",
-  "away": "圣保罗SP",
+  "league": "英格兰甲级联赛",
+  "home": "谢周三",
+  "away": "布拉德福德城",
   "home_score": 0,
-  "away_score": 0,
-  "clock": "23:23",
-  "clock_status": "23:23",
+  "away_score": 1,
+  "clock": "62:25",
+  "clock_status": "62:25",
   "markets": {}
 }
 ```
 
 | 字段名称 (`Key`) | 类型 | 示例值 | 中文含义与权威业务说明 |
 | :--- | :--- | :--- | :--- |
-| `league` | `string` | `"巴西甲级联赛"` | **YBTY 原始联赛名**。赛事层级识别与别名映射依据。 |
-| `home` | `string` | `"沙佩科人SC"` | **YBTY 原始主队名**。系统绝对事实基准主队名（推荐与台账均以此为准）。 |
-| `away` | `string` | `"圣保罗SP"` | **YBTY 原始客队名**。系统绝对事实基准客队名（推荐与台账均以此为准）。 |
+| `league` | `string` | `"英格兰甲级联赛"` | **YBTY 原始联赛名**。赛事层级识别与别名映射依据。 |
+| `home` | `string` | `"谢周三"` | **YBTY 原始主队名**。系统绝对事实基准主队名（推荐与台账均以此为准）。 |
+| `away` | `string` | `"布拉德福德城"` | **YBTY 原始客队名**。系统绝对事实基准客队名（推荐与台账均以此为准）。 |
 | `home_score` | `number \| null` | `0` | **主队即时进球数**。数字类型，后续需与雷速比分画布交叉核验。 |
-| `away_score` | `number \| null` | `0` | **客队即时进球数**。数字类型，后续需与雷速比分画布交叉核验。 |
-| `clock` | `string \| null` | `"23:23"` / `null` | **正在踢球进行中的即时分钟**。⚠️ 仅在比赛踢球时有值；中场休息或暂停时恒为 `null`。 |
-| `clock_status` | `string` | `"23:23"` / `"中场休息"` | **全周期比赛状态文本**。比赛踢球中与 `clock` 一致；中歇期为 `"中场休息"`。 |
+| `away_score` | `number \| null` | `1` | **客队即时进球数**。数字类型，后续需与雷速比分画布交叉核验。 |
+| `clock` | `string \| null` | `"62:25"` / `null` | **正在踢球进行中的即时分钟**。⚠️ 仅在比赛踢球时有值；中场休息或暂停时恒为 `null`。 |
+| `clock_status` | `string` | `"62:25"` / `"中场休息"` | **全周期比赛状态文本**。比赛踢球中与 `clock` 一致；中歇期为 `"中场休息"`。 |
 | `markets` | `object` | `{...}` | **即时盘口数据集合**。包含全场独赢、全场让球、全场大小球及半场盘口。 |
 
 ---
@@ -83,9 +83,9 @@
 #### (1) 全场独赢 (`markets.full_h2h`) 与 半场独赢 (`markets.half_h2h`)
 | 字段名称 (`Key`) | 类型 | 示例值 | 中文含义与权威业务说明 |
 | :--- | :--- | :--- | :--- |
-| `home_odds` | `number` | `3.90` | **主胜欧赔 (含本金)**。数字类型，用于去抽水计算公允胜率。 |
-| `draw_odds` | `number` | `2.99` | **平局欧赔 (含本金)**。数字类型。 |
-| `away_odds` | `number` | `2.16` | **客胜欧赔 (含本金)**。数字类型。 |
+| `home_odds` | `number` | `8.7` | **主胜欧赔 (含本金)**。数字类型，用于去抽水计算公允胜率。 |
+| `draw_odds` | `number` | `3.75` | **平局欧赔 (含本金)**。数字类型。 |
+| `away_odds` | `number` | `1.43` | **客胜欧赔 (含本金)**。数字类型。 |
 
 #### (2) 全场让球 (`markets.full_spread_main`, `markets.full_spread_subs`) 与 半场让球 (`markets.half_spread_main`)
 > ⚠️ **核心口径**：滚球让球盘口表示**自推荐时刻起双方比分视为 0:0，仅结算后续剩余时段的新增进球净胜**。
@@ -93,18 +93,18 @@
 | 字段名称 (`Key`) | 类型 | 示例值 | 中文含义与权威业务说明 |
 | :--- | :--- | :--- | :--- |
 | `line_index` | `number` | `0` (主盘) / `1` (副盘) | **盘口深度索引**。`0` 表示核心主盘口，`1`、`2` 表示深度副盘。 |
-| `home_selection` | `string` | `"+0.5"` / `"-0/0.5"` | **主队让球/受让盘口线**。字符串标准格式，支持四分之一盘。 |
-| `home_odds` | `number` | `1.81` | **主队让球水位赔率**。数字类型。 |
-| `away_selection` | `string` | `"-0.5"` / `"+0/0.5"` | **客队让球/受让盘口线**。字符串标准格式。 |
-| `away_odds` | `number` | `2.09` | **客队让球水位赔率**。数字类型。 |
+| `home_selection` | `string` | `"-0/0.5"` / `"0"` / `"-0.5"` | **主队让球/受让盘口线**。字符串标准格式，支持四分之一盘。 |
+| `home_odds` | `number` | `2.2` | **主队让球水位赔率**。数字类型。 |
+| `away_selection` | `string` | `"+0/0.5"` / `"0"` / `"+0.5"` | **客队让球/受让盘口线**。字符串标准格式。 |
+| `away_odds` | `number` | `1.71` | **客队让球水位赔率**。数字类型。 |
 
 #### (3) 全场大小球 (`markets.full_total_main`, `markets.full_total_subs`) 与 半场大小球 (`markets.half_total_main`)
 | 字段名称 (`Key`) | 类型 | 示例值 | 中文含义与权威业务说明 |
 | :--- | :--- | :--- | :--- |
 | `line_index` | `number` | `0` (主盘) / `1` (副盘) | **盘口深度索引**。`0` 表示核心主盘口，`1`、`2` 表示高低副盘。 |
-| `line` | `string` | `"1.5/2"` / `"2"` / `"0.5"` | **大小球分界线**。从原始 options 中直接提取，支持四分之一盘口。 |
-| `over_odds` | `number` | `1.82` | **大球 (Over) 水位赔率**。数字类型。 |
-| `under_odds` | `number` | `2.06` | **小球 (Under) 水位赔率**。数字类型。 |
+| `line` | `string` | `"2"` / `"2/2.5"` / `"1.5/2"` | **大小球分界线**。从原始 options 中直接提取，支持四分之一盘口。 |
+| `over_odds` | `number` | `1.91` | **大球 (Over) 水位赔率**。数字类型。 |
+| `under_odds` | `number` | `1.95` | **小球 (Under) 水位赔率**。数字类型。 |
 
 ---
 
@@ -183,7 +183,6 @@
   "status_id": 4,
   "status_text": "下半场",
   "is_live": true,
-  "minute": 63,
   "score": { "home": 0, "away": 1 },
   "half_score": { "home": 0, "away": 0 },
   "score_verified": true,
@@ -276,15 +275,14 @@
 | `status_id` | `number` | `4` | **比赛状态枚举代码**（见下方枚举字典）。 |
 | `status_text` | `string` | `"下半场"` | **比赛状态文本**。 |
 | `is_live` | `boolean` | `true` | **是否为滚球进行中比赛**（`2 <= status_id <= 7`）。 |
-| `minute` | `number \| null` | `63` | **最新进行中分钟数**（纯数字，去除了冗余的 `display_time`）。 |
 | `score` | `object \| null` | `{ "home": 0, "away": 1 }` | **即时全场比分**。 |
 | `half_score` | `object \| null` | `{ "home": 0, "away": 0 }` | **半场比分**。 |
 | `score_verified` | `boolean` | `true` | **比分核验标记**（必须经过可靠接口/画布交叉校验，未核验禁止给 A 级推荐）。 |
 | `venue` | `object \| null` | `{...}` | **比赛场地信息**（球场名 `name`、城市 `city`、国家 `country`、容量 `capacity`）。 |
 | `environment` | `object` | `{...}` | **天气与物理环境**（气温、天气、风速、气压、湿度）。 |
 | `stats` | `object` | `{...}` | **8大核心攻防统计**（角球、黄牌、红牌、进攻、危险进攻、控球率、射正、射偏、总射门）。 |
-| `attack_momentum` | `object` | `{...}` | **实时攻防动量波形时序数据**（包含上下半场每分钟压迫指数矩阵）。 |
-| `timeline_events` | `array` | `[...]` | **文字直播事件时序**（由枚举管理器统一解析 `type`、`type_name`、`side`、`minute`、`text`）。 |
+| `attack_momentum` | `object` | `{...}` | **实时攻防动量波形时序数据**（包含上下半场每分钟压迫指数矩阵。⚠️ **雷速端唯一合法的时间轴点阵**，点阵长度即代表已进行分钟数）。 |
+| `timeline_events` | `array` | `[...]` | **文字直播事件时序**（由枚举管理器统一解析 `type`、`type_name`、`side`、`minute`、`text`。⚠️ **仅代表离散历史事件发生时间，严禁当做比赛当前进行的即时时钟！**）。 |
 | `lineups` | `object` | `{...}` | **首发阵型与球员阵容**（阵型、主教练、身价、平均年龄、首发/替补/伤停名单及球员详细字段）。 |
 | `odds_matrix` | `object` | `{...}` | **初盘/即盘/滚球赔率矩阵**（让球、独赢、大小球、角球盘）。 |
 | `tactical_context` | `object` | `{...}` | **基本面深度上下文**（历史交锋、主客队近期全量战绩明细）。 |
@@ -463,9 +461,9 @@
    - **绝对不包含任何主观量化计算或衍生特征**（如泊松推演剩余进球期望、剥水公允赔率、+EV 价值、进攻危攻斜率等全部留给 Layer 03 `03_quant_engine` 纯函数计算）；
    - 保留最客观、无偏的原始融合状态。
 2. **权责分工与数据流向绝对边界 (Strict Data Flow & Responsibility Boundary)**：
-   - **YBTY 盘口数据**：**深度参与计算与预测**。负责提供让球/大小球/独赢/主副盘精确盘口线与赔率，用于 Layer 03 剥水公允概率、+EV 计算与盘口深度比对；
+   - **YBTY 盘口与滚球时钟数据**：**深度参与计算与预测**。负责提供让球/大小球/独赢/主副盘精确盘口线与赔率，以及滚球进行中的即时分钟数 (`minute`，从 `ybty_display_clock` 解析)，用于 Layer 03 泊松时间衰减推演、剥水公允概率、+EV 计算与盘口深度比对；
    - **YBTY 队名与联赛名**：**纯出票展示与投注映射，绝不参与预测计算**。仅用于在管理面板、推荐结果中直观展示，让你在 YBTY 上零认知转换直接出票；
-   - **雷速全量数据**：**深度参与计算与预测**。负责提供开赛时间转换 (`beijing_start_time`)、进行分钟 (`minute`)、比分画布校验 (`score_verified`)、8 大攻防技术统计 (`stats`)、动量波形时序 (`attack_momentum`)、首发阵型阵容 (`lineups`)、联赛积分榜 (`league_standings`) 与时段进球分布 (`goal_distribution`)。
+   - **雷速全量数据**：**深度参与计算与预测**。负责提供开赛时间转换 (`beijing_start_time`)、比分画布校验 (`score_verified`)、8 大攻防技术统计 (`stats`)、动量波形时序 (`attack_momentum`)、首发阵型阵容 (`lineups`)、联赛积分榜 (`league_standings`) 与时段进球分布 (`goal_distribution`)。雷速不提供滚球时钟，严禁从雷速事件时间臆造当前时间。
 3. **导入拦截与深度绑定 (Pre-Import Gate & Deep Binding)**：
    - YBTY 与雷速匹配不上的比赛，在导入弹窗中明确展示并禁止勾选导入；
    - 只有经人工视觉确认并勾选导入的比赛，才正式生成 `CanonicalMatch`；
@@ -479,14 +477,15 @@
 
 ```json
 {
-  "canonical_id": "英甲_谢周三_vs_布拉德福德",
-  "created_at": "2026-08-28T02:22:54.233Z",
+  "canonical_id": "4562395",
+  "match_slug": "英格兰甲级联赛_谢周三_vs_布拉德福德城",
+  "created_at": "2026-08-29T23:32:51.887Z",
   "completeness_tier": "TIER_1_FULL",
   "missing_reasons": [],
   "alignment": { ... },
-  "league_name": "英甲",
+  "league_name": "英格兰甲级联赛",
   "home_team_name": "谢周三",
-  "away_team_name": "布拉德福德",
+  "away_team_name": "布拉德福德城",
   "timing": { ... },
   "score": { ... },
   "markets": { ... },
@@ -494,20 +493,21 @@
 }
 ```
 
-| 字段名称 (`Key`) | 类型 | 示例值 | 中文含义与权威业务说明 |
-| :--- | :--- | :--- | :--- |
-| `canonical_id` | `string` | `"英甲_谢周三_vs_布拉德福德"` | **赛事全局唯一业务主键**。规则：`${league_name}_${home_team_name}_vs_${away_team_name}`，由 YBTY 法定原名规范清洗生成，作为全系统跨模块通信与推荐台账唯一索引。 |
-| `created_at` | `string` | `"2026-08-28T02:22:54.233Z"` | **实体装配 UTC ISO 8601 时间戳**。记录装配流水线执行的具体时点。 |
-| `completeness_tier` | `DataCompletenessTier` | `"TIER_1_FULL"` | **数据完整度分级**（`TIER_1_FULL`, `TIER_2_BASIC`, `TIER_3_SPARSE`, `TIER_INVALID`），作为风控与推荐门槛准入核心依据。 |
-| `missing_reasons` | `MissingDataReason[]` | `[]` | **数据缺口枚举清单**。显式罗列当前赛事缺失的维度（如阵型、时序、积分或比分未校验）。 |
-| `alignment` | `MatchAlignmentDecision` | `{...}` | **数据源关联溯源与对齐元数据**。作为入库审计凭证与排错追溯元数据，记录对齐状态、置信分、关联 ID 与说明。主系统量化与分析层不依赖底层算分过程。 |
-| `league_name` | `string` | `"英甲"` | **YBTY 原始法定联赛名**。系统法定基准。 |
-| `home_team_name` | `string` | `"谢周三"` | **YBTY 原始法定主队名**。系统法定基准，推荐与出票一律以此为准。 |
-| `away_team_name` | `string` | `"布拉德福德"` | **YBTY 原始法定客队名**。系统法定基准，推荐与出票一律以此为准。 |
-| `timing` | `CanonicalTimingState` | `{...}` | **标准时点与进行状态**。包含北京开赛时间、时间来源、滚球分钟、半场/加时标记。 |
-| `score` | `CanonicalScoreState` | `{...}` | **双源校验比分状态**。包含即时比分、半场比分、校验源、校验标记与冲突警告。 |
-| `markets` | `CleanMarketsGroup` | `{...}` | **YBTY 法定交易盘口组**（全场/半场独赢、全场/半场让球主副盘、全场/半场大小球主副盘）。 |
-| `reference` | `CanonicalLeisuReference \| null` | `{...}` / `null` | **雷速基本面与时序增强包**。未匹配雷速或数据缺失时为 `null`。 |
+| 字段名称 (`Key`) | 类型 | 示例值 | 数据源头 (`Data Source`) | 中文含义与权威业务说明 |
+| :--- | :--- | :--- | :--- | :--- |
+| `canonical_id` | `string` | `"4562395"` | **雷速 (Leisu)** | **赛事全局唯一物理主键**。严格确立为雷速赛事 ID (`leisu_match_id`)，物理世界唯一且不可重复，作为全系统跨模块流转与推荐台账唯一主键。 |
+| `match_slug` | `string` | `"英格兰甲级联赛_谢周三_vs_布拉德福德城"` | **双源合成** | **业务自然语言对阵标识**。格式：`${league_name}_${home_team_name}_vs_${away_team_name}`，作为辅助人类可读检索。 |
+| `created_at` | `string` | `"2026-08-29T23:32:51.887Z"` | **系统流水线** | **实体装配 UTC ISO 8601 时间戳**。记录装配流水线执行的具体时点。 |
+| `completeness_tier` | `DataCompletenessTier` | `"TIER_1_FULL"` | **系统判定** | **数据完整度分级**（`TIER_1_FULL`, `TIER_2_BASIC`, `TIER_3_SPARSE`, `TIER_INVALID`），作为风控与推荐门槛准入核心依据。 |
+| `missing_reasons` | `MissingDataReason[]` | `[]` | **系统判定** | **数据缺口枚举清单**。显式罗列当前赛事缺失的维度（如阵型、时序、积分或比分未校验）。 |
+| `alignment` | `MatchAlignmentDecision` | `{...}` | **系统对齐引擎** | **数据源关联溯源与对齐元数据**。作为入库审计凭证与排错追溯元数据，记录对齐状态、置信分、关联 ID 与说明。主系统量化与分析层不依赖底层算分过程。 |
+| `league_name` | `string` | `"英格兰甲级联赛"` | **YBTY (法定)** | **YBTY 原始法定联赛名**。系统法定基准。 |
+| `home_team_name` | `string` | `"谢周三"` | **YBTY (法定)** | **YBTY 原始法定主队名**。系统法定基准，推荐与出票一律以此为准。 |
+| `away_team_name` | `string` | `"布拉德福德城"` | **YBTY (法定)** | **YBTY 原始法定客队名**。系统法定基准，推荐与出票一律以此为准。 |
+| `timing` | `CanonicalTimingState` | `{...}` | **双源综合** | **标准时点与进行状态**。包含北京开赛时间、时间来源、滚球分钟（YBTY唯一权威）、半场/加时标记。 |
+| `score` | `CanonicalScoreState` | `{...}` | **双源交叉校验** | **双源校验比分状态**。包含即时比分、半场比分、校验源、校验标记与冲突警告。 |
+| `markets` | `CleanMarketsGroup` | `{...}` | **YBTY (唯一交易源)** | **YBTY 法定交易盘口组**（全场/半场独赢、全场/半场让球主副盘、全场/半场大小球主副盘，100%来自YBTY）。 |
+| `reference` | `CanonicalLeisuReference \| null` | `{...}` / `null` | **雷速 (Leisu)** | **雷速基本面与时序增强包**。未匹配雷速或数据缺失时为 `null`。 |
 
 ---
 
@@ -547,13 +547,11 @@ export interface CanonicalTimingState {
   stage: MatchStage;                  // PREMATCH (赛前) | LIVE (滚球) | FINISHED (完场)
   beijing_start_time: string;         // YYYY-MM-DD HH:mm:ss 标准北京时间
   start_time_source: "YBTY_EXACT" | "YBTY_ESTIMATED" | "LEISU_SUPPLEMENTED";
-  minute: number | null;              // 滚球进行分钟 (取自雷速，如 73；赛前为 null)
-  ybty_clock: string | null;          // YBTY 即时时钟 (如 "23:23", "45'", "HT")
-  ybty_status_text: string | null;    // YBTY 状态文本 (如 "中场休息", "加时", "即将开赛")
-  leisu_status_text: string | null;   // 雷速状态文本 (如 "中场", "下半场", "上半场")
+  minute: number | null;              // 滚球进行分钟 (严格由 YBTY 即时盘口时钟 ybty_display_clock 解析，中场锁定 45，赛前为 null；雷速不提供滚球时钟)
   is_half_time: boolean;              // 是否中场休息
   is_extra_time: boolean;             // 是否加时赛
   is_overtime_or_penalty: boolean;    // 是否点球大战
+  ybty_display_clock: string | null;  // YBTY 即时时钟文本 (如 "23:23", "45'", "HT", "即将开赛")
 }
 ```
 

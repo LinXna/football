@@ -1,10 +1,11 @@
 {
   "sample_version": "1.0.0",
-  "generated_at": "2026-08-28T02:22:54.233Z",
+  "generated_at": "2026-08-29T23:32:51.888Z",
   "description": "Layer 02 标准赛事对象 (CanonicalMatch) 与 AI Slim Brief 提炼样本",
   "canonical_match": {
-    "canonical_id": "英甲_谢周三_vs_布拉德福德",
-    "created_at": "2026-08-28T02:22:54.233Z",
+    "canonical_id": "4562395",
+    "match_slug": "英格兰甲级联赛_谢周三_vs_布拉德福德城",
+    "created_at": "2026-08-29T23:32:51.887Z",
     "completeness_tier": "TIER_1_FULL",
     "missing_reasons": [],
     "alignment": {
@@ -17,13 +18,13 @@
         "raw_text_similarity": 1
       },
       "away_team_match": {
-        "ybty_name": "布拉德福德",
+        "ybty_name": "布拉德福德城",
         "leisu_name": "布拉德福德",
         "is_alias_exact_hit": true,
         "raw_text_similarity": 1
       },
       "league_match": {
-        "ybty_league": "英甲",
+        "ybty_league": "英格兰甲级联赛",
         "leisu_league": "英甲",
         "status": "MATCHED_BY_ALIAS",
         "similarity": 1,
@@ -33,20 +34,18 @@
       "is_swapped_suspected": false,
       "alignment_reason": "主客两队均命中静态别名库 (100% 精确匹配)"
     },
-    "league_name": "英甲",
+    "league_name": "英格兰甲级联赛",
     "home_team_name": "谢周三",
-    "away_team_name": "布拉德福德",
+    "away_team_name": "布拉德福德城",
     "timing": {
       "stage": "LIVE",
       "beijing_start_time": "2026-08-21 03:00:00",
       "start_time_source": "LEISU_SUPPLEMENTED",
-      "minute": 63,
-      "ybty_clock": "63:00",
-      "ybty_status_text": "63:00",
-      "leisu_status_text": "下半场",
+      "minute": 62,
       "is_half_time": false,
       "is_extra_time": false,
-      "is_overtime_or_penalty": false
+      "is_overtime_or_penalty": false,
+      "ybty_display_clock": "62:25"
     },
     "score": {
       "home_score": 0,
@@ -60,71 +59,56 @@
     },
     "markets": {
       "full_h2h": {
-        "home_odds": 3.9,
-        "draw_odds": 2.99,
-        "away_odds": 2.16
+        "home_odds": 8.7,
+        "draw_odds": 3.75,
+        "away_odds": 1.43
       },
       "full_spread_main": {
         "line_index": 0,
-        "home_selection": "+0.5",
-        "home_odds": 1.81,
-        "away_selection": "-0.5",
-        "away_odds": 2.09
+        "home_selection": "-0/0.5",
+        "home_odds": 2.2,
+        "away_selection": "+0/0.5",
+        "away_odds": 1.71
       },
       "full_spread_subs": [
         {
           "line_index": 1,
-          "home_selection": "+0/0.5",
-          "home_odds": 2.13,
-          "away_selection": "-0/0.5",
-          "away_odds": 1.78
+          "home_selection": "0",
+          "home_odds": 1.6,
+          "away_selection": "0",
+          "away_odds": 2.38
         },
         {
           "line_index": 2,
-          "home_selection": "+0.5/1",
-          "home_odds": 1.56,
-          "away_selection": "-0.5/1",
-          "away_odds": 2.51
+          "home_selection": "-0.5",
+          "home_odds": 2.69,
+          "away_selection": "+0.5",
+          "away_odds": 1.47
         }
       ],
       "full_total_main": {
         "line_index": 0,
-        "line": "1.5/2",
-        "over_odds": 1.82,
-        "under_odds": 2.06
+        "line": "2",
+        "over_odds": 1.91,
+        "under_odds": 1.95
       },
       "full_total_subs": [
         {
           "line_index": 1,
-          "line": "2",
-          "over_odds": 2.2,
-          "under_odds": 1.71
+          "line": "2/2.5",
+          "over_odds": 2.4,
+          "under_odds": 1.57
         },
         {
           "line_index": 2,
-          "line": "1.5",
-          "over_odds": 1.62,
-          "under_odds": 2.35
+          "line": "1.5/2",
+          "over_odds": 1.56,
+          "under_odds": 2.42
         }
       ],
-      "half_h2h": {
-        "home_odds": 6.3,
-        "draw_odds": 1.59,
-        "away_odds": 3.35
-      },
-      "half_spread_main": {
-        "line_index": 0,
-        "home_selection": "+0/0.5",
-        "home_odds": 1.57,
-        "away_selection": "-0/0.5",
-        "away_odds": 2.49
-      },
-      "half_total_main": {
-        "line_index": 0,
-        "line": "0.5",
-        "over_odds": 2.14,
-        "under_odds": 1.75
-      }
+      "half_h2h": null,
+      "half_spread_main": null,
+      "half_total_main": null
     },
     "reference": {
       "leisu_match_id": "4562395",
@@ -4693,13 +4677,13 @@
     }
   },
   "ai_evaluation_brief": {
-    "match_id": "英甲_谢周三_vs_布拉德福德",
-    "league": "英甲",
+    "match_id": "4562395",
+    "league": "英格兰甲级联赛",
     "kickoff_time": "2026-08-21 03:00:00",
-    "status_summary": "LIVE 63' (0-1)",
+    "status_summary": "LIVE 62' (0-1)",
     "teams": {
       "home": "谢周三",
-      "away": "布拉德福德"
+      "away": "布拉德福德城"
     },
     "score_verification": {
       "is_verified": true,
@@ -4707,19 +4691,19 @@
     },
     "core_markets": {
       "ah_main": {
-        "handicap": "+0.5",
-        "home_odds": 1.81,
-        "away_odds": 2.09
+        "handicap": "-0/0.5",
+        "home_odds": 2.2,
+        "away_odds": 1.71
       },
       "ou_main": {
-        "handicap": "1.5/2",
-        "over_odds": 1.82,
-        "under_odds": 2.06
+        "handicap": "2",
+        "over_odds": 1.91,
+        "under_odds": 1.95
       },
       "euro_1x2": {
-        "home_win": 3.9,
-        "draw": 2.99,
-        "away_win": 2.16
+        "home_win": 8.7,
+        "draw": 3.75,
+        "away_win": 1.43
       },
       "ah_half": null,
       "ou_half": null
@@ -4741,8 +4725,14 @@
         "home": 6,
         "away": 7
       },
-      "recent_momentum_5min": null,
-      "recent_momentum_15min": null,
+      "recent_momentum_5min": {
+        "home": 32,
+        "away": 20
+      },
+      "recent_momentum_15min": {
+        "home": 24,
+        "away": 25
+      },
       "formations": {
         "home": "4-2-3-1",
         "away": "3-4-2-1"
