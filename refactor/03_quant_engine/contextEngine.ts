@@ -140,9 +140,13 @@ export function calculateH2HDecayWeights(
 
   return h2hList.map((h2h) => {
     let matchTime = 0;
-    const dateStr = h2h.match_time || h2h.date || '';
-    if (dateStr) {
-      matchTime = new Date(dateStr).getTime();
+    let dateStr = '';
+    if (typeof h2h.match_time === 'number') {
+      matchTime = h2h.match_time > 1e11 ? h2h.match_time : h2h.match_time * 1000;
+      dateStr = new Date(matchTime).toISOString().slice(0, 10);
+    } else if (h2h.match_time) {
+      matchTime = new Date(String(h2h.match_time)).getTime();
+      dateStr = String(h2h.match_time);
     }
     const daysAgo = matchTime > 0
       ? Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24)))
@@ -152,10 +156,6 @@ export function calculateH2HDecayWeights(
     const isValid = daysAgo <= MAX_VALID_DAYS;
     if (isValid) {
       decayWeight = Math.exp(-decayConstant * daysAgo);
-      const isSameHomeAway = h2h.home_team_name === match.home_team_name;
-      if (isSameHomeAway) {
-        decayWeight = Math.min(1.0, decayWeight * 1.15);
-      }
     }
 
     return Object.freeze({
@@ -190,7 +190,7 @@ export function calculateRecentFormWeights(
       compWeight = 0.4;
     }
 
-    const itemIsHome = item.home_team_name === targetTeamName || item.home_team_id === match.reference?.home_team_id;
+    const itemIsHome = item.home_team_name === targetTeamName || (match.reference && item.home_team_name === match.reference.leisu_home_name);
     const isMatched = isTargetHome ? itemIsHome : !itemIsHome;
     const venueWeight = isMatched ? 1.0 : 0.65;
     const finalWeight = Number((compWeight * venueWeight).toFixed(4));

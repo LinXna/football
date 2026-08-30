@@ -1,26 +1,57 @@
 # 重构工作进度与任务交接看板 (Handover & Progress Board)
 
-> **最后更新时间**：2026-08-30 15:18:00  
-> **当前阶段**：【Layer 03 机器量化评估与最优投注决策结果面板集成 (IN_PROGRESS)】  
-> **当前状态**：正在将 Layer 03 确定性量化引擎的 37 项物理攻防、纯 Forward 泊松期望、Shin 去抽水公允胜率与各玩法最优投注（+EV）初筛结果直观集成到赛事对齐中心卡片与多维面板中。
+> **最后更新时间**：2026-08-30 17:45:00  
+> **当前阶段**：【移除冗余原始盘口行 & 提取机器量化核心矩阵至卡片常驻面板 (IN_PROGRESS)】  
+> **当前状态**：响应用户指令：  
+> 1. 彻底移除卡片下方冗余的“让球/大小/独赢”原始纯文本栏目；  
+> 2. 将机器量化评估与下注决策矩阵中的全场核心玩法（全场让球、全场大小球、全场独赢）直接常驻提取到比赛卡片面板上直接展示，无需点击展开即可一目了然。
 
 ---
 
 ## 一、当前活动工作快照 (Active Snapshot)
 
+- **任务编号 (Task)**: `SNAPSHOT-20260830-PROMOTED-QUANT-BETTING-MATRIX-TO-CARD`
+- **任务目标 (Goal)**：
+  1. **移除冗余原始盘口栏**：从 `CanonicalMatchCenter.tsx` 中彻底移除 `让球:-0/0.5 (2.2 / 1.71)`、`大小:2 (大1.91 / 小1.95)`、`独赢:8.7 | 3.75 | 1.43` 这种未经量化修饰的原始信息行；
+  2. **提取全场量化投注决策矩阵至卡片常驻面板**：
+     - 在比赛卡片正文直接常驻展示全场三项核心量化投注栏目（全场独赢 1X2、全场大小球 O/U、全场让球 AH），展示去水公允胜率、赔率、+EV 正期望、最佳推荐高亮及精确盘口；
+     - 让用户不用点击即可直接在卡片面板上查看完整的机器量化评估决策与各方向期望值；
+     - 保留下方“03 机器量化”等明细展开入口供查阅更深层的泊松推演、相变预警与四维诊断。
+- **改动文件清单 (Target Files)**：
+  - `/src/components/CanonicalMatchCenter.tsx`
+  - `/src/components/MachineQuantEvaluationPanel.tsx`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **执行步骤 (Action Plan)**：
+  1. 在 `MachineQuantEvaluationPanel.tsx` 或可复用的导出模块中提供纯净的量化卡片组件/辅助函数；
+  2. 在 `CanonicalMatchCenter.tsx` 中替换掉原先静态的原始盘口行，嵌入结构精美、信息密度高且具备高亮推荐的全场量化投注决策矩阵（3 栏全场核心玩法）；
+  3. 自测与编译校验，确保无语法与类型问题；
+  4. 更新工作看板状态为 DONE。
+- **状态标记 (Status)**：`IN_PROGRESS`
+
+---
+
+## 二、历史已完成活动工作快照 (Closed Snapshots Archive)
+
+- **任务编号 (Task)**: `SNAPSHOT-20260830-QUANT-PANEL-BETTING-RECOMMENDATION-OPTIMIZATION`
+- **任务目标 (Goal)**：
+  1. **投注建议布局置顶**：将“机器量化核心主选建议”与“各玩法最优投注与 +EV 决策矩阵”移动到 `MachineQuantEvaluationPanel` 的最顶部；
+  2. **投注建议内容展示优化**：
+     - 规范让球盘口、大小球界线、1X2 独赢 Shin 去抽水公允概率与四分之一盘结算规则；
+  3. 保持数据来源 100% 权威性（以 YBTY 真实盘口与 Layer 03 量化特征为准）。
+- **状态标记 (Status)**：`DONE`
+
+---
+
+## 二、历史已完成活动工作快照 (Closed Snapshots Archive)
+
 - **任务编号 (Task)**: `SNAPSHOT-20260830-LAYER03-QUANT-EVALUATION-PANEL-INTEGRATION`
 - **任务目标 (Goal)**：
-  1. 将 Layer 03 量化引擎 (`calculateQuantitativeFeatures`) 接入 `CanonicalMatchCenter`，在每场比赛卡片上实时计算并呈现机器量化评估与最优投注决策；
-  2. 卡片显要位置直观展示：量化置信度、BDI 战场统治权指数、破门相变临界预警、各玩法最优正期望 (+EV) 决策徽章；
-  3. 在展开明细面板中新增首位标签 `⚡ 03 机器量化评估与最优投注`：
-     - 各玩法最优投注推荐矩阵（全场让球、全场大小球、全场独赢的最优选择、公允概率、庄家实际赔率、去抽水净 EV、期望收益评级）；
-     - 纯 Forward 泊松推演（剩余时段进球期望 $\lambda_{\text{home}}, \lambda_{\text{away}}$、最可能完场比分、剩余时段胜平负概率）；
-     - 物理攻防特征与战术异常告警（xT 威胁比、射门转化率、红牌战术塌陷）；
-     - 遵循风控契约：清晰标明“机器量化初筛结果 (仅供参考，待 AI 基本面核验与风控台账准入)”。
+  1. 将 Layer 03 量化引擎接入 `CanonicalMatchCenter`，在比赛卡片与明细展开中呈现机器量化评估；
+  2. 呈现 37 项物理攻防、纯 Forward 泊松推演、Shin 去抽水公允胜率与 +EV 初筛。
 - **改动与交付物清单 (Deliverables)**：
+  - `/src/components/MachineQuantEvaluationPanel.tsx`
   - `/src/components/CanonicalMatchCenter.tsx`
-  - `/refactor/HANDOVER_AND_PROGRESS.md`
-- **状态标记 (Status)**：`IN_PROGRESS`
+- **状态标记 (Status)**：`DONE`
 
 ---
 

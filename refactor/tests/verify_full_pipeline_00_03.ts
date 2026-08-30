@@ -86,8 +86,22 @@ async function runFullPipelineIntegrationTests() {
   assert(fs.existsSync(ybtyLiveSamplePath), `YBTY Live sample exists at ${ybtyLiveSamplePath}`);
   assert(fs.existsSync(leisuSamplePath), `Leisu sample exists at ${leisuSamplePath}`);
 
-  const ybtyLiveJson = JSON.parse(fs.readFileSync(ybtyLiveSamplePath, "utf-8"));
-  const leisuJson = JSON.parse(fs.readFileSync(leisuSamplePath, "utf-8"));
+  function safeReadJson(filePath: string) {
+    const raw = fs.readFileSync(filePath, "utf-8");
+    try {
+      return JSON.parse(raw);
+    } catch {
+      // Replace unescaped control characters inside JSON strings with whitespace
+      const cleaned = raw.replace(/[\x00-\x1F\x7F]/g, (ch) => {
+        if (ch === '\n' || ch === '\r' || ch === '\t') return ' ';
+        return '';
+      });
+      return JSON.parse(cleaned);
+    }
+  }
+
+  const ybtyLiveJson = safeReadJson(ybtyLiveSamplePath);
+  const leisuJson = safeReadJson(leisuSamplePath);
 
   // 1.2 执行 Layer 01 解析
   const liveMatches = ybtyLiveJson.matches as GenericYbtyMatch[];
@@ -197,7 +211,7 @@ async function runFullPipelineIntegrationTests() {
   const ybtyPrematchSamplePath = path.join(__dirname, "../samples/01_data_ingestion/ybty/ybty_prematch_extracted_sample.json");
   assert(fs.existsSync(ybtyPrematchSamplePath), `YBTY Prematch sample exists at ${ybtyPrematchSamplePath}`);
 
-  const ybtyPrematchJson = JSON.parse(fs.readFileSync(ybtyPrematchSamplePath, "utf-8"));
+  const ybtyPrematchJson = safeReadJson(ybtyPrematchSamplePath);
   const prematchMatches = ybtyPrematchJson.matches as GenericYbtyMatch[];
   console.log(`✓ Ingested ${prematchMatches.length} YBTY Prematch matches`);
   assert(prematchMatches.length > 0, "Should have prematch matches from YBTY");
