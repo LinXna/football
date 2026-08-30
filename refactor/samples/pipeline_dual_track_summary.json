@@ -1,0 +1,30 @@
+{
+  "test_timestamp": "2026-08-30T20:08:28.403Z",
+  "live_pathway": {
+    "total_matches": 6,
+    "aligned_count": 6,
+    "execution_duration_ms": 28.20047199999999,
+    "screening_distribution": {
+      "WATCH": 6,
+      "RESEARCH": 0,
+      "REJECTED": 0
+    },
+    "positive_ev_matches": 6
+  },
+  "prematch_pathway": {
+    "total_matches": 2,
+    "execution_duration_ms": 2.3315279999999916,
+    "screening_distribution": {
+      "WATCH": 0,
+      "RESEARCH": 2,
+      "REJECTED": 0
+    },
+    "positive_ev_matches": 2
+  },
+  "edge_case_defenses": {
+    "swapped_home_away_blocked": true,
+    "score_mismatch_l0_interception": true,
+    "quarter_handicap_math_conserved": true
+  },
+  "overall_status": "SUCCESS"
+}

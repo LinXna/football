@@ -198,7 +198,7 @@ function assembleMatchesForMode(mode: "live" | "prematch"): {
     competition: m.competition,
     home_team: m.home_team,
     away_team: m.away_team,
-    minute: m.minute,
+    minute: null as number | null,
     score: m.score,
     commence_time: m.commence_time,
     status_text: m.status_text,

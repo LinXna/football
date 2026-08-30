@@ -1,0 +1,733 @@
+{
+  "canonical_id": "4562395",
+  "calculated_at": "2026-08-30T20:08:27.409Z",
+  "context": {
+    "circuit_breaker": {
+      "is_triggered": false,
+      "reasons": [],
+      "details": []
+    },
+    "h2h_weights": [
+      {
+        "date": 1661884200,
+        "days_ago": 20676,
+        "decay_weight": 0,
+        "is_valid": false
+      },
+      {
+        "date": 1314729900,
+        "days_ago": 20680,
+        "decay_weight": 0,
+        "is_valid": false
+      },
+      {
+        "date": 1108220400,
+        "days_ago": 20683,
+        "decay_weight": 0,
+        "is_valid": false
+      },
+      {
+        "date": 1098540000,
+        "days_ago": 20683,
+        "decay_weight": 0,
+        "is_valid": false
+      },
+      {
+        "date": 948038340,
+        "days_ago": 20684,
+        "decay_weight": 0,
+        "is_valid": false
+      },
+      {
+        "date": 934646340,
+        "days_ago": 20685,
+        "decay_weight": 0,
+        "is_valid": false
+      }
+    ],
+    "recent_form_weights": {
+      "home": [
+        {
+          "match_id": "4562385",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        },
+        {
+          "match_id": "4567206",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 0.4,
+          "final_composite_weight": 0.4
+        },
+        {
+          "match_id": "4602669",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 0,
+          "final_composite_weight": 0
+        },
+        {
+          "match_id": "4601517",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 0,
+          "final_composite_weight": 0
+        },
+        {
+          "match_id": "4590147",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 0,
+          "final_composite_weight": 0
+        },
+        {
+          "match_id": "4585438",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 0,
+          "final_composite_weight": 0
+        },
+        {
+          "match_id": "4579905",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 0,
+          "final_composite_weight": 0
+        },
+        {
+          "match_id": "4351811",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4351779",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        },
+        {
+          "match_id": "4351748",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        },
+        {
+          "match_id": "4351738",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4351699",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        },
+        {
+          "match_id": "4351689",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4351666",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        },
+        {
+          "match_id": "4351632",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        },
+        {
+          "match_id": "4351615",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4351582",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4351555",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        },
+        {
+          "match_id": "4351543",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4351520",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        },
+        {
+          "match_id": "4351484",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        },
+        {
+          "match_id": "4351467",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4351445",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        },
+        {
+          "match_id": "4351257",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        },
+        {
+          "match_id": "4351421",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4351401",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        },
+        {
+          "match_id": "4351391",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4351378",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4462138",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 0.4,
+          "final_composite_weight": 0.4
+        },
+        {
+          "match_id": "4351368",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        },
+        {
+          "match_id": "4351350",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        },
+        {
+          "match_id": "4351339",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4351325",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4351308",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        },
+        {
+          "match_id": "4351297",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4351279",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        },
+        {
+          "match_id": "4351252",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4351232",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        },
+        {
+          "match_id": "4351226",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4351208",
+          "venue_homomorphism_weight": 0.65,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 0.65
+        }
+      ],
+      "away": [
+        {
+          "match_id": "4562381",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4607400",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 0.4,
+          "final_composite_weight": 0.4
+        },
+        {
+          "match_id": "4601585",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 0,
+          "final_composite_weight": 0
+        },
+        {
+          "match_id": "4596103",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 0,
+          "final_composite_weight": 0
+        },
+        {
+          "match_id": "4592389",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 0,
+          "final_composite_weight": 0
+        },
+        {
+          "match_id": "4586098",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 0,
+          "final_composite_weight": 0
+        },
+        {
+          "match_id": "4579486",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 0,
+          "final_composite_weight": 0
+        },
+        {
+          "match_id": "4565979",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 0,
+          "final_composite_weight": 0
+        },
+        {
+          "match_id": "4538617",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4538596",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4351331",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4351254",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4350574",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4351143",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4350986",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4350949",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4350715",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4350419",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4350322",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4350272",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4349311",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4350147",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4350073",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4349391",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4349996",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4349986",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4349936",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4349859",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4349732",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4349631",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4349461",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4349423",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4349377",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4349369",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4349357",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4349345",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4349331",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4349321",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4349276",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        },
+        {
+          "match_id": "4458223",
+          "venue_homomorphism_weight": 1,
+          "competition_importance_weight": 1,
+          "final_composite_weight": 1
+        }
+      ]
+    },
+    "lineup_impact": {
+      "home_lis": 0.4,
+      "away_lis": 0.8,
+      "home_missing_core_players": [
+        "伯纳德",
+        "奥尼安戈",
+        "西凯拉",
+        "麦基"
+      ],
+      "away_missing_core_players": [
+        "亨弗里斯"
+      ]
+    },
+    "motivation_urgency": {
+      "home_mui": 1,
+      "away_mui": 1.03,
+      "home_stage_context": "MID_TABLE_NORMAL_EARLY_SEASON_DAMPENED",
+      "away_stage_context": "TITLE_OR_UCL_RACE_EARLY_SEASON_DAMPENED"
+    },
+    "goal_timing_validity": {
+      "sample_count": 1,
+      "is_valid_sample": false,
+      "requires_bayesian_shrinkage": true
+    }
+  },
+  "timeline": {
+    "total_points": 63,
+    "current_instant_momentum": -100,
+    "slope_5m": -28.6,
+    "slope_10m": 2.085,
+    "slope_15m": 1.414,
+    "integral_5m": {
+      "home": 162,
+      "away": 100,
+      "net": 62
+    },
+    "integral_15m": {
+      "home": 356,
+      "away": 372,
+      "net": -16
+    },
+    "integral_full_match": {
+      "home": 1424,
+      "away": 1138,
+      "net": 286
+    },
+    "dominance_side": "neutral",
+    "inflection_count_recent_15m": 6,
+    "is_sustained_siege": false,
+    "is_counter_attack_surge": false
+  },
+  "physical_stats": {
+    "xt_proxy": {
+      "home_xt": 1.82,
+      "away_xt": 1.655,
+      "xt_ratio": 0.524
+    },
+    "conversion_efficiency": {
+      "home_conversion": 0.211,
+      "away_conversion": 0.2,
+      "home_accuracy": 0.375,
+      "away_accuracy": 0.5
+    },
+    "pressure_index": 0.118,
+    "tactical_anomaly": {
+      "home_barren_dominance": false,
+      "away_barren_dominance": false,
+      "home_lethal_counter": false,
+      "away_lethal_counter": false
+    },
+    "red_card_penalty": {
+      "home_attack_multiplier": 1,
+      "home_defense_leak_multiplier": 1,
+      "away_attack_multiplier": 1,
+      "away_defense_leak_multiplier": 1
+    }
+  },
+  "poisson": {
+    "elapsed_minute": 62,
+    "remaining_minutes": 28,
+    "time_decay_curve": "LINEAR_UNIFORM",
+    "lambda_home_rest": 0.254,
+    "lambda_away_rest": 0.553,
+    "expected_goals_rest": 0.807,
+    "rest_score_matrix": {
+      "prob_home_win_rest": 0.1379,
+      "prob_draw_rest": 0.5111,
+      "prob_away_win_rest": 0.351
+    },
+    "projected_final_score": {
+      "home": 0.25,
+      "away": 1.55,
+      "most_likely_score": "0-1"
+    }
+  },
+  "devig": {
+    "h2h_devig": {
+      "market_type": "full_h2h",
+      "raw_overround": 1.0809,
+      "devig_method": "SHIN",
+      "fair_probabilities": [
+        0.1063,
+        0.2467,
+        0.647
+      ],
+      "fair_odds": [
+        9.41,
+        4.05,
+        1.55
+      ]
+    },
+    "spread_main_ev": {
+      "line": "-0/0.5",
+      "home_odds": 2.2,
+      "away_odds": 1.71,
+      "home_ev": -0.4411,
+      "away_ev": 0.2928,
+      "preferred_side": "away",
+      "is_positive_ev": true
+    },
+    "spread_secondary_ev": [
+      {
+        "line": "0",
+        "home_odds": 1.6,
+        "away_odds": 2.38,
+        "home_ev": -0.2683,
+        "away_ev": 0.3465,
+        "preferred_side": "away",
+        "is_positive_ev": true
+      },
+      {
+        "line": "-0.5",
+        "home_odds": 2.69,
+        "away_odds": 1.47,
+        "home_ev": -0.629,
+        "away_ev": 0.2673,
+        "preferred_side": "away",
+        "is_positive_ev": true
+      }
+    ],
+    "total_main_ev": {
+      "line": "2",
+      "over_odds": 1.91,
+      "under_odds": 1.95,
+      "over_ev": -0.2699,
+      "under_ev": 0.2302,
+      "preferred_side": "under",
+      "is_positive_ev": true
+    },
+    "total_secondary_ev": [
+      {
+        "line": "2/2.5",
+        "over_odds": 2.4,
+        "under_odds": 1.57,
+        "over_ev": -0.355,
+        "under_ev": 0.1632,
+        "preferred_side": "under",
+        "is_positive_ev": true
+      },
+      {
+        "line": "1.5/2",
+        "over_odds": 1.56,
+        "under_odds": 2.42,
+        "over_ev": -0.6978,
+        "under_ev": 0.9512,
+        "preferred_side": "under",
+        "is_positive_ev": true
+      }
+    ],
+    "line_dispersion": {
+      "spread_variance": 0.0417,
+      "total_variance": 0.05
+    },
+    "bookmaker_posture": "TRAP_HIGH_ODDS"
+  },
+  "battlefield_dominance_index": -19.33,
+  "goal_phase_alert": "DEADLOCK_STALEMATE",
+  "positive_ev_signals": [
+    {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "line": "-0/0.5",
+      "side": "away",
+      "odds": 1.71,
+      "ev": 0.2928,
+      "confidence": 98
+    },
+    {
+      "market": "TOTAL_GOALS_MAIN",
+      "line": "2",
+      "side": "under",
+      "odds": 1.95,
+      "ev": 0.2302,
+      "confidence": 98
+    }
+  ],
+  "risk_flags": [
+    "TRAP_HIGH_ODDS_WARNING"
+  ],
+  "confidence_score": 98
+}

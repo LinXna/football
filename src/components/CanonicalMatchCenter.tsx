@@ -48,6 +48,7 @@ import {
 } from "../../refactor/02_canonical_model/types";
 import { CleanMarketsGroup } from "../../refactor/01_data_ingestion/ybty/types";
 import { RecentFormComparator } from "./RecentFormComparator";
+import { flattenMomentumPoints } from "../../refactor/03_quant_engine/momentumQuantEngine";
 
 function getMarketsSummary(mkts?: CleanMarketsGroup | null) {
   if (!mkts) return { count: 0, text: "0个玩法" };
@@ -143,6 +144,56 @@ export interface LeisuCandidateItem {
   commence_time: string | null;
   status_text: string;
   is_live: boolean;
+}
+
+function getTimelineIncidentBadge(type: number | string, typeName?: string, text?: string): { icon: string; label: string } {
+  const tStr = String(type);
+  const name = typeName || "";
+  const txt = text || "";
+
+  if (name.includes("乌龙") || txt.includes("乌龙")) {
+    return { icon: "🥅", label: "乌龙" };
+  }
+  if (tStr === "16" || (name.includes("点球") && (name.includes("失") || txt.includes("失")))) {
+    return { icon: "🎯❌", label: "点球射失" };
+  }
+  if (name.includes("点球") || txt.includes("点球")) {
+    return { icon: "🎯", label: "点球" };
+  }
+  if (tStr === "1" || name.includes("进球") || txt.includes("进球")) {
+    return { icon: "⚽", label: "进球" };
+  }
+  if (tStr === "23" || name.includes("两黄变红") || txt.includes("两黄变红")) {
+    return { icon: "🟨🟥", label: "两黄变红" };
+  }
+  if (tStr === "4" || name.includes("红牌") || txt.includes("红牌")) {
+    return { icon: "🟥", label: "红牌" };
+  }
+  if (tStr === "3" || name.includes("黄牌") || txt.includes("黄牌")) {
+    return { icon: "🟨", label: "黄牌" };
+  }
+  if (tStr === "6" || tStr === "9" || name.includes("换人") || txt.includes("换人")) {
+    return { icon: "🔄", label: "换人" };
+  }
+  if (tStr === "2" || name.includes("角球") || txt.includes("角球")) {
+    return { icon: "🚩", label: "角球" };
+  }
+  if (tStr === "5" || name.includes("越位") || txt.includes("越位")) {
+    return { icon: "🚫", label: "越位" };
+  }
+  if (tStr === "28" || name.includes("VAR") || txt.includes("VAR")) {
+    return { icon: "📺", label: "VAR" };
+  }
+  if (tStr === "21" || name.includes("射正") || txt.includes("射正")) {
+    return { icon: "🎯", label: "射正" };
+  }
+  if (tStr === "22" || name.includes("射偏") || txt.includes("射偏")) {
+    return { icon: "🏹", label: "射偏" };
+  }
+  if (tStr === "8" || name.includes("扑救") || txt.includes("扑救")) {
+    return { icon: "🧤", label: "扑救" };
+  }
+  return { icon: "⚡", label: name || "事件" };
 }
 
 export const CanonicalMatchCenter: React.FC = () => {
@@ -283,18 +334,17 @@ export const CanonicalMatchCenter: React.FC = () => {
 
         const ybtyTime =
           m.timing?.stage === MatchStage.LIVE
-            ? m.timing?.ybty_clock ||
-              (m.timing?.ybty_status_text && m.timing.ybty_status_text.trim() ? m.timing.ybty_status_text : null) ||
+            ? m.timing?.ybty_display_clock ||
               (m.timing?.minute !== null && m.timing?.minute !== undefined ? `${m.timing.minute}'` : null) ||
               m.timing?.beijing_start_time ||
               "-"
-            : m.timing?.beijing_start_time || m.timing?.ybty_status_text || "-";
+            : m.timing?.beijing_start_time || "-";
 
         const leisuTime = hasLeisu
           ? m.timing?.stage === MatchStage.LIVE
             ? m.timing?.minute !== null && m.timing?.minute !== undefined
               ? `${m.timing.minute}'`
-              : m.timing?.leisu_status_text || m.timing?.beijing_start_time || "-"
+              : m.timing?.beijing_start_time || "-"
             : m.timing?.beijing_start_time || "-"
           : "-";
 
@@ -1045,17 +1095,12 @@ export const CanonicalMatchCenter: React.FC = () => {
             <div>
               <h1 className="text-xl font-bold text-slate-100 flex items-center gap-2">
                 标准赛事对齐中心
-                <span className="text-xs px-2 py-0.5 bg-blue-900/60 text-blue-300 rounded font-mono font-normal border border-blue-700/50">
-                  Layer 02 SSOT
-                </span>
               </h1>
               <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
                 <span>YBTY 法定执行源 ↔ 雷速增强源精准对齐与极简 AI Brief 提炼</span>
-                {metadata && (
-                  <span className="text-[11px] text-slate-500 font-mono">
-                    | 原始: YBTY({metadata.ybtyMatchCount}场) · 雷速({metadata.leisuMatchCount}场)
-                  </span>
-                )}
+                <span className="text-[11px] text-slate-500 font-mono">
+                  | 合并后: {matches.length}场比赛
+                </span>
               </p>
             </div>
           </div>
@@ -1087,18 +1132,6 @@ export const CanonicalMatchCenter: React.FC = () => {
               📅 赛前赛事对齐 ({mode === "prematch" ? matches.length : "-"})
             </button>
           </div>
-
-          {/* 全量合并 JSON 导出按钮 */}
-          <button
-            id="btn-export-all-canonical"
-            onClick={handleExportAllCanonicalJSON}
-            disabled={matches.length === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-xs font-medium text-white transition-colors border border-blue-600/60 shadow-xs"
-            title="下载当前所有合并对齐后的 CanonicalMatch JSON 数据"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>📥 导出全部合并数据 (.json)</span>
-          </button>
 
           {/* 原生数据导入按钮 */}
           <button
@@ -1186,6 +1219,33 @@ export const CanonicalMatchCenter: React.FC = () => {
         <div className="space-y-4">
           {filteredMatches.map((m, idx) => {
             const brief = aiBriefs.find((b) => b.match_id === m.canonical_id);
+            const points = flattenMomentumPoints(m);
+            const hasPoints = points.length > 0;
+            let homeShare = 50;
+            let awayShare = 50;
+            let surgeType: "home" | "away" | "neutral" = "neutral";
+            let surgeLabel = "势均力敌";
+
+            if (hasPoints) {
+              const recent5 = points.slice(-Math.min(5, points.length));
+              const homeSum5 = recent5.filter((v) => v > 0).reduce((acc, v) => acc + v, 0);
+              const awaySum5 = Math.abs(recent5.filter((v) => v < 0).reduce((acc, v) => acc + v, 0));
+              const total5 = homeSum5 + awaySum5;
+              if (total5 > 0) {
+                homeShare = Math.round((homeSum5 / total5) * 100);
+                awayShare = 100 - homeShare;
+              }
+              if (homeShare >= 65) {
+                surgeType = "home";
+                surgeLabel = "主队高压起势";
+              } else if (awayShare >= 65) {
+                surgeType = "away";
+                surgeLabel = "客队攻势反扑";
+              } else {
+                surgeType = "neutral";
+                surgeLabel = "势均力敌";
+              }
+            }
 
             return (
               <div
@@ -1193,24 +1253,38 @@ export const CanonicalMatchCenter: React.FC = () => {
                 id={`match-card-${idx}`}
                 className="bg-slate-900 rounded-xl p-5 border border-slate-800 hover:border-blue-500/50 shadow-sm transition-all space-y-4"
               >
-                {/* 卡片头部：联赛、时间、完整度与状态 */}
+                {/* 卡片头部：联赛（别名简称） 开赛时间（来源） 比赛时间（来源） */}
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800/80">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-semibold px-2 py-0.5 bg-slate-800 text-slate-200 rounded border border-slate-700">
+                  <div className="flex items-center gap-2.5 flex-wrap text-xs">
+                    {/* 联赛名（雷速别名简称） */}
+                    <span className="font-semibold px-2 py-0.5 bg-slate-800 text-slate-200 rounded border border-slate-700">
                       {m.league_name}
+                      {m.reference?.leisu_league_name && m.reference.leisu_league_name !== m.league_name ? `（${m.reference.leisu_league_name}）` : ""}
                     </span>
-                    <span className="text-xs text-slate-400 flex items-center gap-1">
+
+                    {/* 开赛时间（来源） */}
+                    <span className="text-slate-400 flex items-center gap-1 font-mono">
                       <Clock className="w-3.5 h-3.5 text-slate-500" />
-                      {m.timing.beijing_start_time}
-                      {m.timing.start_time_source === "LEISU_SUPPLEMENTED" && (
-                        <span className="text-[10px] text-blue-400 font-mono">(雷速补充)</span>
-                      )}
-                    </span>
-                    {m.timing.stage === MatchStage.LIVE && (
-                      <span className="text-xs font-bold text-rose-400 animate-pulse">
-                        {m.timing.minute ? `${m.timing.minute}'` : "滚球中"}
+                      <span className="font-bold">开赛 {m.timing.beijing_start_time || "-"}</span>
+                      <span className="text-slate-500 text-[11px]">
+                        （{m.timing.start_time_source === "LEISU_SUPPLEMENTED" ? "雷速" : m.timing.start_time_source === "YBTY_ESTIMATED" ? "YBTY推算" : "YBTY"}）
                       </span>
-                    )}
+                    </span>
+
+                    {/* 比赛时间（来源） - 字体不闪烁 */}
+                    <span className="text-slate-400 flex items-center gap-1 font-mono">
+                      <Activity className="w-3.5 h-3.5 text-blue-400" />
+                      {m.timing.stage === MatchStage.LIVE ? (
+                        <span className="text-rose-400 font-bold">
+                          比赛时间 {m.timing.ybty_display_clock || (m.timing.minute !== null && m.timing.minute !== undefined ? `${m.timing.minute}'` : "滚球中")}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">比赛时间 未开赛</span>
+                      )}
+                      <span className="text-slate-500 text-[11px]">
+                        （{m.timing.stage === MatchStage.LIVE ? "YBTY" : "赛前"}）
+                      </span>
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1251,67 +1325,443 @@ export const CanonicalMatchCenter: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 对齐主体：双源队名比对 */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
-                  {/* 左侧：YBTY 法定执行队名与比分 */}
-                  <div className="lg:col-span-5 bg-slate-950/60 p-3.5 rounded-lg border border-slate-800">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium mb-1.5">
-                      <span>YBTY 法定执行队名 (第一主键)</span>
-                      <span className="flex items-center gap-1">
-                        {m.score.score_verified ? (
-                          <span className="text-emerald-400 flex items-center gap-0.5 text-[10px]">
-                            <ShieldCheck className="w-3.5 h-3.5" /> 比分已校验
+                {/* 核心看板区：同列左右各占一半 (左侧双源队名比分看板 + 右侧实时危攻时序走势看板) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+                  {/* 左半边：队名 + 比分 (双源横向展开看板：主队配有YBTY标识，雷速队名在下方，已对齐在比分下方) */}
+                  <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 flex flex-col justify-center">
+                    <div className="grid grid-cols-12 items-center gap-3">
+                      {/* 左侧：主队 (YBTY 标识 + 主队名，下方为雷速主队名) */}
+                      <div className="col-span-5 flex flex-col justify-center overflow-hidden space-y-1.5">
+                        {/* YBTY 主队名 */}
+                        <div className="flex items-center gap-1.5 overflow-hidden">
+                          <span className="px-1.5 py-0.2 text-[10px] font-bold rounded bg-blue-950 text-blue-300 border border-blue-800/80 shrink-0">
+                            YBTY
                           </span>
+                          <span className="font-bold text-slate-100 text-sm truncate" title={m.home_team_name}>
+                            {m.home_team_name}
+                          </span>
+                        </div>
+                        {/* 雷速主队名（小字体，置于下方） */}
+                        <div className="flex items-center gap-1.5 text-xs text-slate-400 pl-0.5 overflow-hidden">
+                          <span className="px-1.5 py-0.2 text-[10px] font-medium rounded bg-emerald-950 text-emerald-300 border border-emerald-800/80 shrink-0">
+                            雷速
+                          </span>
+                          <span className="truncate text-slate-300 text-[11.5px]" title={m.reference?.leisu_home_name || "未关联"}>
+                            {m.reference?.leisu_home_name || <span className="text-slate-500 italic">未关联</span>}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 中间：横向展开比分 + 已对齐状态在比分下方 */}
+                      <div className="col-span-2 flex flex-col items-center justify-center shrink-0">
+                        {/* 比分横向展示 */}
+                        <div className="px-3 py-1 bg-slate-900 rounded-lg border border-slate-700 shadow-inner flex items-center justify-center gap-1.5">
+                          <span className="text-base font-mono font-black tracking-wider text-slate-100 whitespace-nowrap">
+                            {m.score.home_score !== null ? m.score.home_score : 0} : {m.score.away_score !== null ? m.score.away_score : 0}
+                          </span>
+                          {m.score.score_verified ? (
+                            <span title="比分已校验" className="inline-flex items-center">
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            </span>
+                          ) : (
+                            <span title="未经画布校验" className="inline-flex items-center">
+                              <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            </span>
+                          )}
+                        </div>
+
+                        {/* 已对齐状态标签（置于比分正下方） */}
+                        <div className="mt-1.5 flex items-center justify-center">
+                          {m.reference ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 whitespace-nowrap">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                              {m.alignment?.status === MatchAlignmentStatus.MATCHED_BY_ALIAS ? "别名命中" : "已对齐"}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700 whitespace-nowrap">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                              未关联
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 右侧：客队 (YBTY 客队名 + 雷速客队名在下方) */}
+                      <div className="col-span-5 flex flex-col justify-center items-end text-right overflow-hidden space-y-1.5">
+                        {/* YBTY 客队名 */}
+                        <div className="flex items-center justify-end gap-1.5 overflow-hidden w-full">
+                          <span className="font-bold text-slate-100 text-sm truncate" title={m.away_team_name}>
+                            {m.away_team_name}
+                          </span>
+                          <span className="px-1.5 py-0.2 text-[10px] font-bold rounded bg-blue-950 text-blue-300 border border-blue-800/80 shrink-0">
+                            YBTY
+                          </span>
+                        </div>
+                        {/* 雷速客队名（小字体，置于下方） */}
+                        <div className="flex items-center justify-end gap-1.5 text-xs text-slate-400 pr-0.5 overflow-hidden w-full">
+                          <span className="truncate text-right text-slate-300 text-[11.5px]" title={m.reference?.leisu_away_name || "未关联"}>
+                            {m.reference?.leisu_away_name || <span className="text-slate-500 italic">未关联</span>}
+                          </span>
+                          <span className="px-1.5 py-0.2 text-[10px] font-medium rounded bg-emerald-950 text-emerald-300 border border-emerald-800/80 shrink-0">
+                            雷速
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 右半边：实时危攻时序走势 */}
+                  {(() => {
+                    // 收集并按分钟聚合关键事件
+                    const eventsByMinute = new Map<number, { home: any[]; away: any[]; neutral: any[] }>();
+                    if (m.reference?.timeline_events && Array.isArray(m.reference.timeline_events)) {
+                      for (const ev of m.reference.timeline_events) {
+                        if (ev.minute !== null && ev.minute !== undefined && ev.minute > 0) {
+                          const min = Math.min(120, Math.max(1, ev.minute));
+                          const entry = eventsByMinute.get(min) || { home: [], away: [], neutral: [] };
+                          const isHome =
+                            ev.side === "home" ||
+                            ev.text?.includes("主队") ||
+                            (Boolean(m.reference?.leisu_home_name) && Boolean(ev.text?.includes(m.reference.leisu_home_name)));
+                          const isAway =
+                            ev.side === "away" ||
+                            ev.text?.includes("客队") ||
+                            (Boolean(m.reference?.leisu_away_name) && Boolean(ev.text?.includes(m.reference.leisu_away_name)));
+                          if (isHome) {
+                            entry.home.push(ev);
+                          } else if (isAway) {
+                            entry.away.push(ev);
+                          } else {
+                            entry.neutral.push(ev);
+                          }
+                          eventsByMinute.set(min, entry);
+                        }
+                      }
+                    }
+
+                    const maxTimelineMinute = Math.max(
+                      90,
+                      points.length,
+                      ...(eventsByMinute.size > 0 ? Array.from(eventsByMinute.keys()) : [0])
+                    );
+                    const totalSvgWidth = maxTimelineMinute * 3.6;
+
+                    return (
+                      <div className="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800 flex flex-col justify-between space-y-2">
+                        {/* 1. 顶部标题栏 */}
+                        <div className="flex items-center justify-between text-xs pb-1.5 border-b border-slate-800/60">
+                          <div className="flex items-center gap-1.5 font-semibold text-slate-200">
+                            <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
+                            <span>实时危攻时序走势</span>
+                            {m.reference?.attack_momentum?.segment_count ? (
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                ({m.reference.attack_momentum.segment_count}段波形)
+                              </span>
+                            ) : null}
+                          </div>
+
+                          {/* 攻势占比 & 动量态势标签 */}
+                          {hasPoints ? (
+                            <div className="flex items-center gap-2 text-[11px] font-mono">
+                              <span className="text-amber-400 font-bold">主 {homeShare}%</span>
+                              <span className="text-slate-600">:</span>
+                              <span className="text-purple-400 font-bold">客 {awayShare}%</span>
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                  surgeType === "home"
+                                    ? "bg-amber-950 text-amber-300 border border-amber-800"
+                                    : surgeType === "away"
+                                    ? "bg-purple-950 text-purple-300 border border-purple-800"
+                                    : "bg-slate-800 text-slate-300 border border-slate-700"
+                                }`}
+                              >
+                                {surgeLabel}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-500">
+                              {m.timing.stage === MatchStage.LIVE
+                                ? m.reference?.stats
+                                  ? "技术统计已对齐"
+                                  : "雷速监听中"
+                                : "赛前待开赛"}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* 2. 边框下方直接展示图标和文字说明（无需写“图标说明:”） */}
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10.5px] text-slate-300 bg-slate-900/70 px-2.5 py-1.5 rounded-lg border border-slate-800/80">
+                          <span className="inline-flex items-center gap-1"><span>⚽</span> 进球</span>
+                          <span className="inline-flex items-center gap-1"><span>🎯</span> 点球</span>
+                          <span className="inline-flex items-center gap-1"><span>🎯❌</span> 射失</span>
+                          <span className="inline-flex items-center gap-1"><span>🥅</span> 乌龙</span>
+                          <span className="inline-flex items-center gap-1"><span>🟨</span> 黄牌</span>
+                          <span className="inline-flex items-center gap-1"><span>🟥</span> 红牌</span>
+                          <span className="inline-flex items-center gap-1"><span>🟨🟥</span> 两黄变红</span>
+                          <span className="inline-flex items-center gap-1"><span>🔄</span> 换人</span>
+                          <span className="inline-flex items-center gap-1"><span>🚩</span> 角球</span>
+                          <span className="inline-flex items-center gap-1"><span>🎯</span> 射正</span>
+                          <span className="inline-flex items-center gap-1"><span>🏹</span> 射偏</span>
+                          <span className="inline-flex items-center gap-1"><span>🚫</span> 越位</span>
+                          <span className="inline-flex items-center gap-1"><span>📺</span> VAR</span>
+                          <span className="inline-flex items-center gap-1"><span>🧤</span> 扑救</span>
+                        </div>
+
+                        {/* 3. 中部：结合比赛关键事件与时间轴的 SVG 时序走势图 */}
+                        {hasPoints || eventsByMinute.size > 0 ? (
+                          <div className="relative w-full overflow-hidden rounded-lg bg-slate-900/90 p-1.5 border border-slate-800/60">
+                            <svg
+                              viewBox={`0 0 ${totalSvgWidth} 56`}
+                              className="w-full h-14 overflow-visible"
+                              preserveAspectRatio="none"
+                            >
+                              {/* 0 轴基准中线 */}
+                              <line
+                                x1="0"
+                                y1="28"
+                                x2={totalSvgWidth}
+                                y2="28"
+                                stroke="#475569"
+                                strokeWidth="0.75"
+                                strokeDasharray="2 2"
+                              />
+
+                              {/* 时间刻度线与文字 */}
+                              {[15, 30, 45, 60, 75, 90].map((tMin) => {
+                                if (tMin > maxTimelineMinute) return null;
+                                const x = tMin * 3.6;
+                                return (
+                                  <g key={tMin}>
+                                    <line
+                                      x1={x}
+                                      y1="4"
+                                      x2={x}
+                                      y2="52"
+                                      stroke="#334155"
+                                      strokeWidth="0.5"
+                                      strokeDasharray="1 3"
+                                    />
+                                    <text
+                                      x={x}
+                                      y="27"
+                                      fontSize="6.5"
+                                      fill="#64748b"
+                                      textAnchor="middle"
+                                      className="select-none font-mono"
+                                    >
+                                      {tMin}'
+                                    </text>
+                                  </g>
+                                );
+                              })}
+
+                              {/* 逐分钟危攻波形动量柱 */}
+                              {points.map((val, pIdx) => {
+                                const isHome = val > 0;
+                                const isAway = val < 0;
+                                const absRatio = Math.min(1, Math.abs(val) / 100);
+                                const barH = Math.max(1.5, absRatio * 15);
+                                const y = isHome ? 28 - barH : 28;
+                                const fill = isHome
+                                  ? val >= 60
+                                    ? "#f59e0b"
+                                    : "#fbbf24"
+                                  : isAway
+                                  ? Math.abs(val) >= 60
+                                    ? "#c084fc"
+                                    : "#a855f7"
+                                  : "#64748b";
+
+                                return (
+                                  <rect
+                                    key={pIdx}
+                                    x={pIdx * 3.6 + 0.5}
+                                    y={y}
+                                    width="2.6"
+                                    height={barH}
+                                    fill={fill}
+                                    rx="0.5"
+                                    opacity={pIdx >= points.length - 15 ? 1 : 0.8}
+                                  >
+                                    <title>{`第 ${pIdx + 1} 分钟: ${
+                                      isHome
+                                        ? `主队危攻 +${val}`
+                                        : isAway
+                                        ? `客队危攻 ${val}`
+                                        : "均势 0"
+                                    }`}</title>
+                                  </rect>
+                                );
+                              })}
+
+                              {/* 时间轴关键事件图标（其他地方仅展示图标，悬浮查看完整详情） */}
+                              {Array.from(eventsByMinute.entries()).map(([min, entry]) => {
+                                const posX = (min - 1) * 3.6 + 1.8;
+                                return (
+                                  <g key={min}>
+                                    {/* 主队事件（位于上半部 y=9） */}
+                                    {entry.home.map((ev, eIdx) => {
+                                      const badge = getTimelineIncidentBadge(ev.type, ev.type_name, ev.text);
+                                      return (
+                                        <text
+                                          key={`h-${min}-${eIdx}`}
+                                          x={posX}
+                                          y={9}
+                                          fontSize="8.5"
+                                          textAnchor="middle"
+                                          className="cursor-pointer select-none"
+                                        >
+                                          {badge.icon}
+                                          <title>{`【主队事件】第 ${ev.minute}' 分钟: ${ev.type_name || ""} ${ev.text || ""}`}</title>
+                                        </text>
+                                      );
+                                    })}
+
+                                    {/* 客队事件（位于下半部 y=49） */}
+                                    {entry.away.map((ev, eIdx) => {
+                                      const badge = getTimelineIncidentBadge(ev.type, ev.type_name, ev.text);
+                                      return (
+                                        <text
+                                          key={`a-${min}-${eIdx}`}
+                                          x={posX}
+                                          y={49}
+                                          fontSize="8.5"
+                                          textAnchor="middle"
+                                          className="cursor-pointer select-none"
+                                        >
+                                          {badge.icon}
+                                          <title>{`【客队事件】第 ${ev.minute}' 分钟: ${ev.type_name || ""} ${ev.text || ""}`}</title>
+                                        </text>
+                                      );
+                                    })}
+
+                                    {/* 中立/公共事件（位于中线 y=20） */}
+                                    {entry.neutral.map((ev, eIdx) => {
+                                      const badge = getTimelineIncidentBadge(ev.type, ev.type_name, ev.text);
+                                      return (
+                                        <text
+                                          key={`n-${min}-${eIdx}`}
+                                          x={posX}
+                                          y={20}
+                                          fontSize="8"
+                                          textAnchor="middle"
+                                          className="cursor-pointer select-none"
+                                        >
+                                          {badge.icon}
+                                          <title>{`【比赛事件】第 ${ev.minute}' 分钟: ${ev.type_name || ""} ${ev.text || ""}`}</title>
+                                        </text>
+                                      );
+                                    })}
+                                  </g>
+                                );
+                              })}
+                            </svg>
+                          </div>
                         ) : (
-                          <span className="text-amber-400 flex items-center gap-0.5 text-[10px]">
-                            <ShieldAlert className="w-3.5 h-3.5" /> 未经画布校验
-                          </span>
+                          <div className="h-14 flex items-center justify-center rounded-lg bg-slate-900/50 border border-slate-800/40 text-xs text-slate-500 font-mono">
+                            {m.timing.stage === MatchStage.LIVE ? (
+                              m.reference?.stats ? (
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                                  <span>
+                                    控球率: <strong className="text-slate-100">{m.reference.stats.possession?.home ?? 50}%</strong> -{" "}
+                                    <strong className="text-slate-100">{m.reference.stats.possession?.away ?? 50}%</strong>
+                                  </span>
+                                  <span>
+                                    危攻: <strong className="text-amber-400">{m.reference.stats.dangerous_attacks?.home ?? 0}</strong> -{" "}
+                                    <strong className="text-purple-400">{m.reference.stats.dangerous_attacks?.away ?? 0}</strong>
+                                  </span>
+                                  <span>
+                                    射门（射正）: <strong className="text-slate-200">{m.reference.stats.shots?.home ?? 0}({m.reference.stats.shots_on_target?.home ?? 0})</strong> -{" "}
+                                    <strong className="text-slate-200">{m.reference.stats.shots?.away ?? 0}({m.reference.stats.shots_on_target?.away ?? 0})</strong>
+                                  </span>
+                                  <span>
+                                    角球: <strong className="text-slate-200">{m.reference.stats.corners?.home ?? 0}</strong> -{" "}
+                                    <strong className="text-slate-200">{m.reference.stats.corners?.away ?? 0}</strong>
+                                  </span>
+                                </div>
+                              ) : (
+                                <span>暂无时序波形 · 正在监听雷速端...</span>
+                              )
+                            ) : (
+                              <span>赛前待开赛 · 开赛后自动捕获逐分钟危攻波形</span>
+                            )}
+                          </div>
                         )}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <div className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>
-                          {m.home_team_name}
-                        </div>
-                        <div className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span>
-                          {m.away_team_name}
-                        </div>
-                      </div>
-                      <div className="text-xl font-mono font-bold text-slate-100 bg-slate-900 px-3 py-1.5 rounded-md border border-slate-700 shadow-inner">
-                        {m.score.home_score !== null ? m.score.home_score : "-"} : {m.score.away_score !== null ? m.score.away_score : "-"}
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* 中间：对齐箭头 */}
-                  <div className="lg:col-span-2 text-center flex flex-col items-center justify-center text-slate-500">
-                    <ArrowRight className="w-5 h-5 text-slate-600" />
-                  </div>
+                        {/* 4. 底部：完整六维实时攻防技术统计 (控球率 危攻 射门（射正） 角球 黄牌 红牌) */}
+                        {(() => {
+                          const homePoss = m.reference?.stats?.possession?.home !== null && m.reference?.stats?.possession?.home !== undefined ? `${m.reference.stats.possession.home}%` : "-";
+                          const awayPoss = m.reference?.stats?.possession?.away !== null && m.reference?.stats?.possession?.away !== undefined ? `${m.reference.stats.possession.away}%` : "-";
+                          const homeDa = m.reference?.stats?.dangerous_attacks?.home ?? "-";
+                          const awayDa = m.reference?.stats?.dangerous_attacks?.away ?? "-";
+                          const homeShots = m.reference?.stats?.shots?.home ?? "-";
+                          const homeSoT = m.reference?.stats?.shots_on_target?.home !== undefined && m.reference?.stats?.shots_on_target?.home !== null ? `(${m.reference.stats.shots_on_target.home})` : "";
+                          const awayShots = m.reference?.stats?.shots?.away ?? "-";
+                          const awaySoT = m.reference?.stats?.shots_on_target?.away !== undefined && m.reference?.stats?.shots_on_target?.away !== null ? `(${m.reference.stats.shots_on_target.away})` : "";
+                          const homeCorners = m.reference?.stats?.corners?.home ?? "-";
+                          const awayCorners = m.reference?.stats?.corners?.away ?? "-";
+                          const homeYc = m.reference?.stats?.yellow_cards?.home ?? (m.reference?.stats ? 0 : "-");
+                          const awayYc = m.reference?.stats?.yellow_cards?.away ?? (m.reference?.stats ? 0 : "-");
+                          const homeRc = m.reference?.stats?.red_cards?.home ?? (m.reference?.stats ? 0 : "-");
+                          const awayRc = m.reference?.stats?.red_cards?.away ?? (m.reference?.stats ? 0 : "-");
 
-                  {/* 右侧：雷速对齐参考队名与特征摘要 */}
-                  <div className="lg:col-span-5 bg-slate-950/60 p-3.5 rounded-lg border border-slate-800">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium mb-1.5">
-                      <span>雷速参考与增强源</span>
-                      <span className="text-[10px] text-slate-500">{m.reference ? m.reference.leisu_league_name : "未关联"}</span>
-                    </div>
-                    {m.reference ? (
-                      <div className="space-y-1">
-                        <div className="text-sm font-medium text-slate-300 flex items-center justify-between">
-                          <span>{m.reference.leisu_home_name}</span>
-                        </div>
-                        <div className="text-sm font-medium text-slate-300 flex items-center justify-between">
-                          <span>{m.reference.leisu_away_name}</span>
-                        </div>
+                          return (
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono pt-2 border-t border-slate-800/60">
+                              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                {/* 控球率: 60%:40% */}
+                                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-900/90 border border-slate-800 text-slate-300 shadow-2xs hover:border-slate-700 transition-colors">
+                                  <span className="text-slate-400 font-sans text-[11px]">控球率:</span>
+                                  <span className="font-bold text-slate-100">{homePoss}:{awayPoss}</span>
+                                </div>
+
+                                {/* 危攻: 38:30 */}
+                                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-900/90 border border-slate-800 shadow-2xs hover:border-slate-700 transition-colors">
+                                  <span className="text-slate-400 font-sans text-[11px]">危攻:</span>
+                                  <span className="font-bold">
+                                    <span className="text-amber-400">{homeDa}</span>
+                                    <span className="text-slate-500 mx-0.5">:</span>
+                                    <span className="text-purple-400">{awayDa}</span>
+                                  </span>
+                                </div>
+
+                                {/* 射门（射正）: 8(3):6(3) */}
+                                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-900/90 border border-slate-800 text-slate-300 shadow-2xs hover:border-slate-700 transition-colors">
+                                  <span className="text-slate-400 font-sans text-[11px]">射门（射正）:</span>
+                                  <span className="font-bold text-slate-100">{homeShots}{homeSoT}:{awayShots}{awaySoT}</span>
+                                </div>
+
+                                {/* 角球: 6:7 */}
+                                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-900/90 border border-slate-800 text-slate-300 shadow-2xs hover:border-slate-700 transition-colors">
+                                  <span className="text-slate-400 font-sans text-[11px]">角球:</span>
+                                  <span className="font-bold text-slate-100">{homeCorners}:{awayCorners}</span>
+                                </div>
+
+                                {/* 黄牌: 1:0 */}
+                                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-900/90 border border-slate-800 shadow-2xs hover:border-slate-700 transition-colors">
+                                  <span className="text-slate-400 font-sans text-[11px]">黄牌:</span>
+                                  <span className="font-bold text-amber-300">{homeYc}:{awayYc}</span>
+                                </div>
+
+                                {/* 红牌: 0:0 */}
+                                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-900/90 border border-slate-800 shadow-2xs hover:border-slate-700 transition-colors">
+                                  <span className="text-slate-400 font-sans text-[11px]">红牌:</span>
+                                  <span className="font-bold text-rose-400">{homeRc}:{awayRc}</span>
+                                </div>
+                              </div>
+
+                              <div className="text-[10px] text-slate-500 shrink-0 self-center">
+                                {points.length > 0
+                                  ? `已采集 ${points.length} 分钟波形`
+                                  : m.reference?.stats
+                                  ? "技术统计已对齐"
+                                  : "待同步"}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
-                    ) : (
-                      <div className="text-xs text-slate-500 italic py-2">
-                        未匹配到雷速数据
-                      </div>
-                    )}
-                  </div>
+                    );
+                  })()}
                 </div>
 
                 {/* 盘口行情与操作栏 */}

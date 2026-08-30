@@ -319,6 +319,7 @@ test('score validation rejects missing, negative, fractional, and impossible sco
 
 test('matching YBTY and Leisu API scores upgrade live score verification', () => {
   const item = {
+    ybty_home: '利物浦', ybty_away: '曼城',
     score: { home: 0, away: 1 }, score_verified: false, score_source: 'ybty_export',
     detail_context: { formal: { live_match: {
       home_scores: { score: 0 }, away_scores: { score: 1 },

@@ -8,6 +8,10 @@
       "home": "麦德林独立",
       "away": "库库塔",
       "clock_status": "即将开赛",
+      "countdown": null,
+      "commence_time": null,
+      "_pre_start_text": null,
+      "captured_at": "2026-08-23T01:04:16.753Z",
       "markets": {
         "full_h2h": {
           "home_odds": 1.18,
@@ -82,6 +86,10 @@
       "home": "温哥华白帽",
       "away": "达拉斯FC",
       "clock_status": "25分钟后开赛",
+      "countdown": "25分钟后开赛",
+      "commence_time": null,
+      "_pre_start_text": null,
+      "captured_at": "2026-08-23T01:04:17.308Z",
       "markets": {
         "full_h2h": {
           "home_odds": 1.42,

@@ -1,7 +1,7 @@
 # AI 编码行为准则与反技术债务法典 (AI Coding Standards & Anti-Tech-Debt Rules)
 
 > **版本**：v1.0.0  
-> **更新时间**：2026-08-23  
+> **更新时间**：2026-08-29  
 > **作用域**：全系统重构体系 (`/refactor/`) 及后续所有 AI/工程师开发行为  
 > **最高原则**：本法典是系统开发的“最高宪法”。任何 AI 在进行任何修改、编写代码或执行重构前，必须无条件严格遵守本法典的全部条款。
 
@@ -138,4 +138,30 @@
   2. 所有系统异常、业务校验失败与需要前端 UI 弹窗通知的事件，必须通过 `systemAlertBus.publish(...)` 广播给全局通知总线；
   3. UI 前端组件只需订阅 `systemAlertBus.subscribe(...)`，即可自动接收弹窗提示与日志流，实现业务逻辑与展示层彻底解耦。
 - **违规判定**：任何 AI 若在重构代码中新增私有异常上报机制或绕过公共总线，直接判定为违反核心法典并视为重构失败。
+
+---
+
+## 第八章：全链路编号追溯与反隐式兜底绝对法则 (Traceability Matrix & Anti-Fallback Laws)
+
+> **最高约束**：为了彻底解决“多层链路排查费力、隐式兜底掩盖缺陷、缺少链路检查与死代码遗留”等工程痛点，全系统强制实施三位一体的编号追溯与反兜底机制。
+
+### 8.1 三位一体全局唯一编号体系 (Traceability IDs)
+所有核心代码与模型必须在 `/refactor/TRACEABILITY_MATRIX.md` 显式登记：
+1. **数据字段编号 (`F-[层级]-[标识]`)**：例如 `F-01-Y01` (YBTY原始时钟)、`F-02-C10` (双源核验比分)、`F-02-C50` (数据完整度评级)；
+2. **计算算子编号 (`OP-[层级]-[序号]`)**：例如 `OP-01-01` (YBTY滚球提取)、`OP-02-03` (双源比分交叉核验)、`OP-02-05` (标准赛事组装)；
+3. **风控规则编号 (`RC-[序号]`)**：例如 `RC-001` (比分冲突硬熔断)、`RC-002` (B级推荐单串关限制)、`RC-008` (深盘净胜幅度支持)。
+
+### 8.2 四大强制编码铁律 (Core Anti-Debt Laws)
+1. **结构化追踪日志法典 (`Tracer.ts`)**：
+   - 严禁全工程任何无上下文的裸 `console.log`；
+   - 必须通过 `tracer.log(level, operatorId, ruleId, message, payload, matchId)` 统一记录。输出格式：`[ISO-Time][Level][OP-XXX][RC-XXX][MATCH:ID] Message + JSON`。
+2. **零隐式兜底与显式缺陷收集 (`DeficitCollector.ts`)**：
+   - 严禁在内部使用 `try-catch` 静默吞掉错误或赋假默认值（如把缺失的射正数填为 0）；
+   - 字段缺失或异常必须通过 `DeficitCollector.record()` 显式登记，并沉淀到 `CanonicalMatch.data_deficits`；
+   - 下游消费端（Layer 04/05）根据 `data_deficits` 严格执行风控准入降级。
+3. **黄金基准测试集穿透约束 (Golden Fixture SSOT Benchmark)**：
+   - 所有测试与文档说明**必须以真实固件中的【英甲：谢周三 vs 布拉德福德城 (MatchID: 4562395)】为单一黄金事实基准 (SSOT)**；
+   - 自动化测试套件必须包含 `/refactor/tests/verify_traceability_matrix.ts`，作为物理把关人。
+4. **硬熔断防御机制 (Hard-Fuse on Data Corruption)**：
+   - 当检测到核心关键数据损坏（如 YBTY 与雷速比分冲突）时，必须执行 Fail-Fast，直接将数据完整度判定为 `TIER_INVALID`，打上 `is_mismatch_detected = true`，严禁任何推荐准入。
 

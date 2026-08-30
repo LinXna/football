@@ -1,7 +1,7 @@
 # 足球量化系统：重构目录数据规范与字段权威说明 (Refactor Data Specification)
 
 > **版本**：v1.0 (重构定稿版)  
-> **更新时间**：2026-08-23  
+> **更新时间**：2026-08-29  
 > **核心原则**：纯净无冗余、单一事实来源 (SSOT)、零派生噪音字段。
 
 ---
@@ -639,7 +639,74 @@ export interface AiEvaluationBrief {
 }
 ```
 
+---
 
+## 五、Layer 03 确定性量化与博弈特征规范 (`QuantitativeFeatures`)
 
+* 样例文件路径：`refactor/samples/03_quant_engine/quant_features_sample.json`
+* 引擎实现：`refactor/03_quant_engine/index.ts`
+* 强类型定义：`refactor/03_quant_engine/types.ts`
+* 包含 **37 项不可变量化要素**，分为 6 大领域子系统：
 
+### 1. 顶层结构与统帅部综合指标 (`Root Level`)
 
+```typescript
+export interface QuantitativeFeatures {
+  schema_version: 1;
+  match_id: string;
+  calculated_at: string;
+  context: CleanedContextFeatures;               // 1. 基本面清洗与环境修正
+  momentum: MomentumTimelineFeatures;            // 2. 动量时序与动态压迫特征
+  physical_stats: RealTimePhysicalStatsFeatures; // 3. 现场物理攻防与威胁转化
+  poisson: InPlayPoissonFeatures;                // 4. 滚球 Forward 泊松与剩余期望
+  devig: MarketDevigFeatures;                    // 5. 市场去抽水与全盘口 EV
+  battlefield_dominance_index: number;           // 6. 战场统治权指数 (BDI: -100 ~ +100)
+  confidence_score: number;                      // 7. 量化计算置信度 (0 ~ 100)
+  goal_phase_alert: GoalPhaseAlert;              // 8. 破门相变预警等级
+  positive_ev_signals: PositiveEVSignal[];       // 9. 发现的 +EV 投资机会列表
+  risk_flags: QuantAlert[];                      // 10. 触发的量化风控警报代码
+  data_deficits: DataDeficitPayload[];           // 11. 收集的数据缺陷明细
+}
+```
+
+### 2. 37 项量化要素明细对照表
+
+| 序号 | 要素标识 (Feature ID) | 字段路径 | 数据类型 | 取值范围 / 枚举 | 权威业务含义与计算公式 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| 1 | `F01_BDI` | `battlefield_dominance_index` | `number` | `[-100, +100]` | **战场统治权指数**：融合压迫动量(40%)、xT真实威胁(30%)与攻防折损(30%)。正数为主队占优，负数为客队占优。 |
+| 2 | `F02_CONF` | `confidence_score` | `number` | `[0, 100]` | **综合量化置信度**：基础分 100，扣减数据缺口、样本稀疏度与动量震荡惩罚。 |
+| 3 | `F03_PHASE` | `goal_phase_alert` | `GoalPhaseAlert` | `NONE` / `SIEGE_PRESSURE_HIGH` / `COUNTER_THREAT_HIGH` / `DEADLOCK_STALEMATE` / `DESPERATION_SURGE` | **破门相变预警**：基于动量爆发斜率与持续围攻状态判定的进球临界状态。 |
+| 4 | `F04_L0_STATUS` | `context.circuit_breaker.is_triggered` | `boolean` | `true / false` | **L0 致命熔断状态**：比分冲突、非法时钟或盘口缺失时触发。 |
+| 5 | `F05_H2H_DECAY` | `context.h2h_weights[i].decay_weight` | `number` | `[0, 1]` | **历史交锋时间衰减权重**：基于 730 天半衰期指数衰减 $w = e^{-\lambda \Delta t}$。 |
+| 6 | `F06_HOME_LIS` | `context.lineup_impact.home_lis` | `number` | `[0, 1]` | **主队阵容战力折损指数 (LIS)**：基于缺席主力身价与出场时间折算。 |
+| 7 | `F07_AWAY_LIS` | `context.lineup_impact.away_lis` | `number` | `[0, 1]` | **客队阵容战力折损指数 (LIS)**。 |
+| 8 | `F08_HOME_MUI` | `context.motivation_urgency.home_mui` | `number` | `[0.7, 1.3]` | **主队战意紧迫度指数 (MUI)**：基于积分榜保级/争冠/死水区及杯赛淘汰轮次。 |
+| 9 | `F09_AWAY_MUI` | `context.motivation_urgency.away_mui` | `number` | `[0.7, 1.3]` | **客队战意紧迫度指数 (MUI)**。 |
+| 10 | `F10_GOAL_TIME_VALID` | `context.goal_timing_validity.is_valid_sample` | `boolean` | `true / false` | **进球时段样本有效性**：样本量 $\ge 6$ 且覆盖率合格。 |
+| 11 | `F11_MOM_SLOPE_5M` | `momentum.slope_5m` | `number` | `[-100, +100]` | **5分钟动量最小二乘斜率 (OLS Slope)**：表征最近 5 分钟攻防突变加速度。 |
+| 12 | `F12_MOM_SLOPE_10M` | `momentum.slope_10m` | `number` | `[-100, +100]` | **10分钟动量最小二乘斜率**。 |
+| 13 | `F13_MOM_SLOPE_15M` | `momentum.slope_15m` | `number` | `[-100, +100]` | **15分钟动量最小二乘斜率**。 |
+| 14 | `F14_AUC_5M_NET` | `momentum.integral_5m.net` | `number` | `[-500, +500]` | **5分钟净动量积分 (AUC)**：采用梯形数值积分法计算主客净进攻能量。 |
+| 15 | `F15_AUC_15M_NET` | `momentum.integral_15m.net` | `number` | `[-1500, +1500]` | **15分钟净动量积分 (AUC)**。 |
+| 16 | `F16_AUC_FULL_NET` | `momentum.integral_full_match.net` | `number` | `[-9000, +9000]` | **全场累计净动量积分 (AUC)**。 |
+| 17 | `F17_MOM_DOMINANCE` | `momentum.dominance_side` | `string` | `'home' \| 'away' \| 'neutral'` | **动量主导方**。 |
+| 18 | `F18_SUSTAINED_SIEGE` | `momentum.is_sustained_siege` | `boolean` | `true / false` | **持续围攻状态**：15 分钟内持续处于强攻压迫且斜率稳定。 |
+| 19 | `F19_COUNTER_SURGE` | `momentum.is_counter_attack_surge` | `boolean` | `true / false` | **反击爆发状态**：弱势方在短时间内动量出现逆转突变。 |
+| 20 | `F20_XT_HOME` | `physical_stats.xt_proxy.home_xt` | `number` | `[0, 10]` | **主队真实威胁代理值 (xT Proxy)**：综合射正、危攻与角球加权折算。 |
+| 21 | `F21_XT_AWAY` | `physical_stats.xt_proxy.away_xt` | `number` | `[0, 10]` | **客队真实威胁代理值 (xT Proxy)**。 |
+| 22 | `F22_CONV_HOME` | `physical_stats.conversion_efficiency.home_conversion` | `number` | `[0, 1]` | **主队射门转化率**：进球数 / 总射门数。 |
+| 23 | `F23_CONV_AWAY` | `physical_stats.conversion_efficiency.away_conversion` | `number` | `[0, 1]` | **客队射门转化率**。 |
+| 24 | `F24_PRESSURE_INDEX` | `physical_stats.pressure_index` | `number` | `[-1, +1]` | **即时压迫净差指数**：$(\text{危攻}_H - \text{危攻}_A) / (\text{危攻}_H + \text{危攻}_A)$。 |
+| 25 | `F25_BARREN_DOM` | `physical_stats.tactical_anomaly.home_barren_dominance` | `boolean` | `true / false` | **无效控球/干打雷不下雨**：控球率高但射正与 xT 极低。 |
+| 26 | `F26_RED_PENALTY` | `physical_stats.red_card_penalty` | `object` | `{...}` | **红牌战力衰减系数**：进攻衰减 0.75，防守漏洞扩大 1.30。 |
+| 27 | `F27_TIME_REMAINING` | `poisson.remaining_minutes` | `number` | `[0, 90]` | **剩余法定比赛分钟**：$90 - \text{minute}$。 |
+| 28 | `F28_LAMBDA_HOME_REST` | `poisson.lambda_home_rest` | `number` | `[0, 8]` | **主队滚球 0:0 剩余进球期望 ($\lambda_{H,\text{rest}}$)**。 |
+| 29 | `F29_LAMBDA_AWAY_REST` | `poisson.lambda_away_rest` | `number` | `[0, 8]` | **客队滚球 0:0 剩余进球期望 ($\lambda_{A,\text{rest}}$)**。 |
+| 30 | `F30_EXP_GOALS_REST` | `poisson.expected_goals_rest` | `number` | `[0, 16]` | **剩余时段总进球期望**：$\lambda_{H,\text{rest}} + \lambda_{A,\text{rest}}$。 |
+| 31 | `F31_REST_WIN_PROB` | `poisson.rest_score_matrix.prob_home_win_rest` | `number` | `[0, 1]` | **滚球 0:0 后续时段主队净胜概率**。 |
+| 32 | `F32_REST_DRAW_PROB` | `poisson.rest_score_matrix.prob_draw_rest` | `number` | `[0, 1]` | **滚球 0:0 后续时段双方打平概率**。 |
+| 33 | `F33_REST_AWAY_PROB` | `poisson.rest_score_matrix.prob_away_win_rest` | `number` | `[0, 1]` | **滚球 0:0 后续时段客队净胜概率**。 |
+| 34 | `F34_DEVIG_H2H` | `devig.h2h_devig.fair_probabilities` | `number[]` | `[0, 1]` | **独赢市场 Shin 去抽水公允概率** (主/平/客之和恒等于 1.0)。 |
+| 35 | `F35_SPREAD_MAIN_EV` | `devig.spread_main_ev` | `SpreadEVAssessment` | `{...}` | **让球主盘 EV 评估** (支持四分之一盘复合期望与半赢半输结算)。 |
+| 36 | `F36_TOTAL_MAIN_EV` | `devig.total_main_ev` | `TotalEVAssessment` | `{...}` | **大小球主盘 EV 评估**。 |
+| 37 | `F37_BOOKMAKER_POSTURE` | `devig.bookmaker_posture` | `BookmakerPosture` | `NEUTRAL_BALANCED` / `TRAP_HIGH_ODDS` / `DEFENSIVE_SHORTENING` / `PANIC_DRIFT` | **庄家操盘意图识别**：诱高、防范降赔或慌乱漂移。 |

@@ -17,11 +17,11 @@ export interface SniffedFileInfo {
   source: "ybty" | "leisu" | "unknown";
   mode: "live" | "prematch" | "common";
   matchCount: number;
-  rawJson: any;
+  rawJson: unknown;
   confidenceDesc: string;
 }
 
-export function sniffIngressPayload(fileName: string, fileSize: number, payload: any): SniffedFileInfo {
+export function sniffIngressPayload(fileName: string, fileSize: number, payload: unknown): SniffedFileInfo {
   if (!payload || typeof payload !== "object") {
     return {
       fileName,
@@ -36,13 +36,20 @@ export function sniffIngressPayload(fileName: string, fileSize: number, payload:
     };
   }
 
+  const obj = payload as Record<string, unknown>;
+
   // 1. 判断是否为雷速接口数据 (leisu_interface_data)
+  const results = Array.isArray(obj.results) ? obj.results : null;
   if (
-    payload.export_type === "leisu_interface_data" ||
-    (Array.isArray(payload.results) &&
-      payload.results.some((r: any) => r && (r.match_id || r.formal)))
+    obj.export_type === "leisu_interface_data" ||
+    (results &&
+      results.some((r: unknown) => {
+        if (!r || typeof r !== "object") return false;
+        const resObj = r as Record<string, unknown>;
+        return Boolean(resObj.match_id || resObj.formal);
+      }))
   ) {
-    const matchCount = Array.isArray(payload.results) ? payload.results.length : 0;
+    const matchCount = results ? results.length : 0;
     return {
       fileName,
       fileSize,
@@ -57,27 +64,44 @@ export function sniffIngressPayload(fileName: string, fileSize: number, payload:
   }
 
   // 2. 判断是否为 YBTY 数据
+  const matches = Array.isArray(obj.matches) ? obj.matches : null;
   const isYbtySource =
-    payload.source === "ybty" ||
-    (payload.source_url && String(payload.source_url).includes("zlshelves")) ||
-    (Array.isArray(payload.matches) &&
-      payload.matches.some((m: any) => m && m.markets && (m.home || m.away)));
+    obj.source === "ybty" ||
+    (typeof obj.source_url === "string" && obj.source_url.includes("zlshelves")) ||
+    (matches &&
+      matches.some((m: unknown) => {
+        if (!m || typeof m !== "object") return false;
+        const matchObj = m as Record<string, unknown>;
+        return Boolean(matchObj.markets && (matchObj.home || matchObj.away));
+      }));
 
-  if (isYbtySource || Array.isArray(payload.matches)) {
-    const matchCount = Array.isArray(payload.matches) ? payload.matches.length : 0;
+  if (isYbtySource || matches) {
+    const matchCount = matches ? matches.length : 0;
+    const pageContext = typeof obj.page_context === "object" && obj.page_context !== null
+      ? (obj.page_context as Record<string, unknown>)
+      : null;
 
     // 检查是否为滚球 (live)
     const isLive =
-      payload.export_mode === "live" ||
-      payload.page_context?.detected_mode === "live" ||
-      payload.page_context?.requested_mode === "live" ||
-      payload.matches?.some(
-        (m: any) =>
-          m.clock_status === "in_play" ||
-          m.clock_status === "live" ||
-          (m.clock && m.clock !== "FT" && m.clock !== "NS" && m.clock !== "未开赛") ||
-          (m.home_score !== null && m.home_score !== undefined && m.home_score !== "")
-      );
+      obj.export_mode === "live" ||
+      pageContext?.detected_mode === "live" ||
+      pageContext?.requested_mode === "live" ||
+      (matches &&
+        matches.some((m: unknown) => {
+          if (!m || typeof m !== "object") return false;
+          const matchObj = m as Record<string, unknown>;
+          return (
+            matchObj.clock_status === "in_play" ||
+            matchObj.clock_status === "live" ||
+            (typeof matchObj.clock === "string" &&
+              matchObj.clock !== "FT" &&
+              matchObj.clock !== "NS" &&
+              matchObj.clock !== "未开赛") ||
+            (matchObj.home_score !== null &&
+              matchObj.home_score !== undefined &&
+              matchObj.home_score !== "")
+          );
+        }));
 
     if (isLive) {
       return {
