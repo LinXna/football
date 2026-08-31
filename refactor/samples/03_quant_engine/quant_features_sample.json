@@ -1,6 +1,6 @@
 {
   "canonical_id": "4562395",
-  "calculated_at": "2026-08-30T20:08:27.409Z",
+  "calculated_at": "2026-08-31T22:59:38.077Z",
   "context": {
     "circuit_breaker": {
       "is_triggered": false,
@@ -9,38 +9,38 @@
     },
     "h2h_weights": [
       {
-        "date": 1661884200,
-        "days_ago": 20676,
+        "date": "2022-08-30",
+        "days_ago": 1462,
         "decay_weight": 0,
         "is_valid": false
       },
       {
-        "date": 1314729900,
-        "days_ago": 20680,
+        "date": "2011-08-30",
+        "days_ago": 5480,
         "decay_weight": 0,
         "is_valid": false
       },
       {
-        "date": 1108220400,
-        "days_ago": 20683,
+        "date": "2005-02-12",
+        "days_ago": 7870,
         "decay_weight": 0,
         "is_valid": false
       },
       {
-        "date": 1098540000,
-        "days_ago": 20683,
+        "date": "2004-10-23",
+        "days_ago": 7982,
         "decay_weight": 0,
         "is_valid": false
       },
       {
-        "date": 948038340,
-        "days_ago": 20684,
+        "date": "2000-01-16",
+        "days_ago": 9724,
         "decay_weight": 0,
         "is_valid": false
       },
       {
-        "date": 934646340,
-        "days_ago": 20685,
+        "date": "1999-08-14",
+        "days_ago": 9879,
         "decay_weight": 0,
         "is_valid": false
       }
@@ -556,6 +556,26 @@
       "requires_bayesian_shrinkage": true
     }
   },
+  "prematch_prior": {
+    "lambda_home_theory": 0.525,
+    "lambda_away_theory": 0.674,
+    "squad_strength_differential": 0.043,
+    "form_momentum_differential": -0.077,
+    "prior_fair_home_win_prob": 0.2437,
+    "prior_fair_draw_prob": 0.418,
+    "prior_fair_away_win_prob": 0.3383,
+    "theory_total_goals_expected": 1.199
+  },
+  "market_calibration": {
+    "lambda_base_home": 0.943,
+    "lambda_base_away": 1.032,
+    "divergence_delta": -0.12,
+    "market_stance": "CONSENSUS_ALIGNED",
+    "market_confidence_penalty": 0,
+    "implied_market_home_win_prob": 0.3521,
+    "implied_market_draw_prob": 0.2713,
+    "implied_market_away_win_prob": 0.3765
+  },
   "timeline": {
     "total_points": 63,
     "current_instant_momentum": -100,
@@ -612,17 +632,50 @@
     "elapsed_minute": 62,
     "remaining_minutes": 28,
     "time_decay_curve": "LINEAR_UNIFORM",
-    "lambda_home_rest": 0.254,
-    "lambda_away_rest": 0.553,
-    "expected_goals_rest": 0.807,
+    "lambda_home_rest": 0.282,
+    "lambda_away_rest": 0.712,
+    "expected_goals_rest": 0.994,
+    "lambda_source": "MARKET_IMPLIED",
+    "top_final_scores": [
+      {
+        "home": 0,
+        "away": 1,
+        "probability": 0.37009,
+        "percentage_str": "37.0%"
+      },
+      {
+        "home": 0,
+        "away": 2,
+        "probability": 0.26351,
+        "percentage_str": "26.4%"
+      },
+      {
+        "home": 1,
+        "away": 1,
+        "probability": 0.10437,
+        "percentage_str": "10.4%"
+      },
+      {
+        "home": 0,
+        "away": 3,
+        "probability": 0.09381,
+        "percentage_str": "9.4%"
+      },
+      {
+        "home": 1,
+        "away": 2,
+        "probability": 0.07431,
+        "percentage_str": "7.4%"
+      }
+    ],
     "rest_score_matrix": {
-      "prob_home_win_rest": 0.1379,
-      "prob_draw_rest": 0.5111,
-      "prob_away_win_rest": 0.351
+      "prob_home_win_rest": 0.1325,
+      "prob_draw_rest": 0.4482,
+      "prob_away_win_rest": 0.4193
     },
     "projected_final_score": {
-      "home": 0.25,
-      "away": 1.55,
+      "home": 0.28,
+      "away": 1.71,
       "most_likely_score": "0-1"
     }
   },
@@ -646,8 +699,8 @@
       "line": "-0/0.5",
       "home_odds": 2.2,
       "away_odds": 1.71,
-      "home_ev": -0.4411,
-      "away_ev": 0.2928,
+      "home_ev": -0.4844,
+      "away_ev": 0.3243,
       "preferred_side": "away",
       "is_positive_ev": true
     },
@@ -656,8 +709,8 @@
         "line": "0",
         "home_odds": 1.6,
         "away_odds": 2.38,
-        "home_ev": -0.2683,
-        "away_ev": 0.3465,
+        "home_ev": -0.3398,
+        "away_ev": 0.4461,
         "preferred_side": "away",
         "is_positive_ev": true
       },
@@ -665,8 +718,8 @@
         "line": "-0.5",
         "home_odds": 2.69,
         "away_odds": 1.47,
-        "home_ev": -0.629,
-        "away_ev": 0.2673,
+        "home_ev": -0.6436,
+        "away_ev": 0.2752,
         "preferred_side": "away",
         "is_positive_ev": true
       }
@@ -675,8 +728,8 @@
       "line": "2",
       "over_odds": 1.91,
       "under_odds": 1.95,
-      "over_ev": -0.2699,
-      "under_ev": 0.2302,
+      "over_ev": -0.1316,
+      "under_ev": 0.0896,
       "preferred_side": "under",
       "is_positive_ev": true
     },
@@ -685,8 +738,8 @@
         "line": "2/2.5",
         "over_odds": 2.4,
         "under_odds": 1.57,
-        "over_ev": -0.355,
-        "under_ev": 0.1632,
+        "over_ev": -0.1872,
+        "under_ev": 0.0538,
         "preferred_side": "under",
         "is_positive_ev": true
       },
@@ -694,8 +747,8 @@
         "line": "1.5/2",
         "over_odds": 1.56,
         "under_odds": 2.42,
-        "over_ev": -0.6978,
-        "under_ev": 0.9512,
+        "over_ev": -0.1204,
+        "under_ev": 0.0796,
         "preferred_side": "under",
         "is_positive_ev": true
       }
@@ -706,28 +759,63 @@
     },
     "bookmaker_posture": "TRAP_HIGH_ODDS"
   },
+  "spatio_temporal_events": {
+    "epi": {
+      "home": {
+        "conversion_ratio": 0,
+        "event_score_15m": 0,
+        "momentum_energy_15m": 356,
+        "classification": "BARREN_DOMINANCE"
+      },
+      "away": {
+        "conversion_ratio": 0,
+        "event_score_15m": 0,
+        "momentum_energy_15m": 372,
+        "classification": "BARREN_DOMINANCE"
+      },
+      "potency_differential": 0
+    },
+    "regime": {
+      "current_regime": "VULNERABLE_OVEREXTENSION",
+      "red_card_active_side": "none",
+      "tactical_description": "落后方 (主队) 盲目全线压上但缺乏实质威胁，极易被领先方打出致命反击。",
+      "regime_multiplier_home": 0.7,
+      "regime_multiplier_away": 1.25
+    },
+    "goal_climax": {
+      "climax_score": 97.9,
+      "climax_level": "EXTREME_IMMINENT",
+      "attacking_side": "away",
+      "momentum_acceleration_5m": -30.01,
+      "recent_incident_density_5m": 0,
+      "is_imminent_threat": true
+    }
+  },
   "battlefield_dominance_index": -19.33,
-  "goal_phase_alert": "DEADLOCK_STALEMATE",
+  "goal_phase_alert": "IMMINENT_GOAL",
   "positive_ev_signals": [
     {
       "market": "ASIAN_HANDICAP_MAIN",
       "line": "-0/0.5",
       "side": "away",
       "odds": 1.71,
-      "ev": 0.2928,
-      "confidence": 98
+      "ev": 0.3243,
+      "confidence": 98,
+      "kelly_fraction": 0
     },
     {
       "market": "TOTAL_GOALS_MAIN",
       "line": "2",
       "side": "under",
       "odds": 1.95,
-      "ev": 0.2302,
-      "confidence": 98
+      "ev": 0.0896,
+      "confidence": 98,
+      "kelly_fraction": 0
     }
   ],
   "risk_flags": [
-    "TRAP_HIGH_ODDS_WARNING"
+    "TRAP_HIGH_ODDS_WARNING",
+    "GOAL_CLIMAX_TRIGGERED"
   ],
   "confidence_score": 98
 }

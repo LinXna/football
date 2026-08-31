@@ -14,6 +14,8 @@ import {
   MatchStage,
   DataCompletenessTier,
   MissingDataReason,
+  CanonicalIncidentCategory,
+  CanonicalEventType,
 } from "./enums";
 
 import {
@@ -91,6 +93,29 @@ export interface MatchAlignmentDecision {
 }
 
 /**
+ * 02 标准赛事单条关键时序事件 (Canonical Timeline Event)
+ * 具备点球/乌龙识别、VAR 进球回滚、替补席牌隔离与精确伤停补时
+ */
+export interface CanonicalTimelineEvent {
+  minute: number | null;
+  base_minute: number | null;          // 基准分钟 (如 45, 90)
+  added_minute: number | null;         // 补时分钟 (如 2, 4)
+  display_time: string;                // 显示时钟 (如 "45+2'", "68'")
+  type: number;                        // 原始事件代码 (1:进球, 3:黄牌, 4:红牌, 9:换人, 22:射偏, 28:VAR 等)
+  type_name: string;                   // 显示名称
+  canonical_type: CanonicalEventType;  // 标准语义事件类型枚举
+  category: CanonicalIncidentCategory; // 事件所属大类
+  side: "home" | "away" | "neutral";   // 所属方
+  text: string;                        // 原始文字详情
+  is_penalty: boolean;                 // 是否为点球破门
+  is_own_goal: boolean;                // 是否为乌龙球
+  is_cancelled: boolean;               // 是否被 VAR 或裁判取消/判定无效 (如 VAR 吹掉进球)
+  is_var_overturned: boolean;          // 是否为 VAR 介入改判事件
+  is_on_pitch: boolean;                // 是否为场上 11 人比赛球员 (区分替补席/教练席吃牌，避免误减员)
+  player_name?: string | null;         // 涉事球员姓名
+}
+
+/**
  * 标准赛事比分状态（双源校验）
  */
 export interface CanonicalScoreState {
@@ -102,6 +127,7 @@ export interface CanonicalScoreState {
   score_source: "LEISU_CANVAS" | "LEISU_INTERFACE" | "YBTY_DIRECT" | "UNVERIFIED";
   is_mismatch_detected: boolean;  // 是否检测到双源比分冲突
   mismatch_details?: string | null;
+  var_overturned_goals_count: number; // 记录被 VAR 吹掉/取消的进球数
 }
 
 /**
@@ -112,6 +138,8 @@ export interface CanonicalTimingState {
   beijing_start_time: string;     // YYYY-MM-DD HH:mm:ss
   start_time_source: "YBTY_EXACT" | "YBTY_ESTIMATED" | "LEISU_SUPPLEMENTED";
   minute: number | null;          // 滚球进行分钟 (严格由 YBTY 即时盘口时钟 ybty_display_clock 解析，中场锁定 45，赛前为 null；雷速不提供滚球时钟)
+  base_minute?: number | null;    // 基准半场分钟 (如 45, 90)
+  added_minute?: number | null;   // 伤停补时分钟 (如 2, 4)
   is_half_time: boolean;          // 是否中场休息
   is_extra_time: boolean;         // 是否加时赛
   is_overtime_or_penalty: boolean;// 是否点球大战
@@ -128,7 +156,7 @@ export interface CanonicalLeisuReference {
   leisu_league_name: string;
   stats: ParsedLeisuStats | null;
   attack_momentum: ParsedLeisuMomentum | null;
-  timeline_events: ParsedLeisuTimelineEvent[];
+  timeline_events: CanonicalTimelineEvent[];
   lineups: ParsedLeisuLineup | null;
   tactical_context: ParsedLeisuTacticalContext | null;
   odds_matrix: ParsedLeisuOddsMatrix | null;

@@ -251,6 +251,8 @@ export function extractRealTimePhysicalStats(
   const awayPossession = stats?.possession?.away ?? 50;
 
   // 1. xT (Expected Threat Proxy) 真实穿透威胁模型
+  // 领域约束警示：shots_off_target (Type 22 偏离目标射门) 在数据源上混合了普通打偏与击中门柱横梁 (Woodwork)，
+  // 无法直接作为高 xG 险情区分。此处严格采用 0.040 保守低权重（仅作为具备终结意图的低阶攻势），杜绝误放大虚假威胁度。
   const homeXT = Number(((homeDA * 0.015) + (homeCorners * 0.035) + (homeOff * 0.040) + (homeOn * 0.280)).toFixed(3));
   const awayXT = Number(((awayDA * 0.015) + (awayCorners * 0.035) + (awayOff * 0.040) + (awayOn * 0.280)).toFixed(3));
   const totalXT = homeXT + awayXT;

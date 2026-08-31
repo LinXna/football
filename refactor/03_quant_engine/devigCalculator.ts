@@ -28,6 +28,7 @@ import {
 } from './types.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
+import { poissonPMF, calculateBivariatePoissonGrid } from './poissonDecayModel.js';
 
 /**
  * 比例剥水模型 (Multiplicative / Proportional De-vig)
@@ -117,11 +118,48 @@ export function devigShin(decimalOdds: number[]): { fair_probs: number[]; overro
 
 /**
  * 解析亚洲盘口让球线为数值
- * 支持格式: "-0/0.5" -> -0.25, "+0.5" -> +0.5, "0" -> 0, "1/1.5" -> 1.25, "-1.5/2" -> -1.75
+ * 支持格式: 
+ * 1. 数字分数: "-0/0.5" -> -0.25, "+0.5" -> +0.5, "0" -> 0, "1/1.5" -> 1.25, "-1.5/2" -> -1.75
+ * 2. 中文盘口名: "平手" -> 0, "平/半" -> -0.25, "半球" -> -0.5, "半/一" -> -0.75, "一球" -> -1.0, "球半" -> -1.5, "球半/两" -> -1.75, "两球" -> -2.0
+ * 3. 受让前缀: "受让半球" / "受半球" -> +0.5, "受平半" -> +0.25
  */
 export function parseAsianHandicapLine(lineStr: string): number {
   if (!lineStr || typeof lineStr !== 'string') return 0.0;
   const clean = lineStr.trim();
+
+  // 中文盘口别名表
+  const chineseMap: Record<string, number> = {
+    '平手': 0.0,
+    '平手盘': 0.0,
+    '平/半': -0.25,
+    '平半': -0.25,
+    '半球': -0.5,
+    '半/一': -0.75,
+    '半一': -0.75,
+    '一球': -1.0,
+    '一/球半': -1.25,
+    '一球/球半': -1.25,
+    '球半': -1.5,
+    '球半/两球': -1.75,
+    '球半/两': -1.75,
+    '两球': -2.0,
+    '两/两球半': -2.25,
+    '两球半': -2.5,
+    '两球半/三球': -2.75,
+    '三球': -3.0
+  };
+
+  if (chineseMap[clean] !== undefined) {
+    return chineseMap[clean];
+  }
+
+  // 处理受让前缀 (例如 "受让半球", "受平半")
+  if (clean.startsWith('受让') || clean.startsWith('受')) {
+    const core = clean.replace(/^(受让|受)/, '').trim();
+    if (chineseMap[core] !== undefined) {
+      return -chineseMap[core]; // 反转为正盘
+    }
+  }
 
   if (clean.includes('/')) {
     const isNegative = clean.startsWith('-');
@@ -143,6 +181,15 @@ export function parseAsianHandicapLine(lineStr: string): number {
 
 /**
  * 计算亚洲让球盘 (AH) 的复合数学期望 (EV)
+ * 基于 0~7 球双变量泊松网格 P(X_rest=h, Y_rest=a) 进行闭式全量展开：
+ * 剩余进球净胜差 d = h - a
+ * 主队有效净胜差 Delta_home = d + line (其中 line 为主队让球线，如 -0.25, +0.5 等)
+ *   Delta_home >= 0.5  => 全赢, 收益 = (homeOdds - 1.0)
+ *   Delta_home === 0.25 => 赢半, 收益 = 0.5 * (homeOdds - 1.0)
+ *   Delta_home === 0.0  => 走盘退本, 收益 = 0.0
+ *   Delta_home === -0.25 => 输半, 收益 = -0.5
+ *   Delta_home <= -0.5  => 全输, 收益 = -1.0
+ * 同理客队有效净胜差 Delta_away = -d - line
  */
 export function calculateAsianHandicapEV(
   handicapLineStr: string,
@@ -151,43 +198,54 @@ export function calculateAsianHandicapEV(
   poisson: InPlayPoissonFeatures
 ): SpreadEVAssessment {
   const line = parseAsianHandicapLine(handicapLineStr);
-  const { prob_home_win_rest, prob_draw_rest, prob_away_win_rest } = poisson.rest_score_matrix;
+  const lambdaHome = typeof poisson.lambda_home_rest === 'number' && !isNaN(poisson.lambda_home_rest) ? poisson.lambda_home_rest : 1.25;
+  const lambdaAway = typeof poisson.lambda_away_rest === 'number' && !isNaN(poisson.lambda_away_rest) ? poisson.lambda_away_rest : 1.05;
+
+  // 使用双变量泊松分布网格闭式求解
+  const grid = calculateBivariatePoissonGrid(lambdaHome, lambdaAway, 7);
 
   let homeEV = 0.0;
   let awayEV = 0.0;
 
-  // 1. 平手盘 (0.0)
-  if (line === 0.0) {
-    homeEV = prob_home_win_rest * (homeOdds - 1.0) - prob_away_win_rest * 1.0;
-    awayEV = prob_away_win_rest * (awayOdds - 1.0) - prob_home_win_rest * 1.0;
-  }
-  // 2. 主让平半 (-0.25)
-  else if (line === -0.25) {
-    homeEV = prob_home_win_rest * (homeOdds - 1.0) + prob_draw_rest * (-0.5) - prob_away_win_rest * 1.0;
-    awayEV = prob_away_win_rest * (awayOdds - 1.0) + prob_draw_rest * (0.5 * (awayOdds - 1.0)) - prob_home_win_rest * 1.0;
-  }
-  // 3. 主受让平半 (+0.25)
-  else if (line === 0.25) {
-    homeEV = prob_home_win_rest * (homeOdds - 1.0) + prob_draw_rest * (0.5 * (homeOdds - 1.0)) - prob_away_win_rest * 1.0;
-    awayEV = prob_away_win_rest * (awayOdds - 1.0) + prob_draw_rest * (-0.5) - prob_home_win_rest * 1.0;
-  }
-  // 4. 主让半球 (-0.5)
-  else if (line === -0.5) {
-    homeEV = prob_home_win_rest * (homeOdds - 1.0) - (prob_draw_rest + prob_away_win_rest) * 1.0;
-    awayEV = (prob_draw_rest + prob_away_win_rest) * (awayOdds - 1.0) - prob_home_win_rest * 1.0;
-  }
-  // 5. 主受让半球 (+0.5)
-  else if (line === 0.5) {
-    homeEV = (prob_home_win_rest + prob_draw_rest) * (homeOdds - 1.0) - prob_away_win_rest * 1.0;
-    awayEV = prob_away_win_rest * (awayOdds - 1.0) - (prob_home_win_rest + prob_draw_rest) * 1.0;
-  }
-  // 6. 其他深度盘口通用逼近
-  else if (line < -0.5) {
-    homeEV = prob_home_win_rest * 0.7 * (homeOdds - 1.0) - (prob_draw_rest + prob_away_win_rest) * 1.0;
-    awayEV = (prob_draw_rest + prob_away_win_rest) * (awayOdds - 1.0) - prob_home_win_rest * 0.7;
-  } else {
-    homeEV = (prob_home_win_rest + prob_draw_rest) * (homeOdds - 1.0) - prob_away_win_rest * 0.7;
-    awayEV = prob_away_win_rest * 0.7 * (awayOdds - 1.0) - (prob_home_win_rest + prob_draw_rest) * 1.0;
+  for (let h = 0; h <= 7; h++) {
+    for (let a = 0; a <= 7; a++) {
+      const pCell = grid.matrix[h]?.[a] ?? 0;
+      if (pCell <= 0) continue;
+
+      const d = h - a; // 剩余主队净胜球
+
+      // 1. 主队收益
+      const deltaHome = d + line;
+      let payoffHome = 0.0;
+      if (deltaHome >= 0.5) {
+        payoffHome = homeOdds - 1.0; // 全赢
+      } else if (Math.abs(deltaHome - 0.25) < 1e-4) {
+        payoffHome = 0.5 * (homeOdds - 1.0); // 赢半
+      } else if (Math.abs(deltaHome) < 1e-4) {
+        payoffHome = 0.0; // 走盘
+      } else if (Math.abs(deltaHome - (-0.25)) < 1e-4) {
+        payoffHome = -0.5; // 输半
+      } else {
+        payoffHome = -1.0; // 全输
+      }
+      homeEV += pCell * payoffHome;
+
+      // 2. 客队收益
+      const deltaAway = -d - line;
+      let payoffAway = 0.0;
+      if (deltaAway >= 0.5) {
+        payoffAway = awayOdds - 1.0; // 全赢
+      } else if (Math.abs(deltaAway - 0.25) < 1e-4) {
+        payoffAway = 0.5 * (awayOdds - 1.0); // 赢半
+      } else if (Math.abs(deltaAway) < 1e-4) {
+        payoffAway = 0.0; // 走盘
+      } else if (Math.abs(deltaAway - (-0.25)) < 1e-4) {
+        payoffAway = -0.5; // 输半
+      } else {
+        payoffAway = -1.0; // 全输
+      }
+      awayEV += pCell * payoffAway;
+    }
   }
 
   homeEV = Number(homeEV.toFixed(4));
@@ -213,6 +271,16 @@ export function calculateAsianHandicapEV(
 
 /**
  * 计算全场大小球盘口的复合数学期望 (EV)
+ * 基于单变量泊松分布 K_rest ~ Poisson(lambda_rest) 进行闭式全量展开：
+ * 剩余进球目标 T = line - currentTotalGoals
+ * 对于任意剩余总进球 k in [0..10]:
+ *   大球差额 Delta_over = k - T
+ *     Delta_over >= 0.5  => 全赢 (overOdds - 1.0)
+ *     Delta_over === 0.25 => 赢半 (0.5 * (overOdds - 1.0))
+ *     Delta_over === 0.0  => 走盘退本 (0.0)
+ *     Delta_over === -0.25 => 输半 (-0.5)
+ *     Delta_over <= -0.5  => 全输 (-1.0)
+ *   小球差额 Delta_under = T - k
  */
 export function calculateTotalGoalsEV(
   totalLineStr: string,
@@ -223,36 +291,47 @@ export function calculateTotalGoalsEV(
 ): TotalEVAssessment {
   const line = parseAsianHandicapLine(totalLineStr);
   const remainingTarget = line - currentTotalGoals;
-  const lambdaRest = poisson.expected_goals_rest;
-
-  const p0 = Math.exp(-lambdaRest);
-  const p1 = lambdaRest * Math.exp(-lambdaRest);
-  const p2 = (Math.pow(lambdaRest, 2) * Math.exp(-lambdaRest)) / 2.0;
+  const lambdaRest = typeof poisson.expected_goals_rest === 'number' && !isNaN(poisson.expected_goals_rest) ? poisson.expected_goals_rest : 2.30;
 
   let overEV = 0.0;
   let underEV = 0.0;
 
-  if (remainingTarget <= 0.5) {
-    const pAnyGoal = 1.0 - p0;
-    overEV = pAnyGoal * (overOdds - 1.0) - p0 * 1.0;
-    underEV = p0 * (underOdds - 1.0) - pAnyGoal * 1.0;
-  } else if (remainingTarget === 1.0) {
-    const pOver = 1.0 - p0 - p1;
-    overEV = pOver * (overOdds - 1.0) - p0 * 1.0;
-    underEV = p0 * (underOdds - 1.0) - pOver * 1.0;
-  } else if (remainingTarget === 1.25) {
-    const pOver = 1.0 - p0 - p1;
-    overEV = pOver * (overOdds - 1.0) + p1 * (-0.5) - p0 * 1.0;
-    underEV = p0 * (underOdds - 1.0) + p1 * (0.5 * (underOdds - 1.0)) - pOver * 1.0;
-  } else if (remainingTarget === 1.75) {
-    const pOver = 1.0 - p0 - p1 - p2;
-    overEV = (pOver * (overOdds - 1.0)) + (p2 * 0.5 * (overOdds - 1.0)) - (p0 + p1) * 1.0;
-    underEV = (p0 + p1) * (underOdds - 1.0) + (p2 * -0.5) - pOver * 1.0;
-  } else {
-    const pUnder = p0 + p1;
-    const pOver = Math.max(0.0, 1.0 - pUnder);
-    overEV = pOver * (overOdds - 1.0) - pUnder * 1.0;
-    underEV = pUnder * (underOdds - 1.0) - pOver * 1.0;
+  // 展开 0~10 个剩余进球
+  for (let k = 0; k <= 10; k++) {
+    const pK = poissonPMF(k, lambdaRest);
+    if (pK <= 0) continue;
+
+    // 1. 大球收益
+    const deltaOver = k - remainingTarget;
+    let payoffOver = 0.0;
+    if (deltaOver >= 0.5) {
+      payoffOver = overOdds - 1.0;
+    } else if (Math.abs(deltaOver - 0.25) < 1e-4) {
+      payoffOver = 0.5 * (overOdds - 1.0);
+    } else if (Math.abs(deltaOver) < 1e-4) {
+      payoffOver = 0.0;
+    } else if (Math.abs(deltaOver - (-0.25)) < 1e-4) {
+      payoffOver = -0.5;
+    } else {
+      payoffOver = -1.0;
+    }
+    overEV += pK * payoffOver;
+
+    // 2. 小球收益
+    const deltaUnder = remainingTarget - k;
+    let payoffUnder = 0.0;
+    if (deltaUnder >= 0.5) {
+      payoffUnder = underOdds - 1.0;
+    } else if (Math.abs(deltaUnder - 0.25) < 1e-4) {
+      payoffUnder = 0.5 * (underOdds - 1.0);
+    } else if (Math.abs(deltaUnder) < 1e-4) {
+      payoffUnder = 0.0;
+    } else if (Math.abs(deltaUnder - (-0.25)) < 1e-4) {
+      payoffUnder = -0.5;
+    } else {
+      payoffUnder = -1.0;
+    }
+    underEV += pK * payoffUnder;
   }
 
   overEV = Number(overEV.toFixed(4));

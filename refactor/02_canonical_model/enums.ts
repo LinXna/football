@@ -57,3 +57,47 @@ export enum MissingDataReason {
   NO_ODDS_MARKETS = "NO_ODDS_MARKETS",                   // YBTY 缺少有效交易盘口
   MISSING_LIVE_MINUTE = "MISSING_LIVE_MINUTE",           // 滚球状态下 YBTY 缺少有效进行中时钟/分钟数
 }
+
+/**
+ * 02 标准赛事关键事件大类分类 (Canonical Incident Category)
+ */
+export enum CanonicalIncidentCategory {
+  SCORE = "SCORE",               // 进球/点球/乌龙/加时进球
+  DISCIPLINE = "DISCIPLINE",     // 黄牌/两黄变红/直红/替补席牌
+  TACTICAL = "TACTICAL",         // 换人/伤退/角球/射正/射偏/扑救/越位/犯规
+  MATCH_CONTROL = "MATCH_CONTROL",// 半场哨/完场哨/VAR/进球取消/补时
+  MARKET_EVENT = "MARKET_EVENT", // 封盘/重开/重定价
+}
+
+/**
+ * 02 标准赛事关键事件类型枚举 (Canonical Event Type)
+ */
+export enum CanonicalEventType {
+  GOAL_REGULAR = "GOAL_REGULAR",               // 常规运动战进球
+  GOAL_PENALTY = "GOAL_PENALTY",               // 点球破门
+  GOAL_OWN = "GOAL_OWN",                       // 乌龙球
+  GOAL_EXTRA_TIME = "GOAL_EXTRA_TIME",         // 加时赛进球
+  PENALTY_MISSED = "PENALTY_MISSED",           // 点球射失/被扑
+  YELLOW_CARD = "YELLOW_CARD",                 // 单张黄牌
+  RED_CARD = "RED_CARD",                       // 直接红牌
+  TWO_YELLOW_TO_RED = "TWO_YELLOW_TO_RED",     // 两黄变红
+  BENCH_DISCIPLINE = "BENCH_DISCIPLINE",       // 替补席/教练吃牌（场上不减员）
+  CORNER = "CORNER",                           // 角球
+  SUBSTITUTION = "SUBSTITUTION",               // 常规换人
+  INJURY_SUB = "INJURY_SUB",                   // 伤退被动换人
+  SHOT_ON_TARGET = "SHOT_ON_TARGET",           // 射正
+  SHOT_OFF_TARGET = "SHOT_OFF_TARGET",         // 射偏/击中门柱（不可细分复合事件）
+  GOALKEEPER_SAVE = "GOALKEEPER_SAVE",         // 门将扑救/解围
+  OFFSIDE = "OFFSIDE",                         // 越位
+  FOUL = "FOUL",                               // 犯规
+  KICK_OFF = "KICK_OFF",                       // 开球
+  HALF_TIME_WHISTLE = "HALF_TIME_WHISTLE",     // 半场结束
+  FULL_TIME_WHISTLE = "FULL_TIME_WHISTLE",     // 全场结束
+  VAR_REVIEW = "VAR_REVIEW",                   // VAR介入核查
+  GOAL_DISALLOWED = "GOAL_DISALLOWED",         // 进球被判无效/取消
+  CARD_OVERTURNED = "CARD_OVERTURNED",         // 红黄牌撤销/改判
+  ADDED_TIME = "ADDED_TIME",                   // 伤停补时公布
+  MATCH_INTERRUPTED = "MATCH_INTERRUPTED",     // 比赛中断/暂停
+  MATCH_ABANDONED = "MATCH_ABANDONED",         // 比赛腰斩/取消
+}
+

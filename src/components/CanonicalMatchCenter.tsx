@@ -54,6 +54,9 @@ import {
   MachineQuantEvaluationPanel,
   getQuantScreeningDecision,
 } from "./MachineQuantEvaluationPanel";
+import { QuantBettingDecisionMatrix } from "./QuantBettingDecisionMatrix";
+import { TimelineIncidentLegend, parseIncidentMeta, ProMatchEventIcon } from "./TimelineIncidentBadge";
+import { GenericTimelineEventPin } from "./IncidentIconsHelper";
 import { calculateQuantitativeFeatures } from "../../refactor/03_quant_engine";
 
 function getMarketsSummary(mkts?: CleanMarketsGroup | null) {
@@ -1621,209 +1624,152 @@ export const CanonicalMatchCenter: React.FC = () => {
                         )}
                       </div>
 
-                      {/* 3. 事件图标说明栏 */}
-                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10.5px] text-slate-300 bg-slate-900/70 px-2.5 py-1.5 rounded-lg border border-slate-800/80 select-none">
-                        <span className="inline-flex items-center gap-1"><span>⚽</span> 进球</span>
-                        <span className="inline-flex items-center gap-1"><span>🎯</span> 点球</span>
-                        <span className="inline-flex items-center gap-1"><span>🎯❌</span> 射失</span>
-                        <span className="inline-flex items-center gap-1"><span>🥅</span> 乌龙</span>
-                        <span className="inline-flex items-center gap-1"><span>🟨</span> 黄牌</span>
-                        <span className="inline-flex items-center gap-1"><span>🟥</span> 红牌</span>
-                        <span className="inline-flex items-center gap-1"><span>🟨🟥</span> 两黄变红</span>
-                        <span className="inline-flex items-center gap-1"><span>🔄</span> 换人</span>
-                        <span className="inline-flex items-center gap-1"><span>🚩</span> 角球</span>
-                        <span className="inline-flex items-center gap-1"><span>🎯</span> 射正</span>
-                        <span className="inline-flex items-center gap-1"><span>🏹</span> 射偏</span>
-                        <span className="inline-flex items-center gap-1"><span>🚫</span> 越位</span>
-                        <span className="inline-flex items-center gap-1"><span>📺</span> VAR</span>
-                        <span className="inline-flex items-center gap-1"><span>🧤</span> 扑救</span>
-                      </div>
+                      {/* 3. 事件图标说明栏 (极简清爽图例) */}
+                      <TimelineIncidentLegend
+                        homeName={m.home_team_name}
+                        awayName={m.away_team_name}
+                      />
 
-                      {/* 4. 结合比赛关键事件与时间轴的无变形专业时序走势图 */}
+                      {/* 4. 结合比赛关键事件与时间轴的专业时序走势图 (严格三层独立：上为主队事件行，中为纯净波形轨道，下为客队事件行) */}
                       {hasPoints || eventsByMinute.size > 0 ? (
                         <div
-                          className="relative w-full h-24 bg-slate-950 rounded-xl p-2 border border-slate-800/80 overflow-hidden select-none shadow-inner"
+                          className="relative w-full bg-slate-950/95 rounded-xl p-2.5 border border-slate-800/80 select-none shadow-inner flex flex-col gap-1.5"
                           onMouseLeave={() => setHoveredTimelineMinute(null)}
                         >
-                          {/* 背景网格：0 轴基准中线 */}
-                          <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-px border-b border-dashed border-slate-700/60 z-0"></div>
+                          {/* Top Lane: 主队事件专用独立行 (严格置于顶部) */}
+                          <div className="relative w-full h-6 bg-slate-900/50 rounded border border-slate-800/60 flex items-center px-1.5">
+                            <span className="text-[9px] font-bold text-emerald-400 shrink-0 select-none pr-1.5 border-r border-slate-800">
+                              主队
+                            </span>
+                            <div className="relative flex-1 h-full">
+                              {Array.from(eventsByMinute.entries()).map(([min, entry]) => {
+                                if (entry.home.length === 0) return null;
+                                return (
+                                  <GenericTimelineEventPin
+                                    key={`home-${min}`}
+                                    minute={min}
+                                    maxMinute={maxTimelineMinute}
+                                    events={entry.home}
+                                    teamName={m.home_team_name}
+                                    side="home"
+                                    momentumVal={points[min - 1] || 0}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </div>
 
-                          {/* 时间刻度线与未变形文字标签 (15', 30', 45', 60', 75', 90') */}
-                          {[15, 30, 45, 60, 75, 90].map((tMin) => {
-                            if (tMin > maxTimelineMinute) return null;
-                            const leftPct = (tMin / maxTimelineMinute) * 100;
-                            return (
-                              <div
-                                key={tMin}
-                                className="absolute top-0 bottom-0 pointer-events-none z-0"
-                                style={{ left: `${leftPct}%` }}
-                              >
-                                <div className="h-full w-px border-r border-dashed border-slate-800/80"></div>
-                                <span className="absolute top-1 -translate-x-1/2 text-[9px] font-mono text-slate-500 bg-slate-950/60 px-0.5 rounded select-none">
-                                  {tMin}'
-                                </span>
-                              </div>
-                            );
-                          })}
+                          {/* Center Lane: 纯净波形轨道 (中间独立，无图钉遮挡波形) */}
+                          <div className="relative w-full h-22 bg-slate-950 rounded-lg border border-slate-800/80 overflow-hidden">
+                            {/* 背景网格：0 轴基准中线 */}
+                            <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[1px] bg-slate-700/60 z-0"></div>
 
-                          {/* 矢量波形层 (几何矩形柱) */}
-                          <svg
-                            viewBox="0 0 1000 80"
-                            className="w-full h-full relative z-10"
-                            preserveAspectRatio="none"
-                          >
-                            {points.map((val, pIdx) => {
-                              const isHome = val > 0;
-                              const isAway = val < 0;
-                              const absVal = Math.min(100, Math.abs(val));
-                              const barH = Math.max(1.5, (absVal / 100) * 34);
-                              const x = (pIdx / maxTimelineMinute) * 1000;
-                              const width = Math.max(2, (1000 / maxTimelineMinute) * 0.7);
-                              const y = isHome ? 40 - barH : 40;
-                              const fill = isHome
-                                ? val >= 60
-                                  ? "#f59e0b"
-                                  : "#fbbf24"
-                                : isAway
-                                ? Math.abs(val) >= 60
-                                  ? "#c084fc"
-                                  : "#a855f7"
-                                : "#475569";
-
-                              const minute = pIdx + 1;
-                              const minEvents = eventsByMinute.get(minute);
-                              const allEvents = minEvents ? [...minEvents.home, ...minEvents.away, ...minEvents.neutral] : [];
-
-                              const tooltipText = `第 ${minute}' 分钟: ${
-                                isHome ? `主队危攻 +${val}` : isAway ? `客队危攻 ${val}` : "攻守均势 0"
-                              }${allEvents.length > 0 ? `\n【事件】\n` + allEvents.map((e) => `• ${e.minute}' [${e.side === "home" ? m.home_team_name : e.side === "away" ? m.away_team_name : "比赛"}] ${e.type_name || ""} ${e.text || ""}`).join("\n") : ""}`;
-
+                            {/* 时间刻度线与未变形文字标签 (15', 30', 45' HT, 60', 75', 90') */}
+                            {[15, 30, 45, 60, 75, 90].map((tMin) => {
+                              if (tMin > maxTimelineMinute) return null;
+                              const leftPct = (tMin / maxTimelineMinute) * 100;
+                              const isHT = tMin === 45;
                               return (
-                                <rect
-                                  key={pIdx}
-                                  x={x}
-                                  y={y}
-                                  width={width}
-                                  height={barH}
-                                  fill={fill}
-                                  rx="0.5"
-                                  opacity={pIdx >= points.length - 15 ? 1 : 0.82}
-                                  className="cursor-pointer transition-opacity hover:opacity-100"
-                                  onMouseEnter={() => {
-                                    setHoveredTimelineMinute({
-                                      matchId: m.canonical_id,
-                                      minute,
-                                      val,
-                                      events: allEvents,
-                                    });
-                                  }}
+                                <div
+                                  key={tMin}
+                                  className="absolute top-0 bottom-0 pointer-events-none z-0"
+                                  style={{ left: `${leftPct}%` }}
                                 >
-                                  <title>{tooltipText}</title>
-                                </rect>
+                                  <div
+                                    className={`h-full w-[1px] ${
+                                      isHT
+                                        ? "border-r border-indigo-500/50"
+                                        : "border-r border-dashed border-slate-800/80"
+                                    }`}
+                                  ></div>
+                                  <span
+                                    className={`absolute top-1 -translate-x-1/2 text-[9px] font-mono px-0.5 rounded select-none ${
+                                      isHT
+                                        ? "text-indigo-300 font-bold bg-indigo-950/80"
+                                        : "text-slate-500 bg-slate-950/60"
+                                    }`}
+                                  >
+                                    {isHT ? "HT" : `${tMin}'`}
+                                  </span>
+                                </div>
                               );
                             })}
-                          </svg>
 
-                          {/* 原生轻量事件图钉层 (emoji pins + 气泡交互 + 绝无变形) */}
-                          {Array.from(eventsByMinute.entries()).map(([min, entry]) => {
-                            const leftPct = Math.min(96, Math.max(4, (min / maxTimelineMinute) * 100));
-                            const minVal = points[min - 1] || 0;
-                            const allMinEvents = [...entry.home, ...entry.away, ...entry.neutral];
+                            {/* 矢量波形层 (经典翠绿主攻 / 靛蓝客攻) */}
+                            <svg
+                              viewBox="0 0 1000 100"
+                              className="w-full h-full relative z-10"
+                              preserveAspectRatio="none"
+                            >
+                              {points.map((val, pIdx) => {
+                                const isHome = val > 0;
+                                const isAway = val < 0;
+                                const absVal = Math.min(100, Math.abs(val));
+                                const barH = Math.max(2, (absVal / 100) * 44);
+                                const x = (pIdx / maxTimelineMinute) * 1000;
+                                const width = Math.max(2.5, (1000 / maxTimelineMinute) * 0.72);
+                                const y = isHome ? 50 - barH : 50;
+                                const fill = isHome
+                                  ? val >= 55
+                                    ? "#34d399"
+                                    : "#10b981"
+                                  : isAway
+                                  ? Math.abs(val) >= 55
+                                    ? "#818cf8"
+                                    : "#6366f1"
+                                  : "#475569";
 
-                            return (
-                              <React.Fragment key={min}>
-                                {/* 主队事件 (位于上半部) */}
-                                {entry.home.length > 0 && (
-                                  <div
-                                    className="absolute top-1 -translate-x-1/2 z-20 cursor-pointer select-none transition-transform hover:scale-125"
-                                    style={{ left: `${leftPct}%` }}
+                                const minute = pIdx + 1;
+                                const minEvents = eventsByMinute.get(minute);
+                                const allEvents = minEvents ? [...minEvents.home, ...minEvents.away, ...minEvents.neutral] : [];
+
+                                return (
+                                  <rect
+                                    key={pIdx}
+                                    x={x}
+                                    y={y}
+                                    width={width}
+                                    height={barH}
+                                    fill={fill}
+                                    rx="1"
+                                    opacity={pIdx >= points.length - 15 ? 1 : 0.88}
+                                    className="cursor-pointer transition-all hover:opacity-100 hover:brightness-125"
                                     onMouseEnter={() => {
                                       setHoveredTimelineMinute({
                                         matchId: m.canonical_id,
-                                        minute: min,
-                                        val: minVal,
-                                        events: allMinEvents,
+                                        minute,
+                                        val,
+                                        events: allEvents,
                                       });
                                     }}
-                                    title={entry.home
-                                      .map((ev) => `【主队】${ev.minute}' ${getTimelineIncidentBadge(ev.type, ev.type_name, ev.text).label}: ${m.home_team_name} ${ev.text ? `(${ev.text})` : ""}`)
-                                      .join("\n")}
-                                  >
-                                    <div className="flex items-center gap-0.5 drop-shadow-md">
-                                      {entry.home.map((ev, eIdx) => {
-                                        const badge = getTimelineIncidentBadge(ev.type, ev.type_name, ev.text);
-                                        return (
-                                          <span key={eIdx} className="text-xs leading-none">
-                                            {badge.icon}
-                                          </span>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
+                                  />
+                                );
+                              })}
+                            </svg>
+                          </div>
 
-                                {/* 客队事件 (位于下半部) */}
-                                {entry.away.length > 0 && (
-                                  <div
-                                    className="absolute bottom-1 -translate-x-1/2 z-20 cursor-pointer select-none transition-transform hover:scale-125"
-                                    style={{ left: `${leftPct}%` }}
-                                    onMouseEnter={() => {
-                                      setHoveredTimelineMinute({
-                                        matchId: m.canonical_id,
-                                        minute: min,
-                                        val: minVal,
-                                        events: allMinEvents,
-                                      });
-                                    }}
-                                    title={entry.away
-                                      .map((ev) => `【客队】${ev.minute}' ${getTimelineIncidentBadge(ev.type, ev.type_name, ev.text).label}: ${m.away_team_name} ${ev.text ? `(${ev.text})` : ""}`)
-                                      .join("\n")}
-                                  >
-                                    <div className="flex items-center gap-0.5 drop-shadow-md">
-                                      {entry.away.map((ev, eIdx) => {
-                                        const badge = getTimelineIncidentBadge(ev.type, ev.type_name, ev.text);
-                                        return (
-                                          <span key={eIdx} className="text-xs leading-none">
-                                            {badge.icon}
-                                          </span>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* 中立公共事件 (位于中轴) */}
-                                {entry.neutral.length > 0 && (
-                                  <div
-                                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-20 cursor-pointer select-none transition-transform hover:scale-125"
-                                    style={{ left: `${leftPct}%` }}
-                                    onMouseEnter={() => {
-                                      setHoveredTimelineMinute({
-                                        matchId: m.canonical_id,
-                                        minute: min,
-                                        val: minVal,
-                                        events: allMinEvents,
-                                      });
-                                    }}
-                                    title={entry.neutral
-                                      .map((ev) => `【比赛事件】${ev.minute}' ${getTimelineIncidentBadge(ev.type, ev.type_name, ev.text).label} ${ev.text ? `(${ev.text})` : ""}`)
-                                      .join("\n")}
-                                  >
-                                    <div className="flex items-center gap-0.5 drop-shadow-md">
-                                      {entry.neutral.map((ev, eIdx) => {
-                                        const badge = getTimelineIncidentBadge(ev.type, ev.type_name, ev.text);
-                                        return (
-                                          <span key={eIdx} className="text-xs leading-none">
-                                            {badge.icon}
-                                          </span>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-                              </React.Fragment>
-                            );
-                          })}
+                          {/* Bottom Lane: 客队事件专用独立行 (严格置于底部) */}
+                          <div className="relative w-full h-6 bg-slate-900/50 rounded border border-slate-800/60 flex items-center px-1.5">
+                            <span className="text-[9px] font-bold text-indigo-400 shrink-0 select-none pr-1.5 border-r border-slate-800">
+                              客队
+                            </span>
+                            <div className="relative flex-1 h-full">
+                              {Array.from(eventsByMinute.entries()).map(([min, entry]) => {
+                                if (entry.away.length === 0) return null;
+                                return (
+                                  <GenericTimelineEventPin
+                                    key={`away-${min}`}
+                                    minute={min}
+                                    maxMinute={maxTimelineMinute}
+                                    events={entry.away}
+                                    teamName={m.away_team_name}
+                                    side="away"
+                                    momentumVal={points[min - 1] || 0}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </div>
                         </div>
                       ) : (
                         <div className="h-16 flex items-center justify-center rounded-lg bg-slate-900/50 border border-slate-800/40 text-xs text-slate-500 font-mono">
@@ -1853,43 +1799,6 @@ export const CanonicalMatchCenter: React.FC = () => {
                           ) : (
                             <span>赛前待开赛 · 开赛后自动捕获逐分钟危攻波形</span>
                           )}
-                        </div>
-                      )}
-
-                      {/* 交互式鼠标悬停即时信息条 (当鼠标悬停在时序走势图或事件上时动态呈现) */}
-                      {hoveredTimelineMinute && hoveredTimelineMinute.matchId === m.canonical_id && (
-                        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 bg-slate-900 rounded-lg border border-amber-500/40 text-xs font-mono animate-in fade-in duration-150 shadow-md">
-                          <div className="flex items-center gap-2">
-                            <span className="text-amber-300 font-bold">第 {hoveredTimelineMinute.minute}' 分钟</span>
-                            <span className="text-slate-500">|</span>
-                            <span>
-                              {hoveredTimelineMinute.val > 0 ? (
-                                <span className="text-amber-400 font-bold">主队危攻 +{hoveredTimelineMinute.val}</span>
-                              ) : hoveredTimelineMinute.val < 0 ? (
-                                <span className="text-purple-400 font-bold">客队危攻 {hoveredTimelineMinute.val}</span>
-                              ) : (
-                                <span className="text-slate-400">攻守均势 0</span>
-                              )}
-                            </span>
-                          </div>
-                          <div className="text-slate-200 truncate max-w-full sm:max-w-md font-sans">
-                            {hoveredTimelineMinute.events && hoveredTimelineMinute.events.length > 0 ? (
-                              <div className="flex items-center gap-1.5 text-[11px] text-emerald-300">
-                                <span className="font-bold">【事件】</span>
-                                {hoveredTimelineMinute.events.map((ev, i) => (
-                                  <span key={i} className="inline-flex items-center gap-1">
-                                    <span>{getTimelineIncidentBadge(ev.type, ev.type_name, ev.text).icon}</span>
-                                    <span>{ev.side === "home" ? m.home_team_name : ev.side === "away" ? m.away_team_name : "比赛"}</span>
-                                    <span className="text-slate-300">{ev.type_name || "事件"}</span>
-                                    {ev.text ? <span className="text-slate-400">({ev.text})</span> : null}
-                                    {i < hoveredTimelineMinute.events.length - 1 ? <span className="text-slate-600">;</span> : null}
-                                  </span>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-slate-500 text-[10.5px]">该分钟无突发关键事件</span>
-                            )}
-                          </div>
                         </div>
                       )}
 
@@ -1949,38 +1858,25 @@ export const CanonicalMatchCenter: React.FC = () => {
                   );
                 })()}
 
-                {/* 盘口行情与操作栏 */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* 全场让球主盘 */}
-                    {m.markets.full_spread_main && (
-                      <div className="text-xs bg-slate-950 px-2.5 py-1 rounded border border-slate-800 font-mono">
-                        <span className="text-slate-500 mr-1">让球:</span>
-                        <span className="font-semibold text-blue-400">
-                          {m.markets.full_spread_main.home_selection}
-                        </span>{" "}
-                        ({m.markets.full_spread_main.home_odds} / {m.markets.full_spread_main.away_odds})
-                      </div>
-                    )}
+                {/* 机器量化评估与下注决策矩阵 (全场核心玩法常驻面板) */}
+                <div className="pt-2">
+                  <QuantBettingDecisionMatrix match={m} quant={quant} showHeader={false} />
+                </div>
 
-                    {/* 全场大小主盘 */}
-                    {m.markets.full_total_main && (
-                      <div className="text-xs bg-slate-950 px-2.5 py-1 rounded border border-slate-800 font-mono">
-                        <span className="text-slate-500 mr-1">大小:</span>
-                        <span className="font-semibold text-emerald-400">
-                          {m.markets.full_total_main.line}
-                        </span>{" "}
-                        (大{m.markets.full_total_main.over_odds} / 小{m.markets.full_total_main.under_odds})
-                      </div>
-                    )}
-
-                    {/* 独赢 */}
-                    {m.markets.full_h2h && (
-                      <div className="text-xs bg-slate-950 px-2.5 py-1 rounded border border-slate-800 font-mono">
-                        <span className="text-slate-500 mr-1">独赢:</span>
-                        {m.markets.full_h2h.home_odds} | {m.markets.full_h2h.draw_odds} | {m.markets.full_h2h.away_odds}
-                      </div>
-                    )}
+                {/* 操作栏与明细展开入口 */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400 font-mono flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-amber-400" />
+                      模型置信度: <strong className="text-emerald-400">{quant.confidence_score}分</strong>
+                      {quant.positive_ev_signals.length > 0 ? (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                          {quant.positive_ev_signals.length}项+EV
+                        </span>
+                      ) : (
+                        <span className="text-slate-500 text-[10px]">无+EV</span>
+                      )}
+                    </span>
                   </div>
 
                   {/* 右侧查看与展开操作按钮 */}

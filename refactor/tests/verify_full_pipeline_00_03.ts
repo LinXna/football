@@ -91,11 +91,13 @@ async function runFullPipelineIntegrationTests() {
     try {
       return JSON.parse(raw);
     } catch {
-      // Replace unescaped control characters inside JSON strings with whitespace
-      const cleaned = raw.replace(/[\x00-\x1F\x7F]/g, (ch) => {
-        if (ch === '\n' || ch === '\r' || ch === '\t') return ' ';
-        return '';
-      });
+      // Replace unescaped control characters inside JSON strings with whitespace and strip broken unicode bytes
+      const cleaned = raw
+        .replace(/[\u0000-\u001F\u007F-\u009F\uFFFD]/g, (ch) => {
+          if (ch === '\n' || ch === '\r' || ch === '\t') return ' ';
+          return '';
+        })
+        .replace(/\\(?!["\\/bfnrtu])/g, '');
       return JSON.parse(cleaned);
     }
   }

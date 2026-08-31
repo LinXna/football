@@ -36,6 +36,8 @@
 | **`F-03-Q28`** | `QuantitativeFeatures.poisson.lambda_home_rest` | `03_quant_engine/types.ts` | **`OP-03-03`** (`solveInPlayPoissonModel`) | 1. 0:0 让球/大小球泊松概率网格求解<br>2. 期望进球期望对比 | **`RC-POISSON-CONSERVED`** |
 | **`F-03-Q34`** | `QuantitativeFeatures.devig.h2h_devig` | `03_quant_engine/types.ts` | **`OP-03-05`** (`devigShin`) | 1. 无偏公允概率<br>2. +EV 信号挖掘 | **`RC-DEVIG-SUM-1`** |
 | **`F-03-Q35`** | `QuantitativeFeatures.devig.spread_main_ev` | `03_quant_engine/types.ts` | **`OP-03-05`** (`calculateAsianHandicapEV`) | 1. 让球主盘 EV 优选方向与 Kelly 仓位 | **`RC-QUARTER-CONSERVED`** |
+| **`F-04-R01`** | `RecommendationCandidate.tier` | `04_ai_reasoning/types.ts` | **`OP-04-01`** (`evaluateRecommendation`) | 1. 推荐等级划分 (A/B/C/WATCH/RESEARCH/REJECT) | **`RC-002`** (B级限制) |
+| **`F-04-R03`** | `RecommendationCandidate.risk_controls` | `04_ai_reasoning/types.ts` | **`OP-04-01`** (`evaluateRecommendation`) | 1. 2026-07-29 回测铁律逐项核验清单 | **`RC-003`** / **`RC-008`** |
 
 ---
 

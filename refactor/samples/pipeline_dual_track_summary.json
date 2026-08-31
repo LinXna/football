@@ -1,22 +1,22 @@
 {
-  "test_timestamp": "2026-08-30T23:05:57.273Z",
+  "test_timestamp": "2026-08-31T22:59:42.072Z",
   "live_pathway": {
     "total_matches": 6,
-    "aligned_count": 0,
-    "execution_duration_ms": 16.465731000000005,
+    "aligned_count": 6,
+    "execution_duration_ms": 41.279686,
     "screening_distribution": {
-      "WATCH": 0,
-      "RESEARCH": 6,
+      "WATCH": 6,
+      "RESEARCH": 0,
       "REJECTED": 0
     },
     "positive_ev_matches": 6
   },
   "prematch_pathway": {
     "total_matches": 2,
-    "execution_duration_ms": 1.3726310000000126,
+    "execution_duration_ms": 6.257951999999989,
     "screening_distribution": {
-      "WATCH": 0,
-      "RESEARCH": 2,
+      "WATCH": 2,
+      "RESEARCH": 0,
       "REJECTED": 0
     },
     "positive_ev_matches": 2

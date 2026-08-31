@@ -14,6 +14,8 @@ import {
   MatchStage,
   DataCompletenessTier,
   MissingDataReason,
+  CanonicalIncidentCategory,
+  CanonicalEventType,
 } from "./enums";
 
 import {
@@ -21,12 +23,13 @@ import {
   CanonicalScoreState,
   CanonicalTimingState,
   CanonicalLeisuReference,
+  CanonicalTimelineEvent,
   AiEvaluationBrief,
   MatchAlignmentDecision,
   GenericYbtyMatch,
 } from "./types";
 
-import { ParsedLeisuMatch } from "../01_data_ingestion/leisu/types";
+import { ParsedLeisuMatch, ParsedLeisuTimelineEvent } from "../01_data_ingestion/leisu/types";
 
 /**
  * 格式化时间戳/ISO字符串/相对时间为标准北京时间字符串 (YYYY-MM-DD HH:mm:ss 或 YYYY-MM-DD HH:mm)
@@ -70,18 +73,28 @@ export function formatToBeijingTime(rawTime: string | number | null | undefined)
 }
 
 /**
- * 从 YBTY 滚球时钟文本中精确解析出比赛进行分钟数
+ * 从 YBTY 滚球时钟文本中精确解析出比赛进行分钟数及伤停补时
  * 规则：
- * 1. "61:22" -> 61
- * 2. "45'" -> 45
- * 3. "HT" / "中场" / "中场休息" -> 45
- * 4. "15:00" -> 15
- * 5. 若无法解析或非数字，返回 null (不假定、不兜底、不猜)
+ * 1. "61:22" -> { minute: 61, base: 61, added: null }
+ * 2. "45+2'" -> { minute: 47, base: 45, added: 2 }
+ * 3. "HT" / "中场" / "中场休息" -> { minute: 45, base: 45, added: null }
+ * 4. 若无法解析或非数字，返回 null (不假定、不兜底、不猜)
  */
 export function parseYbtyLiveMinute(clockStr?: string | null): number | null {
   if (!clockStr) return null;
   const clean = clockStr.trim();
   if (clean === "HT" || clean === "中场" || clean === "中场休息") return 45;
+
+  // 检查是否包含伤停补时如 "45+2" 或 "90+4"
+  const addedMatch = clean.match(/^(\d{1,3})\s*\+\s*(\d{1,2})/);
+  if (addedMatch) {
+    const base = parseInt(addedMatch[1], 10);
+    const added = parseInt(addedMatch[2], 10);
+    if (Number.isFinite(base) && Number.isFinite(added)) {
+      return base + added;
+    }
+  }
+
   const match = clean.match(/^(\d{1,3})/);
   if (match) {
     const parsed = parseInt(match[1], 10);
@@ -90,6 +103,154 @@ export function parseYbtyLiveMinute(clockStr?: string | null): number | null {
     }
   }
   return null;
+}
+
+/**
+ * 纯函数：将雷速时序事件高保真映射为标准 CanonicalTimelineEvent 列表
+ * 具备点球/乌龙识别、VAR 进球取消与红黄牌撤销识别、替补席牌隔离与精确伤停补时
+ */
+export function parseCanonicalTimelineEvents(rawEvents?: ParsedLeisuTimelineEvent[] | null): {
+  events: CanonicalTimelineEvent[];
+  varOverturnedGoalsCount: number;
+} {
+  if (!Array.isArray(rawEvents) || rawEvents.length === 0) {
+    return { events: [], varOverturnedGoalsCount: 0 };
+  }
+
+  let varOverturnedGoalsCount = 0;
+
+  const events: CanonicalTimelineEvent[] = rawEvents.map((raw) => {
+    const rawType = Number(raw.type);
+    const text = String(raw.text || "").trim();
+    const rawMinute = raw.minute ?? null;
+
+    // 1. 伤停补时与基准分钟解析 (e.g. 45+2')
+    let baseMinute = rawMinute;
+    let addedMinute: number | null = null;
+    let displayTime = rawMinute !== null ? `${rawMinute}'` : "";
+
+    const addedTimeMatch = text.match(/(\d{1,3})\s*\+\s*(\d{1,2})/);
+    if (addedTimeMatch) {
+      baseMinute = parseInt(addedTimeMatch[1], 10);
+      addedMinute = parseInt(addedTimeMatch[2], 10);
+      displayTime = `${baseMinute}+${addedMinute}'`;
+    }
+
+    // 2. 语义识别：点球、乌龙、VAR 取消、替补席判罚
+    const isPenalty = /(点球|点球进|点球罚进|点球得分)/.test(text);
+    const isOwnGoal = /(乌龙|乌龙球|乌龙进球)/.test(text);
+    const isCancelled = /(进球.*无效|取消进球|越位在先|犯规在先|手球在先|VAR.*取消|取消红牌)/.test(text);
+    const isVarOverturned = /(VAR.*取消|VAR.*改判|VAR.*判罚|进球.*无效|取消红牌)/.test(text);
+    const isOnPitch = !/(替补席|教练|主教练|助理教练|场下|看台)/.test(text);
+
+    if (isCancelled && (rawType === 1 || /(进球)/.test(text))) {
+      varOverturnedGoalsCount++;
+    }
+
+    // 3. 标准 CanonicalEventType 映射
+    let canonicalType: CanonicalEventType;
+    let category: CanonicalIncidentCategory;
+
+    if (rawType === 1) { // 进球
+      if (isCancelled) {
+        canonicalType = CanonicalEventType.GOAL_DISALLOWED;
+        category = CanonicalIncidentCategory.MATCH_CONTROL;
+      } else if (isPenalty) {
+        canonicalType = CanonicalEventType.GOAL_PENALTY;
+        category = CanonicalIncidentCategory.SCORE;
+      } else if (isOwnGoal) {
+        canonicalType = CanonicalEventType.GOAL_OWN;
+        category = CanonicalIncidentCategory.SCORE;
+      } else {
+        canonicalType = CanonicalEventType.GOAL_REGULAR;
+        category = CanonicalIncidentCategory.SCORE;
+      }
+    } else if (rawType === 2) {
+      canonicalType = CanonicalEventType.CORNER;
+      category = CanonicalIncidentCategory.TACTICAL;
+    } else if (rawType === 3) {
+      if (!isOnPitch) {
+        canonicalType = CanonicalEventType.BENCH_DISCIPLINE;
+      } else {
+        canonicalType = CanonicalEventType.YELLOW_CARD;
+      }
+      category = CanonicalIncidentCategory.DISCIPLINE;
+    } else if (rawType === 4) {
+      if (!isOnPitch) {
+        canonicalType = CanonicalEventType.BENCH_DISCIPLINE;
+      } else {
+        canonicalType = CanonicalEventType.RED_CARD;
+      }
+      category = CanonicalIncidentCategory.DISCIPLINE;
+    } else if (rawType === 23) {
+      canonicalType = CanonicalEventType.TWO_YELLOW_TO_RED;
+      category = CanonicalIncidentCategory.DISCIPLINE;
+    } else if (rawType === 9) {
+      if (/(受伤|伤退)/.test(text)) {
+        canonicalType = CanonicalEventType.INJURY_SUB;
+      } else {
+        canonicalType = CanonicalEventType.SUBSTITUTION;
+      }
+      category = CanonicalIncidentCategory.TACTICAL;
+    } else if (rawType === 10) {
+      canonicalType = CanonicalEventType.KICK_OFF;
+      category = CanonicalIncidentCategory.MATCH_CONTROL;
+    } else if (rawType === 11) {
+      canonicalType = CanonicalEventType.HALF_TIME_WHISTLE;
+      category = CanonicalIncidentCategory.MATCH_CONTROL;
+    } else if (rawType === 12) {
+      canonicalType = CanonicalEventType.FULL_TIME_WHISTLE;
+      category = CanonicalIncidentCategory.MATCH_CONTROL;
+    } else if (rawType === 16) {
+      canonicalType = CanonicalEventType.PENALTY_MISSED;
+      category = CanonicalIncidentCategory.SCORE;
+    } else if (rawType === 21) {
+      canonicalType = CanonicalEventType.SHOT_ON_TARGET;
+      category = CanonicalIncidentCategory.TACTICAL;
+    } else if (rawType === 22) {
+      canonicalType = CanonicalEventType.SHOT_OFF_TARGET;
+      category = CanonicalIncidentCategory.TACTICAL;
+    } else if (rawType === 28) {
+      if (isCancelled) {
+        canonicalType = CanonicalEventType.GOAL_DISALLOWED;
+      } else {
+        canonicalType = CanonicalEventType.VAR_REVIEW;
+      }
+      category = CanonicalIncidentCategory.MATCH_CONTROL;
+    } else if (rawType === 30) {
+      canonicalType = CanonicalEventType.FOUL;
+      category = CanonicalIncidentCategory.TACTICAL;
+    } else if (rawType === 5) {
+      canonicalType = CanonicalEventType.OFFSIDE;
+      category = CanonicalIncidentCategory.TACTICAL;
+    } else {
+      canonicalType = CanonicalEventType.VAR_REVIEW;
+      category = CanonicalIncidentCategory.MATCH_CONTROL;
+    }
+
+    const sideStr = String(raw.side || "neutral").toLowerCase();
+    const side: "home" | "away" | "neutral" = sideStr === "home" ? "home" : sideStr === "away" ? "away" : "neutral";
+
+    return {
+      minute: rawMinute,
+      base_minute: baseMinute,
+      added_minute: addedMinute,
+      display_time: displayTime,
+      type: rawType,
+      type_name: raw.type_name || "关键事件",
+      canonical_type: canonicalType,
+      category,
+      side,
+      text,
+      is_penalty: isPenalty,
+      is_own_goal: isOwnGoal,
+      is_cancelled: isCancelled,
+      is_var_overturned: isVarOverturned,
+      is_on_pitch: isOnPitch,
+    };
+  });
+
+  return { events, varOverturnedGoalsCount };
 }
 
 /**
@@ -172,7 +333,12 @@ export function assembleCanonicalMatch(
     ybty_display_clock: displayClock,
   };
 
-  // 2. 双源比分交叉校验
+  // 2. 提取雷速增强时序事件与 VAR 审计
+  const { events: canonicalTimelineEvents, varOverturnedGoalsCount } = parseCanonicalTimelineEvents(
+    leisuMatch?.timeline_events
+  );
+
+  // 3. 双源比分交叉校验
   let homeScore = ybtyMatch.home_score ?? 0;
   let awayScore = ybtyMatch.away_score ?? 0;
   let isMismatch = false;
@@ -216,9 +382,10 @@ export function assembleCanonicalMatch(
     score_source: scoreSource,
     is_mismatch_detected: isMismatch,
     mismatch_details: mismatchDetails,
+    var_overturned_goals_count: varOverturnedGoalsCount,
   };
 
-  // 3. 构建雷速增强包
+  // 4. 构建雷速增强包
   let reference: CanonicalLeisuReference | null = null;
   if (leisuMatch) {
     reference = {
@@ -228,7 +395,7 @@ export function assembleCanonicalMatch(
       leisu_league_name: leisuMatch.competition,
       stats: leisuMatch.stats ?? null,
       attack_momentum: leisuMatch.attack_momentum ?? null,
-      timeline_events: leisuMatch.timeline_events ?? [],
+      timeline_events: canonicalTimelineEvents,
       lineups: leisuMatch.lineups ?? null,
       tactical_context: leisuMatch.tactical_context ?? null,
       odds_matrix: leisuMatch.odds_matrix ?? null,
@@ -264,7 +431,7 @@ export function assembleCanonicalMatch(
     missingReasons.push(MissingDataReason.NO_ODDS_MARKETS);
   }
 
-  // 4. 数据完整度评级判定 (Tier 划分)
+  // 5. 数据完整度评级判定 (Tier 划分)
   let completenessTier: DataCompletenessTier;
   if (isMismatch) {
     completenessTier = DataCompletenessTier.TIER_INVALID;
@@ -429,3 +596,4 @@ export function extractAiEvaluationBrief(canonical: CanonicalMatch): AiEvaluatio
     data_deficits: dataDeficits,
   };
 }
+

@@ -23,6 +23,7 @@ const __dirname = path.dirname(__filename);
 import {
   assembleCanonicalMatch,
   extractAiEvaluationBrief,
+  parseCanonicalTimelineEvents,
 } from "../02_canonical_model/canonicalMatchAssembler";
 import {
   MatchAlignmentStatus,
@@ -180,6 +181,30 @@ function runTests() {
   const briefJsonStr = JSON.stringify(aiBrief);
   console.log(`AI Brief JSON length: ${briefJsonStr.length} chars (ultra-lightweight payload!)`);
   console.log("Sample AI Brief Content:", JSON.stringify(aiBrief, null, 2));
+
+  // 7. 测试关键事件高保真语义解析 (CanonicalTimelineEvent & VAR Overturned)
+  console.log("\n[Test 7] Testing Enhanced CanonicalTimelineEvent Parsing...");
+  const mockRawEvents = [
+    { type: 1, minute: 23, text: "梅西 (点球罚进)", side: "home" },
+    { type: 1, minute: 45, text: "45+2' 范戴克 (进球被判无效 - 越位在先)", side: "away" },
+    { type: 1, minute: 60, text: "马奎尔 (乌龙球)", side: "home" },
+    { type: 3, minute: 75, text: "主教练 (替补席黄牌)", side: "away" },
+    { type: 22, minute: 80, text: "努涅斯 (射偏/击中门柱横梁)", side: "home" },
+  ];
+
+  const parsedEventsResult = parseCanonicalTimelineEvents(mockRawEvents as any);
+  assert(parsedEventsResult.events.length === 5, "Should parse all 5 events");
+  assert(parsedEventsResult.varOverturnedGoalsCount === 1, "Should identify 1 VAR overturned goal");
+
+  const [penaltyGoal, varGoal, ownGoal, benchCard, shotOff] = parsedEventsResult.events;
+  assert(penaltyGoal.is_penalty === true, "Penalty goal flag must be true");
+  assert(varGoal.is_cancelled === true && varGoal.is_var_overturned === true, "VAR goal cancelled must be true");
+  assert(varGoal.base_minute === 45 && varGoal.added_minute === 2, "Base/added minute must be parsed as 45+2");
+  assert(ownGoal.is_own_goal === true, "Own goal flag must be true");
+  assert(benchCard.is_on_pitch === false, "Bench card on_pitch must be false");
+  assert(shotOff.type === 22, "Shot off target type must be 22");
+
+  console.log("✅ Canonical timeline events, VAR overturns, and bench card isolation passed 100%!");
 
   console.log("\n=================================================");
   console.log("🎉 ALL 02_canonical_model TESTS PASSED SUCCESSFULLY!");

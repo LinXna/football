@@ -17,6 +17,7 @@
  */
 
 import { CanonicalMatch } from '../02_canonical_model/types.js';
+import { MatchStage } from '../02_canonical_model/enums.js';
 import {
   QuantitativeFeatures,
   QuantEngineOptions,
@@ -32,7 +33,10 @@ import {
   Layer03FeatureId
 } from './types.js';
 import { extractCleanedContextFeatures } from './contextEngine.js';
+import { synthesizePrematchPrior } from './prematchPriorEngine.js';
+import { calibrateWithMarketOdds } from './marketDivergenceEngine.js';
 import { extractMomentumTimelineFeatures, extractRealTimePhysicalStats } from './momentumQuantEngine.js';
+import { extractSpatioTemporalEventFeatures } from './eventMomentumFusion.js';
 import { calculateInPlayPoissonFeatures } from './poissonDecayModel.js';
 import { calculateDeviggedMarketFeatures } from './devigCalculator.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
@@ -41,7 +45,10 @@ import { Tracer } from '../00_common/Tracer.js';
 export * from './enums.js';
 export * from './types.js';
 export * from './contextEngine.js';
+export * from './prematchPriorEngine.js';
+export * from './marketDivergenceEngine.js';
 export * from './momentumQuantEngine.js';
+export * from './eventMomentumFusion.js';
 export * from './poissonDecayModel.js';
 export * from './devigCalculator.js';
 
@@ -131,7 +138,8 @@ export function calculateConfidenceAndAlerts(
   context: CleanedContextFeatures,
   timeline: MomentumTimelineFeatures,
   physical: RealTimePhysicalStatsFeatures,
-  devig: DeviggedMarketFeatures
+  devig: DeviggedMarketFeatures,
+  stage: MatchStage = MatchStage.LIVE
 ): { confidence_score: number; risk_flags: QuantAlert[]; positive_ev_signals: PositiveEVSignal[] } {
   let score = 100;
   const riskFlags: QuantAlert[] = [];
@@ -146,10 +154,12 @@ export function calculateConfidenceAndAlerts(
     };
   }
 
-  // L1 缺陷扣分
+  // L1 缺陷扣分：仅对滚球 (LIVE) 比赛扣减动量点阵缺失分；赛前 (PREMATCH) 比赛点阵天然为空，豁免扣分与警报
   if (timeline.total_points === 0) {
-    score -= 20; // 缺失点阵
-    riskFlags.push(QuantAlert.MOMENTUM_DATA_DEFICIT);
+    if (stage === MatchStage.LIVE) {
+      score -= 20; // 滚球缺失点阵
+      riskFlags.push(QuantAlert.MOMENTUM_DATA_DEFICIT);
+    }
   }
 
   if (physical.tactical_anomaly.home_barren_dominance || physical.tactical_anomaly.away_barren_dominance) {
@@ -185,13 +195,15 @@ export function calculateConfidenceAndAlerts(
     const side = devig.spread_main_ev.preferred_side;
     const ev = side === 'home' ? devig.spread_main_ev.home_ev : devig.spread_main_ev.away_ev;
     const odds = side === 'home' ? devig.spread_main_ev.home_odds : devig.spread_main_ev.away_odds;
+    const kelly = devig.spread_main_ev.kelly_fraction ?? 0;
     positiveEVSignals.push(Object.freeze({
       market: 'ASIAN_HANDICAP_MAIN',
       line: devig.spread_main_ev.line,
       side: side,
       odds: odds,
       ev: ev,
-      confidence: Math.max(50, score)
+      confidence: Math.max(50, score),
+      kelly_fraction: kelly
     }));
   }
 
@@ -199,13 +211,15 @@ export function calculateConfidenceAndAlerts(
     const side = devig.total_main_ev.preferred_side;
     const ev = side === 'over' ? devig.total_main_ev.over_ev : devig.total_main_ev.under_ev;
     const odds = side === 'over' ? devig.total_main_ev.over_odds : devig.total_main_ev.under_odds;
+    const kelly = devig.total_main_ev.kelly_fraction ?? 0;
     positiveEVSignals.push(Object.freeze({
       market: 'TOTAL_GOALS_MAIN',
       line: devig.total_main_ev.line,
       side: side,
       odds: odds,
       ev: ev,
-      confidence: Math.max(50, score)
+      confidence: Math.max(50, score),
+      kelly_fraction: kelly
     }));
   }
 
@@ -240,16 +254,32 @@ export function calculateQuantitativeFeatures(
   // 1. M2: 数据时效衰减与情境清洗
   const contextFeatures = extractCleanedContextFeatures(match, collector, tracer);
 
+  // 1.1 Stage 1: 赛前多维关联理论先验合成 (首发 + 身价 + 伤停LIS + 近态同构 + MUI)
+  const prematchPrior = synthesizePrematchPrior(match, contextFeatures, collector, tracer);
+
+  // 1.2 Stage 1.1: 机构盘口博弈偏差检验与基准进球期望校准 (Shin去抽水 + 机构设防/诱盘姿态识别)
+  const marketCalibration = calibrateWithMarketOdds(match, prematchPrior, collector, tracer);
+
   // 2. M3: 实时物理攻防与危攻时序微分
   const timelineFeatures = extractMomentumTimelineFeatures(match, collector, tracer);
   const physicalStatsFeatures = extractRealTimePhysicalStats(match, collector, tracer);
 
-  // 3. M4: 滚球 0:0 Forward 泊松时间衰减推演
+  // 2.5 M3.5: 战局势能与关键事件因果共生分析 (EPI 转化、战术相变与破门临界探测)
+  const spatioTemporalFeatures = extractSpatioTemporalEventFeatures(
+    match,
+    timelineFeatures,
+    physicalStatsFeatures,
+    tracer
+  );
+
+  // 3. M4: 滚球 0:0 Forward 泊松时间衰减推演 (注入博弈校准基准、物理场与战术相变乘子)
   const poissonFeatures = calculateInPlayPoissonFeatures(
     match,
     contextFeatures,
     timelineFeatures,
     physicalStatsFeatures,
+    spatioTemporalFeatures,
+    marketCalibration,
     collector,
     tracer
   );
@@ -265,7 +295,7 @@ export function calculateQuantitativeFeatures(
   // 5. 综合计算战场统治权指数 (BDI)
   const bdi = calculateBattlefieldDominanceIndex(timelineFeatures, physicalStatsFeatures);
 
-  // 6. 识别破门相变临界预警
+  // 6. 识别破门相变临界预警 (融合战局势能与事件临界)
   const elapsedMinute = match.timing.minute ?? 0;
   const scoreDiff = (match.score.home_score ?? 0) - (match.score.away_score ?? 0);
   const goalPhase = evaluateGoalPhaseAlert(
@@ -276,27 +306,47 @@ export function calculateQuantitativeFeatures(
     poissonFeatures.expected_goals_rest
   );
 
-  // 7. 评估量化置信度与风控信号
+  // 7. 评估量化置信度与风控信号 (扣减机构诱盘/离散度惩罚)
   const { confidence_score, risk_flags, positive_ev_signals } = calculateConfidenceAndAlerts(
     contextFeatures,
     timelineFeatures,
     physicalStatsFeatures,
-    devigFeatures
+    devigFeatures,
+    match.timing.stage
   );
+
+  let adjustedConfidence = Math.max(0, confidence_score - marketCalibration.market_confidence_penalty);
+
+  const finalRiskFlags = [...risk_flags];
+  if (marketCalibration.market_stance === 'TRAP_INDUCEMENT' as any) {
+    if (!finalRiskFlags.includes(QuantAlert.TRAP_HIGH_ODDS_WARNING)) {
+      finalRiskFlags.push(QuantAlert.TRAP_HIGH_ODDS_WARNING);
+    }
+  }
+
+  // 若破门临界爆发，追加 GOAL_CLIMAX_TRIGGERED 警报
+  if (spatioTemporalFeatures.goal_climax.is_imminent_threat) {
+    if (!finalRiskFlags.includes(QuantAlert.GOAL_CLIMAX_TRIGGERED)) {
+      finalRiskFlags.push(QuantAlert.GOAL_CLIMAX_TRIGGERED);
+    }
+  }
 
   const result: QuantitativeFeatures = Object.freeze({
     canonical_id: match.canonical_id,
     calculated_at: new Date().toISOString(),
     context: contextFeatures,
+    prematch_prior: prematchPrior,
+    market_calibration: marketCalibration,
     timeline: timelineFeatures,
     physical_stats: physicalStatsFeatures,
     poisson: poissonFeatures,
     devig: devigFeatures,
+    spatio_temporal_events: spatioTemporalFeatures,
     battlefield_dominance_index: bdi,
-    goal_phase_alert: goalPhase.alert,
+    goal_phase_alert: spatioTemporalFeatures.goal_climax.is_imminent_threat ? GoalPhaseAlert.IMMINENT_GOAL : goalPhase.alert,
     positive_ev_signals: positive_ev_signals,
-    risk_flags: risk_flags,
-    confidence_score: confidence_score
+    risk_flags: finalRiskFlags,
+    confidence_score: adjustedConfidence
   });
 
   tracer?.info(

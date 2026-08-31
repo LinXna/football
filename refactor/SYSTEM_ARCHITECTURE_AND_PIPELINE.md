@@ -111,6 +111,16 @@
   - 当发生净胜差值 $D = 0$ 时（0:0 走水）：平手半注退还本金（$\text{Profit} = 0$），半球半注输半（$\text{Profit} = -0.5$），整体净盈亏为 $-0.5$。
   - 当发生净胜差值 $D = +0.5$ 时：全赢（$\text{Profit} = \text{Odds} - 1$）。
 
+### 7. 战局势能与关键事件因果共生分析模型 (Event-Momentum Co-Evolution Model)
+- **攻防势能转化指数 (EPI)**：
+  - 将 15 分钟危攻积分能量 $\text{AUC}_{15m}$ 与实质性进攻威胁事件（射门/射正/角球/红黄牌）加权求和，计算转化效率比率 $\text{EPI} = \frac{\text{EventThreatWeight}}{\text{MomentumAUC}_{15m}}$；
+  - 自动解耦并识别出【真实致命围攻 `LETHAL_SIEGE`】、【无效控球虚火 `BARREN_DOMINANCE`】与【刺客高效反击 `CLINICAL_COUNTER`】；
+- **战术相变因果评估 (Tactical Regime Shift)**：
+  - 捕捉红牌动态半衰期（受罚初期防守韧性 `RED_CARD_RESILIENCE` vs 15 分钟后阵型崩盘 `RED_CARD_COLLAPSE`）、连续失球引发的恐慌性溃散 (`COLLAPSING_PANIC`)、领先后稳健收缩 (`LEADING_CONSOLIDATION`) 与盲目压上防反破绽 (`VULNERABLE_OVEREXTENSION`)；
+  - 实时输出动态进球期望乘子 $\text{regime\_multiplier}_{\text{home/away}}$，注入并修正 Forward 泊松剩余进球期望 $\lambda_{\text{rest}}$；
+- **破门临界态探测 (Goal Climax Tipping Point)**：
+  - 结合二阶动量加速度 $\frac{d^2M}{dt^2} = (\text{slope}_{5m} - \text{slope}_{15m})$ 与尾端事件密集度，计算 0~100 破门临界得分；临界触发时自动联动 `IMMINENT_GOAL` 相变警报与风控拦截。
+
 ---
 
 ## 五、Layer 00 ~ Layer 03 双路运行流水线全貌 (Dual-Track Architecture)
@@ -127,8 +137,9 @@
   │           - M1: L0 致命比分冲突/缺失时钟熔断
   │           - M2: 实时上下文清洗与战力折损
   │           - M3: 5m/10m/15m OLS 斜率 + AUC 梯形积分 + xT 压迫指数
-  │           - M4: 滚球 0:0 重置 Forward 泊松网格推演 + 绝境搏命修正
-  │           - M5: Shin 去抽水 + 滚球让球/大小球 +EV 评估与 Kelly 仓位
+  │           - M3.5: 战局势能与关键事件因果共生分析 (EPI 转化 + 战术相变乘子 + 破门临界探测)
+  │           - M4: 滚球 0:0 重置 Forward 泊松网格推演 + 战术相变与绝境搏命修正
+  │           - M5: Shin 去抽水 + 闭式双变量泊松网格让球/大小球 +EV 评估与 Kelly 仓位
   │           - M6: 统帅部生成 BDI (-100~+100)、GoalPhaseAlert 与 98/100 综合置信度
   │      6. 输出机器初筛结果：WATCH (置信度>=80 & +EV) / RESEARCH (置信度>=60) / REJECTED
   │
@@ -140,7 +151,8 @@
          5. calculateQuantitativeFeatures (Layer 03) ->
               - M1: 赛前基础数据完整度校验
               - M2: H2H 时间半衰期指数衰减 ($\lambda = \frac{\ln 2}{730}$) + LIS 伤停战力折损 + MUI 战意周期
-              - M3: 物理基线均值化
+              - M3: 物理基线均值化 (赛前阶段动量豁免解耦)
+              - M3.5: 赛前默认均衡战术态势
               - M4: 赛前 90 分钟泊松全量攻守推演
               - M5: 赛前欧指/让球/大小球 Shin 去抽水与 +EV 挖掘
               - M6: 统帅部生成综合赛前量化特征与初筛等级
@@ -155,5 +167,5 @@
 1. **基础组件测试**：`verify_common_infrastructure.ts` (Layer 00)
 2. **数据接入测试**：`verify_ybty_live_extractor.ts`, `verify_ybty_prematch_extractor.ts`, `verify_leisu_interface_extractor.ts` (Layer 01)
 3. **标准模型测试**：`verify_canonical_match_assembler.ts` (Layer 02)
-4. **量化引擎全覆盖测试**：`verify_quant_engine.ts` (Layer 03 - 6 大核心模块 M1~M6)
+4. **量化引擎全覆盖测试**：`verify_quant_engine.ts` (Layer 03 - 7 大核心模块 M1~M6 及 M3.5 共生引擎)
 5. **双路全链路端到端集成测试**：`verify_full_pipeline_00_03.ts` (Layer 00 ~ 03 贯通测试)

@@ -1131,92 +1131,120 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
                 const firstLabel = seg.points[0]?.displayLabel || (seg.segmentIndex === 0 ? "1'" : "46'");
                 const lastLabel = seg.points[seg.points.length - 1]?.displayLabel || `${seg.points.length}'`;
 
+                // 计算段内相邻事件图钉的垂直错位
+                let lastHomeIdx = -10;
+                let lastHomeLevel = 0;
+                let lastAwayIdx = -10;
+                let lastAwayLevel = 0;
+
+                const staggerConfig = seg.points.map((p, pIdx) => {
+                  const hasHome = (p.homeIncidents && p.homeIncidents.length > 0) || (p.neutralIncidents && p.neutralIncidents.length > 0 && p.score >= 0);
+                  const hasAway = (p.awayIncidents && p.awayIncidents.length > 0) || (p.neutralIncidents && p.neutralIncidents.length > 0 && p.score < 0);
+
+                  let homeLevel = 0;
+                  if (hasHome) {
+                    homeLevel = pIdx - lastHomeIdx <= 2 ? (lastHomeLevel === 0 ? 1 : 0) : 0;
+                    lastHomeIdx = pIdx;
+                    lastHomeLevel = homeLevel;
+                  }
+
+                  let awayLevel = 0;
+                  if (hasAway) {
+                    awayLevel = pIdx - lastAwayIdx <= 2 ? (lastAwayLevel === 0 ? 1 : 0) : 0;
+                    lastAwayIdx = pIdx;
+                    lastAwayLevel = awayLevel;
+                  }
+
+                  return { homeLevel, awayLevel };
+                });
+
                 return (
                   <div key={seg.segmentIndex} className="bg-slate-900/80 border border-slate-800 rounded-md p-2 space-y-1.5 flex flex-col justify-between">
                     <div className="text-[9.5px] text-slate-400 flex items-center justify-between pb-0.5 font-sans">
                       <span className="text-indigo-300 font-bold">【{seg.segmentName}】{firstLabel}</span>
                       <span className="text-slate-400 text-[9px] flex items-center gap-2">
-                        <span className="text-emerald-400">主场事件 🟢(上方)</span>
-                        <span className="text-purple-400">客场事件 🟣(下方)</span>
+                        <span className="text-emerald-400 font-medium">主队攻势 (上方)</span>
+                        <span className="text-indigo-400 font-medium">客队攻势 (下方)</span>
                       </span>
                       <span className="text-indigo-300 font-bold">{lastLabel}</span>
                     </div>
 
-                    {/* Waveform Track: Height 72px with ample top (pt-4.5) and bottom (pb-4.5) padding for clean event pins */}
-                    <div className="h-18 w-full bg-slate-950 rounded border border-slate-800/80 flex items-stretch justify-between px-1 gap-[1px] relative pt-4.5 pb-4.5 select-none">
-                      {seg.points.map((p, idx) => {
-                        const hHeight = Math.min(100, (p.h / 100) * 100);
-                        const aHeight = Math.min(100, (p.a / 100) * 100);
-                        const isDominantHome = p.score > 0;
-                        const isDominantAway = p.score < 0;
-                        const hasHomeEvent = (p.homeIncidents && p.homeIncidents.length > 0) || (p.neutralIncidents && p.neutralIncidents.length > 0 && p.score >= 0);
-                        const hasAwayEvent = (p.awayIncidents && p.awayIncidents.length > 0) || (p.neutralIncidents && p.neutralIncidents.length > 0 && p.score < 0);
-                        const hasAnyEvent = hasHomeEvent || hasAwayEvent;
-
-                        return (
-                          <div
-                            key={idx}
-                            onMouseEnter={() => setHoveredPoint(p)}
-                            onMouseLeave={() => setHoveredPoint(null)}
-                            className={`flex-1 flex flex-col justify-between items-center h-full group relative cursor-pointer ${
-                              hasAnyEvent ? 'z-20' : 'hover:z-10'
-                            }`}
-                          >
-                            {/* Top Pin: Home Team Incident Marker (Placed strictly on TOP) */}
-                            {hasHomeEvent && renderIncidentIcons(p.homeIncidents || p.neutralIncidents, true)}
-
-                            {/* Upper Half: Home Attack Bar */}
-                            <div className="w-full flex flex-col items-center justify-end h-1/2">
-                              <div
-                                style={{ height: `${p.h > 0 ? Math.max(12, hHeight) : 0}%` }}
-                                className={`w-full max-w-[5px] rounded-t-xs transition-all ${
-                                  isDominantHome
-                                    ? hasHomeEvent
-                                      ? 'bg-emerald-300 ring-1 ring-amber-400'
-                                      : 'bg-emerald-400 group-hover:bg-emerald-300'
-                                    : 'bg-transparent'
-                                }`}
-                              />
+                    {/* Waveform 3-Track Container: Top Home Lane, Middle Waveform, Bottom Away Lane */}
+                    <div className="w-full bg-slate-950 rounded-lg border border-slate-800/80 p-1.5 space-y-1 select-none">
+                      {/* Top Track: Home Incidents Only */}
+                      <div className="h-5.5 w-full bg-slate-900/40 rounded border border-slate-800/50 flex items-stretch px-1 gap-[1px] relative">
+                        {seg.points.map((p, idx) => {
+                          const hasHomeEvent =
+                            (p.homeIncidents && p.homeIncidents.length > 0) ||
+                            (p.neutralIncidents && p.neutralIncidents.length > 0 && p.score >= 0);
+                          return (
+                            <div key={idx} className="flex-1 relative flex items-center justify-center">
+                              {hasHomeEvent &&
+                                renderIncidentIcons(p.homeIncidents || p.neutralIncidents, true, p.h, p.a)}
                             </div>
-
-                            {/* Center Zero Line */}
-                            <div className="w-full h-[1px] bg-slate-800 group-hover:bg-slate-600" />
-
-                            {/* Lower Half: Away Attack Bar */}
-                            <div className="w-full flex flex-col items-center justify-start h-1/2">
-                              <div
-                                style={{ height: `${p.a > 0 ? Math.max(12, aHeight) : 0}%` }}
-                                className={`w-full max-w-[5px] rounded-b-xs transition-all ${
-                                  isDominantAway
-                                    ? hasAwayEvent
-                                      ? 'bg-purple-300 ring-1 ring-amber-400'
-                                      : 'bg-purple-400 group-hover:bg-purple-300'
-                                    : 'bg-transparent'
-                                }`}
-                              />
-                            </div>
-
-                            {/* Bottom Pin: Away Team Incident Marker (Placed strictly on BOTTOM) */}
-                            {hasAwayEvent && renderIncidentIcons(p.awayIncidents || p.neutralIncidents, false)}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Hover Info Tooltip Bar */}
-                    {hoveredPoint && hoveredPoint.segmentIndex === seg.segmentIndex && (
-                      <div className="text-[9px] bg-slate-950 border border-indigo-700/60 rounded px-2 py-0.5 text-slate-200 flex flex-wrap items-center justify-between animate-fadeIn gap-1">
-                        <span className="font-bold text-indigo-300">{seg.segmentName} {hoveredPoint.displayLabel}</span>
-                        <span className="font-mono">
-                          主攻: <strong className="text-emerald-400">+{hoveredPoint.h}</strong> | 客攻: <strong className="text-purple-400">-{hoveredPoint.a}</strong>
-                        </span>
-                        {hoveredPoint.matchedIncidents && hoveredPoint.matchedIncidents.length > 0 && (
-                          <span className="text-amber-300 font-medium truncate max-w-full">
-                            【事件】{hoveredPoint.matchedIncidents.map(i => `${i.displayMin} ${i.shortText || i.text}`).join(' · ')}
-                          </span>
-                        )}
+                          );
+                        })}
                       </div>
-                    )}
+
+                      {/* Middle Track: Pure Attack Momentum Bars (Clean & Unobstructed) */}
+                      <div className="h-20 w-full bg-slate-950 rounded border border-slate-800/60 flex items-stretch justify-between px-1 gap-[1px] relative">
+                        {seg.points.map((p, idx) => {
+                          const hHeight = Math.min(100, (p.h / 100) * 100);
+                          const aHeight = Math.min(100, (p.a / 100) * 100);
+                          const isDominantHome = p.score > 0;
+                          const isDominantAway = p.score < 0;
+
+                          return (
+                            <div
+                              key={idx}
+                              className="flex-1 flex flex-col justify-between items-center h-full group relative cursor-pointer"
+                            >
+                              {/* Upper Half: Home Attack Bar */}
+                              <div className="w-full flex flex-col items-center justify-end h-1/2">
+                                <div
+                                  style={{ height: `${p.h > 0 ? Math.max(12, hHeight) : 0}%` }}
+                                  className={`w-full max-w-[5px] rounded-t-xs transition-all ${
+                                    isDominantHome
+                                      ? 'bg-emerald-400 group-hover:bg-emerald-300'
+                                      : 'bg-transparent'
+                                  }`}
+                                />
+                              </div>
+
+                              {/* Center Zero Line */}
+                              <div className="w-full h-[1px] bg-slate-800 group-hover:bg-slate-600" />
+
+                              {/* Lower Half: Away Attack Bar */}
+                              <div className="w-full flex flex-col items-center justify-start h-1/2">
+                                <div
+                                  style={{ height: `${p.a > 0 ? Math.max(12, aHeight) : 0}%` }}
+                                  className={`w-full max-w-[5px] rounded-b-xs transition-all ${
+                                    isDominantAway
+                                      ? 'bg-indigo-400 group-hover:bg-indigo-300'
+                                      : 'bg-transparent'
+                                  }`}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Bottom Track: Away Incidents Only */}
+                      <div className="h-5.5 w-full bg-slate-900/40 rounded border border-slate-800/50 flex items-stretch px-1 gap-[1px] relative">
+                        {seg.points.map((p, idx) => {
+                          const hasAwayEvent =
+                            (p.awayIncidents && p.awayIncidents.length > 0) ||
+                            (p.neutralIncidents && p.neutralIncidents.length > 0 && p.score < 0);
+                          return (
+                            <div key={idx} className="flex-1 relative flex items-center justify-center">
+                              {hasAwayEvent &&
+                                renderIncidentIcons(p.awayIncidents || p.neutralIncidents, false, p.h, p.a)}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 );
               })}

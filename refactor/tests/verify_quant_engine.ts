@@ -21,12 +21,20 @@ import {
   devigMultiplicative,
   parseAsianHandicapLine,
   calculateAsianHandicapEV,
+  calculateTotalGoalsEV,
   calculateTimeDecayAndUrgencyMultiplier,
   calculateBivariatePoissonGrid,
   calculateH2HDecayWeights,
   checkL0CircuitBreaker,
   extractMomentumTimelineFeatures,
-  extractRealTimePhysicalStats
+  extractRealTimePhysicalStats,
+  calculateEventPressureConversion,
+  evaluateTacticalRegime,
+  evaluateGoalClimax,
+  extractSpatioTemporalEventFeatures,
+  EventPressureConversionType,
+  TacticalRegimeType,
+  GoalClimaxLevel
 } from '../03_quant_engine/index.js';
 import { CanonicalMatch } from '../02_canonical_model/types.js';
 import { MatchStage } from '../02_canonical_model/enums.js';
@@ -50,7 +58,7 @@ async function runQuantEngineTests() {
   // -------------------------------------------------------------------------
   // 单元测试 1: M2 数据清洗与时效熔炉算法测试
   // -------------------------------------------------------------------------
-  console.log('👉 [Test 1/6] M2: 时效衰减与 L0 熔断算法测试...');
+  console.log('👉 [Test 1/7] M2: 时效衰减与 L0 熔断算法测试...');
   {
     // (1) H2H 衰减测试
     const mockH2HMatch: CanonicalMatch = {
@@ -146,7 +154,7 @@ async function runQuantEngineTests() {
   // -------------------------------------------------------------------------
   // 单元测试 2: M3 最小二乘斜率、危攻积分与 xT 威胁模型测试
   // -------------------------------------------------------------------------
-  console.log('👉 [Test 2/6] M3: 最小二乘斜率、AUC 积分与 xT 模型测试...');
+  console.log('👉 [Test 2/7] M3: 最小二乘斜率、AUC 积分与 xT 模型测试...');
   {
     // (1) 最小二乘斜率
     const flatSeries = [10, 10, 10, 10, 10];
@@ -169,7 +177,7 @@ async function runQuantEngineTests() {
   // -------------------------------------------------------------------------
   // 单元测试 3: M4 滚球 0:0 Forward 泊松与非线性衰减测试
   // -------------------------------------------------------------------------
-  console.log('👉 [Test 3/6] M4: 滚球 0:0 Forward 泊松与非线性时间衰减测试...');
+  console.log('👉 [Test 3/7] M4: 滚球 0:0 Forward 泊松与非线性时间衰减测试...');
   {
     // (1) 80 分钟单球分差绝境搏命放大
     const lateGameDecay = calculateTimeDecayAndUrgencyMultiplier(82, 1);
@@ -187,7 +195,7 @@ async function runQuantEngineTests() {
   // -------------------------------------------------------------------------
   // 单元测试 4: M5 Shin 去抽水与四分之一盘复合 EV 测试
   // -------------------------------------------------------------------------
-  console.log('👉 [Test 4/6] M5: Shin 知情交易者去抽水与四分之一盘复合 EV 测试...');
+  console.log('👉 [Test 4/7] M5: Shin 知情交易者去抽水与四分之一盘复合 EV 测试...');
   {
     // (1) 比例剥水 vs Shin
     const odds = [1.90, 3.40, 4.20];
@@ -197,14 +205,24 @@ async function runQuantEngineTests() {
     const pSum = shinRes.fair_probs.reduce((a, b) => a + b, 0);
     assert(Math.abs(pSum - 1.0) < 0.01, 'Shin probs sum must equal 1.0');
 
-    // (2) 盘口解析
+    // (2) 盘口解析 (支持数字分数与中文盘口名)
     assert(parseAsianHandicapLine('-0/0.5') === -0.25, '-0/0.5 parse failed');
     assert(parseAsianHandicapLine('+0.5') === 0.5, '+0.5 parse failed');
     assert(parseAsianHandicapLine('1/1.5') === 1.25, '1/1.5 parse failed');
     assert(parseAsianHandicapLine('-1.5/2') === -1.75, '-1.5/2 parse failed');
+    assert(parseAsianHandicapLine('平手') === 0.0, '平手 parse failed');
+    assert(parseAsianHandicapLine('平/半') === -0.25, '平/半 parse failed');
+    assert(parseAsianHandicapLine('半球') === -0.5, '半球 parse failed');
+    assert(parseAsianHandicapLine('半/一') === -0.75, '半/一 parse failed');
+    assert(parseAsianHandicapLine('一球') === -1.0, '一球 parse failed');
+    assert(parseAsianHandicapLine('受让半球') === 0.5, '受让半球 parse failed');
+    assert(parseAsianHandicapLine('受平半') === 0.25, '受平半 parse failed');
 
-    // (3) -0.25 让球复合 EV 计算
+    // (3) 闭式 -0.25 让球复合 EV 计算
     const mockPoisson = {
+      lambda_home_rest: 1.2,
+      lambda_away_rest: 0.6,
+      expected_goals_rest: 1.8,
       rest_score_matrix: {
         prob_home_win_rest: 0.55,
         prob_draw_rest: 0.25,
@@ -212,17 +230,68 @@ async function runQuantEngineTests() {
       }
     } as any;
     const ahEV = calculateAsianHandicapEV('-0/0.5', 1.95, 1.90, mockPoisson);
-    // Home EV = 0.55 * (1.95-1) + 0.25 * (-0.5) - 0.20 * 1 = 0.5225 - 0.125 - 0.20 = 0.1975
-    assert(ahEV.home_ev > 0.15, `Home EV should be ~0.1975, got ${ahEV.home_ev}`);
+    assert(ahEV.home_ev > 0.05, `Home EV should be positive, got ${ahEV.home_ev}`);
     assert(ahEV.preferred_side === 'home', 'Preferred side should be home');
     assert(ahEV.is_positive_ev === true, 'Should flag as positive EV');
-    console.log('   ✅ M5 Shin 去抽水与四分之一盘 EV 测试 PASS');
+
+    // (4) 闭式大小球复合 EV 计算 (支持浮动盘口 2.25)
+    const ouEV = calculateTotalGoalsEV('2/2.5', 1.95, 1.90, 0, mockPoisson);
+    assert(ouEV.line === '2/2.5', 'O/U line mismatch');
+    assert(typeof ouEV.over_ev === 'number', 'Over EV must be number');
+    assert(typeof ouEV.under_ev === 'number', 'Under EV must be number');
+    console.log('   ✅ M5 Shin 去抽水、中文盘口与闭式复合 EV 测试 PASS');
   }
 
   // -------------------------------------------------------------------------
-  // 综合测试 5: 端到端统帅部编排与真实样本特征提取
+  // 单元测试 5: 战局势能与关键事件因果共生分析 (EPI、战术相变与破门临界)
   // -------------------------------------------------------------------------
-  console.log('👉 [Test 5/6] M6: 最高统帅部端到端真实样本量化特征推演...');
+  console.log('👉 [Test 5/7] M3.5: 战局势能与关键事件因果共生分析测试...');
+  {
+    // (1) 测试 EPI 攻防势能转化: 真实致命压迫 vs 无效围攻虚火
+    const mockTimelineLethal = {
+      integral_15m: { home: 250, away: 30, net: 220 },
+      slope_5m: 20,
+      slope_15m: 5,
+      integral_5m: { home: 120, away: 0, net: 120 }
+    } as any;
+
+    const mockEventsLethal = [
+      { minute: 60, type: 'GOAL' as any, team_side: 'home' as any, is_cancelled: false },
+      { minute: 64, type: 'CORNER' as any, team_side: 'home' as any, is_cancelled: false },
+      { minute: 68, type: 'PENALTY' as any, team_side: 'home' as any, is_cancelled: false }
+    ] as any;
+
+    const epiLethal = calculateEventPressureConversion(mockTimelineLethal, mockEventsLethal, 70);
+    assert(epiLethal.home.classification === EventPressureConversionType.LETHAL_SIEGE, 'Home should be classified as LETHAL_SIEGE');
+    assert(epiLethal.home.conversion_ratio > 0.8, 'Lethal siege conversion ratio should be > 0.8');
+
+    // (2) 无效围攻虚火 (高危攻但 0 事件)
+    const mockEventsBarren = [] as any;
+    const epiBarren = calculateEventPressureConversion(mockTimelineLethal, mockEventsBarren, 70);
+    assert(epiBarren.home.classification === EventPressureConversionType.BARREN_DOMINANCE, 'Home should be classified as BARREN_DOMINANCE when no events');
+
+    // (3) 破门临界态探测 (二阶加速度与尾端事件爆发)
+    const mockClimaxMatch = {
+      timing: { minute: 78 },
+      timeline_events: [
+        { minute: 75, type: 'CORNER' as any, team_side: 'home' as any, is_cancelled: false },
+        { minute: 76, type: 'YELLOW_CARD' as any, team_side: 'away' as any, is_on_pitch: true, is_cancelled: false },
+        { minute: 77, type: 'CORNER' as any, team_side: 'home' as any, is_cancelled: false }
+      ]
+    } as any;
+
+    const climaxRes = evaluateGoalClimax(mockClimaxMatch, mockTimelineLethal, epiLethal);
+    assert(climaxRes.climax_score >= 55, 'Climax score should be >= 55 under dense incidents and surging slope');
+    assert(climaxRes.attacking_side === 'home', 'Attacking side should be home');
+    assert(climaxRes.momentum_acceleration_5m === 15, 'Momentum acceleration should be 15 (20 - 5)');
+
+    console.log('   ✅ M3.5 攻防势能转化 (EPI) 与破门临界探测测试 PASS');
+  }
+
+  // -------------------------------------------------------------------------
+  // 综合测试 6: 端到端统帅部编排与真实样本特征提取
+  // -------------------------------------------------------------------------
+  console.log('👉 [Test 6/7] M6: 最高统帅部端到端真实样本量化特征推演...');
   {
     // 读取 Layer 02 生成的真实对齐赛事样本
     const samplePath = path.resolve(process.cwd(), 'refactor/samples/02_canonical_model/canonical_match_sample.json');
@@ -270,9 +339,9 @@ async function runQuantEngineTests() {
   }
 
   // -------------------------------------------------------------------------
-  // 综合测试 6: L0 致命数据缺失一票否决与降级容错测试
+  // 综合测试 7: L0 致命数据缺失一票否决与降级容错测试
   // -------------------------------------------------------------------------
-  console.log('👉 [Test 6/6] M6: L0 致命缺失一票否决与降级容错测试...');
+  console.log('👉 [Test 7/7] M6: L0 致命缺失一票否决与降级容错测试...');
   {
     const brokenMatch: CanonicalMatch = {
       canonical_id: 'fatal_test_match_001',
@@ -324,7 +393,7 @@ async function runQuantEngineTests() {
   }
 
   console.log('\n================================================================');
-  console.log('🎉 [Layer 03 Test Suite] 全部 6 项确定性量化与博弈引擎测试 100% 通过！');
+  console.log('🎉 [Layer 03 Test Suite] 全部 7 项确定性量化与博弈引擎测试 100% 通过！');
   console.log('================================================================\n');
 }
 
