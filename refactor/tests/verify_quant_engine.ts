@@ -127,11 +127,13 @@ async function runQuantEngineTests() {
       }
     };
 
-    const decayWeights = calculateH2HDecayWeights(mockH2HMatch, 365, new Date('2026-08-30T12:00:00Z').getTime());
+    const decayResult = calculateH2HDecayWeights(mockH2HMatch, 365, new Date('2026-08-30T12:00:00Z').getTime());
+    const decayWeights = decayResult.weights;
     assert(decayWeights.length === 3, 'H2H matches length mismatch');
     assert(decayWeights[0].decay_weight > 0.90, 'Recent match weight should be > 0.90');
     assert(decayWeights[1].decay_weight >= 0.45 && decayWeights[1].decay_weight <= 0.55, '365-day match weight should be ~0.50');
     assert(decayWeights[2].decay_weight === 0.0, 'Over 730-day match weight must be strictly 0.0');
+    assert(decayResult.analytics.valid_count === 2, 'Valid count should be 2');
 
     // (2) L0 熔断测试
     const fatalMatch: CanonicalMatch = {

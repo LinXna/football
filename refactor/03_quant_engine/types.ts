@@ -59,17 +59,79 @@ export interface MarketCalibrationResult {
 }
 
 export interface HistoricalMatchWeight {
+  match_id?: string;
   date: string;
   days_ago: number;
   decay_weight: number;
   is_valid: boolean;
+  competition_importance: number;
+  home_goals: number;
+  away_goals: number;
+  half_home_goals: number;
+  half_away_goals: number;
+  red_cards_home: number;
+  red_cards_away: number;
+  corners_home: number;
+  corners_away: number;
+  handicap_opening_line: number | null;
+  handicap_current_line: number | null;
+  dangerous_attack_ratio: number | null; // 主队危攻占比 home / (home + away)
+  shots_ratio: number | null;            // 主队射门占比
 }
 
 export interface RecentFormContextWeight {
   match_id?: string;
-  venue_homomorphism_weight: number;
-  competition_importance_weight: number;
-  final_composite_weight: number;
+  match_date?: string;
+  days_ago: number;
+  time_decay_weight: number;             // 时间衰减系数 [0.0 ~ 1.0]
+  venue_homomorphism_weight: number;     // 主客同构权重 (1.0 vs 0.65)
+  competition_importance_weight: number; // 赛事级别与同名赛事权重 [0.0 ~ 1.0]
+  final_composite_weight: number;        // 复合权重
+  is_valid_time_window: boolean;         // 是否在有效时间窗口 (<=180天)
+  scored_full: number;                   // 本队全场进球
+  conceded_full: number;                 // 本队全场失球
+  scored_half: number;                   // 本队半场进球
+  conceded_half: number;                 // 本队半场失球
+  scored_second_half: number;            // 本队下半场进球
+  conceded_second_half: number;          // 本队下半场失球
+  is_clean_sheet: boolean;               // 是否零封
+  is_failed_to_score: boolean;           // 是否被零封
+  handicap_result: 'WIN' | 'LOSS' | 'DRAW' | 'UNKNOWN';
+  goals_trend_result: 'BIG' | 'SMALL' | 'UNKNOWN';
+}
+
+export interface RecentFormDetailedAnalytics {
+  sample_count: number;
+  valid_count: number;
+  // 综合得失球期望与方差
+  weighted_scored_per_game: number;
+  weighted_conceded_per_game: number;
+  // 半场与下半场攻防解耦
+  first_half_scored_avg: number;
+  first_half_conceded_avg: number;
+  second_half_scored_avg: number;
+  second_half_conceded_avg: number;
+  // 战术攻防特性
+  slow_starter_index: number;            // 慢热指数: 下半场进球占比 / (全场进球 + ε)
+  second_half_surge_rate: number;        // 下半场发力率
+  clean_sheet_rate: number;              // 零封率
+  failed_to_score_rate: number;          // 哑火率
+  // 盘路赢盘能力
+  handicap_win_rate: number;             // 赢盘率
+  over_goals_rate: number;               // 大球率
+}
+
+export interface H2HDetailedAnalytics {
+  sample_count: number;
+  valid_count: number;
+  total_decayed_weight: number;
+  // 历史交锋净胜均值与场面压制
+  net_goal_differential_weighted: number;
+  historical_h2h_advantage_home: number;  // [-0.20, +0.20]
+  historical_under_rate: number;         // 历史交锋小球倾向率
+  historical_avg_corners: number;        // 历史平均角球
+  historical_avg_red_cards: number;      // 历史平均红牌
+  tactical_stylistic_clash_index: number;// 球风相克指数 [-1.0, 1.0] (基于危攻比与射门比)
 }
 
 export interface L0CircuitBreakerResult {
@@ -78,18 +140,70 @@ export interface L0CircuitBreakerResult {
   details: string[];
 }
 
+export interface IsoVenueStandingRecord {
+  matches_played: number;
+  won: number;
+  draw: number;
+  loss: number;
+  goals_scored: number;
+  goals_conceded: number;
+  goal_difference: number;
+  points: number;
+  goals_per_game_scored: number;
+  goals_per_game_conceded: number;
+}
+
+export interface GoalDistributionDNAFeatures {
+  has_data: boolean;
+  home_scored_weights: number[]; // 6 个 15 分钟区间占比 [0-15', 16-30', 31-45', 46-60', 61-75', 76-90']
+  away_scored_weights: number[];
+  home_late_game_dna: number;    // 75'+ 进球占比
+  away_late_game_dna: number;
+  home_early_game_dna: number;   // 0-30' 进球占比
+  away_early_game_dna: number;
+}
+
+export interface TacticalFormationFeatures {
+  home_formation: string;
+  away_formation: string;
+  formation_matched: boolean;
+  wing_space_vulnerability_home: number; // 边肋部空档暴露度 [0.0 ~ 1.0]
+  wing_space_vulnerability_away: number;
+  midfield_congestion_index: number;     // 中场绞杀密集度
+  formation_tactical_description: string;
+}
+
 export interface CleanedContextFeatures {
   circuit_breaker: L0CircuitBreakerResult;
   h2h_weights: HistoricalMatchWeight[];
+  h2h_analytics: H2HDetailedAnalytics;
   recent_form_weights: {
     home: RecentFormContextWeight[];
     away: RecentFormContextWeight[];
   };
+  recent_form_analytics: {
+    home: RecentFormDetailedAnalytics;
+    away: RecentFormDetailedAnalytics;
+  };
+  iso_venue_standings: {
+    home_at_home: IsoVenueStandingRecord | null;
+    away_at_away: IsoVenueStandingRecord | null;
+  };
+  goal_distribution_dna: GoalDistributionDNAFeatures;
+  tactical_formation: TacticalFormationFeatures;
   lineup_impact: {
     home_lis: number;
     away_lis: number;
     home_missing_core_players: string[];
     away_missing_core_players: string[];
+    home_striker_missing: boolean;
+    away_striker_missing: boolean;
+    home_defender_missing: boolean;
+    away_defender_missing: boolean;
+    home_market_value_num: number;
+    away_market_value_num: number;
+    home_best_player_active: boolean;
+    away_best_player_active: boolean;
   };
   motivation_urgency: {
     home_mui: number;
@@ -124,6 +238,35 @@ export interface RealTimePhysicalStatsFeatures {
     home_xt: number;
     away_xt: number;
     xt_ratio: number;
+  };
+  possession_effectiveness: {
+    home_pe: number; // DA / (Possession + ε)
+    away_pe: number;
+  };
+  penetration_rate: {
+    home_penetration: number; // DA / Attacks
+    away_penetration: number;
+  };
+  shot_efficiency: {
+    home_accuracy: number; // SOT / Total Shots
+    away_accuracy: number;
+    home_woodwork_count: number; // 门柱造险 (Type 22)
+    away_woodwork_count: number;
+  };
+  corner_pressure: {
+    home_corners_15m: number;
+    away_corners_15m: number;
+    is_corner_cascade: boolean;
+  };
+  counter_threat_index: {
+    home_counter_threat: number; // 越位 + 单刀打身后指数
+    away_counter_threat: number;
+  };
+  discipline_pressure: {
+    home_yellows: number;
+    away_yellows: number;
+    home_defenders_on_yellow: number;
+    away_defenders_on_yellow: number;
   };
   conversion_efficiency: {
     home_conversion: number;

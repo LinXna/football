@@ -82,10 +82,9 @@ export function synthesizePrematchPrior(
     match.canonical_id
   );
 
-  // 1. 战力层关联：身价对比 + LIS 伤停折损
-  const lineup = match.reference?.lineups;
-  const homeMv = parseMarketValue(lineup?.home_market_value);
-  const awayMv = parseMarketValue(lineup?.away_market_value);
+  // 1. 战力层关联：身价对比 + LIS 分位置伤停折损 (区分 ST 终结 vs CB/GK 漏球)
+  const homeMv = context.lineup_impact.home_market_value_num;
+  const awayMv = context.lineup_impact.away_market_value_num;
 
   let squadRatioH = 1.0;
   let squadRatioA = 1.0;
@@ -99,55 +98,74 @@ export function synthesizePrematchPrior(
   const lisA = context.lineup_impact.away_lis;
 
   // 主客攻防战力乘子
-  const squadAttH = squadRatioH * lisH;
-  const squadDefA = 1.0 / (lisA * 0.9 + 0.1); // 客队伤停导致防守削弱 (乘子增大)
-  const squadAttA = squadRatioA * lisA;
-  const squadDefH = 1.0 / (lisH * 0.9 + 0.1);
+  const strikerPenH = context.lineup_impact.home_striker_missing ? 0.88 : 1.0;
+  const strikerPenA = context.lineup_impact.away_striker_missing ? 0.88 : 1.0;
+  const defenderLeakH = context.lineup_impact.home_defender_missing ? 1.15 : 1.0;
+  const defenderLeakA = context.lineup_impact.away_defender_missing ? 1.15 : 1.0;
 
-  // 2. 状态与战意层关联：同构近态加权 + MUI
+  const squadAttH = squadRatioH * lisH * strikerPenH;
+  const squadDefA = (1.0 / (lisA * 0.9 + 0.1)) * defenderLeakA;
+  const squadAttA = squadRatioA * lisA * strikerPenA;
+  const squadDefH = (1.0 / (lisH * 0.9 + 0.1)) * defenderLeakH;
+
+  // 2. 状态与战意层关联：结合攻防得失球期望、半场突破韧性、赢盘能力与 MUI
   const muiH = context.motivation_urgency.home_mui; // [0.8 ~ 1.35]
   const muiA = context.motivation_urgency.away_mui;
 
-  // 计算近态权重有效和
-  const homeWeights = context.recent_form_weights.home;
-  const awayWeights = context.recent_form_weights.away;
+  const homeFormAnalytics = context.recent_form_analytics.home;
+  const awayFormAnalytics = context.recent_form_analytics.away;
 
-  let formFactorH = 1.0;
-  if (homeWeights.length > 0) {
-    const sumW = homeWeights.reduce((a, b) => a + b.final_composite_weight, 0);
-    const avgW = sumW / homeWeights.length;
-    formFactorH = 0.85 + avgW * 0.3; // 映射至 [0.85 ~ 1.15]
+  // 近期攻防效率加成 (基准均值 1.30 球)
+  const homeAttackForm = Math.max(0.70, Math.min(1.35, homeFormAnalytics.weighted_scored_per_game / 1.30));
+  const homeDefenseForm = Math.max(0.70, Math.min(1.35, 1.30 / Math.max(0.40, homeFormAnalytics.weighted_conceded_per_game)));
+
+  const awayAttackForm = Math.max(0.70, Math.min(1.35, awayFormAnalytics.weighted_scored_per_game / 1.30));
+  const awayDefenseForm = Math.max(0.70, Math.min(1.35, 1.30 / Math.max(0.40, awayFormAnalytics.weighted_conceded_per_game)));
+
+  // 综合近态修正
+  const formFactorH = (homeAttackForm * 0.6 + homeDefenseForm * 0.4);
+  const formFactorA = (awayAttackForm * 0.6 + awayDefenseForm * 0.4);
+
+  // 3. 历史交锋深度加权与球风相克
+  const h2hAnalytics = context.h2h_analytics;
+  const h2hAdvantage = h2hAnalytics.historical_h2h_advantage_home; // [-0.20, +0.20]
+  const stylisticClash = h2hAnalytics.tactical_stylistic_clash_index; // [-1.0, 1.0]
+
+  // 4. 阵型空间张力克制与中场绞杀
+  const formation = context.tactical_formation;
+  const formationFactorH = 1.0 + (formation.wing_space_vulnerability_away - 0.30) * 0.20 - (formation.midfield_congestion_index - 0.50) * 0.10;
+  const formationFactorA = 1.0 + (formation.wing_space_vulnerability_home - 0.30) * 0.20 - (formation.midfield_congestion_index - 0.50) * 0.10;
+
+  // 5. 主客场异构基线 (Iso-Venue Discrepancy)
+  const homeStandings = context.iso_venue_standings?.home_at_home;
+  const awayStandings = context.iso_venue_standings?.away_at_away;
+
+  let baseGoalsH = 1.45;
+  let baseGoalsA = 1.15;
+
+  if (homeStandings && awayStandings && homeStandings.matches_played >= 3 && awayStandings.matches_played >= 3) {
+    // 基于主队主场场均进球与客队客场场均失球的几何均值
+    const scoredH = homeStandings.goals_per_game_scored;
+    const concededA = awayStandings.goals_per_game_conceded;
+    const scoredA = awayStandings.goals_per_game_scored;
+    const concededH = homeStandings.goals_per_game_conceded;
+
+    baseGoalsH = Math.max(0.60, Math.min(3.0, Math.sqrt(scoredH * concededA)));
+    baseGoalsA = Math.max(0.40, Math.min(2.5, Math.sqrt(scoredA * concededH)));
+  } else if (homeFormAnalytics.valid_count >= 2 && awayFormAnalytics.valid_count >= 2) {
+    // 降级使用近期战绩同构攻防几何均值
+    baseGoalsH = Math.max(0.60, Math.min(3.0, Math.sqrt(homeFormAnalytics.weighted_scored_per_game * awayFormAnalytics.weighted_conceded_per_game)));
+    baseGoalsA = Math.max(0.40, Math.min(2.5, Math.sqrt(awayFormAnalytics.weighted_scored_per_game * homeFormAnalytics.weighted_conceded_per_game)));
   }
 
-  let formFactorA = 1.0;
-  if (awayWeights.length > 0) {
-    const sumW = awayWeights.reduce((a, b) => a + b.final_composite_weight, 0);
-    const avgW = sumW / awayWeights.length;
-    formFactorA = 0.85 + avgW * 0.3;
-  }
-
-  // 3. 历史交锋衰减加权支持
-  const h2hWeights = context.h2h_weights.filter((w) => w.is_valid);
-  let h2hAdvantage = 0.0;
-  if (h2hWeights.length > 0) {
-    const totalDecayedWeight = h2hWeights.reduce((a, b) => a + b.decay_weight, 0);
-    if (totalDecayedWeight > 0.5) {
-      h2hAdvantage = Math.min(0.15, totalDecayedWeight * 0.03); // 交锋加成上限 0.15
-    }
-  }
-
-  // 4. 联赛大盘基线 (标准主场优势：主 1.45 进球，客 1.15 进球)
-  const BASE_LEAGUE_GOALS_HOME = 1.45;
-  const BASE_LEAGUE_GOALS_AWAY = 1.15;
-
-  let lambdaH = BASE_LEAGUE_GOALS_HOME * squadAttH * squadDefA * formFactorH * muiH * (1.0 + h2hAdvantage);
-  let lambdaA = BASE_LEAGUE_GOALS_AWAY * squadAttA * squadDefH * formFactorA * muiA * (1.0 - h2hAdvantage * 0.5);
+  let lambdaH = baseGoalsH * squadAttH * squadDefA * formFactorH * muiH * (1.0 + h2hAdvantage + stylisticClash * 0.05) * formationFactorH;
+  let lambdaA = baseGoalsA * squadAttA * squadDefH * formFactorA * muiA * (1.0 - h2hAdvantage * 0.5 - stylisticClash * 0.05) * formationFactorA;
 
   // 边界约束 [0.20, 5.0]
   lambdaH = Math.max(0.20, Math.min(5.0, Number(lambdaH.toFixed(3))));
   lambdaA = Math.max(0.20, Math.min(5.0, Number(lambdaA.toFixed(3))));
 
-  // 5. 泊松 1X2 联合公允胜平负概率
+  // 6. 泊松 1X2 联合公允胜平负概率
   const p1x2 = computePoisson1X2(lambdaH, lambdaA);
 
   const prior: PrematchTheoryPrior = {

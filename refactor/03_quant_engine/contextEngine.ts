@@ -119,26 +119,47 @@ export function checkL0CircuitBreaker(
 }
 
 /**
- * 计算历史交锋记录的时效性指数衰减
+ * 计算历史交锋记录的时效性指数衰减、赛事级别、盘口博弈与攻防场面克制
  * 半衰期模型: w = exp(-ln(2) * delta_days / half_life)
  * - half_life = 365 天
  * - delta_days <= 180 天: w ≈ 1.0
- * - delta_days > 730 天 (2年): 强制截断归零 (w = 0.0)
+ * - delta_days > 730 天 (2年): 强制截断归零 (w = 0.0, is_valid = false)
  */
 export function calculateH2HDecayWeights(
   match: CanonicalMatch,
   halfLifeDays: number = 365,
   currentTimestamp: number = Date.now()
-): HistoricalMatchWeight[] {
+): { weights: HistoricalMatchWeight[]; analytics: H2HDetailedAnalytics } {
   const h2hList = match.reference?.tactical_context?.h2h_raw || [];
   if (h2hList.length === 0) {
-    return [];
+    return {
+      weights: [],
+      analytics: {
+        sample_count: 0,
+        valid_count: 0,
+        total_decayed_weight: 0,
+        net_goal_differential_weighted: 0,
+        historical_h2h_advantage_home: 0,
+        historical_under_rate: 0.5,
+        historical_avg_corners: 9.0,
+        historical_avg_red_cards: 0.1,
+        tactical_stylistic_clash_index: 0
+      }
+    };
   }
 
   const decayConstant = Math.LN2 / halfLifeDays;
   const MAX_VALID_DAYS = 730;
 
-  return h2hList.map((h2h) => {
+  let totalDecayedWeight = 0;
+  let weightedNetGoals = 0;
+  let validUnderCount = 0;
+  let totalCorners = 0;
+  let totalRedCards = 0;
+  let validCount = 0;
+  let totalClashScore = 0;
+
+  const weights: HistoricalMatchWeight[] = h2hList.map((h2h) => {
     let matchTime = 0;
     let dateStr = '';
     if (typeof h2h.match_time === 'number') {
@@ -158,58 +179,485 @@ export function calculateH2HDecayWeights(
       decayWeight = Math.exp(-decayConstant * daysAgo);
     }
 
+    // 赛事级别加权 (同名赛事 1.0, 杯赛/其他 0.7)
+    let compImp = 1.0;
+    if (h2h.competition_id && (match.reference as any)?.competition_id) {
+      compImp = h2h.competition_id === (match.reference as any).competition_id ? 1.0 : 0.75;
+    }
+
+    const homeScores = h2h.home_scores || [];
+    const awayScores = h2h.away_scores || [];
+    const homeGoals = homeScores[0] ?? 0;
+    const awayGoals = awayScores[0] ?? 0;
+    const halfHomeGoals = homeScores[1] ?? 0;
+    const halfAwayGoals = awayScores[1] ?? 0;
+    const redHome = homeScores[2] ?? 0;
+    const redAway = awayScores[2] ?? 0;
+    const cornerHome = homeScores[4] ?? 0;
+    const cornerAway = awayScores[4] ?? 0;
+
+    // 解析让球初盘与即时盘
+    let ahOpenLine: number | null = null;
+    let ahCurrLine: number | null = null;
+    if (h2h.opening_odds && h2h.opening_odds[0]) {
+      const parts = h2h.opening_odds[0].split(',');
+      if (parts.length >= 2) {
+        const parsed = parseFloat(parts[1]);
+        if (!isNaN(parsed)) ahOpenLine = parsed;
+      }
+    }
+    if (h2h.current_odds && h2h.current_odds[0]) {
+      const parts = h2h.current_odds[0].split(',');
+      if (parts.length >= 2) {
+        const parsed = parseFloat(parts[1]);
+        if (!isNaN(parsed)) ahCurrLine = parsed;
+      }
+    }
+
+    // 解析场面压制与球风克制数据
+    const homeStats = h2h.home_stats || {};
+    const awayStats = h2h.away_stats || {};
+    const daH = homeStats.dangerous_attack ?? 0;
+    const daA = awayStats.dangerous_attack ?? 0;
+    const shotsH = homeStats.shots ?? 0;
+    const shotsA = awayStats.shots ?? 0;
+
+    let daRatio: number | null = null;
+    let shotsRatio: number | null = null;
+    if (daH + daA > 0) {
+      daRatio = Number((daH / (daH + daA)).toFixed(3));
+    }
+    if (shotsH + shotsA > 0) {
+      shotsRatio = Number((shotsH / (shotsH + shotsA)).toFixed(3));
+    }
+
+    if (isValid) {
+      const effWeight = decayWeight * compImp;
+      totalDecayedWeight += effWeight;
+      weightedNetGoals += (homeGoals - awayGoals) * effWeight;
+      validCount++;
+
+      if (homeGoals + awayGoals <= 2) {
+        validUnderCount += effWeight;
+      }
+      totalCorners += (cornerHome + cornerAway);
+      totalRedCards += (redHome + redAway);
+
+      if (daRatio !== null && shotsRatio !== null) {
+        // 球风压制得分: (危攻比 - 0.5) * 2
+        totalClashScore += ((daRatio - 0.5) * 1.2 + (shotsRatio - 0.5) * 0.8) * effWeight;
+      }
+    }
+
     return Object.freeze({
+      match_id: String(h2h.match_id || ''),
       date: dateStr,
       days_ago: daysAgo,
       decay_weight: Number(decayWeight.toFixed(4)),
-      is_valid: isValid
+      is_valid: isValid,
+      competition_importance: compImp,
+      home_goals: homeGoals,
+      away_goals: awayGoals,
+      half_home_goals: halfHomeGoals,
+      half_away_goals: halfAwayGoals,
+      red_cards_home: redHome,
+      red_cards_away: redAway,
+      corners_home: cornerHome,
+      corners_away: cornerAway,
+      handicap_opening_line: ahOpenLine,
+      handicap_current_line: ahCurrLine,
+      dangerous_attack_ratio: daRatio,
+      shots_ratio: shotsRatio
     });
+  });
+
+  const netDiffWeighted = totalDecayedWeight > 0 ? Number((weightedNetGoals / totalDecayedWeight).toFixed(3)) : 0;
+  const h2hAdvantage = Math.max(-0.20, Math.min(0.20, netDiffWeighted * 0.08));
+  const underRate = totalDecayedWeight > 0 ? Number((validUnderCount / totalDecayedWeight).toFixed(3)) : 0.5;
+  const avgCorners = validCount > 0 ? Number((totalCorners / validCount).toFixed(1)) : 9.0;
+  const avgReds = validCount > 0 ? Number((totalRedCards / validCount).toFixed(2)) : 0.1;
+  const clashIndex = totalDecayedWeight > 0 ? Number((totalClashScore / totalDecayedWeight).toFixed(3)) : 0;
+
+  return {
+    weights,
+    analytics: {
+      sample_count: h2hList.length,
+      valid_count: validCount,
+      total_decayed_weight: Number(totalDecayedWeight.toFixed(3)),
+      net_goal_differential_weighted: netDiffWeighted,
+      historical_h2h_advantage_home: h2hAdvantage,
+      historical_under_rate: underRate,
+      historical_avg_corners: avgCorners,
+      historical_avg_red_cards: avgReds,
+      tactical_stylistic_clash_index: clashIndex
+    }
+  };
+}
+
+/**
+ * 计算近期战绩时间连续衰减、赛事层级过滤与半场/下半场攻防解耦
+ */
+export function calculateRecentFormWeights(
+  match: CanonicalMatch,
+  currentTimestamp: number = Date.now()
+): {
+  home: RecentFormContextWeight[];
+  away: RecentFormContextWeight[];
+  home_analytics: RecentFormDetailedAnalytics;
+  away_analytics: RecentFormDetailedAnalytics;
+} {
+  const homeRecent = match.reference?.tactical_context?.home_recent_matches || [];
+  const awayRecent = match.reference?.tactical_context?.away_recent_matches || [];
+
+  const evaluateRecentMatches = (
+    matches: any[],
+    targetTeamName: string,
+    isTargetHome: boolean
+  ): { weights: RecentFormContextWeight[]; analytics: RecentFormDetailedAnalytics } => {
+    if (matches.length === 0) {
+      return {
+        weights: [],
+        analytics: {
+          sample_count: 0,
+          valid_count: 0,
+          weighted_scored_per_game: isTargetHome ? 1.45 : 1.15,
+          weighted_conceded_per_game: isTargetHome ? 1.15 : 1.45,
+          first_half_scored_avg: 0.6,
+          first_half_conceded_avg: 0.5,
+          second_half_scored_avg: 0.8,
+          second_half_conceded_avg: 0.7,
+          slow_starter_index: 0.55,
+          second_half_surge_rate: 0.5,
+          clean_sheet_rate: 0.3,
+          failed_to_score_rate: 0.25,
+          handicap_win_rate: 0.5,
+          over_goals_rate: 0.5
+        }
+      };
+    }
+
+    const currentLeagueName = match.league_name || match.reference?.leisu_league_name || '';
+
+    let totalEffectiveWeight = 0;
+    let sumScored = 0;
+    let sumConceded = 0;
+    let sumHalfScored = 0;
+    let sumHalfConceded = 0;
+    let sumSecondHalfScored = 0;
+    let sumSecondHalfConceded = 0;
+    let cleanSheetCount = 0;
+    let failedToScoreCount = 0;
+    let handicapWinCount = 0;
+    let overGoalsCount = 0;
+    let validCount = 0;
+
+    const weights: RecentFormContextWeight[] = matches.map((item) => {
+      // 1. 时间过滤与指数衰减 (60天半衰期, >180天强制截断为0)
+      let matchTime = 0;
+      let dateStr = '';
+      if (typeof item.match_time === 'number') {
+        matchTime = item.match_time > 1e11 ? item.match_time : item.match_time * 1000;
+        dateStr = new Date(matchTime).toISOString().slice(0, 10);
+      } else if (item.match_date) {
+        matchTime = new Date(String(item.match_date)).getTime();
+        dateStr = String(item.match_date).slice(0, 10);
+      }
+
+      const daysAgo = matchTime > 0
+        ? Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24)))
+        : 45;
+
+      const isValidTime = daysAgo <= 180;
+      let timeDecay = 0.0;
+      if (isValidTime) {
+        if (daysAgo <= 30) {
+          timeDecay = 1.0;
+        } else {
+          timeDecay = Math.exp(- (Math.LN2 / 60) * (daysAgo - 30));
+        }
+      }
+
+      // 2. 赛事层级与同赛事优先过滤
+      let compWeight = 0.8;
+      const compName = String(item.league_name || item.competition_name || item.competition || '');
+      if (currentLeagueName && (compName.includes(currentLeagueName) || currentLeagueName.includes(compName))) {
+        compWeight = 1.0; // 同名同级别联赛最高准度
+      } else if (compName.includes('友谊') || compName.includes('Friendly') || compName.includes('球会友谊')) {
+        compWeight = daysAgo <= 30 ? 0.10 : 0.0; // 友谊赛仅在近期30天保留极低体能参考，超期一律归零
+      } else if (compName.includes('杯') || compName.includes('Cup') || compName.includes('Trophy')) {
+        compWeight = 0.60; // 杯赛权重
+      }
+
+      // 3. 主客场同构判定
+      const itemIsHome = item.home_team_name === targetTeamName || (match.reference && item.home_team_name === match.reference.leisu_home_name);
+      const isMatched = isTargetHome ? itemIsHome : !itemIsHome;
+      const venueWeight = isMatched ? 1.0 : 0.65;
+
+      const finalWeight = Number((timeDecay * compWeight * venueWeight).toFixed(4));
+
+      // 4. 解析进球明细 (全场、半场、下半场)
+      const ftHome = item.fulltime_score?.home ?? 0;
+      const ftAway = item.fulltime_score?.away ?? 0;
+      const htHome = item.halftime_score?.home ?? 0;
+      const htAway = item.halftime_score?.away ?? 0;
+
+      const scoredFull = itemIsHome ? ftHome : ftAway;
+      const concededFull = itemIsHome ? ftAway : ftHome;
+      const scoredHalf = itemIsHome ? htHome : htAway;
+      const concededHalf = itemIsHome ? htAway : htHome;
+
+      const scoredSecondHalf = Math.max(0, scoredFull - scoredHalf);
+      const concededSecondHalf = Math.max(0, concededFull - concededHalf);
+
+      const isCleanSheet = concededFull === 0;
+      const isFailedToScore = scoredFull === 0;
+
+      // 盘路结果
+      let handicapRes: 'WIN' | 'LOSS' | 'DRAW' | 'UNKNOWN' = 'UNKNOWN';
+      if (item.handicap_trend?.result === '赢') handicapRes = 'WIN';
+      else if (item.handicap_trend?.result === '输') handicapRes = 'LOSS';
+      else if (item.handicap_trend?.result === '走' || item.handicap_trend?.result === '和') handicapRes = 'DRAW';
+
+      let goalsTrendRes: 'BIG' | 'SMALL' | 'UNKNOWN' = 'UNKNOWN';
+      if (item.goals_trend?.result === '大') goalsTrendRes = 'BIG';
+      else if (item.goals_trend?.result === '小') goalsTrendRes = 'SMALL';
+
+      if (isValidTime && finalWeight > 0) {
+        totalEffectiveWeight += finalWeight;
+        sumScored += scoredFull * finalWeight;
+        sumConceded += concededFull * finalWeight;
+        sumHalfScored += scoredHalf * finalWeight;
+        sumHalfConceded += concededHalf * finalWeight;
+        sumSecondHalfScored += scoredSecondHalf * finalWeight;
+        sumSecondHalfConceded += concededSecondHalf * finalWeight;
+
+        if (isCleanSheet) cleanSheetCount += finalWeight;
+        if (isFailedToScore) failedToScoreCount += finalWeight;
+        if (handicapRes === 'WIN') handicapWinCount += finalWeight;
+        if (goalsTrendRes === 'BIG') overGoalsCount += finalWeight;
+        validCount++;
+      }
+
+      return Object.freeze({
+        match_id: String(item.match_id || ''),
+        match_date: dateStr,
+        days_ago: daysAgo,
+        time_decay_weight: Number(timeDecay.toFixed(4)),
+        venue_homomorphism_weight: venueWeight,
+        competition_importance_weight: compWeight,
+        final_composite_weight: finalWeight,
+        is_valid_time_window: isValidTime,
+        scored_full: scoredFull,
+        conceded_full: concededFull,
+        scored_half: scoredHalf,
+        conceded_half: concededHalf,
+        scored_second_half: scoredSecondHalf,
+        conceded_second_half: concededSecondHalf,
+        is_clean_sheet: isCleanSheet,
+        is_failed_to_score: isFailedToScore,
+        handicap_result: handicapRes,
+        goals_trend_result: goalsTrendRes
+      });
+    });
+
+    const denom = totalEffectiveWeight > 0 ? totalEffectiveWeight : 1.0;
+    const avgScored = totalEffectiveWeight > 0 ? Number((sumScored / denom).toFixed(2)) : (isTargetHome ? 1.45 : 1.15);
+    const avgConceded = totalEffectiveWeight > 0 ? Number((sumConceded / denom).toFixed(2)) : (isTargetHome ? 1.15 : 1.45);
+    const avgHalfScored = totalEffectiveWeight > 0 ? Number((sumHalfScored / denom).toFixed(2)) : 0.60;
+    const avgHalfConceded = totalEffectiveWeight > 0 ? Number((sumHalfConceded / denom).toFixed(2)) : 0.50;
+    const avgSecondScored = totalEffectiveWeight > 0 ? Number((sumSecondHalfScored / denom).toFixed(2)) : 0.80;
+    const avgSecondConceded = totalEffectiveWeight > 0 ? Number((sumSecondHalfConceded / denom).toFixed(2)) : 0.70;
+
+    const totalScoredSum = sumHalfScored + sumSecondHalfScored;
+    const slowStarter = totalScoredSum > 0 ? Number((sumSecondHalfScored / totalScoredSum).toFixed(3)) : 0.55;
+
+    return {
+      weights,
+      analytics: {
+        sample_count: matches.length,
+        valid_count: validCount,
+        weighted_scored_per_game: avgScored,
+        weighted_conceded_per_game: avgConceded,
+        first_half_scored_avg: avgHalfScored,
+        first_half_conceded_avg: avgHalfConceded,
+        second_half_scored_avg: avgSecondScored,
+        second_half_conceded_avg: avgSecondConceded,
+        slow_starter_index: slowStarter,
+        second_half_surge_rate: slowStarter > 0.60 ? 1.0 : (slowStarter < 0.40 ? 0.0 : 0.5),
+        clean_sheet_rate: Number((cleanSheetCount / denom).toFixed(3)),
+        failed_to_score_rate: Number((failedToScoreCount / denom).toFixed(3)),
+        handicap_win_rate: Number((handicapWinCount / denom).toFixed(3)),
+        over_goals_rate: Number((overGoalsCount / denom).toFixed(3))
+      }
+    };
+  };
+
+  const homeResult = evaluateRecentMatches(homeRecent, match.home_team_name, true);
+  const awayResult = evaluateRecentMatches(awayRecent, match.away_team_name, false);
+
+  return {
+    home: homeResult.weights,
+    away: awayResult.weights,
+    home_analytics: homeResult.analytics,
+    away_analytics: awayResult.analytics
+  };
+}
+
+/**
+ * 解析身价数值 (如 "1.2亿", "850万", "€15.5M")
+ */
+export function parseMarketValueToNumber(mvText: string | null | undefined): number {
+  if (!mvText) return 0;
+  const cleaned = mvText.replace(/[^0-9.]/g, '');
+  const val = parseFloat(cleaned);
+  if (isNaN(val)) return 0;
+  if (mvText.includes('亿') || mvText.toUpperCase().includes('B')) return val * 10000;
+  if (mvText.includes('万') || mvText.toUpperCase().includes('M')) return val;
+  return val;
+}
+
+/**
+ * 提取主客场同构独立战绩 (Iso-Venue Standings)
+ */
+export function extractIsoVenueStandings(
+  match: CanonicalMatch
+): { home_at_home: any; away_at_away: any } {
+  const standings = match.reference?.league_standings;
+  if (!standings || !standings.has_data) {
+    return { home_at_home: null, away_at_away: null };
+  }
+
+  const mapStanding = (record: any) => {
+    if (!record || record.matches_played === 0) return null;
+    const mp = record.matches_played || 1;
+    return Object.freeze({
+      matches_played: record.matches_played,
+      won: record.won,
+      draw: record.draw,
+      loss: record.loss,
+      goals_scored: record.goals_scored,
+      goals_conceded: record.goals_conceded,
+      goal_difference: record.goal_difference,
+      points: record.points,
+      goals_per_game_scored: Number((record.goals_scored / mp).toFixed(2)),
+      goals_per_game_conceded: Number((record.goals_conceded / mp).toFixed(2))
+    });
+  };
+
+  const homeHome = mapStanding(standings.home_team?.home || standings.home_team?.overall);
+  const awayAway = mapStanding(standings.away_team?.away || standings.away_team?.overall);
+
+  return {
+    home_at_home: homeHome,
+    away_at_away: awayAway
+  };
+}
+
+/**
+ * 提取进球时段分布 DNA (Goal Distribution DNA)
+ * 6 个 15 分钟区间占比: [0-15', 16-30', 31-45', 46-60', 61-75', 76-90']
+ */
+export function extractGoalDistributionDNA(
+  match: CanonicalMatch
+): any {
+  const goalDist = match.reference?.goal_distribution;
+  if (!goalDist || !goalDist.has_data) {
+    // 默认平均分布 (1/6 = 0.1667)
+    const uniform = [0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667];
+    return Object.freeze({
+      has_data: false,
+      home_scored_weights: uniform,
+      away_scored_weights: uniform,
+      home_late_game_dna: 0.1667,
+      away_late_game_dna: 0.1667,
+      home_early_game_dna: 0.3333,
+      away_early_game_dna: 0.3333
+    });
+  }
+
+  const extractWeights = (teamDist: any): { weights: number[]; late: number; early: number } => {
+    const intervals = teamDist?.all?.scored_intervals || teamDist?.home?.scored_intervals || [];
+    if (intervals.length === 0) {
+      return { weights: [0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667], late: 0.1667, early: 0.3333 };
+    }
+
+    const weights = new Array(6).fill(0.1667);
+    let totalGoals = 0;
+    intervals.forEach((iv: any, idx: number) => {
+      if (idx < 6) {
+        weights[idx] = iv.goals ?? 0;
+        totalGoals += (iv.goals ?? 0);
+      }
+    });
+
+    if (totalGoals > 0) {
+      for (let i = 0; i < 6; i++) {
+        weights[i] = Number((weights[i] / totalGoals).toFixed(4));
+      }
+    }
+
+    const late = weights[5] ?? 0.1667;
+    const early = Number(((weights[0] ?? 0.1667) + (weights[1] ?? 0.1667)).toFixed(4));
+
+    return { weights, late, early };
+  };
+
+  const homeDna = extractWeights(goalDist.home_team);
+  const awayDna = extractWeights(goalDist.away_team);
+
+  return Object.freeze({
+    has_data: true,
+    home_scored_weights: homeDna.weights,
+    away_scored_weights: awayDna.weights,
+    home_late_game_dna: homeDna.late,
+    away_late_game_dna: awayDna.late,
+    home_early_game_dna: homeDna.early,
+    away_early_game_dna: awayDna.early
   });
 }
 
 /**
- * 计算近期战绩主客场同构与赛事性质加权过滤
+ * 提取战术阵型与空间张力特征 (Tactical Formation Dynamics)
  */
-export function calculateRecentFormWeights(
+export function extractTacticalFormationFeatures(
   match: CanonicalMatch
-): { home: RecentFormContextWeight[]; away: RecentFormContextWeight[] } {
-  const homeRecent = match.reference?.tactical_context?.home_recent_matches || [];
-  const awayRecent = match.reference?.tactical_context?.away_recent_matches || [];
+): any {
+  const lineup = match.reference?.lineups;
+  const homeFormation = lineup?.home_formation || 'UNKNOWN';
+  const awayFormation = lineup?.away_formation || 'UNKNOWN';
 
-  const evaluateForm = (
-    item: any,
-    targetTeamName: string,
-    isTargetHome: boolean
-  ): RecentFormContextWeight => {
-    let compWeight = 1.0;
-    const compName = String(item.competition_name || item.league_name || item.competition || '');
+  let wingVulnerabilityHome = 0.30;
+  let wingVulnerabilityAway = 0.30;
+  let midfieldCongestion = 0.50;
+  let desc = '双方阵型处于常规对称攻防';
 
-    if (compName.includes('友谊') || compName.includes('Friendly') || compName.includes('球会友谊')) {
-      compWeight = 0.0;
-    } else if (compName.includes('杯') || compName.includes('Cup') || compName.includes('Trophy')) {
-      compWeight = 0.4;
+  if (homeFormation !== 'UNKNOWN' && awayFormation !== 'UNKNOWN') {
+    // 识别 3 后卫/5 后卫阵型 (如 3-5-2, 5-3-2, 3-4-3)
+    const is3Back = (f: string) => f.startsWith('3-') || f.startsWith('5-');
+    // 识别 3 前锋高位压迫阵型 (如 4-3-3, 3-4-3)
+    const is3Front = (f: string) => f.endsWith('-3') || f.endsWith('-3-3');
+
+    if (is3Front(homeFormation) && is3Back(awayFormation)) {
+      wingVulnerabilityAway = 0.75;
+      desc = `主队 ${homeFormation} 三前锋高位压迫，客队 ${awayFormation} 边翼卫身后肋部空档承压极大`;
+    } else if (is3Front(awayFormation) && is3Back(homeFormation)) {
+      wingVulnerabilityHome = 0.75;
+      desc = `客队 ${awayFormation} 三前锋反击冲击，主队 ${homeFormation} 边路防守面临单挑过载`;
+    } else if (homeFormation.includes('4-2-3-1') && awayFormation.includes('4-2-3-1')) {
+      midfieldCongestion = 0.85;
+      desc = '双方均采用 4-2-3-1 双后腰绞杀阵型，中路渗透空间极度压缩';
     }
+  }
 
-    const itemIsHome = item.home_team_name === targetTeamName || (match.reference && item.home_team_name === match.reference.leisu_home_name);
-    const isMatched = isTargetHome ? itemIsHome : !itemIsHome;
-    const venueWeight = isMatched ? 1.0 : 0.65;
-    const finalWeight = Number((compWeight * venueWeight).toFixed(4));
-
-    return Object.freeze({
-      match_id: String(item.match_id || ''),
-      venue_homomorphism_weight: venueWeight,
-      competition_importance_weight: compWeight,
-      final_composite_weight: finalWeight
-    });
-  };
-
-  const homeWeights = homeRecent.map((r) => evaluateForm(r, match.home_team_name, true));
-  const awayWeights = awayRecent.map((r) => evaluateForm(r, match.away_team_name, false));
-
-  return {
-    home: homeWeights,
-    away: awayWeights
-  };
+  return Object.freeze({
+    home_formation: homeFormation,
+    away_formation: awayFormation,
+    formation_matched: homeFormation !== 'UNKNOWN' && awayFormation !== 'UNKNOWN',
+    wing_space_vulnerability_home: wingVulnerabilityHome,
+    wing_space_vulnerability_away: wingVulnerabilityAway,
+    midfield_congestion_index: midfieldCongestion,
+    formation_tactical_description: desc
+  });
 }
 
 /**
@@ -217,20 +665,41 @@ export function calculateRecentFormWeights(
  */
 export function calculateLineupImpactScores(
   match: CanonicalMatch
-): { home_lis: number; away_lis: number; home_missing: string[]; away_missing: string[] } {
+): any {
   const lineup = match.reference?.lineups;
+  const homeMv = parseMarketValueToNumber(lineup?.home_market_value);
+  const awayMv = parseMarketValueToNumber(lineup?.away_market_value);
+
   if (!lineup) {
     return {
       home_lis: 1.0,
       away_lis: 1.0,
-      home_missing: [],
-      away_missing: []
+      home_missing_core_players: [],
+      away_missing_core_players: [],
+      home_striker_missing: false,
+      away_striker_missing: false,
+      home_defender_missing: false,
+      away_defender_missing: false,
+      home_market_value_num: homeMv,
+      away_market_value_num: awayMv,
+      home_best_player_active: true,
+      away_best_player_active: true
     };
   }
 
-  const evaluateAbsences = (injuries: any[]): { lis: number; missing: string[] } => {
+  const evaluateAbsences = (injuries: any[], starters: any[]): {
+    lis: number;
+    missing: string[];
+    strikerMissing: boolean;
+    defenderMissing: boolean;
+    bestPlayerActive: boolean;
+  } => {
     let deduction = 0.0;
     const missing: string[] = [];
+    let strikerMissing = false;
+    let defenderMissing = false;
+
+    const hasBestInStarters = starters.some((p: any) => p.best_player === true);
 
     for (const p of injuries) {
       const name = p.name || 'Unknown';
@@ -239,28 +708,46 @@ export function calculateLineupImpactScores(
 
       if (pos.includes('FW') || pos.includes('ST') || pos.includes('前锋')) {
         deduction += 0.20;
+        strikerMissing = true;
       } else if (pos.includes('DF') || pos.includes('CB') || pos.includes('GK') || pos.includes('后卫') || pos.includes('门将')) {
         deduction += 0.22;
+        defenderMissing = true;
       } else {
         deduction += 0.10;
       }
     }
 
     const lis = Math.max(0.40, Number((1.0 - deduction).toFixed(3)));
-    return { lis, missing };
+    return {
+      lis,
+      missing,
+      strikerMissing,
+      defenderMissing,
+      bestPlayerActive: hasBestInStarters
+    };
   };
 
+  const homeStarters = lineup.home_starters || [];
+  const awayStarters = lineup.away_starters || [];
   const homeInjuries = lineup.home_injuries || [];
   const awayInjuries = lineup.away_injuries || [];
 
-  const homeRes = evaluateAbsences(homeInjuries);
-  const awayRes = evaluateAbsences(awayInjuries);
+  const homeRes = evaluateAbsences(homeInjuries, homeStarters);
+  const awayRes = evaluateAbsences(awayInjuries, awayStarters);
 
   return {
     home_lis: homeRes.lis,
     away_lis: awayRes.lis,
-    home_missing: homeRes.missing,
-    away_missing: awayRes.missing
+    home_missing_core_players: homeRes.missing,
+    away_missing_core_players: awayRes.missing,
+    home_striker_missing: homeRes.strikerMissing,
+    away_striker_missing: awayRes.strikerMissing,
+    home_defender_missing: homeRes.defenderMissing,
+    away_defender_missing: awayRes.defenderMissing,
+    home_market_value_num: homeMv,
+    away_market_value_num: awayMv,
+    home_best_player_active: homeRes.bestPlayerActive,
+    away_best_player_active: awayRes.bestPlayerActive
   };
 }
 
@@ -360,24 +847,43 @@ export function extractCleanedContextFeatures(
   tracer?: Tracer
 ): CleanedContextFeatures {
   const circuitBreaker = checkL0CircuitBreaker(match, collector, tracer);
-  const h2hWeights = calculateH2HDecayWeights(match);
+  const h2hResult = calculateH2HDecayWeights(match);
   const recentForm = calculateRecentFormWeights(match);
+  const isoStandings = extractIsoVenueStandings(match);
+  const goalDna = extractGoalDistributionDNA(match);
+  const formationFeatures = extractTacticalFormationFeatures(match);
   const lineupImpact = calculateLineupImpactScores(match);
   const muiResult = calculateMotivationAndUrgencyIndex(match);
   const timingValidity = evaluateGoalTimingValidity(match);
 
   const result: CleanedContextFeatures = Object.freeze({
     circuit_breaker: circuitBreaker,
-    h2h_weights: h2hWeights,
+    h2h_weights: h2hResult.weights,
+    h2h_analytics: Object.freeze(h2hResult.analytics),
     recent_form_weights: {
       home: recentForm.home,
       away: recentForm.away
     },
+    recent_form_analytics: {
+      home: Object.freeze(recentForm.home_analytics),
+      away: Object.freeze(recentForm.away_analytics)
+    },
+    iso_venue_standings: isoStandings,
+    goal_distribution_dna: goalDna,
+    tactical_formation: formationFeatures,
     lineup_impact: Object.freeze({
       home_lis: lineupImpact.home_lis,
       away_lis: lineupImpact.away_lis,
-      home_missing_core_players: lineupImpact.home_missing,
-      away_missing_core_players: lineupImpact.away_missing
+      home_missing_core_players: lineupImpact.home_missing_core_players,
+      away_missing_core_players: lineupImpact.away_missing_core_players,
+      home_striker_missing: lineupImpact.home_striker_missing,
+      away_striker_missing: lineupImpact.away_striker_missing,
+      home_defender_missing: lineupImpact.home_defender_missing,
+      away_defender_missing: lineupImpact.away_defender_missing,
+      home_market_value_num: lineupImpact.home_market_value_num,
+      away_market_value_num: lineupImpact.away_market_value_num,
+      home_best_player_active: lineupImpact.home_best_player_active,
+      away_best_player_active: lineupImpact.away_best_player_active
     }),
     motivation_urgency: Object.freeze({
       home_mui: muiResult.home_mui,
@@ -395,13 +901,13 @@ export function extractCleanedContextFeatures(
   tracer?.info(
     Layer03OpId.CLEAN_CONTEXT,
     'CONTEXT_EXTRACTED',
-    'Context features extracted successfully',
+    'Context features extracted successfully with Iso-Venue and Formation features',
     {
       circuit_breaker_triggered: circuitBreaker.is_triggered,
       home_lis: lineupImpact.home_lis,
       away_lis: lineupImpact.away_lis,
-      home_mui: muiResult.home_mui,
-      away_mui: muiResult.away_mui
+      home_formation: formationFeatures.home_formation,
+      away_formation: formationFeatures.away_formation
     },
     match.canonical_id
   );

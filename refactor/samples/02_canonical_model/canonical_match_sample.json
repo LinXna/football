@@ -1,11 +1,11 @@
 {
   "sample_version": "1.0.0",
-  "generated_at": "2026-09-01T03:03:41.122Z",
+  "generated_at": "2026-09-01T07:23:14.895Z",
   "description": "Layer 02 标准赛事对象 (CanonicalMatch) 与 AI Slim Brief 提炼样本",
   "canonical_match": {
     "canonical_id": "4562395",
     "match_slug": "英格兰甲级联赛_谢周三_vs_布拉德福德城",
-    "created_at": "2026-09-01T03:03:41.122Z",
+    "created_at": "2026-09-01T07:23:14.894Z",
     "completeness_tier": "TIER_1_FULL",
     "missing_reasons": [],
     "alignment": {

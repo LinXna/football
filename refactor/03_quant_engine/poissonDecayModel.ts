@@ -110,16 +110,69 @@ export function poissonPMF(k: number, lambda: number): number {
  * @param elapsedMinute 已进行分钟数 (t ∈ [0, 90])
  * @param scoreDiff 主客比分差 (home - away)
  */
+/**
+ * 计算基于进球时段 DNA 的精确剩余时间积分比例 (Goal DNA Phased Decay Integration)
+ * @param elapsedMinute 已进行分钟数 (0~90)
+ * @param weights 6 个 15 分钟区间权重占比数组
+ */
+export function calculatePhasedDNATimeFraction(
+  elapsedMinute: number,
+  weights: number[] = [0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667]
+): number {
+  if (elapsedMinute <= 0) return 1.0;
+  if (elapsedMinute >= 90) return 0.0;
+
+  const currentIntervalIndex = Math.min(5, Math.floor(elapsedMinute / 15));
+  const intervalEndMinute = (currentIntervalIndex + 1) * 15;
+  const fractionInCurrentInterval = Math.max(0, (intervalEndMinute - elapsedMinute) / 15.0);
+
+  let remainingIntegral = fractionInCurrentInterval * (weights[currentIntervalIndex] ?? 0.1667);
+
+  for (let i = currentIntervalIndex + 1; i < 6; i++) {
+    remainingIntegral += (weights[i] ?? 0.1667);
+  }
+
+  // 保证单调平滑递减
+  return Number(Math.max(0.0, Math.min(1.0, remainingIntegral)).toFixed(4));
+}
+
+/**
+ * 计算非线性时间衰减与局势搏命放大系数 (Time & Game-State Factor)
+ * 物理原理：
+ * 建立统一平滑的连续紧迫度势场 U(t, ΔS)，消除 70/75 分钟与分差断崖式的离散阶跃。
+ * @param elapsedMinute 已进行分钟数 (t ∈ [0, 90])
+ * @param scoreDiff 主客比分差 (home - away)
+ * @param homeWeights 主队进球 DNA 时段权重
+ * @param awayWeights 客队进球 DNA 时段权重
+ */
 export function calculateTimeDecayAndUrgencyMultiplier(
   elapsedMinute: number,
-  scoreDiff: number = 0
-): { time_fraction: number; urgency_multiplier: number; curve: PoissonDecayCurve } {
+  scoreDiff: number = 0,
+  homeWeights?: number[],
+  awayWeights?: number[]
+): {
+  time_fraction: number;
+  time_fraction_home: number;
+  time_fraction_away: number;
+  urgency_multiplier: number;
+  curve: PoissonDecayCurve;
+} {
   const remainingMinutes = Math.max(0, 90 - elapsedMinute);
-  const timeFraction = Number((remainingMinutes / 90.0).toFixed(4));
+  const uniformTimeFraction = Number((remainingMinutes / 90.0).toFixed(4));
+
+  const dnaFractionH = homeWeights && homeWeights.length === 6
+    ? calculatePhasedDNATimeFraction(elapsedMinute, homeWeights)
+    : uniformTimeFraction;
+
+  const dnaFractionA = awayWeights && awayWeights.length === 6
+    ? calculatePhasedDNATimeFraction(elapsedMinute, awayWeights)
+    : uniformTimeFraction;
 
   if (elapsedMinute <= 0) {
     return {
       time_fraction: 1.0,
+      time_fraction_home: 1.0,
+      time_fraction_away: 1.0,
       urgency_multiplier: 1.0,
       curve: PoissonDecayCurve.LINEAR_UNIFORM
     };
@@ -159,7 +212,9 @@ export function calculateTimeDecayAndUrgencyMultiplier(
   }
 
   return {
-    time_fraction: timeFraction,
+    time_fraction: uniformTimeFraction,
+    time_fraction_home: dnaFractionH,
+    time_fraction_away: dnaFractionA,
     urgency_multiplier: urgency,
     curve
   };
@@ -217,8 +272,8 @@ export function calculateBivariatePoissonGrid(
 /**
  * 计算连续多维攻防威胁强度张量 (Continuous Threat Intensity Tensor)
  * 物理原理：
- * 整合每分钟射门率、射正率、角球、危攻 AUC、xT 穿透与时间指数半衰期，
- * 建立连续平滑的即时产出势能 Φ(t) ∈ [0, 1.5]，消除离散 if-else 分支。
+ * 整合 9 项实战攻防技术统计（PE控球有效性、渗透率、射正/中柱质量、角球脉冲、反击越位威胁、黄牌纪律防守动作受限）、
+ * 动量 OLS 斜率与 AUC 能量积分，建立连续平滑的统一实时攻防态势场 Φ(t) ∈ [0.4, 1.6]。
  */
 export function calculateContinuousThreatTensor(
   match: CanonicalMatch,
@@ -252,21 +307,45 @@ export function calculateContinuousThreatTensor(
   const rateCornersHome = (cornersHome / Math.max(1, elapsedMinute)) / expectedCornersPerMinute;
   const rateCornersAway = (cornersAway / Math.max(1, elapsedMinute)) / expectedCornersPerMinute;
 
-  // 2. xT 穿透与危攻动量积分贡献
+  // 2. 注入 9 项实战攻防衍生指标
+  const peHome = physical.possession_effectiveness?.home_pe ?? 0.5;
+  const peAway = physical.possession_effectiveness?.away_pe ?? 0.5;
+  const counterHome = physical.counter_threat_index?.home_counter_threat ?? 0.5;
+  const counterAway = physical.counter_threat_index?.away_counter_threat ?? 0.5;
+  const defYellowsHome = physical.discipline_pressure?.home_defenders_on_yellow ?? 0;
+  const defYellowsAway = physical.discipline_pressure?.away_defenders_on_yellow ?? 0;
+  const woodworkHome = physical.shot_efficiency?.home_woodwork_count ?? 0;
+  const woodworkAway = physical.shot_efficiency?.away_woodwork_count ?? 0;
+
   const xtHome = physical.xt_proxy?.home_xt ?? 0.5;
   const xtAway = physical.xt_proxy?.away_xt ?? 0.5;
   const energyHome = (timeline.integral_15m?.home ?? 0) / 100.0;
   const energyAway = (timeline.integral_15m?.away ?? 0) / 100.0;
 
-  // 3. 多维威胁势能物理加权合成 Φ = 0.45 * OnTarget + 0.20 * Shots + 0.15 * Corners + 0.10 * xT + 0.10 * Energy
-  const phiHomeRaw = 0.45 * rateOnTargetHome + 0.20 * rateShotsHome + 0.15 * rateCornersHome + 0.10 * xtHome + 0.10 * energyHome;
-  const phiAwayRaw = 0.45 * rateOnTargetAway + 0.20 * rateShotsAway + 0.15 * rateCornersAway + 0.10 * xtAway + 0.10 * energyAway;
+  // 3. 多维威胁势能物理加权合成 Φ
+  // 结合射正质量、门柱险情、角球压迫、PE 控球有效性、刺客反击与对手后卫黄牌防线松动
+  const phiHomeRaw = (0.35 * rateOnTargetHome) + 
+                     (0.15 * rateShotsHome) + 
+                     (0.15 * rateCornersHome) + 
+                     (0.10 * xtHome) + 
+                     (0.08 * energyHome * Math.min(1.5, peHome)) + 
+                     (0.07 * counterHome) + 
+                     (0.05 * defYellowsAway * 0.2) + 
+                     (0.05 * woodworkHome * 0.3);
+
+  const phiAwayRaw = (0.35 * rateOnTargetAway) + 
+                     (0.15 * rateShotsAway) + 
+                     (0.15 * rateCornersAway) + 
+                     (0.10 * xtAway) + 
+                     (0.08 * energyAway * Math.min(1.5, peAway)) + 
+                     (0.07 * counterAway) + 
+                     (0.05 * defYellowsHome * 0.2) + 
+                     (0.05 * woodworkAway * 0.3);
 
   // 4. 时间样本置信度平滑 Sigmoid 函数: S(t) = 1 / (1 + e^(-(t - 18)/6))
-  // 随着比赛时间推移，实时真实数据的权重从 0 渐进式升至 1，先验基准渐进式退火
   const sampleConfidence = 1.0 / (1.0 + Math.exp(-(elapsedMinute - 18.0) / 6.0));
 
-  // 5. 连续威胁乘子: 1.0 * (1 - S(t)) + (0.50 + 0.50 * tanh(phi * 1.2)) * S(t)
+  // 5. 连续威胁乘子映射
   const mapThreat = (phi: number) => {
     const rawMultiplier = 0.50 + 0.50 * Math.tanh(phi * 1.2);
     const continuousDamping = 1.0 * (1.0 - sampleConfidence) + rawMultiplier * sampleConfidence;
@@ -360,8 +439,10 @@ export function calculateInPlayPoissonFeatures(
     baseAwayLambda *= (context.motivation_urgency.away_mui * context.lineup_impact.away_lis);
   }
 
-  // 3. 计算时间衰减与局势非线性搏命因子
-  const timeDecay = calculateTimeDecayAndUrgencyMultiplier(elapsedMinute, scoreDiff);
+  // 3. 计算时间衰减与局势非线性搏命因子 (结合 15 分钟进球时段 DNA)
+  const homeWeights = context?.goal_distribution_dna?.home_scored_weights;
+  const awayWeights = context?.goal_distribution_dna?.away_scored_weights;
+  const timeDecay = calculateTimeDecayAndUrgencyMultiplier(elapsedMinute, scoreDiff, homeWeights, awayWeights);
 
   // 4. 注入 M3 实时物理场与动量加权 (xT 穿透, 5m 斜率, 15m 围攻能量, 红牌折损)
   const totalXT = physical.xt_proxy.home_xt + physical.xt_proxy.away_xt;
@@ -389,10 +470,11 @@ export function calculateInPlayPoissonFeatures(
   const threatDampingAway = threatTensor.awayThreat;
 
   // 5. 综合求解滚球 0:0 剩余时段动态进球期望 (lambda_home_rest, lambda_away_rest)
-  const remainingFactor = timeDecay.time_fraction * timeDecay.urgency_multiplier;
+  const remainingFactorHome = timeDecay.time_fraction_home * timeDecay.urgency_multiplier;
+  const remainingFactorAway = timeDecay.time_fraction_away * timeDecay.urgency_multiplier;
 
-  let lambdaHomeRest = baseHomeLambda * remainingFactor * xtHomeFactor * momentumBiasHome * redPenaltyHome * regimeMultiplierHome * threatDampingHome;
-  let lambdaAwayRest = baseAwayLambda * remainingFactor * xtAwayFactor * momentumBiasAway * redPenaltyAway * regimeMultiplierAway * threatDampingAway;
+  let lambdaHomeRest = baseHomeLambda * remainingFactorHome * xtHomeFactor * momentumBiasHome * redPenaltyHome * regimeMultiplierHome * threatDampingHome;
+  let lambdaAwayRest = baseAwayLambda * remainingFactorAway * xtAwayFactor * momentumBiasAway * redPenaltyAway * regimeMultiplierAway * threatDampingAway;
 
   // 极值安全钳位
   lambdaHomeRest = Math.max(0.01, Math.min(3.50, Number(lambdaHomeRest.toFixed(3))));

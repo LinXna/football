@@ -1,14 +1,42 @@
 # 重构工作进度与任务交接看板 (Handover & Progress Board)
 
-> **最后更新时间**：2026-09-01 03:08:00  
-> **当前阶段**：【修复测试固件损坏与验证标准赛事流水线 (DONE)】  
-> **当前状态**：  
-> 1. 已根治 `refactor/fixtures/leisu_v2.8.0_interface_data_2026-08-20T20-20-34-708Z.json` 固件损坏问题，并从权威源恢复及自动生成衍生样本；
-> 2. 全量单元测试、血统追溯矩阵测试及 Layer 00~03 双路全链路端到端测试 100% 绿色通过，API 接口正常恢复。
+> **最后更新时间**：2026-09-01 15:20:00  
+> **当前阶段**：【重构 Layer 03 专业足球量化博弈引擎 (IN_PROGRESS)】  
+> **当前状态**：正在将 Layer 03 升级为全要素因果共生的统一动态物理场模型，深度融合 02 契约数据（主客同构积分、进球DNA时段分布、阵型空间克制、初盘博弈去水、实战9项攻防与动量共生、0:0滚球泊松闭式网格）。
 
 ---
 
 ## 一、当前活动工作快照 (Active Snapshot)
+
+- **任务编号 (Task)**: `SNAPSHOT-20260902-LAYER03-CONTEXT-RECENT-H2H-DEEP-REFINEMENT`
+- **任务目标 (Goal)**：
+  1. **近期战绩 (Recent Form) 深度重构**：
+     - 引入以天数为维度的连续时间衰减模型（近 30 天满权、30~90 天指数衰减、90~180 天低权、>180 天截断过滤）；
+     - 赛事层级与同赛事优先（Iso-Competition 权重 1.0，同级杯赛 0.6，低级杯赛 0.35，近期友谊 0.1，超期友谊 0.0）；
+     - 攻防两端与半场/下半场独立解耦：提取主客同构状态下的半场得失球均值、下半场进球突破/僵持韧性，以及盘路大/小/赢/输走势；
+  2. **历史交锋 (H2H) 深度重构**：
+     - 结合严格时间过滤（365 天半衰期，>730 天强制截断清零）；
+     - 赛事级别筛选与同赛事优先；
+     - 深度利用雷速真实具备的 `opening_odds`/`current_odds` 盘口博弈（初盘终盘让球/欧赔）与 `home_stats`/`away_stats` 9 项实战攻防对决细节（危攻、射门、被射门、角球），衡量历史球风克制与场面压制力；
+  3. **理论先验与泊松推演贯通**：
+     - 在 `prematchPriorEngine.ts` 与 `poissonDecayModel.ts` 结合半场攻防因子、下半场发力因子、历史盘路博弈与场面克制加成；
+  4. **全量测试验收**：
+     - 更新并运行 `verify_quant_engine.ts` 与 `verify_full_pipeline_00_03.ts`，确保 100% 绿色验收。
+- **改动文件清单 (Target Files)**：
+  - `/refactor/03_quant_engine/types.ts`
+  - `/refactor/03_quant_engine/contextEngine.ts`
+  - `/refactor/03_quant_engine/prematchPriorEngine.ts`
+  - `/refactor/tests/verify_quant_engine.ts`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **状态标记 (Status)**: `DONE`
+- **交付物与结果 (Deliverables & Results)**:
+  - 成功实现了近期战绩连续时间衰减、同赛事优先级梯度、半场/下半场独立攻防解耦与盘路走势分析；
+  - 成功实现了历史交锋（H2H）严格时间截断（>730天归零）、初终盘口博弈以及 9 项技术统计场面克制指数；
+  - `verify_quant_engine.ts`（7 项量化引擎测试）与 `verify_full_pipeline_00_03.ts`（双轨端到端测试）全部 100% 绿色通过。
+
+---
+
+## 二、历史已完成活动工作快照 (Closed Snapshots Archive)
 
 - **任务编号 (Task)**: `SNAPSHOT-20260901-FIX-FIXTURE-DATA-CORRUPTION-AND-CANONICAL-PIPELINE`
 - **任务目标 (Goal)**：

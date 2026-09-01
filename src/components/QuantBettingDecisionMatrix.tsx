@@ -318,10 +318,11 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       });
     }
 
-    if (candidates.length === 0) return null;
+    const positiveCandidates = candidates.filter((c) => c.isPositive && c.ev > 0);
+    if (positiveCandidates.length === 0) return null;
 
-    candidates.sort((a, b) => b.scoreWeight - a.scoreWeight);
-    return candidates[0].key;
+    positiveCandidates.sort((a, b) => b.scoreWeight - a.scoreWeight);
+    return positiveCandidates[0].key;
   })();
 
   const isLiveMatch = match.timing.stage === MatchStage.LIVE;
@@ -416,7 +417,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                           {(h2hMain.fair_probabilities[0] * 100).toFixed(1)}%
                         </div>
                       </div>
-                      {fullH2hEval?.bestSide === "home" && (
+                      {fullH2hEval?.bestSide === "home" && fullH2hEval?.isPositiveEv && (
                         <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
                           <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
                             推荐
@@ -439,7 +440,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                           {(h2hMain.fair_probabilities[1] * 100).toFixed(1)}%
                         </div>
                       </div>
-                      {fullH2hEval?.bestSide === "draw" && (
+                      {fullH2hEval?.bestSide === "draw" && fullH2hEval?.isPositiveEv && (
                         <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
                           <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
                             推荐
@@ -462,7 +463,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                           {(h2hMain.fair_probabilities[2] * 100).toFixed(1)}%
                         </div>
                       </div>
-                      {fullH2hEval?.bestSide === "away" && (
+                      {fullH2hEval?.bestSide === "away" && fullH2hEval?.isPositiveEv && (
                         <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
                           <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
                             推荐
@@ -554,7 +555,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                           </span>
                         </div>
                       </div>
-                      {fullTotalEval.isOver && (
+                      {fullTotalEval.isOver && fullTotalEval.isPositiveEv && (
                         <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
                           <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
                             推荐
@@ -580,7 +581,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                           </span>
                         </div>
                       </div>
-                      {!fullTotalEval.isOver && (
+                      {!fullTotalEval.isOver && fullTotalEval.isPositiveEv && (
                         <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
                           <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
                             推荐
@@ -707,7 +708,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                               </span>
                             </div>
                           </div>
-                          {fullSpreadEval.isHome && (
+                          {fullSpreadEval.isHome && fullSpreadEval.isPositiveEv && (
                             <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
                               <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
                                 推荐
@@ -735,7 +736,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                               </span>
                             </div>
                           </div>
-                          {!fullSpreadEval.isHome && (
+                          {!fullSpreadEval.isHome && fullSpreadEval.isPositiveEv && (
                             <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
                               <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
                                 推荐
