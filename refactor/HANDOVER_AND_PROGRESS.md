@@ -1,19 +1,33 @@
 # 重构工作进度与任务交接看板 (Handover & Progress Board)
 
-> **最后更新时间**：2026-09-01 01:50:00  
-> **当前阶段**：【Layer 03 量化引擎：彻底物理拔除离散 if-else 规则，构建统一连续多维威胁积分方程体系 (DONE)】  
+> **最后更新时间**：2026-09-01 03:08:00  
+> **当前阶段**：【修复测试固件损坏与验证标准赛事流水线 (DONE)】  
 > **当前状态**：  
-> 1. **全量物理清除离散人工阈值与打补丁式 if-else 规则**：全面重构了 `poissonDecayModel.ts`、`eventMomentumFusion.ts` 与 `momentumQuantEngine.ts`；
-> 2. **建立统一平滑的连续多维威胁积分与紧迫度势场方程体系**：
->    - 连续紧迫度势场 $U(t, \Delta S)$：融合时间 Sigmoid 与分差高斯核，彻底消除 70'/75' 断崖跳变；
->    - 连续战术相变势能场 (Tactical Regime Field)：基于红牌指数衰减、防反能量差与终盘搏命势能的平滑连续插值；
->    - 连续破门临界积分 (Goal Climax Tensor)：基于双曲正切 $\tanh$ 与指数饱和的无阶跃平滑临界分计算；
->    - 连续红牌战力崩盘方程：采用 $e^{-0.43 N_{red}}$ 连续指数衰减；
-> 3. **完成全套测试与双轨端到端验证**：`verify_quant_engine.ts`、`verify_full_pipeline_00_03.ts` 与 `verify_traceability_matrix.ts` 100% 绿色通过。
+> 1. 已根治 `refactor/fixtures/leisu_v2.8.0_interface_data_2026-08-20T20-20-34-708Z.json` 固件损坏问题，并从权威源恢复及自动生成衍生样本；
+> 2. 全量单元测试、血统追溯矩阵测试及 Layer 00~03 双路全链路端到端测试 100% 绿色通过，API 接口正常恢复。
 
 ---
 
 ## 一、当前活动工作快照 (Active Snapshot)
+
+- **任务编号 (Task)**: `SNAPSHOT-20260901-FIX-FIXTURE-DATA-CORRUPTION-AND-CANONICAL-PIPELINE`
+- **任务目标 (Goal)**：
+  1. 根治 `refactor/fixtures/leisu_v2.8.0_interface_data_2026-08-20T20-20-34-708Z.json` 固件数据损坏，从权威数据源 `docs/` 恢复并清理 `.corrupt-*.json` 垃圾文件；
+  2. 运行并通过全量自动化测试（`verify_traceability_matrix.ts`、`verify_canonical_match_assembler.ts`、`verify_full_pipeline_00_03.ts`、`verify_quant_engine.ts` 等）；
+  3. 验证 `/api/refactor/canonical-matches` API 与前端页面正常恢复。
+- **改动文件清单 (Target Files)**：
+  - `/refactor/fixtures/leisu_v2.8.0_interface_data_2026-08-20T20-20-34-708Z.json`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **状态标记 (Status)**: `DONE`
+- **交付物与结果 (Deliverables & Results)**:
+  - 成功从 `docs/` 恢复无损权威雷速接口数据固件，并生成对应 `.bak` 备份文件；
+  - 重新同步生成了 `refactor/samples/` 下的标准样例数据；
+  - 全量 9 项测试套件全部 100% 绿色通过；
+  - `/api/refactor/canonical-matches` 滚球与赛前模式均返回 200 OK 并成功组装标准赛事与量化特征。
+
+---
+
+## 二、历史已完成活动工作快照 (Closed Snapshots Archive)
 
 - **任务编号 (Task)**: `SNAPSHOT-20260901-LAYER03-CONTINUOUS-UNIFIED-THREAT-INTEGRATION`
 - **任务目标 (Goal)**：

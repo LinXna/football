@@ -4,6 +4,7 @@
   "captured_at": "2026-08-23T01:04:18.978Z",
   "matches": [
     {
+      "is_live": false,
       "league": "哥伦比亚甲级联赛",
       "home": "麦德林独立",
       "away": "库库塔",
@@ -82,6 +83,7 @@
       }
     },
     {
+      "is_live": false,
       "league": "美国职业大联盟",
       "home": "温哥华白帽",
       "away": "达拉斯FC",

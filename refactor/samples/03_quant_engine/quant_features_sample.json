@@ -1,6 +1,6 @@
 {
   "canonical_id": "4562395",
-  "calculated_at": "2026-09-01T01:36:02.014Z",
+  "calculated_at": "2026-09-01T03:03:51.052Z",
   "context": {
     "circuit_breaker": {
       "is_triggered": false,
@@ -730,12 +730,12 @@
         "classification": "BARREN_DOMINANCE"
       },
       "away": {
-        "conversion_ratio": 0.307,
-        "event_score_15m": 2.29,
+        "conversion_ratio": 0.757,
+        "event_score_15m": 5.63,
         "energy_15m": 372,
-        "classification": "BARREN_DOMINANCE"
+        "classification": "LETHAL_SIEGE"
       },
-      "potency_differential": -0.191
+      "potency_differential": -0.641
     },
     "regime": {
       "current_regime": "NEUTRAL_EQUILIBRIUM",
@@ -747,8 +747,8 @@
       "regime_multiplier_away": 1.006
     },
     "goal_climax": {
-      "climax_score": 75.2,
-      "climax_level": "HIGH_PRESSURE",
+      "climax_score": 82.8,
+      "climax_level": "EXTREME_IMMINENT",
       "attacking_side": "away",
       "momentum_acceleration_5m": -30.01,
       "recent_incident_density_5m": 2,
