@@ -1,6 +1,6 @@
 {
   "canonical_id": "4562395",
-  "calculated_at": "2026-08-31T22:59:38.077Z",
+  "calculated_at": "2026-09-01T01:36:02.014Z",
   "context": {
     "circuit_breaker": {
       "is_triggered": false,
@@ -632,56 +632,56 @@
     "elapsed_minute": 62,
     "remaining_minutes": 28,
     "time_decay_curve": "LINEAR_UNIFORM",
-    "lambda_home_rest": 0.282,
-    "lambda_away_rest": 0.712,
-    "expected_goals_rest": 0.994,
+    "lambda_home_rest": 0.167,
+    "lambda_away_rest": 0.472,
+    "expected_goals_rest": 0.639,
     "lambda_source": "MARKET_IMPLIED",
     "top_final_scores": [
       {
         "home": 0,
         "away": 1,
-        "probability": 0.37009,
-        "percentage_str": "37.0%"
+        "probability": 0.5278,
+        "percentage_str": "52.8%"
       },
       {
         "home": 0,
         "away": 2,
-        "probability": 0.26351,
-        "percentage_str": "26.4%"
+        "probability": 0.2491,
+        "percentage_str": "24.9%"
       },
       {
         "home": 1,
         "away": 1,
-        "probability": 0.10437,
-        "percentage_str": "10.4%"
+        "probability": 0.0881,
+        "percentage_str": "8.8%"
       },
       {
         "home": 0,
         "away": 3,
-        "probability": 0.09381,
-        "percentage_str": "9.4%"
+        "probability": 0.0588,
+        "percentage_str": "5.9%"
       },
       {
         "home": 1,
         "away": 2,
-        "probability": 0.07431,
-        "percentage_str": "7.4%"
+        "probability": 0.0416,
+        "percentage_str": "4.2%"
       }
     ],
     "rest_score_matrix": {
-      "prob_home_win_rest": 0.1325,
-      "prob_draw_rest": 0.4482,
-      "prob_away_win_rest": 0.4193
+      "prob_home_win_rest": 0.0997,
+      "prob_draw_rest": 0.5703,
+      "prob_away_win_rest": 0.3301
     },
     "projected_final_score": {
-      "home": 0.28,
-      "away": 1.71,
+      "home": 0.17,
+      "away": 1.47,
       "most_likely_score": "0-1"
     }
   },
   "devig": {
     "h2h_devig": {
-      "market_type": "full_h2h",
+      "market_type": "MONEYLINE_1X2",
       "raw_overround": 1.0809,
       "devig_method": "SHIN",
       "fair_probabilities": [
@@ -690,104 +690,68 @@
         0.647
       ],
       "fair_odds": [
-        9.41,
-        4.05,
-        1.55
+        9.407,
+        4.054,
+        1.546
       ]
     },
     "spread_main_ev": {
       "line": "-0/0.5",
       "home_odds": 2.2,
       "away_odds": 1.71,
-      "home_ev": -0.4844,
-      "away_ev": 0.3243,
+      "home_ev": -0.4956,
+      "away_ev": 0.3371,
       "preferred_side": "away",
       "is_positive_ev": true
     },
-    "spread_secondary_ev": [
-      {
-        "line": "0",
-        "home_odds": 1.6,
-        "away_odds": 2.38,
-        "home_ev": -0.3398,
-        "away_ev": 0.4461,
-        "preferred_side": "away",
-        "is_positive_ev": true
-      },
-      {
-        "line": "-0.5",
-        "home_odds": 2.69,
-        "away_odds": 1.47,
-        "home_ev": -0.6436,
-        "away_ev": 0.2752,
-        "preferred_side": "away",
-        "is_positive_ev": true
-      }
-    ],
+    "spread_secondary_ev": [],
     "total_main_ev": {
       "line": "2",
       "over_odds": 1.91,
       "under_odds": 1.95,
-      "over_ev": -0.1316,
-      "under_ev": 0.0896,
+      "over_ev": -0.4051,
+      "under_ev": 0.3665,
       "preferred_side": "under",
       "is_positive_ev": true
     },
-    "total_secondary_ev": [
-      {
-        "line": "2/2.5",
-        "over_odds": 2.4,
-        "under_odds": 1.57,
-        "over_ev": -0.1872,
-        "under_ev": 0.0538,
-        "preferred_side": "under",
-        "is_positive_ev": true
-      },
-      {
-        "line": "1.5/2",
-        "over_odds": 1.56,
-        "under_odds": 2.42,
-        "over_ev": -0.1204,
-        "under_ev": 0.0796,
-        "preferred_side": "under",
-        "is_positive_ev": true
-      }
-    ],
+    "total_secondary_ev": [],
     "line_dispersion": {
-      "spread_variance": 0.0417,
-      "total_variance": 0.05
+      "spread_variance": 0,
+      "total_variance": 0
     },
-    "bookmaker_posture": "TRAP_HIGH_ODDS"
+    "bookmaker_posture": "BALANCED_NEUTRAL"
   },
   "spatio_temporal_events": {
     "epi": {
       "home": {
-        "conversion_ratio": 0,
-        "event_score_15m": 0,
-        "momentum_energy_15m": 356,
+        "conversion_ratio": 0.116,
+        "event_score_15m": 0.83,
+        "energy_15m": 356,
         "classification": "BARREN_DOMINANCE"
       },
       "away": {
-        "conversion_ratio": 0,
-        "event_score_15m": 0,
-        "momentum_energy_15m": 372,
+        "conversion_ratio": 0.307,
+        "event_score_15m": 2.29,
+        "energy_15m": 372,
         "classification": "BARREN_DOMINANCE"
       },
-      "potency_differential": 0
+      "potency_differential": -0.191
     },
     "regime": {
-      "current_regime": "VULNERABLE_OVEREXTENSION",
+      "current_regime": "NEUTRAL_EQUILIBRIUM",
+      "last_goal_elapsed_minutes": 15,
+      "last_goal_scorer": "away",
       "red_card_active_side": "none",
-      "tactical_description": "落后方 (主队) 盲目全线压上但缺乏实质威胁，极易被领先方打出致命反击。",
-      "regime_multiplier_home": 0.7,
-      "regime_multiplier_away": 1.25
+      "tactical_description": "双方势均力敌，处于常规攻防转换期",
+      "regime_multiplier_home": 1.038,
+      "regime_multiplier_away": 1.006
     },
     "goal_climax": {
-      "climax_score": 97.9,
-      "climax_level": "EXTREME_IMMINENT",
+      "climax_score": 75.2,
+      "climax_level": "HIGH_PRESSURE",
       "attacking_side": "away",
       "momentum_acceleration_5m": -30.01,
-      "recent_incident_density_5m": 0,
+      "recent_incident_density_5m": 2,
       "is_imminent_threat": true
     }
   },
@@ -799,7 +763,7 @@
       "line": "-0/0.5",
       "side": "away",
       "odds": 1.71,
-      "ev": 0.3243,
+      "ev": 0.3371,
       "confidence": 98,
       "kelly_fraction": 0
     },
@@ -808,13 +772,12 @@
       "line": "2",
       "side": "under",
       "odds": 1.95,
-      "ev": 0.0896,
+      "ev": 0.3665,
       "confidence": 98,
       "kelly_fraction": 0
     }
   ],
   "risk_flags": [
-    "TRAP_HIGH_ODDS_WARNING",
     "GOAL_CLIMAX_TRIGGERED"
   ],
   "confidence_score": 98

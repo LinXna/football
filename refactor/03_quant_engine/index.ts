@@ -269,6 +269,7 @@ export function calculateQuantitativeFeatures(
     match,
     timelineFeatures,
     physicalStatsFeatures,
+    collector,
     tracer
   );
 

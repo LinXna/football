@@ -14,9 +14,12 @@ import {
   L0MissingReason,
   QuantAlert,
   MarketStanceType,
+  EventPressureConversionType,
+  TacticalRegimeType,
+  GoalClimaxLevel,
   Layer03OpId,
   Layer03FeatureId
-} from './enums.js';
+} from './enums';
 
 export * from './enums.js';
 

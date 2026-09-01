@@ -145,6 +145,7 @@ export interface CleanMarketsGroup {
 }
 
 export interface ParsedYbtyLiveMatch {
+  is_live: true;
   league: string;
   home: string;
   away: string;
@@ -168,6 +169,7 @@ export interface ParsedYbtyLiveResult {
 }
 
 export interface ParsedYbtyPrematchMatch {
+  is_live: false;
   league: string;
   home: string;
   away: string;

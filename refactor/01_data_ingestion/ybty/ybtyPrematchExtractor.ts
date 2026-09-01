@@ -69,6 +69,7 @@ export function parseYbtyPrematchMatch(
   }
 
   return {
+    is_live: false,
     league: rawMatch.league,
     home: rawMatch.home,
     away: rawMatch.away,

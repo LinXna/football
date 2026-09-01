@@ -80,7 +80,9 @@ export enum CanonicalEventType {
   PENALTY_MISSED = "PENALTY_MISSED",           // 点球射失/被扑
   YELLOW_CARD = "YELLOW_CARD",                 // 单张黄牌
   RED_CARD = "RED_CARD",                       // 直接红牌
+  RED_CARD_DIRECT = "RED_CARD_DIRECT",         // 直接红牌
   TWO_YELLOW_TO_RED = "TWO_YELLOW_TO_RED",     // 两黄变红
+  RED_CARD_SECOND_YELLOW = "RED_CARD_SECOND_YELLOW", // 两黄变红
   BENCH_DISCIPLINE = "BENCH_DISCIPLINE",       // 替补席/教练吃牌（场上不减员）
   CORNER = "CORNER",                           // 角球
   SUBSTITUTION = "SUBSTITUTION",               // 常规换人

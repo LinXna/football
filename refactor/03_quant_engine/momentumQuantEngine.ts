@@ -274,15 +274,14 @@ export function extractRealTimePhysicalStats(
   const homeLethal = (homePossession <= 38) && (homeOn >= 3 || homeXT >= 1.2);
   const awayLethal = (awayPossession <= 38) && (awayOn >= 3 || awayXT >= 1.2);
 
-  // 5. 红牌减员战力崩盘模型
+  // 5. 连续红牌减员战力崩盘模型 (Continuous Exponential Decay/Leak Equation)
   const evaluateRedPenalty = (redCount: number) => {
-    if (redCount === 0) {
+    if (redCount <= 0) {
       return { attack: 1.0, leak: 1.0 };
     }
-    if (redCount === 1) {
-      return { attack: 0.65, leak: 1.45 };
-    }
-    return { attack: 0.35, leak: 2.10 };
+    const attack = Number(Math.exp(-0.43 * redCount).toFixed(3));
+    const leak = Number(Math.exp(0.37 * redCount).toFixed(3));
+    return { attack, leak };
   };
 
   const homeRedPen = evaluateRedPenalty(homeRed);

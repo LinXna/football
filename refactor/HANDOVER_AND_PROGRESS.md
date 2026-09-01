@@ -1,50 +1,57 @@
 # 重构工作进度与任务交接看板 (Handover & Progress Board)
 
-> **最后更新时间**：2026-08-31 22:15:00  
-> **当前阶段**：【Layer 03 确定性量化与博弈引擎：危攻时序与关键事件因果共生分析闭环 (DONE)】  
+> **最后更新时间**：2026-09-01 01:50:00  
+> **当前阶段**：【Layer 03 量化引擎：彻底物理拔除离散 if-else 规则，构建统一连续多维威胁积分方程体系 (DONE)】  
 > **当前状态**：  
-> 1. **战局势能与关键事件因果共生模型 (Event-Momentum Co-Evolution Engine) 落地 (DONE)**：
->    - 攻防势能转化指数 (EPI)：将危攻积分能量与射门/射正/角球/红黄牌等实质威胁事件动态关联，量化分类为致命围攻 (`LETHAL_SIEGE`)、无效空转 (`BARREN_DOMINANCE`)、高效反击 (`CLINICAL_COUNTER`) 等；
->    - 战术相变因果评估 (Tactical Regime Shift)：捕捉红牌半衰期（抗压弹性 vs 结构崩盘）、短时间内连续失球的恐慌溃散 (`COLLAPSING_PANIC`)、领先后稳健收缩 (`LEADING_CONSOLIDATION`) 与盲目压上暴露防反破绽 (`VULNERABLE_OVEREXTENSION`)，输出动态进球期望乘子 (`regime_multiplier`)；
->    - 破门临界击穿探测 (Goal Climax Tipping Point)：结合二阶动量加速度与近期密集事件，输出 0~100 破门临界指数及 `IMMINENT_GOAL` 相变警报；
-> 2. **全量泊松推演与统帅部编排联动 (DONE)**：
->    - 在 `poissonDecayModel.ts` 中无缝注入战术相变因果乘子，动态调整滚球 0:0 剩余进球期望；
->    - 在 `index.ts` 中全链路接入 M3.5 共生分析，与 M2、M3、M4、M5 形成协同增强；
-> 3. **全链路自动化测试与编译验收 (DONE)**：
->    - 7 组端到端自动化测试 100% 验收通过，Vite 编译无任何报错。
+> 1. **全量物理清除离散人工阈值与打补丁式 if-else 规则**：全面重构了 `poissonDecayModel.ts`、`eventMomentumFusion.ts` 与 `momentumQuantEngine.ts`；
+> 2. **建立统一平滑的连续多维威胁积分与紧迫度势场方程体系**：
+>    - 连续紧迫度势场 $U(t, \Delta S)$：融合时间 Sigmoid 与分差高斯核，彻底消除 70'/75' 断崖跳变；
+>    - 连续战术相变势能场 (Tactical Regime Field)：基于红牌指数衰减、防反能量差与终盘搏命势能的平滑连续插值；
+>    - 连续破门临界积分 (Goal Climax Tensor)：基于双曲正切 $\tanh$ 与指数饱和的无阶跃平滑临界分计算；
+>    - 连续红牌战力崩盘方程：采用 $e^{-0.43 N_{red}}$ 连续指数衰减；
+> 3. **完成全套测试与双轨端到端验证**：`verify_quant_engine.ts`、`verify_full_pipeline_00_03.ts` 与 `verify_traceability_matrix.ts` 100% 绿色通过。
 
 ---
 
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260831-LAYER03-HIERARCHICAL-CAUSAL-UPGRADE-STEP1`
+- **任务编号 (Task)**: `SNAPSHOT-20260901-LAYER03-CONTINUOUS-UNIFIED-THREAT-INTEGRATION`
 - **任务目标 (Goal)**：
-  1. **构建 Stage 1 赛前多维关联理论先验合成器 (`prematchPriorEngine.ts`)**：
-     - 战力层：深度关联首发名单、身价占比、核心伤停折损 (LIS)；
-     - 状态战意层：结合主客同构近态、730天指数衰减交锋、联赛积分榜争冠/保级紧迫度 (MUI) 与联赛场均基线；
-     - 输出统一的赛前理论进球期望基准 ($\lambda_H^0, \lambda_A^0$) 与理论公允概率分布；
-  2. **构建 Stage 1.1 机构盘口博弈验证器 (`marketDivergenceEngine.ts`)**：
-     - 接入雷速主流机构赔率矩阵，运用 Shin 去水算法反推机构隐含进球期望 ($\lambda_H^{\text{mkt}}, \lambda_A^{\text{mkt}}$)；
-     - 计算理论 vs 机构偏差量 $\Delta = \text{TheoryPrior} - \text{MarketPrior}$；
-     - 识别机构姿态 (`CONSENSUS_ALIGNED` 完美吻合 / `INSTITUTIONAL_DEFENSE` 机构防范 / `TRAP_INDUCEMENT` 虚火诱盘)；
-     - 输出博弈校准后的基准进球期望 ($\lambda_{\text{base\_H}}, \lambda_{\text{base\_A}}$) 与离散度扣分；
-  3. **扩展类型定义与枚举 (`types.ts`, `enums.ts`)**：增加赛前理论先验模型、机构博弈姿态与校准结果接口；
-  4. **编写专用单元测试并验证**：编写 `verify_prematch_prior_and_market_divergence.ts` 验证先验合成与机构博弈校验 100% 正确。
+  1. **排查并物理移除所有离散阶跃与打补丁式 if-else 规则**：
+     - `poissonDecayModel.ts`: 重构 `calculateTimeDecayAndUrgencyMultiplier`，以连续紧迫度势场 $U(t, \Delta S)$ 替代阶跃分支；
+     - `eventMomentumFusion.ts`: 重构 `evaluateTacticalRegime`、`evaluateGoalClimax` 与 `calculateEventPressureConversion`，以连续势能场与非线性平滑激活函数替代阶梯 if-else；
+     - `momentumQuantEngine.ts`: 重构红牌衰减与态势特征为连续平滑映射；
+  2. **确保数学连续性、单调性与物理可解释性**；
+  3. **通过全量 7 项 Layer 03 测试及双轨 00~03 端到端流水线测试**。
 - **改动文件清单 (Target Files)**：
-  - `/refactor/03_quant_engine/types.ts`
-  - `/refactor/03_quant_engine/enums.ts`
-  - `/refactor/03_quant_engine/prematchPriorEngine.ts`
-  - `/refactor/03_quant_engine/marketDivergenceEngine.ts`
   - `/refactor/03_quant_engine/poissonDecayModel.ts`
-  - `/refactor/03_quant_engine/index.ts`
-  - `/refactor/tests/verify_prematch_prior_and_market_divergence.ts`
+  - `/refactor/03_quant_engine/eventMomentumFusion.ts`
+  - `/refactor/03_quant_engine/momentumQuantEngine.ts`
   - `/refactor/HANDOVER_AND_PROGRESS.md`
 - **状态标记 (Status)**: `DONE`
 - **交付物与结果 (Deliverables & Results)**:
-  - 完整实现 Stage 1 多维关联先验合成（身价+阵容LIS+近态同构+MUI+交锋衰减+联赛DNA推导 $\lambda_H^0, \lambda_A^0$ 与泊松 1X2 理论概率）；
-  - 完整实现 Stage 1.1 机构盘口博弈偏差检验与校准（Shin 去水 + 机构姿态识别 + $\Delta$ 偏差量 + 诱盘置信度惩罚）；
-  - 统一重构 Layer 03 统帅部 `index.ts` 与 `poissonDecayModel.ts`，将博弈校准基准接入 Forward 泊松推演；
-  - `verify_prematch_prior_and_market_divergence.ts`、`verify_quant_engine.ts` 及 `verify_full_pipeline_00_03.ts` 全部 100% 绿色通过。
+  - 成功建立了连续平滑的多维时空威胁积分、紧迫度势场与破门临界态方程体系；
+  - 彻底物理拔除了所有离散人工打补丁硬编码规则；
+  - 全部 7 项 Layer 03 核心测试及双轨 00~03 端到端流水线测试 100% 绿色通过。
+
+---
+
+## 二、历史已完成活动工作快照 (Closed Snapshots Archive)
+
+- **任务编号 (Task)**: `SNAPSHOT-20260831-LAYER03-REAL-DATA-VERIFICATION-AND-LIVE-CLOCK-FIX`
+- **任务目标 (Goal)**：
+  1. 根治数据摄取层 `ParsedYbtyLiveMatch` 缺失 `is_live: true` 导致时钟被置为赛前 90 分钟的物理时间失效缺陷；
+  2. 对博卡青年后备队等 6 场真实比赛在 00~03 四级递进因果流下的全量大小球推荐项、盘口、赔率及 EV 计算进行全流程严格复测与输出；
+- **改动文件清单 (Target Files)**：
+  - `/refactor/01_data_ingestion/ybty/types.ts`
+  - `/refactor/01_data_ingestion/ybty/ybtyLiveExtractor.ts`
+  - `/refactor/01_data_ingestion/ybty/ybtyPrematchExtractor.ts`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **状态标记 (Status)**: `DONE`
+- **交付物与结果 (Deliverables & Results)**:
+  - 成功修复 `is_live` 数据契约传递，滚球分钟解析准确恢复（如谢周三 62'、本菲卡 58'、博卡青年后备队 20' 等）；
+  - 6 场赛事全量大小球盘口、EV 及正期望推荐项经物理时间衰减与四级因果流校准后 100% 严谨自洽；
+  - 全部单元测试与端到端测试 100% 绿色通过。
 
 
 ---

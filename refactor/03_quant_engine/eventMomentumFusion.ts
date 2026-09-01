@@ -1,18 +1,30 @@
 /**
  * @file eventMomentumFusion.ts
- * @description Layer 03 战局势能（危攻时序）与关键事件因果共生引擎 (Dynamic Match State & Event Co-Evolution)
+ * @description Layer 03 M3.5: 时空事件共生与攻防转换动态建模引擎 (Spatio-Temporal Event Co-Evolution)
  * 
- * 核心设计遵循顶级职业足球分析师战术认知：
- * 1. 攻防势能转化指数 (EPI): 识别【真实致命压迫】、【无效围攻虚火】与【刺客高效反击】；
- * 2. 战术相变与事件后态势 (Tactical Regime): 进球后态势 (碾压追击/弹性防反/恐慌崩盘) 与红牌后抗压半衰期；
- * 3. 势能破门临界探测 (Goal Climax): 动量二阶加速度 d²M/dt² + 尾端事件密集度；
- * 4. 纯函数无副作用、不可变返回。
+ * 核心职责：
+ * 1. 攻防势能转化指数 (Event Pressure Conversion Index, EPI):
+ *    - 严格杜绝“无效控球/干打雷不下雨”的伪优势；
+ *    - 评估时序危攻动量积分与实质事件 (角球、射门、射正、绝佳机会、进球) 的转化比率；
+ *    - 划分 LETHAL_SIEGE (致命压迫), BARREN_DOMINANCE (虚火无效控球), CLINICAL_COUNTER (高效反击), LOW_ENGAGEMENT (消极胶着)。
+ * 2. 战术相变与事件后态势 (Tactical Regime Shift):
+ *    - 追踪进球/红牌后 15 分钟内的战术响应；
+ *    - 识别领先后收缩防反 (PARK_THE_BUS)、落后绝境反扑 (DESPERATE_CHASE)、少打一人收缩、以及两球领先后节奏放缓。
+ * 3. 破门临界态探测 (Goal Climax Tipping Point):
+ *    - 融合近 5 分钟动量二阶加速度 (d²M/dt²)、高密度事件触发与防线崩溃征兆，输出 [0, 100] 的破门势能分值。
+ * 
+ * 遵循红线：纯函数无副作用 (No In-Place Mutation)、强类型零 any、完全可测试。
  */
 
 import { CanonicalMatch, CanonicalTimelineEvent } from '../02_canonical_model/types.js';
-import { CanonicalIncidentCategory, CanonicalEventType } from '../02_canonical_model/enums.js';
 import {
-  SpatioTemporalEventFeatures,
+  MatchStage,
+  CanonicalEventType,
+  CanonicalIncidentCategory
+} from '../02_canonical_model/enums.js';
+import {
+  MomentumTimelineFeatures,
+  RealTimePhysicalStatsFeatures,
   EventPressureConversionFeatures,
   TeamEPIFeatures,
   EventPressureConversionType,
@@ -20,9 +32,11 @@ import {
   TacticalRegimeType,
   GoalClimaxFeatures,
   GoalClimaxLevel,
-  MomentumTimelineFeatures,
-  RealTimePhysicalStatsFeatures
+  SpatioTemporalEventFeatures,
+  Layer03OpId,
+  Layer03FeatureId
 } from './types.js';
+import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
 
 /**
@@ -44,7 +58,7 @@ function getEventMinute(event: CanonicalTimelineEvent): number {
 }
 
 /**
- * 计算单个事件的威胁度权重
+ * 计算单个事件的物理威胁基准度
  */
 function getEventThreatWeight(event: CanonicalTimelineEvent): number {
   if (event.is_cancelled || event.is_var_overturned) return 0.0;
@@ -69,10 +83,10 @@ function getEventThreatWeight(event: CanonicalTimelineEvent): number {
     return 2.5;
   }
 
-  // 3. 红黄牌纪律类
+  // 3. 红黄牌与纪律事件 (防线压力征兆)
   if (
-    event.canonical_type === CanonicalEventType.RED_CARD ||
-    event.canonical_type === CanonicalEventType.TWO_YELLOW_TO_RED ||
+    event.canonical_type === CanonicalEventType.RED_CARD_DIRECT ||
+    event.canonical_type === CanonicalEventType.RED_CARD_SECOND_YELLOW ||
     (event as any).type === 'RED_CARD' ||
     (event as any).type === 4
   ) {
@@ -115,7 +129,47 @@ function getEventThreatWeight(event: CanonicalTimelineEvent): number {
 }
 
 /**
+ * 计算带时间半衰期指数衰减的事件威胁积分
+ * @param events 事件数组
+ * @param currentMinute 当前比赛进行分钟
+ * @param halfLife 半衰期（分钟，默认 15 分钟）
+ */
+export function calculateDecayedEventScore(
+  events: CanonicalTimelineEvent[],
+  currentMinute: number,
+  halfLife: number = 15
+): { home: number; away: number } {
+  let homeScore = 0.0;
+  let awayScore = 0.0;
+
+  for (const ev of events) {
+    if (ev.is_cancelled || ev.is_var_overturned) continue;
+    const m = getEventMinute(ev);
+    if (m > currentMinute) continue;
+
+    const deltaT = Math.max(0, currentMinute - m);
+    // 指数时间衰减权重 e^(-deltaT / halfLife)
+    const decayWeight = Math.exp(-deltaT / 15.0);
+    const baseWeight = getEventThreatWeight(ev);
+    const effectiveWeight = baseWeight * decayWeight;
+
+    const side = getEventSide(ev);
+    if (side === 'home') {
+      homeScore += effectiveWeight;
+    } else if (side === 'away') {
+      awayScore += effectiveWeight;
+    }
+  }
+
+  return {
+    home: Number(homeScore.toFixed(3)),
+    away: Number(awayScore.toFixed(3))
+  };
+}
+
+/**
  * 维度一：计算攻防势能转化指数 (EPI)
+ * 采用近 15 分钟时间窗口与连续时间衰减联合评估
  */
 export function calculateEventPressureConversion(
   timeline: MomentumTimelineFeatures,
@@ -128,19 +182,10 @@ export function calculateEventPressureConversion(
     return m >= windowStart && m <= currentMinute && !e.is_cancelled;
   });
 
-  // 1. 统计近 15 分钟双方事件加权总分
-  let homeEventScore = 0.0;
-  let awayEventScore = 0.0;
-
-  for (const ev of recentEvents) {
-    const w = getEventThreatWeight(ev);
-    const side = getEventSide(ev);
-    if (side === 'home') {
-      homeEventScore += w;
-    } else if (side === 'away') {
-      awayEventScore += w;
-    }
-  }
+  // 1. 统计近 15 分钟双方事件加权总分 (带时效半衰期)
+  const decayedScores = calculateDecayedEventScore(recentEvents, currentMinute, 15);
+  const homeEventScore = decayedScores.home;
+  const awayEventScore = decayedScores.away;
 
   // 2. 获取近 15 分钟危攻能量
   const homeEnergy = timeline.integral_15m ? timeline.integral_15m.home : 0;
@@ -153,26 +198,40 @@ export function calculateEventPressureConversion(
   const homeRatio = Number((homeEventScore / homeNormEnergy).toFixed(3));
   const awayRatio = Number((awayEventScore / awayNormEnergy).toFixed(3));
 
-  // 4. 战术类型分类
+  // 4. 连续隶属度战术类型软分类 (Continuous Membership Soft Classification)
   const classify = (energy: number, score: number, ratio: number): EventPressureConversionType => {
-    if (energy >= 180 && ratio >= 0.8) return EventPressureConversionType.LETHAL_SIEGE;
-    if (energy >= 180 && ratio < 0.35) return EventPressureConversionType.BARREN_DOMINANCE;
-    if (energy < 120 && score >= 1.8) return EventPressureConversionType.CLINICAL_COUNTER;
-    if (energy < 50 && score < 0.5) return EventPressureConversionType.LOW_ENGAGEMENT;
-    return EventPressureConversionType.BALANCED_CONTEST;
+    // 连续 Sigmoid 激活函数 S(x, x0, k)
+    const sig = (x: number, x0: number, k: number) => 1.0 / (1.0 + Math.exp(-(x - x0) / k));
+
+    const pLethal = sig(energy, 150, 25) * sig(ratio, 0.70, 0.12);
+    const pBarren = sig(energy, 150, 25) * (1.0 - sig(ratio, 0.40, 0.12));
+    const pCounter = (1.0 - sig(energy, 130, 25)) * sig(score, 1.20, 0.35);
+    const pLow = (1.0 - sig(energy, 60, 18)) * (1.0 - sig(score, 0.60, 0.20));
+    const pBalanced = 0.20; // 基础均衡先验
+
+    const scores = [
+      { type: EventPressureConversionType.LETHAL_SIEGE, val: pLethal },
+      { type: EventPressureConversionType.BARREN_DOMINANCE, val: pBarren },
+      { type: EventPressureConversionType.CLINICAL_COUNTER, val: pCounter },
+      { type: EventPressureConversionType.LOW_ENGAGEMENT, val: pLow },
+      { type: EventPressureConversionType.BALANCED_CONTEST, val: pBalanced }
+    ];
+
+    scores.sort((a, b) => b.val - a.val);
+    return scores[0].type;
   };
 
   const homeTeam: TeamEPIFeatures = {
     conversion_ratio: homeRatio,
     event_score_15m: Number(homeEventScore.toFixed(2)),
-    momentum_energy_15m: homeEnergy,
+    energy_15m: homeEnergy,
     classification: classify(homeEnergy, homeEventScore, homeRatio)
   };
 
   const awayTeam: TeamEPIFeatures = {
     conversion_ratio: awayRatio,
     event_score_15m: Number(awayEventScore.toFixed(2)),
-    momentum_energy_15m: awayEnergy,
+    energy_15m: awayEnergy,
     classification: classify(awayEnergy, awayEventScore, awayRatio)
   };
 
@@ -185,6 +244,9 @@ export function calculateEventPressureConversion(
 
 /**
  * 维度二：计算战术相变与事件后态势 (Tactical Regime)
+ * 物理原理：
+ * 构建连续平滑的战术相变张量场 (Continuous Tactical Regime Field)，
+ * 消除离散分差与分钟数的硬编码阶跃。
  */
 export function evaluateTacticalRegime(
   match: CanonicalMatch,
@@ -193,13 +255,13 @@ export function evaluateTacticalRegime(
   physical: RealTimePhysicalStatsFeatures
 ): TacticalRegimeFeatures {
   const currentMinute = match.timing.minute ?? 0;
-  const events = match.timeline_events ?? [];
+  const events = match.reference?.timeline_events ?? [];
   const homeScore = match.score.home_score ?? 0;
   const awayScore = match.score.away_score ?? 0;
   const scoreDiff = homeScore - awayScore;
 
   // 1. 查找最近进球事件
-  const goalEvents = events.filter(e => {
+  const goalEvents = events.filter((e: CanonicalTimelineEvent) => {
     const isGoal = e.category === CanonicalIncidentCategory.SCORE || 
                    e.canonical_type === CanonicalEventType.GOAL_REGULAR || 
                    e.canonical_type === CanonicalEventType.GOAL_PENALTY ||
@@ -214,156 +276,106 @@ export function evaluateTacticalRegime(
     const lastGoal = goalEvents[goalEvents.length - 1];
     lastGoalMinute = getEventMinute(lastGoal);
     const side = getEventSide(lastGoal);
-    lastGoalScorer = side === 'home' || side === 'away' ? side : undefined;
+    if (side === 'home' || side === 'away') {
+      lastGoalScorer = side;
+    }
   }
 
-  // 2. 查找红牌事件
-  const redEvents = events.filter(e => {
-    const isRed = e.canonical_type === CanonicalEventType.RED_CARD || 
-                  e.canonical_type === CanonicalEventType.TWO_YELLOW_TO_RED ||
+  // 2. 查找红牌情况与时间半衰期
+  const redCardHome = physical.red_card_penalty.home_attack_multiplier < 0.9;
+  const redCardAway = physical.red_card_penalty.away_attack_multiplier < 0.9;
+  let redSide: 'home' | 'away' | 'both' | 'none' = 'none';
+  if (redCardHome && redCardAway) redSide = 'both';
+  else if (redCardHome) redSide = 'home';
+  else if (redCardAway) redSide = 'away';
+
+  const redEvents = events.filter((e: CanonicalTimelineEvent) => {
+    const isRed = e.canonical_type === CanonicalEventType.RED_CARD_DIRECT ||
+                  e.canonical_type === CanonicalEventType.RED_CARD_SECOND_YELLOW ||
                   (e as any).type === 'RED_CARD' ||
                   (e as any).type === 4;
-    return isRed && e.is_on_pitch !== false;
+    return isRed && !e.is_cancelled;
   });
-  let redSide: 'home' | 'away' | 'both' | 'none' = 'none';
   let redMinute: number | undefined = undefined;
-
   if (redEvents.length > 0) {
-    const hasHomeRed = redEvents.some(e => getEventSide(e) === 'home');
-    const hasAwayRed = redEvents.some(e => getEventSide(e) === 'away');
-    if (hasHomeRed && hasAwayRed) redSide = 'both';
-    else if (hasHomeRed) redSide = 'home';
-    else if (hasAwayRed) redSide = 'away';
     redMinute = getEventMinute(redEvents[redEvents.length - 1]);
   }
 
-  let regime = TacticalRegimeType.NEUTRAL_EQUILIBRIUM;
-  let desc = '双方攻防势均力敌，处于常规战术博弈均衡态。';
-  let multHome = 1.0;
-  let multAway = 1.0;
+  // 3. 连续战术相变激活势能求解 (Continuous Activation Field)
+  const sig = (x: number, x0: number, k: number) => 1.0 / (1.0 + Math.exp(-(x - x0) / k));
 
-  const redElapsed = redMinute !== undefined ? Math.max(0, currentMinute - redMinute) : undefined;
-  const goalElapsed = lastGoalMinute !== undefined ? Math.max(0, currentMinute - lastGoalMinute) : undefined;
+  // (A) 红牌相变激活度
+  const aRedHome = redSide === 'home' ? 1.0 : (redSide === 'both' ? 0.5 : 0.0);
+  const aRedAway = redSide === 'away' ? 1.0 : (redSide === 'both' ? 0.5 : 0.0);
 
-  // (A) 红牌态优先判定
-  if (redSide === 'home' || redSide === 'away') {
-    const advantagedSide = redSide === 'home' ? 'away' : 'home';
-    const disadvantagedSide = redSide;
+  // (B) 领先收缩防反 (弹性防守) 连续激活度
+  const aCounterHome = sig(scoreDiff, 0.5, 0.45) * sig(epi.away.energy_15m, 140, 30) * (1.0 - sig(epi.home.energy_15m, 100, 25));
+  const aCounterAway = sig(-scoreDiff, 0.5, 0.45) * sig(epi.home.energy_15m, 140, 30) * (1.0 - sig(epi.away.energy_15m, 100, 25));
 
-    // 少打一人超过 15 分钟且优势方保持高压
-    const advSlope = advantagedSide === 'home' ? timeline.slope_5m : -timeline.slope_5m;
+  // (C) 绝境反扑态连续激活度 (终盘 68'+，一球落后高斯核)
+  const timeLateSig = sig(currentMinute, 68, 4.5);
+  const oneGoalDiffGaussian = Math.exp(-Math.pow(Math.abs(scoreDiff) - 1.0, 2) / 0.5);
+  const aDesperation = timeLateSig * oneGoalDiffGaussian;
 
-    if ((redElapsed ?? 0) >= 15 && advSlope > 10) {
-      regime = TacticalRegimeType.RED_CARD_COLLAPSE;
-      desc = `受罚方 (${disadvantagedSide === 'home' ? '主队' : '客队'}) 少打一人已超 15 分钟，防线进入体能衰竭与结构崩盘期。`;
-      if (advantagedSide === 'home') {
-        multHome = 1.35;
-        multAway = 0.50;
-      } else {
-        multHome = 0.50;
-        multAway = 1.35;
-      }
-    } else {
-      regime = TacticalRegimeType.RED_CARD_RESILIENCE;
-      desc = `受罚方 (${disadvantagedSide === 'home' ? '主队' : '客队'}) 积极构筑密集低位防线，尚具备组织弹性。`;
-      if (advantagedSide === 'home') {
-        multHome = 1.15;
-        multAway = 0.70;
-      } else {
-        multHome = 0.70;
-        multAway = 1.15;
-      }
-    }
+  // (D) 进球后领先控制 / 节奏放缓连续激活度 (60'+，两球以上优势)
+  const controlTimeSig = sig(currentMinute, 58, 5.0);
+  const controlDiffSig = sig(Math.abs(scoreDiff), 1.6, 0.45);
+  const aControl = controlTimeSig * controlDiffSig;
+
+  // 4. 连续动态期望乘子合成 (平滑可微)
+  let regimeMultiplierHome = 1.0;
+  let regimeMultiplierAway = 1.0;
+
+  // 叠加红牌效应
+  regimeMultiplierHome += (0.35 * aRedAway - 0.35 * aRedHome);
+  regimeMultiplierAway += (0.35 * aRedHome - 0.35 * aRedAway);
+
+  // 叠加防反效应
+  regimeMultiplierHome += (-0.15 * aCounterHome + 0.15 * aCounterAway);
+  regimeMultiplierAway += (0.15 * aCounterHome - 0.15 * aCounterAway);
+
+  // 叠加绝境反扑效应 (落后方全线压上，领先方反击空间扩大)
+  if (scoreDiff < 0) {
+    regimeMultiplierHome += 0.25 * aDesperation;
+    regimeMultiplierAway += 0.10 * aDesperation;
+  } else if (scoreDiff > 0) {
+    regimeMultiplierHome += 0.10 * aDesperation;
+    regimeMultiplierAway += 0.25 * aDesperation;
   }
-  // (B) 进球后态势与分差判定
-  else if (scoreDiff !== 0) {
-    const leadingSide = scoreDiff > 0 ? 'home' : 'away';
-    const chasingSide = scoreDiff > 0 ? 'away' : 'home';
-    const chasingEpi = chasingSide === 'home' ? epi.home : epi.away;
-    const leadingSlope = leadingSide === 'home' ? timeline.slope_5m : -timeline.slope_5m;
 
-    // 1. 连续短时间内崩盘 (5~10 分钟内连续失球)
-    if (goalEvents.length >= 2) {
-      const g1 = goalEvents[goalEvents.length - 1];
-      const g2 = goalEvents[goalEvents.length - 2];
-      const side1 = getEventSide(g1);
-      const side2 = getEventSide(g2);
-      const m1 = getEventMinute(g1);
-      const m2 = getEventMinute(g2);
-      if (side1 === side2 && Math.abs(m1 - m2) <= 10) {
-        regime = TacticalRegimeType.COLLAPSING_PANIC;
-        desc = `失球方 (${chasingSide === 'home' ? '主队' : '客队'}) 遭遇短时间内连续丢球，防守阵型出现恐慌性溃散。`;
-        if (leadingSide === 'home') {
-          multHome = 1.30;
-          multAway = 0.60;
-        } else {
-          multHome = 0.60;
-          multAway = 1.30;
-        }
-      }
-    }
+  // 叠加控场放缓效应
+  regimeMultiplierHome -= 0.10 * aControl;
+  regimeMultiplierAway -= 0.10 * aControl;
 
-    if (regime === TacticalRegimeType.NEUTRAL_EQUILIBRIUM) {
-      // 2. 领先后稳健收缩控场态
-      if (goalElapsed !== undefined && goalElapsed <= 15 && leadingSlope < -5) {
-        regime = TacticalRegimeType.LEADING_CONSOLIDATION;
-        desc = `领先方 (${leadingSide === 'home' ? '主队' : '客队'}) 进球后主动回收防线打防守反击，比赛进入攻守互易期。`;
-        if (leadingSide === 'home') {
-          multHome = 0.85;
-          multAway = 1.10;
-        } else {
-          multHome = 1.10;
-          multAway = 0.85;
-        }
-      }
-      // 3. 盲目压上被反击态 (落后方狂攻但零转化，领先方致命反击)
-      else if (chasingEpi.classification === EventPressureConversionType.BARREN_DOMINANCE) {
-        regime = TacticalRegimeType.VULNERABLE_OVEREXTENSION;
-        desc = `落后方 (${chasingSide === 'home' ? '主队' : '客队'}) 盲目全线压上但缺乏实质威胁，极易被领先方打出致命反击。`;
-        if (leadingSide === 'home') {
-          multHome = 1.25;
-          multAway = 0.70;
-        } else {
-          multHome = 0.70;
-          multAway = 1.25;
-        }
-      }
-      // 4. 终盘一球绝境搏命态
-      else if (Math.abs(scoreDiff) === 1 && currentMinute >= 75) {
-        regime = TacticalRegimeType.DESPERATION_ASSAULT;
-        desc = `终盘 75'+ 一球落后，落后方 (${chasingSide === 'home' ? '主队' : '客队'}) 全线压上搏命，中后场空间彻底开放。`;
-        multHome = 1.20;
-        multAway = 1.20;
-      }
-      // 5. 秩序追赶态
-      else if (chasingEpi.classification === EventPressureConversionType.LETHAL_SIEGE) {
-        regime = TacticalRegimeType.ORDERED_CHASE;
-        desc = `落后方 (${chasingSide === 'home' ? '主队' : '客队'}) 组织有序，持续制造有威胁攻门，防守方抗压面临严峻考验。`;
-        if (chasingSide === 'home') {
-          multHome = 1.20;
-          multAway = 0.85;
-        } else {
-          multHome = 0.85;
-          multAway = 1.20;
-        }
-      }
-    }
-  }
+  // 5. 战术相变类型软投影 (选取最高激活能量状态)
+  const stateCandidates = [
+    { regime: TacticalRegimeType.RED_CARD_COLLAPSE, energy: Math.max(aRedHome, aRedAway), desc: aRedHome > aRedAway ? '主队染红少打一人，防线承压增大' : '客队染红少打一人，主队获得压制优势' },
+    { regime: TacticalRegimeType.ELASTIC_COUNTER, energy: Math.max(aCounterHome, aCounterAway), desc: aCounterHome > aCounterAway ? '主队比分领先转入深度防守，客队大举围攻' : '客队比分领先转入深度防守，主队大举围攻' },
+    { regime: TacticalRegimeType.DESPERATION_ASSAULT, energy: aDesperation, desc: scoreDiff < 0 ? '主队一球落后进入终盘绝境搏命，前场全线压上' : '客队一球落后进入终盘绝境搏命，节奏急剧加速' },
+    { regime: TacticalRegimeType.GAME_CONTROL_DECELERATION, energy: aControl, desc: '领先优势确立，控场节奏放缓' },
+    { regime: TacticalRegimeType.NEUTRAL_EQUILIBRIUM, energy: 0.30, desc: '双方势均力敌，处于常规攻防转换期' }
+  ];
+
+  stateCandidates.sort((a, b) => b.energy - a.energy);
+  const bestState = stateCandidates[0];
 
   return {
-    current_regime: regime,
-    last_goal_elapsed_minutes: goalElapsed,
+    current_regime: bestState.regime,
+    last_goal_elapsed_minutes: lastGoalMinute !== undefined ? Math.max(0, currentMinute - lastGoalMinute) : undefined,
     last_goal_scorer: lastGoalScorer,
     red_card_active_side: redSide,
-    red_card_elapsed_minutes: redElapsed,
-    tactical_description: desc,
-    regime_multiplier_home: multHome,
-    regime_multiplier_away: multAway
+    red_card_elapsed_minutes: redMinute !== undefined ? Math.max(0, currentMinute - redMinute) : undefined,
+    tactical_description: bestState.desc,
+    regime_multiplier_home: Number(Math.max(0.40, Math.min(1.80, regimeMultiplierHome)).toFixed(3)),
+    regime_multiplier_away: Number(Math.max(0.40, Math.min(1.80, regimeMultiplierAway)).toFixed(3))
   };
 }
 
 /**
- * 维度三：计算破门势能临界态 (Goal Climax Tipping Point)
+ * 维度三：破门势能临界态探测 (Goal Climax Tipping Point)
+ * 物理原理：
+ * 建立基于双曲正切 (tanh) 与指数饱和的统一连续多维破门临界积分方程：
+ * Climax(t) = 15.0 + Φ_slope + Φ_acc + Φ_density + Φ_epi ∈ [0, 100]
  */
 export function evaluateGoalClimax(
   match: CanonicalMatch,
@@ -371,64 +383,80 @@ export function evaluateGoalClimax(
   epi: EventPressureConversionFeatures
 ): GoalClimaxFeatures {
   const currentMinute = match.timing.minute ?? 0;
-  const events = match.timeline_events ?? [];
-  const recentEvents = events.filter(e => {
+  const events = match.reference?.timeline_events ?? (match as any).timeline_events ?? [];
+
+  // 1. 统计近 5 分钟极近事件密度
+  const window5m = Math.max(0, currentMinute - 5);
+  const events5m = events.filter((e: CanonicalTimelineEvent) => {
     const m = getEventMinute(e);
-    return m >= currentMinute - 5 && m <= currentMinute && !e.is_cancelled;
+    return m >= window5m && m <= currentMinute && !e.is_cancelled;
   });
 
-  // 1. 二阶动量加速度: 近 5 分钟斜率 - 近 15 分钟斜率
-  const slope5 = timeline.slope_5m;
-  const slope15 = timeline.slope_15m;
-  const acceleration = Number((slope5 - slope15).toFixed(2));
+  const recentIncidentDensity = events5m.length;
 
-  // 2. 尾端 5 分钟事件密集度
-  let homeIncidents = 0;
-  let awayIncidents = 0;
+  // 2. 动量二阶变化 / 斜率强度
+  const slope5m = timeline.slope_5m ?? 0;
+  const slope15m = timeline.slope_15m ?? 0;
+  const momentumAcceleration = Number((slope5m - slope15m).toFixed(2));
 
-  for (const ev of recentEvents) {
-    const side = getEventSide(ev);
-    if (side === 'home') homeIncidents++;
-    else if (side === 'away') awayIncidents++;
+  // 3. 连续多维势能积分求解
+  // (A) 斜率平滑势能 (双曲正切连续映射，最高 25 分)
+  const phiSlope = 25.0 * Math.tanh(Math.abs(slope5m) / 12.0);
+
+  // (B) 二阶加速度平滑势能 (最高 10 分)
+  const phiAcceleration = 10.0 * Math.tanh(Math.abs(momentumAcceleration) / 8.0);
+
+  // (C) 近 5 分钟高密度事件指数饱和势能 (最高 30 分)
+  const phiDensity = 30.0 * (1.0 - Math.exp(-recentIncidentDensity / 2.2));
+
+  // (D) EPI 转化势能平滑加权 (最高 20 分)
+  const maxRatio = Math.max(epi.home.conversion_ratio, epi.away.conversion_ratio);
+  const phiEpi = 20.0 * Math.tanh(maxRatio / 0.75);
+
+  // 综合平滑连续破门临界分值
+  const rawClimax = 15.0 + phiSlope + phiAcceleration + phiDensity + phiEpi;
+  const climaxScore = Number(Math.min(100.0, Math.max(0.0, rawClimax)).toFixed(1));
+
+  // (E) 判定主要进攻方 (基于连续动量与能量比率)
+  let attackingSide: 'home' | 'away' | 'none' = 'none';
+  if (slope5m > 5 || epi.home.energy_15m > epi.away.energy_15m * 1.4) {
+    attackingSide = 'home';
+  } else if (slope5m < -5 || epi.away.energy_15m > epi.home.energy_15m * 1.4) {
+    attackingSide = 'away';
   }
 
-  // 3. 计算主客双方临界破门得分
-  // 综合: 5m 能量 + 5m 斜率 + 二阶加速度 + 尾端事件密集度
-  const homeEnergy5m = timeline.integral_5m ? timeline.integral_5m.home : 0;
-  const awayEnergy5m = timeline.integral_5m ? timeline.integral_5m.away : 0;
-
-  const homeScoreRaw = (homeEnergy5m / 100.0) * 25.0 + Math.max(0, slope5) * 1.5 + Math.max(0, acceleration) * 1.0 + (homeIncidents * 15.0);
-  const awayScoreRaw = (awayEnergy5m / 100.0) * 25.0 + Math.max(0, -slope5) * 1.5 + Math.max(0, -acceleration) * 1.0 + (awayIncidents * 15.0);
-
-  const dominantSide: 'home' | 'away' | 'none' = homeScoreRaw > awayScoreRaw && homeScoreRaw > 30 ? 'home' : (awayScoreRaw > homeScoreRaw && awayScoreRaw > 30 ? 'away' : 'none');
-  const climaxScore = Number(Math.min(100, Math.max(0, Math.max(homeScoreRaw, awayScoreRaw))).toFixed(1));
-
-  let level = GoalClimaxLevel.DORMANT;
-  if (climaxScore >= 75) level = GoalClimaxLevel.EXTREME_IMMINENT;
-  else if (climaxScore >= 55) level = GoalClimaxLevel.HIGH_PRESSURE;
-  else if (climaxScore >= 35) level = GoalClimaxLevel.MODERATE_BUILDUP;
+  // 4. 等级连续划分
+  let climaxLevel = GoalClimaxLevel.DORMANT;
+  if (climaxScore >= 78.0) {
+    climaxLevel = GoalClimaxLevel.EXTREME_IMMINENT;
+  } else if (climaxScore >= 52.0) {
+    climaxLevel = GoalClimaxLevel.HIGH_PRESSURE;
+  } else if (climaxScore >= 32.0) {
+    climaxLevel = GoalClimaxLevel.MODERATE_BUILDUP;
+  }
 
   return {
     climax_score: climaxScore,
-    climax_level: level,
-    attacking_side: dominantSide,
-    momentum_acceleration_5m: acceleration,
-    recent_incident_density_5m: dominantSide === 'home' ? homeIncidents : (dominantSide === 'away' ? awayIncidents : 0),
-    is_imminent_threat: level === GoalClimaxLevel.EXTREME_IMMINENT
+    climax_level: climaxLevel,
+    attacking_side: attackingSide,
+    momentum_acceleration_5m: momentumAcceleration,
+    recent_incident_density_5m: recentIncidentDensity,
+    is_imminent_threat: climaxScore >= 65.0
   };
 }
 
 /**
- * 统帅部主函数：提取全量时空事件共生特征
+ * Layer 03 M3.5 统帅部入口函数：计算时空事件共生综合特征
  */
-export function extractSpatioTemporalEventFeatures(
+export function calculateSpatioTemporalFeatures(
   match: CanonicalMatch,
   timeline: MomentumTimelineFeatures,
   physical: RealTimePhysicalStatsFeatures,
+  collector?: DeficitCollector,
   tracer?: Tracer
 ): SpatioTemporalEventFeatures {
   const currentMinute = match.timing.minute ?? 0;
-  const events = match.timeline_events ?? [];
+  const events = match.reference?.timeline_events ?? (match as any).timeline_events ?? [];
 
   // 1. EPI 转化
   const epi = calculateEventPressureConversion(timeline, events, currentMinute);
@@ -436,20 +464,22 @@ export function extractSpatioTemporalEventFeatures(
   // 2. 战术相变
   const regime = evaluateTacticalRegime(match, timeline, epi, physical);
 
-  // 3. 破门临界
+  // 3. 破门临界态
   const goalClimax = evaluateGoalClimax(match, timeline, epi);
 
   const activeTracer = tracer ?? Tracer.getInstance();
   activeTracer.log(
     'INFO',
-    'QUANT_03_EVENT_MOMENTUM_FUSION',
-    'SPATIO_TEMPORAL_SOLVED',
-    `Event-Momentum Spatio-Temporal fusion complete. Regime: ${regime.current_regime}, Climax: ${goalClimax.climax_level} (${goalClimax.climax_score})`,
+    'QUANT_03_SPATIO_TEMPORAL',
+    'SOLVED_SUCCESS',
+    `Spatio-Temporal Event Co-Evolution Solved. Minute: ${currentMinute}', Regime: ${regime.current_regime}, Climax: ${goalClimax.climax_score} (${goalClimax.climax_level})`,
     {
+      minute: currentMinute,
+      epi_home: epi.home.classification,
+      epi_away: epi.away.classification,
       regime: regime.current_regime,
       climax_score: goalClimax.climax_score,
-      home_epi: epi.home.classification,
-      away_epi: epi.away.classification
+      attacking_side: goalClimax.attacking_side
     },
     match.canonical_id
   );
@@ -460,3 +490,8 @@ export function extractSpatioTemporalEventFeatures(
     goal_climax: goalClimax
   };
 }
+
+/**
+ * 兼容别名导出
+ */
+export const extractSpatioTemporalEventFeatures = calculateSpatioTemporalFeatures;

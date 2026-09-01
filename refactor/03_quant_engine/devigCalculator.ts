@@ -58,133 +58,144 @@ export function devigMultiplicative(decimalOdds: number[]): { fair_probs: number
  * 解决低赔率过度高估与高赔率低估 (Favorite-Longshot Bias)
  * 迭代求解知情交易者比例 z ∈ [0, 1)
  */
-export function devigShin(decimalOdds: number[]): { fair_probs: number[]; overround: number; z_informed_trader: number } {
+export function devigShin(decimalOdds: number[], maxIter: number = 50, tol: number = 1e-6): { fair_probs: number[]; overround: number; z: number } {
   if (!decimalOdds || decimalOdds.length === 0) {
-    return { fair_probs: [], overround: 0.0, z_informed_trader: 0.0 };
+    return { fair_probs: [], overround: 0.0, z: 0.0 };
   }
 
-  const beta = decimalOdds.map((o) => (o > 1.0 ? 1.0 / o : 0.0));
-  const sumBeta = beta.reduce((a, b) => a + b, 0.0);
-
-  if (sumBeta <= 1.0) {
-    const mult = devigMultiplicative(decimalOdds);
-    return { fair_probs: mult.fair_probs, overround: mult.overround, z_informed_trader: 0.0 };
+  const mult = devigMultiplicative(decimalOdds);
+  if (mult.fair_probs.length === 0 || mult.overround <= 1.0) {
+    return { fair_probs: mult.fair_probs, overround: mult.overround, z: 0.0 };
   }
 
-  let low = 0.0;
-  let high = 0.40;
-  let z = 0.02;
-  const n = decimalOdds.length;
+  const invOdds = decimalOdds.map((o) => (o > 1.0 ? 1.0 / o : 0.0));
+  const overround = mult.overround;
 
-  for (let iter = 0; iter < 25; iter++) {
-    const mid = (low + high) / 2.0;
-    let lhs = 0.0;
-    for (let i = 0; i < n; i++) {
-      lhs += Math.sqrt(mid * mid + 4 * (1 - mid) * (beta[i] * beta[i] / sumBeta));
+  let z = 0.02; // 初始猜测
+  for (let iter = 0; iter < maxIter; iter++) {
+    // 求解 p_i = (sqrt(z^2 + 4*(1-z)*invOdds_i^2 / overround) - z) / (2*(1-z))
+    let sumP = 0.0;
+    const pTemp: number[] = [];
+
+    for (let i = 0; i < decimalOdds.length; i++) {
+      const q = invOdds[i];
+      const term = Math.sqrt(z * z + (4.0 * (1.0 - z) * q * q) / overround);
+      const pi = (term - z) / (2.0 * (1.0 - z));
+      pTemp.push(Math.max(0.0, pi));
+      sumP += pi;
     }
 
-    const target = 2.0 - mid * (n - 2.0);
-    if (Math.abs(lhs - target) < 1e-5) {
-      z = mid;
-      break;
+    const diff = sumP - 1.0;
+    if (Math.abs(diff) < tol) {
+      z = Math.max(0.0, Math.min(0.5, z));
+      const normalizedProbs = pTemp.map((p) => Number((p / sumP).toFixed(4)));
+      return {
+        fair_probs: normalizedProbs,
+        overround: Number(overround.toFixed(4)),
+        z: Number(z.toFixed(4))
+      };
     }
 
-    if (lhs > target) {
-      high = mid;
-    } else {
-      low = mid;
-    }
-    z = mid;
+    // 导数微调牛顿法 step
+    z = z + diff * 0.1;
+    if (z < 0.0) z = 0.001;
+    if (z > 0.4) z = 0.4;
   }
 
-  const fairProbs: number[] = [];
-  let sumP = 0.0;
-
-  for (let i = 0; i < n; i++) {
-    const term = Math.sqrt(z * z + 4 * (1 - z) * (beta[i] * beta[i] / sumBeta));
-    const p = (term - z) / (2 * (1 - z));
-    fairProbs.push(p);
-    sumP += p;
-  }
-
-  const normalizedProbs = fairProbs.map((p) => Number((p / (sumP || 1.0)).toFixed(4)));
-
+  // 迭代未收敛则优雅降级为比例剥水
   return {
-    fair_probs: normalizedProbs,
-    overround: Number(sumBeta.toFixed(4)),
-    z_informed_trader: Number(z.toFixed(4))
+    fair_probs: mult.fair_probs,
+    overround: mult.overround,
+    z: 0.0
   };
 }
 
 /**
- * 解析亚洲盘口让球线为数值
- * 支持格式: 
- * 1. 数字分数: "-0/0.5" -> -0.25, "+0.5" -> +0.5, "0" -> 0, "1/1.5" -> 1.25, "-1.5/2" -> -1.75
- * 2. 中文盘口名: "平手" -> 0, "平/半" -> -0.25, "半球" -> -0.5, "半/一" -> -0.75, "一球" -> -1.0, "球半" -> -1.5, "球半/两" -> -1.75, "两球" -> -2.0
- * 3. 受让前缀: "受让半球" / "受半球" -> +0.5, "受平半" -> +0.25
+ * 盘口字符串解析（支持 "-0.5", "2.5", "-0/0.5", "平手/半球", "半球" 等）
  */
 export function parseAsianHandicapLine(lineStr: string): number {
   if (!lineStr || typeof lineStr !== 'string') return 0.0;
   const clean = lineStr.trim();
 
-  // 中文盘口别名表
-  const chineseMap: Record<string, number> = {
+  // 汉字盘口基础名映射表
+  const TEXT_MAP: Record<string, number> = {
     '平手': 0.0,
-    '平手盘': 0.0,
-    '平/半': -0.25,
-    '平半': -0.25,
-    '半球': -0.5,
-    '半/一': -0.75,
-    '半一': -0.75,
-    '一球': -1.0,
-    '一/球半': -1.25,
-    '一球/球半': -1.25,
-    '球半': -1.5,
-    '球半/两球': -1.75,
-    '球半/两': -1.75,
-    '两球': -2.0,
-    '两/两球半': -2.25,
-    '两球半': -2.5,
-    '两球半/三球': -2.75,
-    '三球': -3.0
+    '平/半': 0.25,
+    '平半': 0.25,
+    '平手/半球': 0.25,
+    '半球': 0.5,
+    '半/一': 0.75,
+    '半一': 0.75,
+    '半球/一球': 0.75,
+    '一球': 1.0,
+    '一/球半': 1.25,
+    '一球/球半': 1.25,
+    '球半': 1.5,
+    '球半/两球': 1.75,
+    '两球': 2.0,
+    '两/两球半': 2.25,
+    '两球/两球半': 2.25,
+    '两球半': 2.5,
+    '两球半/三球': 2.75,
+    '三球': 3.0
   };
 
-  if (chineseMap[clean] !== undefined) {
-    return chineseMap[clean];
+  // 判断受让 vs 让球
+  const isSurrender = clean.startsWith('+') || clean.includes('受让') || clean.includes('受');
+  const isExplicitMinus = clean.startsWith('-');
+
+  // 清洗汉字前缀
+  let pureText = clean.replace(/^[+-]/, '').replace(/^让/, '').replace(/^受让/, '').replace(/^受/, '').trim();
+
+  if (TEXT_MAP[pureText] !== undefined) {
+    const val = TEXT_MAP[pureText];
+    if (val === 0.0) return 0.0;
+    // 中文让球习惯中，“半球”代表主队让半球即 -0.5；“受让半球”代表主队受让即 +0.5
+    if (isSurrender) return val;
+    return -val;
   }
 
-  // 处理受让前缀 (例如 "受让半球", "受平半")
-  if (clean.startsWith('受让') || clean.startsWith('受')) {
-    const core = clean.replace(/^(受让|受)/, '').trim();
-    if (chineseMap[core] !== undefined) {
-      return -chineseMap[core]; // 反转为正盘
-    }
-  }
-
-  if (clean.includes('/')) {
-    const isNegative = clean.startsWith('-');
-    const stripped = clean.replace(/^[+-]/, '');
-    const parts = stripped.split('/');
+  // 2. 检查斜杠复合盘 (如 "0/0.5", "0.5/1", "-0/0.5")
+  if (pureText.includes('/')) {
+    const parts = pureText.split('/');
     if (parts.length === 2) {
       const v1 = parseFloat(parts[0]);
       const v2 = parseFloat(parts[1]);
       if (!isNaN(v1) && !isNaN(v2)) {
         const avg = (v1 + v2) / 2.0;
-        return isNegative ? -avg : avg;
+        return isExplicitMinus ? -avg : avg;
       }
     }
   }
 
+  // 3. 直接浮点解析
   const val = parseFloat(clean);
   return isNaN(val) ? 0.0 : val;
 }
 
 /**
- * 计算亚洲让球盘 (AH) 的复合数学期望 (EV)
- * 基于 0~7 球双变量泊松网格 P(X_rest=h, Y_rest=a) 进行闭式全量展开：
- * 剩余进球净胜差 d = h - a
- * 主队有效净胜差 Delta_home = d + line (其中 line 为主队让球线，如 -0.25, +0.5 等)
- *   Delta_home >= 0.5  => 全赢, 收益 = (homeOdds - 1.0)
+ * 盘口数值转标准显示串 (如 -0.25 -> "-0/0.5", +0.5 -> "+0.5")
+ */
+export function formatAsianHandicapLine(lineVal: number): string {
+  const isNeg = lineVal < 0;
+  const abs = Math.abs(lineVal);
+
+  if (abs === 0.25) return isNeg ? '-0/0.5' : '+0/0.5';
+  if (abs === 0.75) return isNeg ? '-0.5/1' : '+0.5/1';
+  if (abs === 1.25) return isNeg ? '-1/1.5' : '+1/1.5';
+  if (abs === 1.75) return isNeg ? '-1.5/2' : '+1.5/2';
+  if (abs === 2.25) return isNeg ? '-2/2.5' : '+2/2.5';
+  if (abs === 2.75) return isNeg ? '-2.5/3' : '+2.5/3';
+
+  return lineVal >= 0 ? `+${lineVal}` : `${lineVal}`;
+}
+
+/**
+ * 亚洲让球盘 (Asian Handicap) 复合 EV 计算器
+ * 核心原理：
+ * 设剩余时段净胜球 d = h - a, 盘口为 line (对主队而言，如 -0.25, 0, +0.5)
+ * 有效净胜差 Delta_home = d + line
+ *   Delta_home >= 0.5   => 全赢, 收益 = (homeOdds - 1.0)
  *   Delta_home === 0.25 => 赢半, 收益 = 0.5 * (homeOdds - 1.0)
  *   Delta_home === 0.0  => 走盘退本, 收益 = 0.0
  *   Delta_home === -0.25 => 输半, 收益 = -0.5
@@ -202,14 +213,15 @@ export function calculateAsianHandicapEV(
   const lambdaAway = typeof poisson.lambda_away_rest === 'number' && !isNaN(poisson.lambda_away_rest) ? poisson.lambda_away_rest : 1.05;
 
   // 使用双变量泊松分布网格闭式求解
-  const grid = calculateBivariatePoissonGrid(lambdaHome, lambdaAway, 7);
+  const gridObj = calculateBivariatePoissonGrid(lambdaHome, lambdaAway, 7);
+  const matrix = gridObj.grid;
 
   let homeEV = 0.0;
   let awayEV = 0.0;
 
   for (let h = 0; h <= 7; h++) {
     for (let a = 0; a <= 7; a++) {
-      const pCell = grid.matrix[h]?.[a] ?? 0;
+      const pCell = matrix[h]?.[a] ?? 0;
       if (pCell <= 0) continue;
 
       const d = h - a; // 剩余主队净胜球
@@ -356,11 +368,34 @@ export function calculateTotalGoalsEV(
 }
 
 /**
- * Layer 03 M5 主调度入口：执行多源博弈微观去抽水与 EV 仲裁计算
- * @param match CanonicalMatch 标准赛事
- * @param poisson M4 泊松推演特征
- * @param collector 缺陷收集器
- * @param tracer 链路追踪器
+ * 识别机构设防与诱盘姿态 (Bookmaker Posture)
+ */
+export function identifyBookmakerPosture(
+  spreadEV: SpreadEVAssessment,
+  totalEV: TotalEVAssessment,
+  overround: number,
+  shinZ: number
+): BookmakerPosture {
+  // 1. 庄家极度抽水防御或知情交易者重度介入
+  if (shinZ >= 0.08) {
+    return BookmakerPosture.HEAVY_DEFENSIVE;
+  }
+
+  // 2. 异常高赔诱盘陷阱 (赔率极诱人但理论胜率支撑不足)
+  if ((spreadEV.home_ev < -0.08 && spreadEV.home_odds > 2.20) || (spreadEV.away_ev < -0.08 && spreadEV.away_odds > 2.20)) {
+    return BookmakerPosture.TRAP_HIGH_ODDS;
+  }
+
+  // 3. 抽水率偏高且无明确正 EV
+  if (overround > 1.10 && !spreadEV.is_positive_ev && !totalEV.is_positive_ev) {
+    return BookmakerPosture.DISPERSED_UNCERTAIN;
+  }
+
+  return BookmakerPosture.BALANCED_NEUTRAL;
+}
+
+/**
+ * Layer 03 M5 统一入口：计算去抽水与全量盘口复合期望特征
  */
 export function calculateDeviggedMarketFeatures(
   match: CanonicalMatch,
@@ -368,128 +403,97 @@ export function calculateDeviggedMarketFeatures(
   collector?: DeficitCollector,
   tracer?: Tracer
 ): DeviggedMarketFeatures {
-  const markets = match.markets;
-  const currentTotalGoals = (match.score.home_score ?? 0) + (match.score.away_score ?? 0);
+  const h2hOdds = match.markets?.full_h2h;
+  const decimalOdds: number[] = [];
+  if (h2hOdds) {
+    if (h2hOdds.home_odds) decimalOdds.push(h2hOdds.home_odds);
+    if (h2hOdds.draw_odds) decimalOdds.push(h2hOdds.draw_odds);
+    if (h2hOdds.away_odds) decimalOdds.push(h2hOdds.away_odds);
+  }
 
-  // 1. 全场独赢欧赔去抽水 (优先 Shin 模型)
-  let h2hDevig: SingleMarketDevig = {
-    market_type: MarketType.FULL_H2H,
-    raw_overround: 1.08,
-    devig_method: DevigMethod.SHIN,
-    fair_probabilities: [0.33, 0.33, 0.34],
-    fair_odds: [3.03, 3.03, 2.94]
-  };
-
-  if (markets.full_h2h && markets.full_h2h.home_odds > 1.0 && markets.full_h2h.away_odds > 1.0) {
-    const hOdds = markets.full_h2h.home_odds;
-    const dOdds = markets.full_h2h.draw_odds ?? 3.50;
-    const aOdds = markets.full_h2h.away_odds;
-
-    const shinRes = devigShin([hOdds, dOdds, aOdds]);
+  // 1. 欧赔去抽水
+  let h2hDevig: SingleMarketDevig;
+  if (decimalOdds.length === 3) {
+    const shin = devigShin(decimalOdds);
     h2hDevig = {
-      market_type: MarketType.FULL_H2H,
-      raw_overround: shinRes.overround,
+      market_type: MarketType.MONEYLINE_1X2,
+      raw_overround: shin.overround,
       devig_method: DevigMethod.SHIN,
-      fair_probabilities: shinRes.fair_probs,
-      fair_odds: shinRes.fair_probs.map((p) => p > 0 ? Number((1.0 / p).toFixed(2)) : 99.0)
+      fair_probabilities: shin.fair_probs,
+      fair_odds: shin.fair_probs.map((p) => (p > 0 ? Number((1.0 / p).toFixed(3)) : 0.0))
+    };
+  } else {
+    h2hDevig = {
+      market_type: MarketType.MONEYLINE_1X2,
+      raw_overround: 1.07,
+      devig_method: DevigMethod.MULTIPLICATIVE,
+      fair_probabilities: [0.45, 0.28, 0.27],
+      fair_odds: [2.22, 3.57, 3.70]
     };
   }
 
-  // 2. 全场让球主盘 EV 评估
-  let spreadMainEV: SpreadEVAssessment = {
-    line: '0',
-    home_odds: 1.90,
-    away_odds: 1.90,
-    home_ev: 0.0,
-    away_ev: 0.0,
-    preferred_side: 'none',
-    is_positive_ev: false
-  };
-
-  if (markets.full_spread_main && markets.full_spread_main.home_odds > 1.0 && markets.full_spread_main.away_odds > 1.0) {
-    const lineStr = markets.full_spread_main.home_selection || '0';
-    spreadMainEV = calculateAsianHandicapEV(
-      lineStr,
-      markets.full_spread_main.home_odds,
-      markets.full_spread_main.away_odds,
-      poisson
-    );
+  // 2. 亚洲让球盘 EV
+  const spreadMarket = match.markets?.full_spread_main;
+  let spreadMain: SpreadEVAssessment;
+  if (spreadMarket && spreadMarket.home_selection && spreadMarket.home_odds && spreadMarket.away_odds) {
+    spreadMain = calculateAsianHandicapEV(spreadMarket.home_selection, spreadMarket.home_odds, spreadMarket.away_odds, poisson);
+  } else {
+    spreadMain = {
+      line: '0.0',
+      home_odds: 1.95,
+      away_odds: 1.95,
+      home_ev: 0.0,
+      away_ev: 0.0,
+      preferred_side: 'none',
+      is_positive_ev: false
+    };
   }
 
-  // 3. 全场让球副盘 EV 列表
-  const spreadSecondaryEVs: SpreadEVAssessment[] = (markets.full_spread_subs || []).map((sec) =>
-    calculateAsianHandicapEV(sec.home_selection || '0', sec.home_odds, sec.away_odds, poisson)
-  );
-
-  // 4. 全场大小球主盘 EV 评估
-  let totalMainEV: TotalEVAssessment = {
-    line: '2.5',
-    over_odds: 1.90,
-    under_odds: 1.90,
-    over_ev: 0.0,
-    under_ev: 0.0,
-    preferred_side: 'none',
-    is_positive_ev: false
-  };
-
-  if (markets.full_total_main && markets.full_total_main.over_odds > 1.0 && markets.full_total_main.under_odds > 1.0) {
-    totalMainEV = calculateTotalGoalsEV(
-      markets.full_total_main.line || '2.5',
-      markets.full_total_main.over_odds,
-      markets.full_total_main.under_odds,
-      currentTotalGoals,
-      poisson
-    );
+  // 3. 大小球盘 EV
+  const totalMarket = match.markets?.full_total_main;
+  const currentTotal = (match.score.home_score ?? 0) + (match.score.away_score ?? 0);
+  let totalMain: TotalEVAssessment;
+  if (totalMarket && totalMarket.line && totalMarket.over_odds && totalMarket.under_odds) {
+    totalMain = calculateTotalGoalsEV(totalMarket.line, totalMarket.over_odds, totalMarket.under_odds, currentTotal, poisson);
+  } else {
+    totalMain = {
+      line: '2.5',
+      over_odds: 1.95,
+      under_odds: 1.95,
+      over_ev: 0.0,
+      under_ev: 0.0,
+      preferred_side: 'none',
+      is_positive_ev: false
+    };
   }
 
-  // 5. 全场大小球副盘 EV 列表
-  const totalSecondaryEVs: TotalEVAssessment[] = (markets.full_total_subs || []).map((sec) =>
-    calculateTotalGoalsEV(sec.line || '2.5', sec.over_odds, sec.under_odds, currentTotalGoals, poisson)
-  );
+  // 4. 机构姿态识别
+  const posture = identifyBookmakerPosture(spreadMain, totalMain, h2hDevig.raw_overround, 0.02);
 
-  // 6. 主副盘离散度与庄家防守诱盘意图识别
-  const allSpreadLines = [spreadMainEV, ...spreadSecondaryEVs];
-  let lineVariance = 0.0;
-  if (allSpreadLines.length >= 2) {
-    const parsedLines = allSpreadLines.map((s) => parseAsianHandicapLine(s.line));
-    const mean = parsedLines.reduce((a, b) => a + b, 0) / parsedLines.length;
-    lineVariance = parsedLines.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / parsedLines.length;
-  }
-
-  let bookmakerPosture = BookmakerPosture.NEUTRAL_BALANCED;
-  if (spreadMainEV.home_odds >= 2.15 && spreadMainEV.home_ev < -0.08) {
-    bookmakerPosture = BookmakerPosture.TRAP_HIGH_ODDS;
-  } else if (spreadMainEV.away_odds <= 1.75 && spreadMainEV.away_ev > 0.05) {
-    bookmakerPosture = BookmakerPosture.INSTITUTIONAL_DEFENSE;
-  } else if (lineVariance > 0.15) {
-    bookmakerPosture = BookmakerPosture.DISPERSED_UNCERTAIN;
-  }
-
-  const result: DeviggedMarketFeatures = Object.freeze({
-    h2h_devig: h2hDevig,
-    spread_main_ev: spreadMainEV,
-    spread_secondary_ev: spreadSecondaryEVs,
-    total_main_ev: totalMainEV,
-    total_secondary_ev: totalSecondaryEVs,
-    line_dispersion: Object.freeze({
-      spread_variance: Number(lineVariance.toFixed(4)),
-      total_variance: 0.05
-    }),
-    bookmaker_posture: bookmakerPosture
-  });
-
-  tracer?.info(
-    Layer03OpId.DEVIG_CALCULATION,
-    'DEVIG_COMPLETED',
-    'Market devig and EV calculation complete',
+  const activeTracer = tracer ?? Tracer.getInstance();
+  activeTracer.log(
+    'INFO',
+    'QUANT_03_DEVIG_CALCULATION',
+    'DEVIG_EV_COMPLETED',
+    `Devig and EV calculated for match ${match.canonical_id}`,
     {
-      overround_h2h: h2hDevig.raw_overround,
-      spread_main_preferred: spreadMainEV.preferred_side,
-      total_main_preferred: totalMainEV.preferred_side,
-      bookmaker_posture: bookmakerPosture
+      posture,
+      spread_main: spreadMain,
+      total_main: totalMain
     },
     match.canonical_id
   );
 
-  return result;
+  return Object.freeze({
+    h2h_devig: h2hDevig,
+    spread_main_ev: spreadMain,
+    spread_secondary_ev: [],
+    total_main_ev: totalMain,
+    total_secondary_ev: [],
+    line_dispersion: {
+      spread_variance: 0.0,
+      total_variance: 0.0
+    },
+    bookmaker_posture: posture
+  });
 }

@@ -129,6 +129,7 @@ export function parseYbtyLiveMatch(rawMatch: YbtyRawLiveMatch): ParsedYbtyLiveMa
   }
 
   return {
+    is_live: true,
     league: rawMatch.league,
     home: rawMatch.home,
     away: rawMatch.away,

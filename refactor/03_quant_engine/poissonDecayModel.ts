@@ -7,19 +7,22 @@
  * 2. 滚球 0:0 实时重置铁律：彻底抛弃历史已有进球，纯前向推演剩余时段主客期望 (lambda_home_rest, lambda_away_rest)
  * 3. 市场盘口反推 (Market Implied Lambda) 与联赛 DNA 动态期望体系，彻底根治赛前 2-1 坍塌
  * 4. 非线性时间衰减与绝境搏命爆发因子 (分差为 1 球且 t >= 75 分钟进球率激增)
- * 5. 融合 M2 (先验战意/阵容折损) 与 M3 (实时危攻积分/斜率/xT威胁/红牌) 的动态加权
- * 6. 双变量独立泊松分布网格求解 (0~7 球剩余比分矩阵)，输出 Top 3 完场比分概率阵列
- * 7. 输出剩余时段胜平负概率、剩余大小球理论分布与全场投影比分
+ * 5. 连续多维攻防威胁张量 (Continuous Threat Intensity Tensor)：
+ *    - 融合射门、射正、角球、危攻 AUC、xT 穿透与时间指数半衰期，平滑连续映射威胁衰减，杜绝离散硬编码规则
+ * 6. 融合 M2 (先验战意/阵容折损) 与 M3 (实时危攻积分/斜率/xT威胁/红牌) 的动态加权
+ * 7. 双变量独立泊松分布网格求解 (0~7 球剩余比分矩阵)，输出 Top 3 完场比分概率阵列
+ * 8. 输出剩余时段胜平负概率、剩余大小球理论分布与全场投影比分
  * 
  * 遵循红线：纯函数无副作用 (No In-Place Mutation)、强类型零 any、完全可测试。
  */
 
-import { CanonicalMatch } from '../02_canonical_model/types.js';
-import { MatchStage } from '../02_canonical_model/enums.js';
+import { CanonicalMatch, CanonicalTimelineEvent } from '../02_canonical_model/types.js';
+import { MatchStage, CanonicalEventType } from '../02_canonical_model/enums.js';
 import {
   InPlayPoissonFeatures,
   CleanedContextFeatures,
   MarketCalibrationResult,
+  MarketStanceType,
   MomentumTimelineFeatures,
   RealTimePhysicalStatsFeatures,
   SpatioTemporalEventFeatures,
@@ -102,98 +105,109 @@ export function poissonPMF(k: number, lambda: number): number {
 
 /**
  * 计算非线性时间衰减与局势搏命放大系数 (Time & Game-State Factor)
- * @param elapsedMinute 已进行分钟数
+ * 物理原理：
+ * 建立统一平滑的连续紧迫度势场 U(t, ΔS)，消除 70/75 分钟与分差断崖式的离散阶跃。
+ * @param elapsedMinute 已进行分钟数 (t ∈ [0, 90])
  * @param scoreDiff 主客比分差 (home - away)
  */
 export function calculateTimeDecayAndUrgencyMultiplier(
   elapsedMinute: number,
-  scoreDiff: number
+  scoreDiff: number = 0
 ): { time_fraction: number; urgency_multiplier: number; curve: PoissonDecayCurve } {
   const remainingMinutes = Math.max(0, 90 - elapsedMinute);
   const timeFraction = Number((remainingMinutes / 90.0).toFixed(4));
 
-  // 基础线性
-  if (elapsedMinute < 65) {
+  if (elapsedMinute <= 0) {
     return {
-      time_fraction: timeFraction,
+      time_fraction: 1.0,
       urgency_multiplier: 1.0,
       curve: PoissonDecayCurve.LINEAR_UNIFORM
     };
   }
 
-  const isOneGoalDiff = Math.abs(scoreDiff) === 1;
-  const isLargeLead = Math.abs(scoreDiff) >= 3;
+  // 1. 终盘阶段连续过渡平滑权重: S_late(t) = 1 / (1 + e^(-(t - 72)/4.0))
+  const lateFactor = 1.0 / (1.0 + Math.exp(-(elapsedMinute - 72.0) / 4.0));
 
-  // 65 ~ 79 分钟：体能下降与战术换人期
-  if (elapsedMinute < 80) {
-    const urgency = isOneGoalDiff ? 1.15 : (isLargeLead ? 0.85 : 1.05);
-    return {
-      time_fraction: timeFraction,
-      urgency_multiplier: urgency,
-      curve: PoissonDecayCurve.NON_LINEAR_POWER
-    };
-  }
+  // 2. 分差连续势场响应函数:
+  // (A) 单球落后绝境搏命势能高斯核: 当 |ΔS| ≈ 1 时达到极大值 +0.38
+  const absDiff = Math.abs(scoreDiff);
+  const desperationGaussian = Math.exp(-Math.pow(absDiff - 1.0, 2) / 0.45);
+  const eDesperation = 0.38 * desperationGaussian;
 
-  // 80 ~ 90+ 分钟：绝境搏命或补时狂潮
-  if (isOneGoalDiff) {
-    return {
-      time_fraction: timeFraction,
-      urgency_multiplier: 1.35,
-      curve: PoissonDecayCurve.LATE_GAME_ACCELERATION
-    };
-  } else if (isLargeLead) {
-    return {
-      time_fraction: timeFraction,
-      urgency_multiplier: 0.65,
-      curve: PoissonDecayCurve.NON_LINEAR_POWER
-    };
+  // (B) 两球以上领先控场降速势能 Sigmoid: 当 |ΔS| >= 2 时达到 -0.22
+  const decelerationSigmoid = 1.0 / (1.0 + Math.exp(-(absDiff - 1.8) / 0.30));
+  const eDeceleration = 0.22 * decelerationSigmoid;
+
+  // (C) 平局决战微加速势能高斯核: 当 ΔS = 0 时达到 +0.06
+  const drawGaussian = Math.exp(-Math.pow(absDiff, 2) / 0.25);
+  const eDraw = 0.06 * drawGaussian;
+
+  // 3. 连续紧迫度乘子综合求解: U(t, ΔS) = 1.0 + S_late(t) * (E_desperation - E_deceleration + E_draw)
+  const urgencyRaw = 1.0 + lateFactor * (eDesperation - eDeceleration + eDraw);
+  const urgency = Number(Math.max(0.70, Math.min(1.45, urgencyRaw)).toFixed(3));
+
+  // 4. 动态曲线类型判定 (基于连续势能强度平滑映射)
+  let curve = PoissonDecayCurve.LINEAR_UNIFORM;
+  if (lateFactor >= 0.35) {
+    if (urgency >= 1.18) {
+      curve = PoissonDecayCurve.DESPERATION_BURST;
+    } else if (urgency <= 0.88) {
+      curve = PoissonDecayCurve.DECELERATED_SLOWDOWN;
+    } else if (urgency > 1.02) {
+      curve = PoissonDecayCurve.ACCELERATED_LATE;
+    }
   }
 
   return {
     time_fraction: timeFraction,
-    urgency_multiplier: 1.18,
-    curve: PoissonDecayCurve.LATE_GAME_ACCELERATION
+    urgency_multiplier: urgency,
+    curve
   };
 }
 
 /**
- * 计算双变量泊松分布网格 (0~7 球剩余比分矩阵)
+ * 求解双变量独立泊松分布网格 (0~maxGoals 矩阵与胜平负概率)
  */
 export function calculateBivariatePoissonGrid(
   lambdaHome: number,
   lambdaAway: number,
   maxGoals: number = 7
 ): {
-  matrix: number[][]; // [homeGoals][awayGoals]
+  grid: number[][];
   prob_home_win_rest: number;
   prob_draw_rest: number;
   prob_away_win_rest: number;
 } {
-  const matrix: number[][] = [];
+  const grid: number[][] = [];
   let probHomeWin = 0.0;
   let probDraw = 0.0;
   let probAwayWin = 0.0;
 
   for (let h = 0; h <= maxGoals; h++) {
-    matrix[h] = [];
-    const pH = poissonPMF(h, lambdaHome);
+    const row: number[] = [];
+    const pHome = poissonPMF(h, lambdaHome);
     for (let a = 0; a <= maxGoals; a++) {
-      const pA = poissonPMF(a, lambdaAway);
-      const cellProb = Number((pH * pA).toFixed(5));
-      matrix[h][a] = cellProb;
+      const pAway = poissonPMF(a, lambdaAway);
+      const prob = Number((pHome * pAway).toFixed(6));
+      row.push(prob);
 
-      if (h > a) {
-        probHomeWin += cellProb;
-      } else if (h === a) {
-        probDraw += cellProb;
-      } else {
-        probAwayWin += cellProb;
-      }
+      if (h > a) probHomeWin += prob;
+      else if (h === a) probDraw += prob;
+      else probAwayWin += prob;
     }
+    grid.push(row);
+  }
+
+  // 归一化微调
+  const total = probHomeWin + probDraw + probAwayWin;
+  if (total > 0 && Math.abs(total - 1.0) > 0.0001) {
+    probHomeWin = probHomeWin / total;
+    probDraw = probDraw / total;
+    probAwayWin = probAwayWin / total;
   }
 
   return {
-    matrix,
+    grid,
     prob_home_win_rest: Number(probHomeWin.toFixed(4)),
     prob_draw_rest: Number(probDraw.toFixed(4)),
     prob_away_win_rest: Number(probAwayWin.toFixed(4))
@@ -201,14 +215,72 @@ export function calculateBivariatePoissonGrid(
 }
 
 /**
- * Layer 03 M4 主调度入口：滚球 0:0 实时重置 Forward 泊松推演
- * @param match CanonicalMatch
- * @param context CleanedContextFeatures (M2 输出)
- * @param timeline MomentumTimelineFeatures (M3 输出)
- * @param physical RealTimePhysicalStatsFeatures (M3 输出)
- * @param spatioTemporal SpatioTemporalEventFeatures (M3.5 输出)
- * @param collector 缺陷收集器
- * @param tracer 链路追踪器
+ * 计算连续多维攻防威胁强度张量 (Continuous Threat Intensity Tensor)
+ * 物理原理：
+ * 整合每分钟射门率、射正率、角球、危攻 AUC、xT 穿透与时间指数半衰期，
+ * 建立连续平滑的即时产出势能 Φ(t) ∈ [0, 1.5]，消除离散 if-else 分支。
+ */
+export function calculateContinuousThreatTensor(
+  match: CanonicalMatch,
+  physical: RealTimePhysicalStatsFeatures,
+  timeline: MomentumTimelineFeatures,
+  elapsedMinute: number
+): { homeThreat: number; awayThreat: number } {
+  if (elapsedMinute <= 5) {
+    return { homeThreat: 1.0, awayThreat: 1.0 };
+  }
+
+  const rawStats = match.reference?.stats;
+  const shotsHome = rawStats?.shots?.home ?? 0;
+  const shotsAway = rawStats?.shots?.away ?? 0;
+  const onTargetHome = rawStats?.shots_on_target?.home ?? 0;
+  const onTargetAway = rawStats?.shots_on_target?.away ?? 0;
+  const cornersHome = rawStats?.corners?.home ?? 0;
+  const cornersAway = rawStats?.corners?.away ?? 0;
+
+  // 1. 每 90 分钟物理速率归一化 (Rate per 90)
+  const expectedShotsPerMinute = 12.0 / 90.0; // 常规单队场均 12 次射门基准
+  const expectedOnTargetPerMinute = 4.0 / 90.0; // 常规单队场均 4 次射正基准
+  const expectedCornersPerMinute = 5.0 / 90.0; // 常规单队场均 5 次角球基准
+
+  const rateShotsHome = (shotsHome / Math.max(1, elapsedMinute)) / expectedShotsPerMinute;
+  const rateShotsAway = (shotsAway / Math.max(1, elapsedMinute)) / expectedShotsPerMinute;
+
+  const rateOnTargetHome = (onTargetHome / Math.max(1, elapsedMinute)) / expectedOnTargetPerMinute;
+  const rateOnTargetAway = (onTargetAway / Math.max(1, elapsedMinute)) / expectedOnTargetPerMinute;
+
+  const rateCornersHome = (cornersHome / Math.max(1, elapsedMinute)) / expectedCornersPerMinute;
+  const rateCornersAway = (cornersAway / Math.max(1, elapsedMinute)) / expectedCornersPerMinute;
+
+  // 2. xT 穿透与危攻动量积分贡献
+  const xtHome = physical.xt_proxy?.home_xt ?? 0.5;
+  const xtAway = physical.xt_proxy?.away_xt ?? 0.5;
+  const energyHome = (timeline.integral_15m?.home ?? 0) / 100.0;
+  const energyAway = (timeline.integral_15m?.away ?? 0) / 100.0;
+
+  // 3. 多维威胁势能物理加权合成 Φ = 0.45 * OnTarget + 0.20 * Shots + 0.15 * Corners + 0.10 * xT + 0.10 * Energy
+  const phiHomeRaw = 0.45 * rateOnTargetHome + 0.20 * rateShotsHome + 0.15 * rateCornersHome + 0.10 * xtHome + 0.10 * energyHome;
+  const phiAwayRaw = 0.45 * rateOnTargetAway + 0.20 * rateShotsAway + 0.15 * rateCornersAway + 0.10 * xtAway + 0.10 * energyAway;
+
+  // 4. 时间样本置信度平滑 Sigmoid 函数: S(t) = 1 / (1 + e^(-(t - 18)/6))
+  // 随着比赛时间推移，实时真实数据的权重从 0 渐进式升至 1，先验基准渐进式退火
+  const sampleConfidence = 1.0 / (1.0 + Math.exp(-(elapsedMinute - 18.0) / 6.0));
+
+  // 5. 连续威胁乘子: 1.0 * (1 - S(t)) + (0.50 + 0.50 * tanh(phi * 1.2)) * S(t)
+  const mapThreat = (phi: number) => {
+    const rawMultiplier = 0.50 + 0.50 * Math.tanh(phi * 1.2);
+    const continuousDamping = 1.0 * (1.0 - sampleConfidence) + rawMultiplier * sampleConfidence;
+    return Number(Math.max(0.40, Math.min(1.40, continuousDamping)).toFixed(3));
+  };
+
+  return {
+    homeThreat: mapThreat(phiHomeRaw),
+    awayThreat: mapThreat(phiAwayRaw)
+  };
+}
+
+/**
+ * 统帅部主函数：求解滚球 0:0 实时重置 Forward 泊松与进球概率模型
  */
 export function calculateInPlayPoissonFeatures(
   match: CanonicalMatch,
@@ -216,57 +288,74 @@ export function calculateInPlayPoissonFeatures(
   timeline: MomentumTimelineFeatures,
   physical: RealTimePhysicalStatsFeatures,
   spatioTemporal?: SpatioTemporalEventFeatures,
-  calibratedBase?: MarketCalibrationResult,
+  calibration?: MarketCalibrationResult,
   collector?: DeficitCollector,
   tracer?: Tracer
 ): InPlayPoissonFeatures {
-  const elapsedMinute = Math.max(0, match.timing.minute ?? 0);
+  const elapsedMinute = Math.min(90, Math.max(0, match.timing.minute ?? 0));
   const remainingMinutes = Math.max(0, 90 - elapsedMinute);
+  const isFinished = match.timing.stage === MatchStage.FINISHED;
   const currentHomeScore = match.score.home_score ?? 0;
   const currentAwayScore = match.score.away_score ?? 0;
   const scoreDiff = currentHomeScore - currentAwayScore;
 
-  // 1. 基准全场场均期望 (优先使用经过 Stage 1 & 1.1 博弈校准的基准，其次从市场盘口反推，再次联赛 DNA)
-  let baseHomeLambda: number;
-  let baseAwayLambda: number;
-  let lambdaSource: 'MARKET_IMPLIED' | 'LEAGUE_DNA' | 'FALLBACK' = 'FALLBACK';
+  // 完赛直接返回固定概率
+  if (isFinished || elapsedMinute >= 90) {
+    const isHomeWin = currentHomeScore > currentAwayScore;
+    const isDraw = currentHomeScore === currentAwayScore;
+    const isAwayWin = currentHomeScore < currentAwayScore;
 
-  if (calibratedBase && calibratedBase.lambda_base_home > 0 && calibratedBase.lambda_base_away > 0) {
-    baseHomeLambda = calibratedBase.lambda_base_home;
-    baseAwayLambda = calibratedBase.lambda_base_away;
+    return {
+      elapsed_minute: elapsedMinute,
+      remaining_minutes: 0,
+      time_decay_curve: PoissonDecayCurve.LINEAR_UNIFORM,
+      lambda_home_rest: 0.0,
+      lambda_away_rest: 0.0,
+      expected_goals_rest: 0.0,
+      lambda_source: 'FALLBACK',
+      top_final_scores: [{
+        home: currentHomeScore,
+        away: currentAwayScore,
+        probability: 1.0,
+        percentage_str: '100.0%'
+      }],
+      rest_score_matrix: {
+        prob_home_win_rest: isHomeWin ? 1.0 : 0.0,
+        prob_draw_rest: isDraw ? 1.0 : 0.0,
+        prob_away_win_rest: isAwayWin ? 1.0 : 0.0
+      },
+      projected_final_score: {
+        home: currentHomeScore,
+        away: currentAwayScore,
+        most_likely_score: `${currentHomeScore}-${currentAwayScore}`
+      }
+    };
+  }
+
+  // 1. 建立全场 90 分钟先验基准 Lambda (Base Lambda Prior)
+  let baseTotalGoals = 2.70;
+  let baseGoalDiff = 0.0;
+  let lambdaSource: 'MARKET_IMPLIED' | 'LEAGUE_DNA' | 'FALLBACK' = 'LEAGUE_DNA';
+  let baseHomeLambda = 1.35;
+  let baseAwayLambda = 1.35;
+
+  if (calibration && calibration.market_stance !== MarketStanceType.MARKET_DATA_MISSING) {
+    baseHomeLambda = calibration.lambda_base_home;
+    baseAwayLambda = calibration.lambda_base_away;
+    baseTotalGoals = baseHomeLambda + baseAwayLambda;
     lambdaSource = 'MARKET_IMPLIED';
   } else {
-    const ouMain = match.markets.full_total_main;
-    const ahMain = match.markets.full_spread_main;
+    const leagueName = match.league_name ?? '';
+    baseTotalGoals = getLeagueBaseGoals(leagueName);
+    baseHomeLambda = (baseTotalGoals + baseGoalDiff) / 2.0;
+    baseAwayLambda = (baseTotalGoals - baseGoalDiff) / 2.0;
+  }
 
-    if (ouMain && ouMain.line && ouMain.over_odds > 1.0 && ouMain.under_odds > 1.0) {
-      // 市场盘口反推
-      const marketTotalLine = parseHandicapOrTotalLine(ouMain.line);
-      const marketSpreadLine = ahMain && ahMain.home_selection ? parseHandicapOrTotalLine(ahMain.home_selection) : 0.0;
-      
-      // 大小球赔率微调 (若大球低水，则期望略大于盘口 line)
-      const overProbRaw = 1.0 / ouMain.over_odds;
-      const underProbRaw = 1.0 / ouMain.under_odds;
-      const overWeight = overProbRaw / (overProbRaw + underProbRaw || 1.0);
-      const impliedTotal = marketTotalLine + (overWeight - 0.5) * 0.4;
-      
-      // 让球盘拆解主客进球预期
-      const clampedSpread = Math.max(-2.5, Math.min(2.5, marketSpreadLine));
-      const hLambda = (impliedTotal - clampedSpread) / 2.0;
-      const aLambda = (impliedTotal + clampedSpread) / 2.0;
+  baseHomeLambda = Math.max(0.3, baseHomeLambda);
+  baseAwayLambda = Math.max(0.3, baseAwayLambda);
 
-      baseHomeLambda = Math.max(0.3, hLambda);
-      baseAwayLambda = Math.max(0.3, aLambda);
-      lambdaSource = 'MARKET_IMPLIED';
-    } else {
-      // 联赛 DNA
-      const leagueBaseTotal = getLeagueBaseGoals(match.league_name);
-      baseHomeLambda = leagueBaseTotal * 0.55;
-      baseAwayLambda = leagueBaseTotal * 0.45;
-      lambdaSource = match.league_name ? 'LEAGUE_DNA' : 'FALLBACK';
-    }
-
-    // 若未传入 calibratedBase，则在此注入 M2 修正
+  // 2. 注入 M2 先验战意与阵容折损乘子 (MUI / LIS)
+  if (context && context.motivation_urgency && context.lineup_impact) {
     baseHomeLambda *= (context.motivation_urgency.home_mui * context.lineup_impact.home_lis);
     baseAwayLambda *= (context.motivation_urgency.away_mui * context.lineup_impact.away_lis);
   }
@@ -293,11 +382,17 @@ export function calculateInPlayPoissonFeatures(
   const regimeMultiplierHome = spatioTemporal?.regime.regime_multiplier_home ?? 1.0;
   const regimeMultiplierAway = spatioTemporal?.regime.regime_multiplier_away ?? 1.0;
 
+  // 4.6 注入连续多维攻防威胁强度张量 (Continuous Threat Intensity Tensor)
+  // 代替离散硬编码 if 语句，以连续数学模型动态调整真实进球期望
+  const threatTensor = calculateContinuousThreatTensor(match, physical, timeline, elapsedMinute);
+  const threatDampingHome = threatTensor.homeThreat;
+  const threatDampingAway = threatTensor.awayThreat;
+
   // 5. 综合求解滚球 0:0 剩余时段动态进球期望 (lambda_home_rest, lambda_away_rest)
   const remainingFactor = timeDecay.time_fraction * timeDecay.urgency_multiplier;
 
-  let lambdaHomeRest = baseHomeLambda * remainingFactor * xtHomeFactor * momentumBiasHome * redPenaltyHome * regimeMultiplierHome;
-  let lambdaAwayRest = baseAwayLambda * remainingFactor * xtAwayFactor * momentumBiasAway * redPenaltyAway * regimeMultiplierAway;
+  let lambdaHomeRest = baseHomeLambda * remainingFactor * xtHomeFactor * momentumBiasHome * redPenaltyHome * regimeMultiplierHome * threatDampingHome;
+  let lambdaAwayRest = baseAwayLambda * remainingFactor * xtAwayFactor * momentumBiasAway * redPenaltyAway * regimeMultiplierAway * threatDampingAway;
 
   // 极值安全钳位
   lambdaHomeRest = Math.max(0.01, Math.min(3.50, Number(lambdaHomeRest.toFixed(3))));
@@ -305,35 +400,58 @@ export function calculateInPlayPoissonFeatures(
   const expectedGoalsRest = Number((lambdaHomeRest + lambdaAwayRest).toFixed(3));
 
   // 6. 求解双变量泊松网格 (0~7 球)
-  const poissonGrid = calculateBivariatePoissonGrid(lambdaHomeRest, lambdaAwayRest, 7);
+  const poissonResult = calculateBivariatePoissonGrid(lambdaHomeRest, lambdaAwayRest, 7);
+  const poissonGrid = poissonResult.grid;
 
   // 7. 投影全场最终比分与 Top 3~5 概率分布
   const projectedHomeFinal = Number((currentHomeScore + lambdaHomeRest).toFixed(2));
   const projectedAwayFinal = Number((currentAwayScore + lambdaAwayRest).toFixed(2));
 
   const allScoresList: ScoreProbabilityItem[] = [];
-  for (let h = 0; h <= 6; h++) {
-    for (let a = 0; a <= 6; a++) {
-      const cellProb = poissonGrid.matrix[h]?.[a] ?? 0;
-      if (cellProb > 0.005) {
-        const finalH = currentHomeScore + h;
-        const finalA = currentAwayScore + a;
-        allScoresList.push({
-          home: finalH,
-          away: finalA,
-          probability: cellProb,
-          percentage_str: `${(cellProb * 100).toFixed(1)}%`
-        });
-      }
+
+  for (let h = 0; h <= 7; h++) {
+    for (let a = 0; a <= 7; a++) {
+      const prob = poissonGrid[h][a];
+      const finalH = currentHomeScore + h;
+      const finalA = currentAwayScore + a;
+
+      allScoresList.push({
+        home: finalH,
+        away: finalA,
+        probability: prob,
+        percentage_str: `${(prob * 100).toFixed(1)}%`
+      });
     }
   }
 
-  // 降序排序取 Top 5
+  // 排序并取 Top 5 比分
   allScoresList.sort((a, b) => b.probability - a.probability);
-  const topScores = allScoresList.slice(0, 5);
-  const mostLikelyScore = topScores[0] || { home: currentHomeScore, away: currentAwayScore, probability: 1.0, percentage_str: '100%' };
+  const topFinalScores = allScoresList.slice(0, 5).map(item => ({
+    ...item,
+    probability: Number(item.probability.toFixed(4))
+  }));
 
-  const result: InPlayPoissonFeatures = Object.freeze({
+  const mostLikely = topFinalScores[0] ? `${topFinalScores[0].home}-${topFinalScores[0].away}` : `${currentHomeScore}-${currentAwayScore}`;
+
+  const activeTracer = tracer ?? Tracer.getInstance();
+  activeTracer.log(
+    'INFO',
+    'QUANT_03_POISSON_DECAY',
+    'SOLVED_SUCCESS',
+    `Solved Forward In-Play Poisson Decay. Minute: ${elapsedMinute}', Score: ${currentHomeScore}-${currentAwayScore}, LambdaRest: ${lambdaHomeRest}+${lambdaAwayRest}=${expectedGoalsRest}`,
+    {
+      minute: elapsedMinute,
+      current_score: `${currentHomeScore}-${currentAwayScore}`,
+      lambda_home_rest: lambdaHomeRest,
+      lambda_away_rest: lambdaAwayRest,
+      expected_goals_rest: expectedGoalsRest,
+      curve: timeDecay.curve,
+      top_scores: topFinalScores.slice(0, 3).map(s => `${s.home}-${s.away}(${s.percentage_str})`)
+    },
+    match.canonical_id
+  );
+
+  return {
     elapsed_minute: elapsedMinute,
     remaining_minutes: remainingMinutes,
     time_decay_curve: timeDecay.curve,
@@ -341,34 +459,16 @@ export function calculateInPlayPoissonFeatures(
     lambda_away_rest: lambdaAwayRest,
     expected_goals_rest: expectedGoalsRest,
     lambda_source: lambdaSource,
-    top_final_scores: topScores,
-    rest_score_matrix: Object.freeze({
-      prob_home_win_rest: poissonGrid.prob_home_win_rest,
-      prob_draw_rest: poissonGrid.prob_draw_rest,
-      prob_away_win_rest: poissonGrid.prob_away_win_rest
-    }),
-    projected_final_score: Object.freeze({
+    top_final_scores: topFinalScores,
+    rest_score_matrix: {
+      prob_home_win_rest: poissonResult.prob_home_win_rest,
+      prob_draw_rest: poissonResult.prob_draw_rest,
+      prob_away_win_rest: poissonResult.prob_away_win_rest
+    },
+    projected_final_score: {
       home: projectedHomeFinal,
       away: projectedAwayFinal,
-      most_likely_score: `${mostLikelyScore.home}-${mostLikelyScore.away}`
-    })
-  });
-
-  tracer?.info(
-    Layer03OpId.POISSON_FORWARD_MODEL,
-    'POISSON_SOLVED',
-    'Poisson forward model solved',
-    {
-      elapsed_minute: elapsedMinute,
-      remaining_minutes: remainingMinutes,
-      lambda_home_rest: lambdaHomeRest,
-      lambda_away_rest: lambdaAwayRest,
-      expected_goals_rest: expectedGoalsRest,
-      lambda_source: lambdaSource,
-      most_likely_score: result.projected_final_score.most_likely_score
-    },
-    match.canonical_id
-  );
-
-  return result;
+      most_likely_score: mostLikely
+    }
+  };
 }
