@@ -8,6 +8,57 @@
 
 ## 一、当前活动工作快照 (Active Snapshot)
 
+- **任务编号 (Task)**: `SNAPSHOT-20260902-LAYER04-05-RULES-ENFORCEMENT`
+- **任务目标 (Goal)**: 彻底解决 Layer 04/05（AI评估与风控）的规则真空与违规问题：落实杯赛/友谊赛最高 C 级限制（不进串关）；落实 YBTY 开赛时间推算规则与溯源标签；落实 C 级推荐单关暴露度硬上限；修复风控模块及 AI Prompt 对大小球的错误盘口拦截。
+- **改动文件 (Target Files)**:
+  - `/refactor/04_ai_evaluator/promptBuilder.ts`
+  - `/refactor/05_portfolio_risk/riskFilter.ts`
+  - `/refactor/02_canonical_model/canonicalMatchAssembler.ts`
+- **执行步骤 (Action Plan)**:
+  1. 在 `promptBuilder.ts` 中增补 `C_GRADE` 及硬性约束，强化滚球结算常识（区分亚盘剩余时间 vs 大小球全场结算），明确深盘规则不适用于大小球。
+  2. 在 `riskFilter.ts` 补充 `C_GRADE` 的风险过滤规则，限制其暴露度最高为 1；修复 Rule 3（深盘拦截）错误拦截所有大小球（如 2.5 球）的致命 Bug，将其严格限定在 `ASIAN_HANDICAP` 市场。
+  3. 在 `canonicalMatchAssembler.ts` 修改 `AiEvaluationBrief` 输出，在 `kickoff_time` 附带物理追踪后缀（如 `(推算时间)`）。
+- **状态 (Status)**: `DONE`
+- **交付物与验证 (Deliverables & Verification)**:
+  1. AI Prompt 成功融入用户核心业务规则（杯赛/深盘约束/0:0结算认知）。
+  2. 投资组合风控拦截了 C 级无限制滥用，且恢复了正常的总进球（Total Goals）市场通行。
+  3. 所有测试用例（包括 `verify_portfolio_risk.ts`）全部 100% PASS。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260902-LAYER03-PREMATCH-DOMAIN-FLAWS`
+- **任务目标 (Goal)**: 修复先验引擎与比赛基准的历史遗留结构性缺陷，确保赛前与滚球统一数学法则。
+- **改动文件 (Target Files)**:
+  - `/refactor/03_quant_engine/prematchPriorEngine.ts`
+- **执行步骤 (Action Plan)**:
+  1. 在 `prematchPriorEngine.ts` 引入 `calculateBivariatePoissonGrid` 替代独立泊松函数。
+  2. 修复 `prematchPriorEngine.ts` 缺失联赛 DNA 基准导致冷门赛事定准线严重偏离的问题。
+- **状态 (Status)**: `DONE`
+- **交付物与验证 (Deliverables & Verification)**:
+  1. `computePoisson1X2` 现在调用带 $\rho$ 修正的 `calculateBivariatePoissonGrid`。
+  2. 赛前基准进球计算使用了 `LEAGUE_DNA_MAP` 和 `match_slug` 解析，摆脱硬编码 2.60 的限制。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260902-LAYER03-DOMAIN-FLAW-REMEDIATION`
+- **任务目标 (Goal)**: 根治 Layer 03 核心量化引擎的 5 大领域结构性缺陷：1. 独立泊松导致的平局低估（引入 Dixon-Coles $\rho$ 修正）；2. 盘口反演缺乏独立思考（引入贝叶斯先验融合）；3. 搏命势能对称性盲区（引入先验实力差非对称系数）；4. 威胁张量硬封顶限制极端态势（放宽极值限制）；5. 静态联赛 DNA 滞后（更新现代高进球率基准，如英超 3.2）。
+- **改动文件 (Target Files)**:
+  - `/refactor/03_quant_engine/poissonDecayModel.ts`
+  - `/refactor/03_quant_engine/marketDivergenceEngine.ts`
+  - `/refactor/03_quant_engine/eventMomentumFusion.ts`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **执行步骤 (Action Plan)**:
+  1. 在 `poissonDecayModel.ts` 引入基于 $\rho$ 的 Dixon-Coles 双变量泊松平局修正。
+  2. 在 `marketDivergenceEngine.ts` 移除强制 `CONSENSUS_ALIGNED`，实现理论期望与市场反演的贝叶斯权重融合。
+  3. 在 `poissonDecayModel.ts` 搏命核函数中注入 `priorStrengthRatio`，使落后反扑力度呈非对称性。
+  4. 放宽 `calculateContinuousThreatTensor` 的硬封顶，并稍微调优 `eventMomentumFusion.ts` 中的事件权重。
+  5. 跑通 Layer 03 单元测试。
+- **状态 (Status)**: `DONE`
+- **交付物与验证 (Deliverables & Verification)**:
+  1. `poissonDecayModel.ts` 引入 $\rho=0.05$ 的 Dixon-Coles 修正，有效缓解极低比分平局被低估的数学失真。
+  2. `marketDivergenceEngine.ts` 中删除了盲从的 `CONSENSUS_ALIGNED`，采用了 85% 盘口与 15% 理论先验的混合贝叶斯收缩。
+  3. `calculateTimeDecayAndUrgencyMultiplier` 中引入了 `priorStrengthRatio`，强队落后获得最高 2.0 倍搏命乘子，弱队落后被压缩至 0.5，符合真实物理不对称性。
+  4. `calculateContinuousThreatTensor` 的极限极值由 `[0.4, 1.4]` 拓宽到 `[0.2, 2.5]`。
+  5. 修正了事件基础权重（射正由 1.2 提升至 1.4，角球由 0.8 降至 0.65）。
+  6. 静态 `LEAGUE_DNA_MAP` 升级。
+  7. 全部单元测试 100% 验证通过。
+
 - **任务编号 (Task)**: `SNAPSHOT-20260902-LAYER03-DEFENSE-3-2-UNVERIFIED-SCORE-CRASH`
 - **任务目标 (Goal)**: 根治在 `verify_full_pipeline_00_03.ts` 测试 Defense 3.2 时由于 LIVE/FINISHED 遇到 `UNVERIFIED_SCORE`，导致 `poissonDecayModel` 抛出 `Error: Live or finished Poisson pricing requires a verified score.` 从而中断外部集成测试的问题。
 - **改动文件 (Target Files)**:

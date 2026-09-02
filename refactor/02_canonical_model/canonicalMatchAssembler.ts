@@ -558,10 +558,17 @@ export function extractAiEvaluationBrief(canonical: CanonicalMatch): AiEvaluatio
 
   const dataDeficits = canonical.missing_reasons.map(r => String(r));
 
+  let kickoffTimeDisplay = canonical.timing.beijing_start_time;
+  if (canonical.timing.start_time_source === 'YBTY_ESTIMATED') {
+    kickoffTimeDisplay += ' (推算时间)';
+  } else if (canonical.timing.start_time_source === 'LEISU_SUPPLEMENTED') {
+    kickoffTimeDisplay += ' (雷速补充)';
+  }
+
   return {
     match_id: canonical.canonical_id,
     league: canonical.league_name,
-    kickoff_time: canonical.timing.beijing_start_time,
+    kickoff_time: kickoffTimeDisplay,
     status_summary: canonical.timing.stage === MatchStage.LIVE
       ? `LIVE ${canonical.timing.minute ?? 0}' (${canonical.score.home_score}-${canonical.score.away_score})`
       : "PREMATCH",

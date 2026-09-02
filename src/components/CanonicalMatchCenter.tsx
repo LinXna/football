@@ -334,13 +334,7 @@ export const CanonicalMatchCenter: React.FC = () => {
         (lMatch?.status === LeagueMatchStatus.MATCHED_BY_ALIAS ||
           lMatch?.status === LeagueMatchStatus.MATCHED_FUZZY);
 
-      const needsReview =
-        isSwapped ||
-        homeNeedsPersist ||
-        awayNeedsPersist ||
-        leagueNeedsPersist ||
-        !isHighConf ||
-        (m.alignment?.confidence_score ?? 0) < 85;
+      const needsReview = true; // 用户要求：不要隐藏，所有比赛都放入核验列表以便勾选
 
       if (needsReview) {
         const ybtyScore = `${m.score?.home_score ?? 0} - ${m.score?.away_score ?? 0}`;
@@ -560,7 +554,7 @@ export const CanonicalMatchCenter: React.FC = () => {
           setImportStep(2);
           setImportFeedback({
             success: true,
-            message: `数据初筛装配完成！共识别 ${newMatches.length} 场赛事，检测到 ${unconfirmedMatches.length} 场待核验或低置信赛事（已按匹配度由低到高排列）。`,
+            message: `数据初筛装配完成！共识别并载入 ${newMatches.length} 场赛事，请勾选需要导入的赛事（高置信度赛事已自动勾选）。`,
           });
         } else {
           // 100% 赛事完全对齐：后台并发静默沉淀全部新别名映射，实现一次导入永久自动对齐

@@ -38,6 +38,12 @@ export function applyPortfolioRiskFilters(context: RiskFilterContext): RiskFilte
       continue;
     }
 
+    // Rule 1b: C_GRADE max exposure = 1 (Never enters parlays, single bet only)
+    if (incoming_evaluation.grade === RecommendationGrade.C_GRADE && existingExposureCount >= 1) {
+      console.warn(`[RiskFilter] Rejecting leg. Match ${incoming_evaluation.match_id}, Dir ${leg.direction}. C_GRADE max exposure (1) reached.`);
+      continue;
+    }
+
     // Rule 2: A_GRADE max exposure = 2
     if (incoming_evaluation.grade === RecommendationGrade.A_GRADE && existingExposureCount >= 2) {
       console.warn(`[RiskFilter] Rejecting leg. Match ${incoming_evaluation.match_id}, Dir ${leg.direction}. A_GRADE max exposure (2) reached.`);
@@ -45,10 +51,13 @@ export function applyPortfolioRiskFilters(context: RiskFilterContext): RiskFilte
     }
     
     // Rule 3: Deep spread strict rejection (e.g. -2.5 requires A_GRADE, else block)
-    const lineFloat = parseFloat(String(leg.line).replace(/[-+\s]/g, '').split('/')[0] || '0');
-    if (lineFloat >= 2.0 && incoming_evaluation.grade !== RecommendationGrade.A_GRADE) {
-      console.warn(`[RiskFilter] Rejecting leg. Match ${incoming_evaluation.match_id}. Deep spread (${leg.line}) requires A_GRADE.`);
-      continue;
+    // ONLY applies to ASIAN_HANDICAP markets, NOT TOTAL_GOALS!
+    if (leg.market.includes('ASIAN_HANDICAP')) {
+      const lineFloat = parseFloat(String(leg.line).replace(/[-+\s]/g, '').split('/')[0] || '0');
+      if (lineFloat >= 2.0 && incoming_evaluation.grade !== RecommendationGrade.A_GRADE) {
+        console.warn(`[RiskFilter] Rejecting leg. Match ${incoming_evaluation.match_id}. Deep spread (${leg.line}) requires A_GRADE.`);
+        continue;
+      }
     }
 
     approvedLegs.push(leg);

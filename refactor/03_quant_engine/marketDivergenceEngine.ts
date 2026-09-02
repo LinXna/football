@@ -148,11 +148,24 @@ export function calibrateWithMarketOdds(
   const deltaA = theoryPrior.lambda_away_theory - lambda_mkt_A;
   const netDelta = Number((deltaH - deltaA).toFixed(3)); // 正数表示理论显著高于机构，负数表示机构显著高于理论
 
-  // 联合反演得到的是盘口唯一可复算的 λ 基线；先验偏差只作观测，不能再以经验权重反向污染市场定价。
-  const stance = MarketStanceType.CONSENSUS_ALIGNED;
-  const penalty = 0;
-  const finalBaseH = lambda_mkt_H;
-  const finalBaseA = lambda_mkt_A;
+  // 5. 贝叶斯收缩融合 (Bayesian Shrinkage Fusion): 理论先验 vs 机构隐含
+  const absNetDelta = Math.abs(netDelta);
+  let stance = MarketStanceType.CONSENSUS_ALIGNED;
+  let penalty = 0;
+
+  if (absNetDelta > 0.45) {
+    stance = MarketStanceType.INSTITUTIONAL_DEFENSE;
+    penalty = 15;
+  } else if (absNetDelta > 0.25) {
+    stance = MarketStanceType.TRAP_INDUCEMENT;
+    penalty = 5;
+  }
+
+  // 融合权重：一般情况下，博彩公司的赔率（市场）信息更优，但我们必须保持一定比例的独立理论模型，防止完全随波逐流
+  const marketWeight = 0.85;
+  const theoryWeight = 0.15;
+  const finalBaseH = (lambda_mkt_H * marketWeight) + (theoryPrior.lambda_home_theory * theoryWeight);
+  const finalBaseA = (lambda_mkt_A * marketWeight) + (theoryPrior.lambda_away_theory * theoryWeight);
 
   const result: MarketCalibrationResult = {
     lambda_base_home: Number(finalBaseH.toFixed(3)),

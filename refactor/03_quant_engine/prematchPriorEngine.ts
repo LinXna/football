@@ -19,7 +19,7 @@ import {
 } from './types.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
-import { poissonPMF } from './poissonDecayModel.js';
+import { calculateBivariatePoissonGrid, LEAGUE_DNA_MAP } from './poissonDecayModel.js';
 
 /**
  * 解析身价占比与阵容成色
@@ -35,33 +35,18 @@ function parseMarketValue(mvText: string | null | undefined): number {
 }
 
 /**
- * 基于泊松分布计算理论胜平负公允概率
+ * 基于泊松分布计算理论胜平负公允概率 (已引入 Dixon-Coles 修正)
  */
 export function computePoisson1X2(
   lambdaH: number,
   lambdaA: number,
   maxGoals: number = 8
 ): { home_win: number; draw: number; away_win: number } {
-  let pHome = 0;
-  let pDraw = 0;
-  let pAway = 0;
-
-  for (let h = 0; h <= maxGoals; h++) {
-    const ph = poissonPMF(h, lambdaH);
-    for (let a = 0; a <= maxGoals; a++) {
-      const pa = poissonPMF(a, lambdaA);
-      const prob = ph * pa;
-      if (h > a) pHome += prob;
-      else if (h === a) pDraw += prob;
-      else pAway += prob;
-    }
-  }
-
-  const sum = pHome + pDraw + pAway || 1.0;
+  const result = calculateBivariatePoissonGrid(lambdaH, lambdaA, maxGoals);
   return {
-    home_win: Number((pHome / sum).toFixed(4)),
-    draw: Number((pDraw / sum).toFixed(4)),
-    away_win: Number((pAway / sum).toFixed(4))
+    home_win: Number(result.prob_home_win_rest.toFixed(4)),
+    draw: Number(result.prob_draw_rest.toFixed(4)),
+    away_win: Number(result.prob_away_win_rest.toFixed(4))
   };
 }
 
@@ -140,8 +125,12 @@ export function synthesizePrematchPrior(
   const homeStandings = context.iso_venue_standings?.home_at_home;
   const awayStandings = context.iso_venue_standings?.away_at_away;
 
-  let baseGoalsH = 1.45;
-  let baseGoalsA = 1.15;
+  // 使用动态联赛 DNA 替代硬编码基准
+  const leagueName = match.match_slug ? match.match_slug.split('_')[0] : '';
+  const dnaTotal = LEAGUE_DNA_MAP[leagueName] || 2.75; // 默认中性 2.75
+  // 主场通常占据 55% 的进球比例
+  let baseGoalsH = dnaTotal * 0.55;
+  let baseGoalsA = dnaTotal * 0.45;
 
   if (homeStandings && awayStandings && homeStandings.matches_played >= 3 && awayStandings.matches_played >= 3) {
     // 基于主队主场场均进球与客队客场场均失球的几何均值

@@ -39,13 +39,13 @@ import { Tracer } from '../00_common/Tracer.js';
 /**
  * 常见联赛历史场均进球基准 (League DNA Base Total Goals)
  */
-const LEAGUE_DNA_MAP: Record<string, number> = {
+export const LEAGUE_DNA_MAP: Record<string, number> = {
   // 高进球联赛 (>= 3.0)
   '荷甲': 3.12, '荷乙': 3.25, '德甲': 3.18, '德乙': 3.08, '瑞士超': 3.05,
   '挪超': 3.02, '瑞典超': 2.88, '奥甲': 2.95, '冰岛超': 3.20,
   // 中性主流联赛 (2.5 ~ 2.9)
-  '英超': 2.85, '西甲': 2.58, '意甲': 2.62, '法甲': 2.70, '葡超': 2.65,
-  '欧冠': 2.98, '欧联': 2.90, '欧协联': 2.92, '中超': 2.75, '韩K联': 2.55, '日职联': 2.52,
+  '英超': 3.20, '西甲': 2.58, '意甲': 2.62, '法甲': 2.70, '葡超': 2.65,
+  '欧冠': 3.05, '欧联': 2.90, '欧协联': 2.92, '中超': 2.95, '韩K联': 2.55, '日职联': 2.52,
   // 防守/低进球联赛 (<= 2.4)
   '西乙': 2.18, '法乙': 2.22, '意乙': 2.32, '阿甲': 2.15, '巴甲': 2.38,
   '日职乙': 2.36, '希腊超': 2.30, '俄超': 2.40,
@@ -151,7 +151,8 @@ export function calculateTimeDecayAndUrgencyMultiplier(
   elapsedMinute: number,
   scoreDiff: number = 0,
   homeWeights?: number[],
-  awayWeights?: number[]
+  awayWeights?: number[],
+  priorStrengthRatio: number = 1.0
 ): {
   time_fraction: number;
   time_fraction_home: number;
@@ -184,10 +185,22 @@ export function calculateTimeDecayAndUrgencyMultiplier(
   const lateFactor = 1.0 / (1.0 + Math.exp(-(elapsedMinute - 72.0) / 4.0));
 
   // 2. 分差连续势场响应函数:
-  // (A) 单球落后绝境搏命势能高斯核: 当 |ΔS| ≈ 1 时达到极大值 +0.38
+  // (A) 单球落后绝境搏命势能高斯核: 当 |ΔS| ≈ 1 时达到极大值 +0.38，并引入非对称实力差乘子
   const absDiff = Math.abs(scoreDiff);
+  
+  let strengthMultiplier = 1.0;
+  if (scoreDiff < 0) {
+    // 主队落后
+    strengthMultiplier = priorStrengthRatio;
+  } else if (scoreDiff > 0) {
+    // 客队落后
+    strengthMultiplier = 1.0 / Math.max(0.1, priorStrengthRatio);
+  }
+  // 限制乘子极值防止指数爆炸
+  strengthMultiplier = Math.max(0.5, Math.min(2.0, strengthMultiplier));
+
   const desperationGaussian = Math.exp(-Math.pow(absDiff - 1.0, 2) / 0.45);
-  const eDesperation = 0.38 * desperationGaussian;
+  const eDesperation = 0.38 * desperationGaussian * strengthMultiplier;
 
   // (B) 两球以上领先控场降速势能 Sigmoid: 当 |ΔS| >= 2 时达到 -0.22
   const decelerationSigmoid = 1.0 / (1.0 + Math.exp(-(absDiff - 1.8) / 0.30));
@@ -240,19 +253,52 @@ export function calculateBivariatePoissonGrid(
   let probDraw = 0.0;
   let probAwayWin = 0.0;
 
+  // Dixon-Coles dependence parameter (positive rho inflates draws/low-scoring games)
+  const rho = 0.05;
+
   for (let h = 0; h <= maxGoals; h++) {
     const row: number[] = [];
     const pHome = poissonPMF(h, lambdaHome);
     for (let a = 0; a <= maxGoals; a++) {
       const pAway = poissonPMF(a, lambdaAway);
-      const prob = Number((pHome * pAway).toFixed(6));
+      let prob = pHome * pAway;
+      
+      // Apply Dixon-Coles correction for low-scoring combinations
+      if (h === 0 && a === 0) {
+        prob *= Math.max(0, 1 - lambdaHome * lambdaAway * rho);
+      } else if (h === 0 && a === 1) {
+        prob *= Math.max(0, 1 + lambdaHome * rho);
+      } else if (h === 1 && a === 0) {
+        prob *= Math.max(0, 1 + lambdaAway * rho);
+      } else if (h === 1 && a === 1) {
+        prob *= Math.max(0, 1 - rho);
+      }
+      
       row.push(prob);
+    }
+    grid.push(row);
+  }
+
+  // Second pass: Normalization
+  let sumGrid = 0.0;
+  for (let h = 0; h <= maxGoals; h++) {
+    for (let a = 0; a <= maxGoals; a++) {
+      sumGrid += grid[h][a];
+    }
+  }
+
+  for (let h = 0; h <= maxGoals; h++) {
+    for (let a = 0; a <= maxGoals; a++) {
+      if (sumGrid > 0) {
+        grid[h][a] = grid[h][a] / sumGrid;
+      }
+      const prob = grid[h][a];
+      grid[h][a] = Number(prob.toFixed(6));
 
       if (h > a) probHomeWin += prob;
       else if (h === a) probDraw += prob;
       else probAwayWin += prob;
     }
-    grid.push(row);
   }
 
   // 归一化微调
@@ -280,7 +326,7 @@ export function calculateBivariatePoissonGrid(
 export function calculateContinuousThreatTensor(
   state: UnifiedMatchState
 ): { homeThreat: number; awayThreat: number } {
-  const mapIntensity = (intensity: number) => Number(Math.max(0.40, Math.min(1.40, 0.65 + intensity * 0.70)).toFixed(3));
+  const mapIntensity = (intensity: number) => Number(Math.max(0.20, Math.min(2.50, 0.65 + intensity * 0.70)).toFixed(3));
   return { homeThreat: mapIntensity(state.home_intensity), awayThreat: mapIntensity(state.away_intensity) };
 }
 
@@ -407,10 +453,11 @@ export function calculateInPlayPoissonFeatures(
     baseAwayLambda *= multiplier;
   }
 
-  // 3. 计算时间衰减与局势非线性搏命因子 (结合 15 分钟进球时段 DNA)
+  // 3. 计算时间衰减与局势非线性搏命因子 (结合 15 分钟进球时段 DNA 与 先验实力差)
   const homeWeights = context?.goal_distribution_dna?.home_scored_weights;
   const awayWeights = context?.goal_distribution_dna?.away_scored_weights;
-  const timeDecay = calculateTimeDecayAndUrgencyMultiplier(elapsedMinute, scoreDiff, homeWeights, awayWeights);
+  const priorStrengthRatio = baseHomeLambda / Math.max(0.1, baseAwayLambda);
+  const timeDecay = calculateTimeDecayAndUrgencyMultiplier(elapsedMinute, scoreDiff, homeWeights, awayWeights, priorStrengthRatio);
 
   // 4. 唯一实时状态已经融合 xT、动量、事件、红牌与战术相变；本函数不得再次读取原始特征。
   const regimeMultiplierHome = 1.0;

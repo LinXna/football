@@ -107,14 +107,14 @@ function getEventThreatWeight(event: CanonicalTimelineEvent): number {
     event.canonical_type === CanonicalEventType.CORNER ||
     (event as any).type === 'CORNER'
   ) {
-    return 0.8;
+    return 0.65;
   }
 
   if (
     event.canonical_type === CanonicalEventType.SHOT_ON_TARGET ||
     (event as any).type === 'SHOT_ON_TARGET'
   ) {
-    return 1.2;
+    return 1.4;
   }
 
   if (
