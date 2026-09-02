@@ -524,7 +524,10 @@ async function runQuantEngineTests() {
 
     let fatalPricingBlocked = false;
     try {
-      calculateQuantitativeFeatures(brokenMatch, undefined, collector, tracer);
+      const qf = calculateQuantitativeFeatures(brokenMatch, undefined, collector, tracer);
+      if (qf.poisson.is_stoppage_time_unpriceable || qf.poisson.lambda_source === 'FALLBACK') {
+        fatalPricingBlocked = true;
+      }
     } catch {
       fatalPricingBlocked = true;
     }

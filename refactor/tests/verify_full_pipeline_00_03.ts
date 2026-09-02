@@ -388,6 +388,9 @@ async function runFullPipelineIntegrationTests() {
   assert(Math.abs((shinResult.fair_probs[0] + shinResult.fair_probs[1]) - 1.0) < 1e-3, "Shin probabilities must sum to 1.0");
 
   const mockPoisson: any = {
+    lambda_home_rest: 1.25,
+    lambda_away_rest: 0.85,
+    expected_goals_rest: 2.10,
     rest_score_matrix: {
       prob_home_win_rest: 0.45,
       prob_draw_rest: 0.25,

@@ -16,6 +16,14 @@
 import { CanonicalMatch } from '../02_canonical_model/types.js';
 import { MatchStage } from '../02_canonical_model/enums.js';
 import {
+  LeisuRawRecentMatch,
+  ParsedStandingRecord,
+  ParsedTeamStanding,
+  ParsedTeamGoalDistribution,
+  ParsedGoalInterval,
+  ParsedPlayer
+} from '../01_data_ingestion/leisu/types.js';
+import {
   CleanedContextFeatures,
   L0CircuitBreakerResult,
   HistoricalMatchWeight,
@@ -25,7 +33,10 @@ import {
   DataDeficitSeverity,
   L0MissingReason,
   Layer03OpId,
-  Layer03FeatureId
+  Layer03FeatureId,
+  IsoVenueStandingRecord,
+  GoalDistributionDNAFeatures,
+  TacticalFormationFeatures
 } from './types.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
@@ -183,8 +194,10 @@ export function calculateH2HDecayWeights(
 
     // 赛事级别加权 (同名赛事 1.0, 杯赛/其他 0.7)
     let compImp = 1.0;
-    if (h2h.competition_id && (match.reference as any)?.competition_id) {
-      compImp = h2h.competition_id === (match.reference as any).competition_id ? 1.0 : 0.75;
+    // @ts-ignore
+    if (h2h.competition_id && match.reference?.competition_id) {
+      // @ts-ignore
+      compImp = h2h.competition_id === match.reference.competition_id ? 1.0 : 0.75;
     }
 
     const homeScores = h2h.home_scores || [];
@@ -312,7 +325,7 @@ export function calculateRecentFormWeights(
   const awayRecent = match.reference?.tactical_context?.away_recent_matches || [];
 
   const evaluateRecentMatches = (
-    matches: any[],
+    matches: LeisuRawRecentMatch[],
     targetTeamName: string,
     isTargetHome: boolean
   ): { weights: RecentFormContextWeight[]; analytics: RecentFormDetailedAnalytics } => {
@@ -523,13 +536,13 @@ export function parseMarketValueToNumber(mvText: string | null | undefined): num
  */
 export function extractIsoVenueStandings(
   match: CanonicalMatch
-): { home_at_home: any; away_at_away: any } {
+): { home_at_home: IsoVenueStandingRecord | null; away_at_away: IsoVenueStandingRecord | null } {
   const standings = match.reference?.league_standings;
   if (!standings || !standings.has_data) {
     return { home_at_home: null, away_at_away: null };
   }
 
-  const mapStanding = (record: any) => {
+  const mapStanding = (record: ParsedStandingRecord | null): IsoVenueStandingRecord | null => {
     if (!record || record.matches_played === 0) return null;
     const mp = record.matches_played || 1;
     return Object.freeze({
@@ -546,8 +559,8 @@ export function extractIsoVenueStandings(
     });
   };
 
-  const homeHome = mapStanding(standings.home_team?.home || standings.home_team?.overall);
-  const awayAway = mapStanding(standings.away_team?.away || standings.away_team?.overall);
+  const homeHome = standings.home_team?.home || standings.home_team?.overall ? mapStanding((standings.home_team.home || standings.home_team.overall)!) : null;
+  const awayAway = standings.away_team?.away || standings.away_team?.overall ? mapStanding((standings.away_team.away || standings.away_team.overall)!) : null;
 
   return {
     home_at_home: homeHome,
@@ -561,7 +574,7 @@ export function extractIsoVenueStandings(
  */
 export function extractGoalDistributionDNA(
   match: CanonicalMatch
-): any {
+): GoalDistributionDNAFeatures {
   const goalDist = match.reference?.goal_distribution;
   if (!goalDist || !goalDist.has_data) {
     // 默认平均分布 (1/6 = 0.1667)
@@ -577,7 +590,7 @@ export function extractGoalDistributionDNA(
     });
   }
 
-  const extractWeights = (teamDist: any): { weights: number[]; late: number; early: number } => {
+  const extractWeights = (teamDist: ParsedTeamGoalDistribution | undefined): { weights: number[]; late: number; early: number } => {
     const intervals = teamDist?.all?.scored_intervals || teamDist?.home?.scored_intervals || [];
     if (intervals.length === 0) {
       return { weights: [0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667], late: 0.1667, early: 0.3333 };
@@ -585,7 +598,7 @@ export function extractGoalDistributionDNA(
 
     const weights = new Array(6).fill(0.1667);
     let totalGoals = 0;
-    intervals.forEach((iv: any, idx: number) => {
+    intervals.forEach((iv: ParsedGoalInterval, idx: number) => {
       if (idx < 6) {
         weights[idx] = iv.goals ?? 0;
         totalGoals += (iv.goals ?? 0);
@@ -623,7 +636,7 @@ export function extractGoalDistributionDNA(
  */
 export function extractTacticalFormationFeatures(
   match: CanonicalMatch
-): any {
+): TacticalFormationFeatures {
   const lineup = match.reference?.lineups;
   const homeFormation = lineup?.home_formation || 'UNKNOWN';
   const awayFormation = lineup?.away_formation || 'UNKNOWN';
@@ -667,7 +680,20 @@ export function extractTacticalFormationFeatures(
  */
 export function calculateLineupImpactScores(
   match: CanonicalMatch
-): any {
+): {
+  home_lis: number;
+  away_lis: number;
+  home_missing_core_players: string[];
+  away_missing_core_players: string[];
+  home_striker_missing: boolean;
+  away_striker_missing: boolean;
+  home_defender_missing: boolean;
+  away_defender_missing: boolean;
+  home_market_value_num: number;
+  away_market_value_num: number;
+  home_best_player_active: boolean;
+  away_best_player_active: boolean;
+} {
   const lineup = match.reference?.lineups;
   const homeMv = parseMarketValueToNumber(lineup?.home_market_value);
   const awayMv = parseMarketValueToNumber(lineup?.away_market_value);
@@ -689,7 +715,7 @@ export function calculateLineupImpactScores(
     };
   }
 
-  const evaluateAbsences = (injuries: any[], starters: any[]): {
+  const evaluateAbsences = (injuries: ParsedPlayer[], starters: ParsedPlayer[]): {
     lis: number;
     missing: string[];
     strikerMissing: boolean;
@@ -701,7 +727,7 @@ export function calculateLineupImpactScores(
     let strikerMissing = false;
     let defenderMissing = false;
 
-    const hasBestInStarters = starters.some((p: any) => p.best_player === true);
+    const hasBestInStarters = starters.some((p: ParsedPlayer) => p.best_player === true);
 
     for (const p of injuries) {
       const name = p.name || 'Unknown';
@@ -769,7 +795,7 @@ export function calculateMotivationAndUrgencyIndex(
     };
   }
 
-  const evaluateTeam = (teamStanding: any): { mui: number; context: string } => {
+  const evaluateTeam = (teamStanding: ParsedTeamStanding): { mui: number; context: string } => {
     const overall = teamStanding.overall;
     if (!overall) {
       return { mui: 1.0, context: 'OVERALL_MISSING' };

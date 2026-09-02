@@ -296,12 +296,40 @@ export function calculateInPlayPoissonFeatures(
   collector?: DeficitCollector,
   tracer?: Tracer
 ): InPlayPoissonFeatures {
-  if (match.timing.stage === MatchStage.LIVE && match.timing.minute === null) {
-    throw new Error('Live Poisson pricing requires the YBTY-authoritative match minute.');
-  }
-  if ((match.timing.stage === MatchStage.LIVE || match.timing.stage === MatchStage.FINISHED) &&
-    (match.score.home_score === null || match.score.away_score === null || !match.score.score_verified)) {
-    throw new Error('Live or finished Poisson pricing requires a verified score.');
+  if ((match.timing.stage === MatchStage.LIVE && match.timing.minute === null) ||
+    ((match.timing.stage === MatchStage.LIVE || match.timing.stage === MatchStage.FINISHED) &&
+      (match.score.home_score === null || match.score.away_score === null || !match.score.score_verified))) {
+    
+    // 如果是未核验比分或分钟数缺失，直接降级为不可定价状态，不阻断流水线
+    const fallbackScoreHome = match.score.home_score ?? 0;
+    const fallbackScoreAway = match.score.away_score ?? 0;
+    
+    return {
+      elapsed_minute: match.timing.minute ?? 0,
+      remaining_minutes: 0,
+      is_stoppage_time_unpriceable: true,
+      time_decay_curve: PoissonDecayCurve.LINEAR_UNIFORM,
+      lambda_home_rest: 0.0,
+      lambda_away_rest: 0.0,
+      expected_goals_rest: 0.0,
+      lambda_source: 'FALLBACK',
+      top_final_scores: [{
+        home: fallbackScoreHome,
+        away: fallbackScoreAway,
+        probability: 1.0,
+        percentage_str: '100.0%'
+      }],
+      rest_score_matrix: {
+        prob_home_win_rest: 0.0,
+        prob_draw_rest: 1.0,
+        prob_away_win_rest: 0.0
+      },
+      projected_final_score: {
+        home: fallbackScoreHome,
+        away: fallbackScoreAway,
+        most_likely_score: `${fallbackScoreHome}-${fallbackScoreAway}`
+      }
+    };
   }
   const elapsedMinute = Math.min(90, Math.max(0, match.timing.minute ?? 0));
   const remainingMinutes = Math.max(0, 90 - elapsedMinute);

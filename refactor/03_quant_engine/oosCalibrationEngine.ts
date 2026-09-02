@@ -155,6 +155,21 @@ export function selectOosCalibrationProfile(
   market: OosMarket
 ): QuantCalibrationProfile | undefined {
   if (archive === undefined || archive.schema_version !== 1) return undefined;
+
+  // 严格在准入时强制校验赛事时间戳是否落入 OOS 档案的预测窗口内
+  const matchTimestamp = Date.parse(match.created_at);
+  const predictionStart = Date.parse(archive.prediction_window_start_at);
+  const predictionEnd = Date.parse(archive.prediction_window_end_at);
+  if (
+    !Number.isFinite(matchTimestamp) ||
+    !Number.isFinite(predictionStart) ||
+    !Number.isFinite(predictionEnd) ||
+    matchTimestamp < predictionStart ||
+    matchTimestamp > predictionEnd
+  ) {
+    return undefined; // 拒绝放行预测窗口之外的数据
+  }
+
   const band = minuteBand(match.timing.stage, match.timing.minute);
   const score = `${match.score.home_score}-${match.score.away_score}`;
   const candidates = archive.profiles.filter((profile) =>

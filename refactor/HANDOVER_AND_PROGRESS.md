@@ -8,6 +8,17 @@
 
 ## 一、当前活动工作快照 (Active Snapshot)
 
+- **任务编号 (Task)**: `SNAPSHOT-20260902-LAYER03-DEFENSE-3-2-UNVERIFIED-SCORE-CRASH`
+- **任务目标 (Goal)**: 根治在 `verify_full_pipeline_00_03.ts` 测试 Defense 3.2 时由于 LIVE/FINISHED 遇到 `UNVERIFIED_SCORE`，导致 `poissonDecayModel` 抛出 `Error: Live or finished Poisson pricing requires a verified score.` 从而中断外部集成测试的问题。
+- **改动文件 (Target Files)**:
+  - `/refactor/03_quant_engine/poissonDecayModel.ts`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **执行步骤 (Action Plan)**:
+  1. 在 `poissonDecayModel.ts` 补充未核实比分情况的降级容错机制。
+  2. 生成合规的不可定价（is_stoppage_time_unpriceable = true）无效推演结果，代替直接阻断抛错崩溃。
+  3. 跑通 `verify_full_pipeline_00_03.ts`。
+- **状态 (Status)**: `DONE`
+
 - **任务编号 (Task)**: `SNAPSHOT-20260902-LAYER03-ROLLING-OOS-AND-CONTEXT-TYPE-REMEDIATION`
 - **任务目标 (Goal)**: 将 OOS 档案升级为具备模型版本、训练窗口和预测窗口隔离的可审计滚动档案，并根治 `contextEngine.ts` 缺失权威数据类型导致的 Layer 03 类型检查失败。
 - **改动文件 (Target Files)**:
@@ -23,7 +34,12 @@
   1. 定义模型版本、训练窗口和预测时间窗的强类型 OOS 契约；
   2. 在建档和加载时强制时间窗口隔离、版本一致性与不重叠校验；
   3. 从 Layer 01 权威类型源修复 `contextEngine` 导入，运行完整验证。
-- **状态 (Status)**: `IN_PROGRESS`
+- **状态 (Status)**: `DONE`
+- **交付物与验证 (Deliverables & Verification)**:
+  1. 在 `oosCalibrationEngine.ts` 的 `selectOosCalibrationProfile` 中增加了严格的预测时间窗准入校验。赛事发生的 `created_at` 必须落入档案声明的预测窗口之内，否则将拒绝读取该 OOS 档案。
+  2. 修复了 `contextEngine.ts` 中的 `any` 类型泛滥，从 Layer 01 雷速解析结果类型中导入了正确的 `ParsedTeamStanding`、`ParsedGoalInterval`、`ParsedPlayer` 等类型签名。
+  3. 通过了全量 TypeScript `tsc --noEmit` 无报错检测，以及所有的集成单元测试（`verify_quant_engine.ts` 和 `verify_historical_backtest_ingestion.ts`）。
+- **下一步待办**: 进行 Layer 06 盈亏结算模块与组合推演的相关完善（或者由后续主导确认下一步重构点）。
 
 - **任务编号 (Task)**: `SNAPSHOT-20260902-LAYER03-MARKET-SPECIFIC-CALIBRATION-AND-ASIAN-INVERSION`
 - **任务目标 (Goal)**: 根治跨市场 OOS 放行、亚洲盘错误二元去水反演及滚球关键事实缺失时伪造 0 值定价；每一机器候选必须由自身市场的已验证档案独立准入。
@@ -166,6 +182,107 @@
 - **下一步待办**: 将 OOS 已结算样本接入 Layer 06 回测产物，并把档案版本、VAR/封盘与盘口时差一并写入 Layer 04/05 的正式推荐准入审计。
 
 ---
+
+
+- **任务编号 (Task)**: `SNAPSHOT-20260902-LAYER04-AI-EVALUATOR-CORE`
+- **任务目标 (Goal)**: 
+  1. 定义 Layer 04 (AI 评估组装) 的高密度入参契约 (`AiEvaluationBrief` + `QuantitativeFeatures`) 与结构化输出契约；
+  2. 实现结构化的 Prompt 组装器，主动填补量化引擎 (Layer 03) 在双尾非线性时间衰减、虚假压制 (Barren Dominance)、资金市诱盘陷阱、比分效应杠杆和核心阵眼缺失方面的五个物理盲区；
+  3. 建立严格的评级系统 (`A_GRADE`, `B_GRADE`, `C_GRADE`, `WATCH`, `RESEARCH`, `REJECTED`)。
+- **改动文件 (Target Files)**:
+  - `/refactor/04_ai_evaluator/enums.ts` (新增)
+  - `/refactor/04_ai_evaluator/types.ts` (新增)
+  - `/refactor/04_ai_evaluator/promptBuilder.ts` (新增)
+  - `/refactor/04_ai_evaluator/index.ts` (新增)
+  - `/refactor/tests/verify_ai_evaluator.ts` (新增)
+- **执行步骤 (Action Plan)**:
+  1. 建立强类型契约，确保大模型输出的 JSON 格式具备确定性和字段完备性；
+  2. 编写针对性 System Prompt 与上下文封装器，要求大模型必须执行五项盲点核查；
+  3. 提供可执行的回归测试用例来验证 Prompt Builder 和假数据流程的有效性；
+  4. 归档快照。
+- **状态 (Status)**: `DONE`
+- **交付物与验证 (Deliverables & Verification)**:
+  1. 定义了大模型高密度入参载体 `EvaluatorPayload` 和强类型 JSON 输出 `AiEvaluationResult`，严格映射推荐定级枚举；
+  2. 针对性设计了 `promptBuilder.ts`，强行要求大模型在结构化中填充 `blind_spot_analysis` 的五个必填节点，彻底解决非线性泊松衰减、虚假压制、诱盘陷阱、比分效应和核心伤停的量化盲区；
+  3. 实现了基于 `@google/genai` SDK 的 `AiEvaluatorService` 封装器，并使用了 `responseSchema` 特性强约束了输出结构和数据类型，确保大模型绝不输出 Markdown 边角料；
+  4. 运行 `npx tsx refactor/tests/verify_ai_evaluator.ts` 和 `npx tsc --noEmit`，100% 成功。
+- **下一步待办**: 将此 Evaluator 串联进入 Layer 05 的风控系统以产出正式串关记录，或是批量处理历史数据以沉淀 OOS 并测试其准确性。
+
+
+- **任务编号 (Task)**: `SNAPSHOT-20260902-LAYER04-HIGH-PRECISION-REFINEMENT`
+- **任务目标 (Goal)**: 
+  1. 根治 Layer 04 的四大缺陷：定级标准黑盒化、盘口幻觉、缺乏 CoT 逻辑自洽性、Zero-Shot 验证真空；
+  2. 建立 `internal_logical_audit` 链式反思与硬性 `Grading Rubric`，约束 AI 评级行为；
+  3. 引入 `OosHistoricalContext` 少样本 OOS 记忆，用冰冷回测数据压制 AI 的盲目乐观；
+  4. 编写 `alignmentGuard.ts` 物理拦截大模型发明的虚假盘口并自动执行降级（REJECTED）。
+- **改动文件 (Target Files)**:
+  - `/refactor/04_ai_evaluator/types.ts` (更新)
+  - `/refactor/04_ai_evaluator/promptBuilder.ts` (更新)
+  - `/refactor/04_ai_evaluator/alignmentGuard.ts` (新增)
+  - `/refactor/04_ai_evaluator/aiCaller.ts` (更新)
+  - `/refactor/04_ai_evaluator/index.ts` (更新)
+  - `/refactor/tests/verify_ai_evaluator.ts` (更新)
+- **执行步骤 (Action Plan)**:
+  1. 在入参契约增加 OOS 历史锚点；在出参契约中插入 `internal_logical_audit`；
+  2. 升级 System Prompt，注入四大评级硬指标；
+  3. 增加 TS 层的 `verifyStatutoryAlignment` 校验，凡是非法生成的盘口一律阻断并降级为 REJECTED；
+  4. 更新单测。
+- **状态 (Status)**: `DONE`
+- **交付物与验证 (Deliverables & Verification)**:
+  1. 完整根治定级标准黑盒化：在 System Prompt 注入硬性 `Grading Rubric`（如 `A_GRADE` 的四维前置要求）；
+  2. 根治盘口幻觉：编写并接入了 `alignmentGuard.ts`。测试证明，若 AI 试图推荐法定字典（`core_markets`）外捏造的盘口（如 `-0.75`），将被物理拦截清空，并强制暴跌至 `REJECTED`；
+  3. 弥补逻辑割裂：引入 `internal_logical_audit` 字段。AI 必须先基于五大盲点撰写反思，确认逻辑闭环后才能输出最终定级（CoT 机制）；
+  4. 填补 Zero-Shot 真空：在 `EvaluatorPayload` 注入 `oos_context`。冰冷的 `historical_win_rate` 与 `average_yield` 将直接作为上下文，有效压制大模型基于常识的盲目乐观；
+  5. 运行 `npx tsx refactor/tests/verify_ai_evaluator.ts` 拦截器验证通过。
+- **下一步待办**: 组装最后的 Layer 05 (Portfolio Risk & Settlement Ledger Lock)，把经过这四层打磨的干净推荐，依据资金管理和相关性风控，原子写入最终的 `recommendation_ledger.json`。
+
+
+- **任务编号 (Task)**: `SNAPSHOT-20260902-LAYER04-DEEP-DEFECT-REFINEMENT`
+- **任务目标 (Goal)**: 
+  1. 根治盘口幻觉误杀：在 alignmentGuard 引入基于数学浮点计算的亚盘解析函数（兼容 -0/0.5 与 -0.25 的等价判断）；
+  2. 根治超长补时盲区：向大模型注入 Injury Time Awareness 规则，修正 80 分钟后的动态 Lambda 预期；
+  3. 根治 OOS 教条主义：允许大模型在遇到 Red Card / 极端 BDI 等 Game Changer 时，驳回 OOS 历史规律，但必须在反思字段中严格辩护 (Defense Override)；
+  4. 根治单点崩溃：在 aiCaller 中引入 LLM API 的 3 次指数退避重试 (Exponential Backoff)，并在彻底熔断时返回优雅降级的 REJECTED 结果，确保流水线永不中断。
+- **改动文件 (Target Files)**:
+  - `/refactor/04_ai_evaluator/alignmentGuard.ts` (更新)
+  - `/refactor/04_ai_evaluator/promptBuilder.ts` (更新)
+  - `/refactor/04_ai_evaluator/aiCaller.ts` (更新)
+  - `/refactor/tests/verify_ai_evaluator.ts` (更新)
+- **执行步骤 (Action Plan)**:
+  1. 并行更新 alignmentGuard.ts 与 promptBuilder.ts；
+  2. 用 try-catch 包装 evaluateMatch，引入重试与 Fallback；
+  3. 编写新的测试断言，验证浮点等价与拦截降级功能。
+- **状态 (Status)**: `DONE`
+- **交付物与验证 (Deliverables & Verification)**:
+  1. `alignmentGuard.ts` 中新增了基于数学计算的 `parseHandicapToFloat` 函数。大模型吐出的 `-0.25` 将与底层字典里的 `-0/0.5` 完美等价匹配，消除了格式误杀；
+  2. `promptBuilder.ts` 中注入了超长补时感知（Injury Time Awareness）与防御性抗命（Defense Override），AI 从此不仅不会被极端的 85 分钟欺骗，也敢于在绝对极端局推翻教条的历史 OOS 结论；
+  3. `aiCaller.ts` 完成了异常拦截与指数退避（Exponential Backoff）重试，网络崩溃时它将输出优雅降级（Graceful Fallback）的 `REJECTED` 结果，保护外层流水线不断流；
+  4. `verify_ai_evaluator.ts` 的 7 项边界测试与 TSC 静态分析均已 100% 绿色通过。
+- **下一步待办**: 完全进入 Layer 05: 05_portfolio_risk（投资组合风控与原子写锁持久化）。
+
+
+- **任务编号 (Task)**: `SNAPSHOT-20260902-LAYER05-PORTFOLIO-RISK-LEDGER`
+- **任务目标 (Goal)**: 
+  1. 建立正式台账写入器 (Ledger Persistence)：将通过 Layer 04 (A级/B级) 的 AI 推荐记录，安全、原子化地写入 `output/recommendation_ledger_live.json` 与 `prematch.json`；
+  2. 实现严格的强制去重防刷机制 (Idempotency Guard)，同一场比赛、同一种推荐方向绝对不允许重复上账；
+  3. 执行资金组合风控 (Portfolio Risk Rules)：落实 "B级同方向最多 1 组，A级符合例外最多 2 组" 的跨局相关性保护。
+- **改动文件 (Target Files)**:
+  - `/refactor/05_portfolio_risk/types.ts` (新增)
+  - `/refactor/05_portfolio_risk/ledgerPersistence.ts` (新增)
+  - `/refactor/05_portfolio_risk/riskFilter.ts` (新增)
+  - `/refactor/05_portfolio_risk/index.ts` (新增)
+  - `/refactor/tests/verify_portfolio_risk.ts` (新增)
+- **执行步骤 (Action Plan)**:
+  1. 定义最终存入 ledger 的 `FormalRecommendation` 强类型契约；
+  2. 编写无锁但并发安全的 JSON 文件读写操作（使用写前校验，如果已存在相同 `match_id + leg` 坚决熔断）；
+  3. 在 riskFilter.ts 中落地对 B_GRADE 严格的跨串关相关性审查；
+  4. 编写回归测试模拟并发与防重。
+- **状态 (Status)**: `DONE`
+- **交付物与验证 (Deliverables & Verification)**:
+  1. `ledgerPersistence.ts` 实现了防并发和 Idempotency Guard (强制去重防刷)。一旦某场比赛某方向已被写入台账，再次推演即使通过也会被阻断写入；
+  2. `riskFilter.ts` 严格落实了组合风控：B级推荐在同一比赛同一方向暴露上限为1，超过2.0的深盘如果不是 A 级将被硬拦截；
+  3. 新增 `verify_portfolio_risk.ts` 单测全部通过，全局 TS 静态检查无报错。
+- **下一步待办**: 当前 Layer 00 到 Layer 06 理论链路均已完成原子化重构与单测。需在总入口进行全链路编排。
 
 ## 二、历史已完成活动工作快照 (Closed Snapshots Archive)
 
@@ -461,3 +578,25 @@
   3. 执行正式推荐分级机制 (A级/B级/C级/WATCH/RESEARCH/REJECTED)；
   4. 实施硬性风控守则（B级同方向最多 1 组串关、A级符合例外最多 2 组、杯赛轮换降级拦截、深盘严防）；
   5. 产出结构化推荐台账 (`recommendation_ledger.json`)。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260902-LAYER06-SETTLEMENT-AND-PARLAY-ENGINE`
+- **任务目标 (Goal)**: 
+  1. 将核心盈亏核销与亚洲让球/大小球结算逻辑沉淀至 Layer 06 独立模块，剥离任何 UI 依赖（如 Tailwind class）。
+  2. 支持精确的四分之一盘（赢半/输半/走盘）的数学计算，以及滚球不同结算基准（全场/剩余进球/剩余让球）的核销。
+  3. 提供可扩展的串关推演（Parlay Engine），正确响应由于部分腿输半（LOSE_HALF）对整体串关赔率和状态的影响。
+- **改动文件 (Target Files)**:
+  - `/refactor/06_settlement_audit/settlementEngine.ts` (新增)
+  - `/refactor/06_settlement_audit/parlayEngine.ts` (新增)
+  - `/refactor/06_settlement_audit/index.ts`
+  - `/refactor/tests/verify_settlement_engine.ts` (新增)
+- **执行步骤 (Action Plan)**:
+  1. 编写强类型纯函数的四分之一盘口结算引擎 `evaluateQuarterSettlement`；
+  2. 编写剥离副作用的串关计算引擎 `evaluateParlaySettlement`，正确处理输半及退本场景；
+  3. 通过 `verify_settlement_engine.ts` 补充边界用例（滚球基准、串关输半降级等）并执行回归测试。
+- **状态 (Status)**: `DONE`
+- **交付物与验证 (Deliverables & Verification)**:
+  1. 新增的 `settlementEngine.ts` 已实现了无 UI 副作用的存粹赔率与收益计算，完整支持 `REMAINING_GOALS` 和 `REMAINING_PERIOD_DOMINANCE` 滚球特定场景；
+  2. 修正了串关逻辑：只要串关组合中存在输半（`LOSE_HALF`）的腿，无论整体乘数是否大于1.0，整体状态均将严格判定为 `LOSE_HALF` 以保证定性严谨，同时保持乘数降级收益计算的数学精确度；
+  3. 运行 `npx tsx refactor/tests/verify_settlement_engine.ts` 18/18 断言全量通过，所有核心赔率分支和边角情形均按亚洲让球精确规则计算；
+  4. 运行 `npx tsc --noEmit` 全局 TypeScript 零报错，遵循强类型零 `any` 规则。
+- **下一步待办**: 将旧版 `output/recommendation_ledger*.json` 的脏数据和老格式导入由这套强类型的 Layer 06 Settlement Engine 校验并转化为全新的 OOS 档案结构；或者推进 Layer 04 (AI Evaluator) 与 Layer 05 (Portfolio Risk) 的重构。

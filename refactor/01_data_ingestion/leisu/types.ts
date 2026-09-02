@@ -266,6 +266,10 @@ export interface LeisuRawRecentMatch {
   fulltime_score?: { home?: number | null; away?: number | null } | null;
   result?: string | null;
   goals?: number | null;
+  competition_name?: string | null;
+  competition?: string | null;
+  handicap_trend?: { result?: string | null } | null;
+  goals_trend?: { result?: string | null } | null;
 }
 
 export interface LeisuRawRecentMatches {
