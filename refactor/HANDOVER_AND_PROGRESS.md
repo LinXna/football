@@ -634,6 +634,16 @@
 - [ ] **第 5 步：实现【06 结算核销与回测引擎】**
 - [ ] **第 6 步：全链路端到端集成、历史回测验证与全量替换**
 
+- **任务编号 (Task)**: `SNAPSHOT-20260902-LAYER04-PROMPT-EXPORTER-DATA-BINDING`
+- **任务目标 (Goal)**: 
+  1. 修复 `promptExporter.ts` 中写死的中文占位符，将 Layer 03 量化引擎计算出的真实数据（近期战绩、动量积分、身价 LIS 折损等）动态注入给大模型。
+  2. 修复副盘 EV 矩阵未传递给 AI 的致命问题，将 `quant_features.devig` (包含 `spread_secondary_ev` 等) 完整传递给 AI。
+  3. 修复 `ReferenceError: compressedAiBrief is not defined` 运行时错误。
+- **改动文件 (Target Files)**:
+  - `/refactor/04_ai_evaluator/promptExporter.ts`
+  - `/refactor/04_ai_evaluator/types.ts`
+- **状态 (Status)**: `DONE`
+
 ---
 
 ## 三、下一步工作规划 (Next Step Blueprint)

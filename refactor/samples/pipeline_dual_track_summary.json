@@ -1,9 +1,9 @@
 {
-  "test_timestamp": "2026-09-02T08:46:36.282Z",
+  "test_timestamp": "2026-09-02T22:38:35.872Z",
   "live_pathway": {
     "total_matches": 6,
     "aligned_count": 6,
-    "execution_duration_ms": 1188.438604,
+    "execution_duration_ms": 1258.301227,
     "screening_distribution": {
       "WATCH": 0,
       "RESEARCH": 5,
@@ -13,7 +13,7 @@
   },
   "prematch_pathway": {
     "total_matches": 2,
-    "execution_duration_ms": 3.7941339999999855,
+    "execution_duration_ms": 15.507031999999981,
     "screening_distribution": {
       "WATCH": 0,
       "RESEARCH": 0,

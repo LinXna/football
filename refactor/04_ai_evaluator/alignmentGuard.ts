@@ -46,11 +46,11 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
 
   for (const leg of result.recommended_legs) {
     let isValid = false;
-    const aiLine = parseHandicapToFloat(leg.line);
+    const aiLine = parseHandicapToFloat(leg.selected_line);
 
     if (aiLine === null) {
       hasHallucination = true;
-      hallucinationReason = `AI generated unparseable line: ${leg.line}`;
+      hallucinationReason = `AI generated unparseable line: ${leg.selected_line}`;
       break;
     }
 
@@ -60,8 +60,8 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
       
       if (statLine !== null && Math.abs(aiLine - statLine) < 0.001) {
         if (
-          (leg.direction === 'HOME' && Math.abs(leg.odds - sm.home_odds) < 0.02) ||
-          (leg.direction === 'AWAY' && Math.abs(leg.odds - sm.away_odds) < 0.02)
+          (leg.direction === 'HOME' && Math.abs(leg.current_odds - sm.home_odds) < 0.02) ||
+          (leg.direction === 'AWAY' && Math.abs(leg.current_odds - sm.away_odds) < 0.02)
         ) {
           isValid = true;
         }
@@ -72,8 +72,8 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
       
       if (statLine !== null && Math.abs(aiLine - statLine) < 0.001) {
         if (
-          (leg.direction === 'OVER' && Math.abs(leg.odds - sm.over_odds) < 0.02) ||
-          (leg.direction === 'UNDER' && Math.abs(leg.odds - sm.under_odds) < 0.02)
+          (leg.direction === 'OVER' && Math.abs(leg.current_odds - sm.over_odds) < 0.02) ||
+          (leg.direction === 'UNDER' && Math.abs(leg.current_odds - sm.under_odds) < 0.02)
         ) {
           isValid = true;
         }
@@ -82,7 +82,7 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
 
     if (!isValid) {
       hasHallucination = true;
-      hallucinationReason = `AI Hallucinated Leg: Market=${leg.market}, Dir=${leg.direction}, Line=${leg.line}, Odds=${leg.odds}. Not found in statutory payload or odds mismatched.`;
+      hallucinationReason = `AI Hallucinated Leg: Market=${leg.market}, Dir=${leg.direction}, Line=${leg.selected_line}, Odds=${leg.current_odds}, MAO=${leg.minimum_acceptable_odds}. Not found in statutory payload or odds mismatched.`;
       break;
     }
   }

@@ -1,30 +1,32 @@
-import { EvaluatorPayload } from './types.js';
+const fs = require('fs');
+
+const content = `import { EvaluatorPayload } from './types.js';
 
 export function buildSystemPrompt(mode: 'live_eval' | 'prematch_eval' | 'parlay_check' = 'live_eval'): string {
   let modeSpecificRules = '';
   
   if (mode === 'live_eval') {
-    modeSpecificRules = `=== LIVE EVALUATION FOCUS ===
+    modeSpecificRules = \`=== LIVE EVALUATION FOCUS ===
 1. Tactical Phase Transitions: Read the 'match_narrative' (Interval DA & Momentum). Do NOT rely on cumulative stats alone. Look for recent shifts in momentum slope and DA increments.
 2. Barren Dominance: Differentiate genuine scoring threat from fake possession (useless crosses).
 3. Score Effects & Settlement Reality (CRITICAL): Assess how the scoreline impacts motivation (e.g., a team up 3:0 may drop into a low block).
    **WARNING**: Asian Handicaps apply ONLY to the remainder of the match. You MUST evaluate live AH as if the current score is 0:0.
-   **WARNING**: TOTAL GOALS (Over/Under) are ALWAYS settled on the FULL MATCH score. Do NOT reset to 0:0 for Totals.`;
+   **WARNING**: TOTAL GOALS (Over/Under) are ALWAYS settled on the FULL MATCH score. Do NOT reset to 0:0 for Totals.\`;
   } else if (mode === 'prematch_eval') {
-    modeSpecificRules = `=== PREMATCH EVALUATION FOCUS ===
+    modeSpecificRules = \`=== PREMATCH EVALUATION FOCUS ===
 1. Market Traps: Identify if high EV is genuine value or a bookmaker trap (e.g. suspiciously deep line).
 2. Lineup & Motivation Asymmetry (LIS): Evaluate the 'lineup_value_matrix'. Look at Positional Value (EUR) to determine true intent.
-3. Cold/Hot Streaks & Regression: Use the 'team_profiling' semantic summaries (Playstyle & Market Performance) to find regression.`;
+3. Cold/Hot Streaks & Regression: Use the 'team_profiling' semantic summaries (Playstyle & Market Performance) to find regression.\`;
   } else if (mode === 'parlay_check') {
-    modeSpecificRules = `=== PARLAY / ACCUMULATOR RISK FOCUS ===
+    modeSpecificRules = \`=== PARLAY / ACCUMULATOR RISK FOCUS ===
 1. Structural Isomorphism Risk: Are these matches from the same league, same round, or played simultaneously? Be strict.
-2. EV Stacking Requirement: Parlays multiply bookmaker margins. You MUST only select the absolute highest +EV legs (A_GRADE).`;
+2. EV Stacking Requirement: Parlays multiply bookmaker margins. You MUST only select the absolute highest +EV legs (A_GRADE).\`;
   }
 
-  return `You are a world-class Quantitative Football Analyst and Risk Manager.
+  return \`You are a world-class Quantitative Football Analyst and Risk Manager.
 Your role is to evaluate a match using provided contextual data, quantitative features, and optional historical Out-of-Sample (OOS) context.
 
-${modeSpecificRules}
+\${modeSpecificRules}
 
 === LOGICAL AUDIT & GRADING RUBRIC ===
 After analyzing the blind spots, you MUST write an 'internal_logical_audit' summarizing how the blind spots support your final decision. You must strictly adhere to the following Grading Rubric:
@@ -40,9 +42,9 @@ After analyzing the blind spots, you MUST write an 'internal_logical_audit' summ
 3. No Double-Counting Stoppage Time: The 'expected_remaining_minutes' ALREADY includes injury time derived from mathematical models. Do NOT manually add stoppage time.
 
 === MARKET SCANNING & MAO ENFORCEMENT ===
-You are provided comprehensive expected value calculations in 'quant_features.devig' (including spread_main_ev, spread_secondary_ev, total_main_ev, total_secondary_ev). Do NOT anchor to just the main line. You must:
+You are provided an 'available_markets' matrix. Do NOT anchor to just the main line. You must:
 1. Determine the expected match flow (Goal Difference or Total Goals).
-2. Scan ALL available main and secondary lines in 'quant_features.devig'.
+2. Scan ALL available lines in 'available_markets'.
 3. Select the single most valuable line (Highest Risk-Adjusted EV) as your 'selected_line'.
 4. Output the 'minimum_acceptable_odds' (MAO) for this line to protect against price slippage.
 
@@ -71,9 +73,13 @@ You must return a valid JSON object matching the following structure EXACTLY:
     }
   ]
 }
-DO NOT wrap the JSON in Markdown formatting blocks. Output RAW JSON ONLY.`;
+DO NOT wrap the JSON in Markdown formatting blocks. Output RAW JSON ONLY.\`;
 }
 
 export function buildUserPrompt(payload: EvaluatorPayload): string {
   return JSON.stringify(payload, null, 2);
 }
+`;
+
+fs.writeFileSync('refactor/04_ai_evaluator/promptBuilder.ts', content);
+console.log("Done updating promptBuilder.ts");

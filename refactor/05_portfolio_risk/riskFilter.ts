@@ -53,9 +53,9 @@ export function applyPortfolioRiskFilters(context: RiskFilterContext): RiskFilte
     // Rule 3: Deep spread strict rejection (e.g. -2.5 requires A_GRADE, else block)
     // ONLY applies to ASIAN_HANDICAP markets, NOT TOTAL_GOALS!
     if (leg.market.includes('ASIAN_HANDICAP')) {
-      const lineFloat = parseFloat(String(leg.line).replace(/[-+\s]/g, '').split('/')[0] || '0');
+      const lineFloat = parseFloat(String(leg.selected_line).replace(/[-+\s]/g, '').split('/')[0] || '0');
       if (lineFloat >= 2.0 && incoming_evaluation.grade !== RecommendationGrade.A_GRADE) {
-        console.warn(`[RiskFilter] Rejecting leg. Match ${incoming_evaluation.match_id}. Deep spread (${leg.line}) requires A_GRADE.`);
+        console.warn(`[RiskFilter] Rejecting leg. Match ${incoming_evaluation.match_id}. Deep spread (${leg.selected_line}) requires A_GRADE.`);
         continue;
       }
     }

@@ -10,25 +10,40 @@ export interface OosHistoricalContext {
 }
 
 export interface EvaluatorPayload {
-  ai_brief: AiEvaluationBrief;
-  quant_features: QuantitativeFeatures;
-  oos_context?: OosHistoricalContext; // Added: Few-Shot OOS Context Memory
+  ai_brief: Partial<AiEvaluationBrief>;
+  time_context: {
+    statutory_minute: string;
+    expected_remaining_minutes_including_stoppage: number;
+  };
+  tactical_phase_transitions: string[];
+  lineup_value_matrix: any;
+  team_profiling: any;
+  quant_features: {
+    devig: any;
+    bdi: number;
+    ev_signals: any[];
+    risk_flags: any[];
+    goal_alert: string;
+    confidence: number;
+  };
+  oos_context?: OosHistoricalContext;
 }
 
 export interface RecommendedLeg {
-  market: OosMarket;
-  line: string;
-  odds: number;
-  direction: 'HOME' | 'AWAY' | 'OVER' | 'UNDER';
-  basis: string; // The reason for this specific bet
+  market: string;
+  selected_line: string;
+  current_odds: number;
+  minimum_acceptable_odds: number;
+  direction: 'HOME' | 'AWAY' | 'OVER' | 'UNDER' | 'DRAW' | 'NONE';
+  basis: string;
 }
 
 export interface BlindSpotChecklist {
-  late_game_intent_multiplier: string; 
+  "1_global_motivation": string;
+  "2_asian_handicap_reality": string;
+  "3_total_goals_reality": string;
   tactical_regime_evaluation: TacticalRegimeEvaluation;
   trap_detection_result: TrapDetectionResult;
-  score_effect_leverage: string;
-  lineup_criticality_assessment: string;
 }
 
 export interface AiEvaluationResult {

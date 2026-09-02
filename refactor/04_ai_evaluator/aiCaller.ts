@@ -19,16 +19,13 @@ export class AiEvaluatorService {
     return {
       type: Type.OBJECT,
       properties: {
-        blind_spot_analysis: {
-          type: Type.OBJECT,
-          properties: {
-            late_game_intent_multiplier: { type: Type.STRING },
+            "1_global_motivation": { type: Type.STRING },
+            "2_asian_handicap_reality": { type: Type.STRING },
+            "3_total_goals_reality": { type: Type.STRING },
             tactical_regime_evaluation: { type: Type.STRING, enum: ['GENUINE_DOMINANCE', 'BARREN_DOMINANCE', 'RECIPROCAL_CHAOS', 'TACTICAL_STALEMATE'] },
-            trap_detection_result: { type: Type.STRING, enum: ['SAFE_VALUE', 'POTENTIAL_TRAP', 'CONFIRMED_TRAP', 'UNCERTAIN'] },
-            score_effect_leverage: { type: Type.STRING },
-            lineup_criticality_assessment: { type: Type.STRING }
+            trap_detection_result: { type: Type.STRING, enum: ['SAFE_VALUE', 'POTENTIAL_TRAP', 'CONFIRMED_TRAP', 'UNCERTAIN'] }
           },
-          required: ['late_game_intent_multiplier', 'tactical_regime_evaluation', 'trap_detection_result', 'score_effect_leverage', 'lineup_criticality_assessment']
+          required: ['1_global_motivation', '2_asian_handicap_reality', '3_total_goals_reality', 'tactical_regime_evaluation', 'trap_detection_result']
         },
         internal_logical_audit: { type: Type.STRING },
         grade: { type: Type.STRING, enum: ['A_GRADE', 'B_GRADE', 'C_GRADE', 'WATCH', 'RESEARCH', 'REJECTED'] },
@@ -43,14 +40,16 @@ export class AiEvaluatorService {
           items: {
             type: Type.OBJECT,
             properties: {
-              market: { type: Type.STRING, enum: ['ASIAN_HANDICAP_MAIN', 'TOTAL_GOALS_MAIN'] },
-              line: { type: Type.STRING },
-              odds: { type: Type.NUMBER },
-              direction: { type: Type.STRING, enum: ['HOME', 'AWAY', 'OVER', 'UNDER'] },
+              market: { type: Type.STRING, enum: ['ASIAN_HANDICAP_MAIN', 'TOTAL_GOALS_MAIN', 'EURO_1X2'] },
+              selected_line: { type: Type.STRING },
+              current_odds: { type: Type.NUMBER },
+              minimum_acceptable_odds: { type: Type.NUMBER },
+              direction: { type: Type.STRING, enum: ['HOME', 'AWAY', 'OVER', 'UNDER', 'DRAW', 'NONE'] },
               basis: { type: Type.STRING }
             },
-            required: ['market', 'line', 'odds', 'direction', 'basis']
+            required: ['market', 'selected_line', 'current_odds', 'minimum_acceptable_odds', 'direction', 'basis']
           }
+        }
         }
       },
       required: ['blind_spot_analysis', 'internal_logical_audit', 'grade', 'confidence_score', 'qualitative_summary', 'risk_warnings', 'recommended_legs']
@@ -116,11 +115,11 @@ export class AiEvaluatorService {
       match_id: payload.ai_brief.match_id,
       evaluation_time: new Date().toISOString(),
       blind_spot_analysis: {
-        late_game_intent_multiplier: 'FALLBACK',
+        "1_global_motivation": 'FALLBACK',
+        "2_asian_handicap_reality": 'FALLBACK',
+        "3_total_goals_reality": 'FALLBACK',
         tactical_regime_evaluation: TacticalRegimeEvaluation.TACTICAL_STALEMATE,
-        trap_detection_result: TrapDetectionResult.UNCERTAIN,
-        score_effect_leverage: 'FALLBACK',
-        lineup_criticality_assessment: 'FALLBACK'
+        trap_detection_result: TrapDetectionResult.UNCERTAIN
       },
       internal_logical_audit: 'API request failed completely, fallback triggered.',
       grade: RecommendationGrade.REJECTED,

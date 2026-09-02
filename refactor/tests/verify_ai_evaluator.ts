@@ -66,11 +66,11 @@ const validAiResult: AiEvaluationResult = {
   match_id: '12345',
   evaluation_time: new Date().toISOString(),
   blind_spot_analysis: {
-    late_game_intent_multiplier: "...",
+    "1_global_motivation": "...",
+    "2_asian_handicap_reality": "...",
+    "3_total_goals_reality": "...",
     tactical_regime_evaluation: TacticalRegimeEvaluation.BARREN_DOMINANCE,
-    trap_detection_result: TrapDetectionResult.POTENTIAL_TRAP,
-    score_effect_leverage: "...",
-    lineup_criticality_assessment: "..."
+    trap_detection_result: TrapDetectionResult.POTENTIAL_TRAP
   },
   internal_logical_audit: "...",
   grade: RecommendationGrade.B_GRADE,
@@ -80,8 +80,9 @@ const validAiResult: AiEvaluationResult = {
   recommended_legs: [
     {
       market: 'ASIAN_HANDICAP_MAIN',
-      line: '-0.25', // -0.25 must be equivalent to statutory -0/0.5
-      odds: 1.85,  
+      selected_line: '-0.25', // -0.25 must be equivalent to statutory -0/0.5
+      current_odds: 1.85,
+      minimum_acceptable_odds: 1.70,  
       direction: 'AWAY',
       basis: '...'
     }

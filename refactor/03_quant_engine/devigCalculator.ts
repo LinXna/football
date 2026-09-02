@@ -451,15 +451,16 @@ export function calculateDeviggedMarketFeatures(
   if (spreadMarket && spreadMarket.home_selection && spreadMarket.home_odds && spreadMarket.away_odds) {
     spreadMain = calculateAsianHandicapEV(spreadMarket.home_selection, spreadMarket.home_odds, spreadMarket.away_odds, poisson);
   } else {
-    spreadMain = {
-      line: '0.0',
-      home_odds: 1.95,
-      away_odds: 1.95,
-      home_ev: 0.0,
-      away_ev: 0.0,
-      preferred_side: 'none',
-      is_positive_ev: false
-    };
+    spreadMain = { line: '0.0', home_odds: 1.95, away_odds: 1.95, home_ev: 0.0, away_ev: 0.0, preferred_side: 'none', is_positive_ev: false };
+  }
+
+  const spreadSecondaryEV: SpreadEVAssessment[] = [];
+  if (match.markets?.full_spread_subs) {
+    for (const sub of match.markets.full_spread_subs) {
+      if (sub.home_selection && sub.home_odds && sub.away_odds) {
+        spreadSecondaryEV.push(calculateAsianHandicapEV(sub.home_selection, sub.home_odds, sub.away_odds, poisson));
+      }
+    }
   }
 
   // 3. 大小球盘 EV
@@ -469,15 +470,16 @@ export function calculateDeviggedMarketFeatures(
   if (totalMarket && totalMarket.line && totalMarket.over_odds && totalMarket.under_odds) {
     totalMain = calculateTotalGoalsEV(totalMarket.line, totalMarket.over_odds, totalMarket.under_odds, currentTotal, poisson);
   } else {
-    totalMain = {
-      line: '2.5',
-      over_odds: 1.95,
-      under_odds: 1.95,
-      over_ev: 0.0,
-      under_ev: 0.0,
-      preferred_side: 'none',
-      is_positive_ev: false
-    };
+    totalMain = { line: '2.5', over_odds: 1.95, under_odds: 1.95, over_ev: 0.0, under_ev: 0.0, preferred_side: 'none', is_positive_ev: false };
+  }
+
+  const totalSecondaryEV: TotalEVAssessment[] = [];
+  if (match.markets?.full_total_subs) {
+    for (const sub of match.markets.full_total_subs) {
+      if (sub.line && sub.over_odds && sub.under_odds) {
+        totalSecondaryEV.push(calculateTotalGoalsEV(sub.line, sub.over_odds, sub.under_odds, currentTotal, poisson));
+      }
+    }
   }
 
   // 4. 机构姿态识别
@@ -500,9 +502,9 @@ export function calculateDeviggedMarketFeatures(
   return Object.freeze({
     h2h_devig: h2hDevig,
     spread_main_ev: spreadMain,
-    spread_secondary_ev: [],
+    spread_secondary_ev: spreadSecondaryEV,
     total_main_ev: totalMain,
-    total_secondary_ev: [],
+    total_secondary_ev: totalSecondaryEV,
     line_dispersion: {
       spread_variance: 0.0,
       total_variance: 0.0
