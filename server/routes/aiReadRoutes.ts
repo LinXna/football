@@ -65,36 +65,25 @@ export function registerAiEvaluationMutationRoutes(app: express.Express): void {
 export function registerAiPromptExportRoutes(app: express.Express, buildPromptData: (body: any, isExportPrompt?: boolean) => any): void {
   app.post('/api/ai/export-prompt', async (req, res) => {
     try {
-      const { match_name, batch_matches } = req.body || {};
-      const filterMatchNames: string[] = [];
-      if (Array.isArray(batch_matches)) {
-         filterMatchNames.push(...batch_matches.map((m: any) => m.match || m.match_info?.match));
-      } else if (match_name) {
-         filterMatchNames.push(match_name);
+      const { canonical_matches, mode = 'live_eval' } = req.body || {};
+      
+      if (!Array.isArray(canonical_matches) || canonical_matches.length === 0) {
+        return res.status(400).json({ error: 'No matches provided' });
       }
 
-      // 采用重构版 (Refactored Layer 01~04) 的导出逻辑
       const { generateRefactoredPrompt } = await import('../../refactor/04_ai_evaluator/promptExporter.js');
-      const { finalPrompt, matchCount } = generateRefactoredPrompt(filterMatchNames.filter(Boolean));
-
-      const fs = await import('fs');
-      const path = await import('path');
-      const outputDir = path.join(process.cwd(), 'output');
-      if (!fs.existsSync(outputDir)) {
-        fs.mkdirSync(outputDir, { recursive: true });
-      }
-      fs.writeFileSync(path.join(outputDir, 'refactored_prompt_export.txt'), finalPrompt, 'utf-8');
+      const { finalPrompt, matchCount } = generateRefactoredPrompt(canonical_matches, mode);
 
       res.json({
         success: true,
-        mode: 'batch',
+        mode: mode,
         prompt_style: 'standard',
         standard_prompts: [finalPrompt],
         match_count: matchCount,
         prompt_count: 1,
         prompts: [finalPrompt],
         combined_prompt: finalPrompt,
-        instructions: `（已自动切换至新版量化架构）共 ${matchCount} 场赛事。请一键复制以下 Prompt 并在网页版大模型中执行。`
+        instructions: `（已自动切换至${mode === 'live_eval' ? '滚球' : mode === 'prematch_eval' ? '赛前' : '串关'}专属规则）共 ${matchCount} 场赛事。请一键复制以下 Prompt 并在网页版大模型中执行。`
       });
     } catch (error: any) {
       console.error('Failed to export refactored prompt:', error);
