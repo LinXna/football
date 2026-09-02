@@ -63,40 +63,41 @@ export function registerAiEvaluationMutationRoutes(app: express.Express): void {
 }
 
 export function registerAiPromptExportRoutes(app: express.Express, buildPromptData: (body: any, isExportPrompt?: boolean) => any): void {
-  app.post('/api/ai/export-prompt', (req, res) => {
+  app.post('/api/ai/export-prompt', async (req, res) => {
     try {
-      const promptData = buildPromptData(req.body, true);
-      const rawPrompts = promptData.prompts;
-      const segmentCount = rawPrompts.length;
-      const matchManifest = Array.isArray(promptData.parlayCandidates) && promptData.parlayCandidates.length > 0
-        ? promptData.parlayCandidates.map((item: any) => item.match_info?.match || item.match || `${item.ybty_home || ''} vs ${item.ybty_away || ''}`)
-        : Array.isArray(promptData.evaluationData)
-          ? promptData.evaluationData.map((item: any) => item.match_info?.match || item.match || `${item.match_info?.ybty_home || item.ybty_home || ''} vs ${item.match_info?.ybty_away || item.ybty_away || ''}`)
-          : [];
-      const deliveryPrompts = promptData.mode === 'parlay_check' || segmentCount <= 1
-        ? rawPrompts
-        : rawPrompts.map((prompt: string, index: number) => index < segmentCount - 1
-          ? `[Segment Evaluation ${index + 1}/${segmentCount}]\nPlease evaluate this segment fully and output the complete JSON for this segment. Do not respond with "Received". After output, retain this structured result in the conversation for the next segment; the final merge should use these smaller JSON results without re-reading the original long data.\n\n${prompt}\n\n[End of Segment Control · Highest Priority] Now output the full JSON for all matches in this segment, each must include all 5 core market assessments. Verify markets against the YBTY whitelist provided above; do not output any line or odds outside the whitelist.`
-          : `[Segment Evaluation ${index + 1}/${segmentCount} · Final Segment]\nFirst fully evaluate this segment; then merge the previously output JSON results from segments 1 to ${index} with the current segment results directly.\n\n${prompt}\n\n[Final Merge Control · Highest Priority]\nDo not re-summarize or use placeholder objects for prior results; retain the exact 5 core market assessments for each prior match, then add the current segment results. The final output must contain exactly ${promptData.match_count} matches objects, covering: ${JSON.stringify(matchManifest)}. Any match with fewer than 5 market assessments is considered incomplete. Output a single valid merged JSON.`);
-      const combinedPrompt = segmentCount > 1
-        ? `[Segment Reading Instruction]\nThe following ${segmentCount} data segments belong to the same evaluation task. Please read them in order from segment 1 to ${segmentCount}; do not answer prematurely when you see "Next data segment". After reading everything, return only one merged final JSON. Matches must cover all matches from all segments; do not return separate JSONs for each segment.\n\n${promptData.prompts.map((prompt: string, index: number) => `==================== [ Data Segment ${index + 1}/${segmentCount} Start ] ====================\n${prompt}\n==================== [ Data Segment ${index + 1}/${segmentCount} End ] ====================`).join('\n\n==================== [ Next data segment, please continue reading, do not answer ] ====================\n\n')}\n\n[All Data Segments End] Now perform a unified analysis and output only one merged JSON.`
-        : promptData.prompts[0] || '';
+      const { match_name, batch_matches } = req.body || {};
+      const filterMatchNames: string[] = [];
+      if (Array.isArray(batch_matches)) {
+         filterMatchNames.push(...batch_matches.map((m: any) => m.match || m.match_info?.match));
+      } else if (match_name) {
+         filterMatchNames.push(match_name);
+      }
+
+      // 采用重构版 (Refactored Layer 01~04) 的导出逻辑
+      const { generateRefactoredPrompt } = await import('../../refactor/04_ai_evaluator/promptExporter.js');
+      const { finalPrompt, matchCount } = generateRefactoredPrompt(filterMatchNames.filter(Boolean));
+
+      const fs = await import('fs');
+      const path = await import('path');
+      const outputDir = path.join(process.cwd(), 'output');
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
+      fs.writeFileSync(path.join(outputDir, 'refactored_prompt_export.txt'), finalPrompt, 'utf-8');
+
       res.json({
         success: true,
-        mode: promptData.mode,
-        prompt_style: promptData.prompt_style || 'standard',
-        standard_prompts: promptData.standard_prompts || [],
-        objective_prompts: promptData.objective_prompts || [],
-        match_count: promptData.match_count,
-        prompt_count: promptData.prompts.length,
-        prompts: deliveryPrompts,
-        match_manifest: matchManifest,
-        combined_prompt: combinedPrompt,
-        instructions: segmentCount > 1
-          ? `Please send each of the ${segmentCount} segments sequentially in the same conversation; each segment will first generate its complete result, and the final segment will merge all results. Do not send a combined result all at once.`
-          : `Copy this Prompt to Gemini, complete it, and then import the returned JSON into the system.`
+        mode: 'batch',
+        prompt_style: 'standard',
+        standard_prompts: [finalPrompt],
+        match_count: matchCount,
+        prompt_count: 1,
+        prompts: [finalPrompt],
+        combined_prompt: finalPrompt,
+        instructions: `（已自动切换至新版量化架构）共 ${matchCount} 场赛事。请一键复制以下 Prompt 并在网页版大模型中执行。`
       });
     } catch (error: any) {
+      console.error('Failed to export refactored prompt:', error);
       res.status(400).json({ error: error?.message || 'Failed to export prompt' });
     }
   });

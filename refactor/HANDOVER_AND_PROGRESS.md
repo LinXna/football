@@ -1,3 +1,19 @@
+## 一、当前活动工作快照 (Active Snapshot)
+
+- **任务编号 (Task)**: `SNAPSHOT-20260902-MANUAL-PROMPT-EXPORT`
+- **任务目标 (Goal)**：修复重构系统中缺失的手动导出 Prompt 功能。摒弃之前的纯命令行导出方式，将重构版 (Layer 01~04) 管线直接接入到 Web 端的“标准赛事对齐中心”页面中。用户可以在界面中一键导出（包含单场或批量选中）。
+- **改动文件 (Target Files)**:
+  - `/refactor/04_ai_evaluator/promptExporter.ts` (新增导出引擎)
+  - `/server/routes/aiReadRoutes.ts` (API 对接重构引擎)
+  - `/src/components/CanonicalMatchCenter.tsx` (注入导出按钮)
+- **执行步骤 (Action Plan)**:
+  1. 移除临时添加的 `npm run export:prompt` 脚本与配置。
+  2. 提取 `promptExporter.ts` 用于执行真实的数据提取 (Layer 01~03) 并合并 Prompt。
+  3. 在 `CanonicalMatchCenter.tsx` 页面顶部栏新增 `📋 导出 AI Prompt` 按钮。
+  4. 支持根据用户在界面上选中的勾选框，导出选定比赛；若未选中则导出全部。
+  5. 自动下载拼接好的完整大模型 TXT 文件。
+- **状态 (Status)**: `DONE`
+
 # 重构工作进度与任务交接看板 (Handover & Progress Board)
 
 > **最后更新时间**：2026-09-02

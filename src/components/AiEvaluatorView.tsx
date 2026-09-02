@@ -33,7 +33,8 @@ import {
   Clock,
   Activity,
   BarChart3,
-  Swords
+  Swords,
+  Download
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { displayText } from '../lib/displayValue';
@@ -644,6 +645,19 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
         showExportPromptSegment(activeExportPromptIndex + 1);
       }
     }, 1200);
+  };
+
+  const handleDownloadPrompt = () => {
+    if (!exportedPrompt) return;
+    const blob = new Blob([exportedPrompt], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `refactored_prompt_export_${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const showExportPromptSegment = (index: number) => {
@@ -1336,6 +1350,10 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                 {exportedPrompts.length > 1 && activeExportPromptIndex >= 0 && <button disabled={activeExportPromptIndex >= exportedPrompts.length - 1} onClick={() => showExportPromptSegment(activeExportPromptIndex + 1)} className="px-3 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs disabled:opacity-40">下一段</button>}
                 <button onClick={() => setExportModalOpen(false)} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs font-medium hover:bg-slate-700">
                   关闭
+                </button>
+                <button onClick={handleDownloadPrompt} className="px-5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg">
+                  <Download className="w-4 h-4" />
+                  下载为 .txt 文件
                 </button>
                 <button onClick={handleCopyPrompt} className={`px-5 py-2 rounded-lg text-white text-xs font-bold flex items-center gap-1.5 shadow-lg ${exportPromptStyle === 'gem' ? 'bg-emerald-600 hover:bg-emerald-500' : exportPromptStyle === 'objective' ? 'bg-sky-600 hover:bg-sky-500' : 'bg-amber-600 hover:bg-amber-500'}`}>
                   {copiedPrompt ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}

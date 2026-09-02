@@ -307,6 +307,41 @@ export const CanonicalMatchCenter: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  // 导出供大模型评估的 Prompt (Txt)
+  const handleExportAIPrompt = async () => {
+    setLoading(true);
+    try {
+      const resp = await fetch('/api/ai/export-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          batch_matches: selectedImportMatchIds.map(id => {
+            const m = matches.find(x => x.canonical_id === id);
+            return { match: m?.match_slug };
+          }).filter(m => m.match)
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error);
+      
+      const blob = new Blob([data.combined_prompt], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `AI_Prompt_Evaluation_${new Date().getTime()}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      setAliasFeedback({ success: true, message: `✅ 导出成功！共提取 ${data.match_count} 场赛事，已开始下载 TXT 文件。` });
+    } catch (err: any) {
+      setAliasFeedback({ success: false, message: `❌ 导出 Prompt 失败: ${err.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 核心辅助方法：从 Canonical 赛事清单中构建待核验对齐候选列表，并按置信度升序排序（低的排在前面，疑似主客颠倒置顶）
   const buildUnconfirmedMatches = (matchList: CanonicalMatch[]): ImportPendingMatch[] => {
     const unconfirmed: ImportPendingMatch[] = [];
@@ -1155,6 +1190,18 @@ export const CanonicalMatchCenter: React.FC = () => {
           >
             <Upload className="w-3.5 h-3.5" />
             <span>智能导入数据</span>
+          </button>
+
+          {/* 导出大模型 Prompt 按钮 */}
+          <button
+            id="btn-export-prompt"
+            onClick={handleExportAIPrompt}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-xs font-medium text-white transition-colors border border-indigo-600/60 shadow-xs disabled:opacity-50"
+            title="提取选中的或全部赛事生成 AI 提示词"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>导出 AI Prompt</span>
           </button>
 
           <button
