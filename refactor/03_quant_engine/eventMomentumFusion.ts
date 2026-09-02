@@ -27,6 +27,7 @@ import {
   RealTimePhysicalStatsFeatures,
   EventPressureConversionFeatures,
   TeamEPIFeatures,
+  LiveThreatTrinityFeatures,
   EventPressureConversionType,
   TacticalRegimeFeatures,
   TacticalRegimeType,
@@ -167,6 +168,62 @@ export function calculateDecayedEventScore(
   };
 }
 
+function isGoalEvent(event: CanonicalTimelineEvent): boolean {
+  return event.category === CanonicalIncidentCategory.SCORE ||
+    event.canonical_type === CanonicalEventType.GOAL_REGULAR ||
+    event.canonical_type === CanonicalEventType.GOAL_PENALTY ||
+    (event as { type?: string | number }).type === 'GOAL' ||
+    (event as { type?: string | number }).type === 1;
+}
+
+/** 三源一致性求解：不把累计统计伪装成近窗增量，只作为按时间归一化的质量基线。 */
+export function calculateLiveThreatTrinity(
+  timeline: MomentumTimelineFeatures,
+  events: CanonicalTimelineEvent[],
+  physical: RealTimePhysicalStatsFeatures,
+  currentMinute: number
+): LiveThreatTrinityFeatures {
+  const eventScores = calculateDecayedEventScore(events, currentMinute, 15);
+  const bounded = (value: number) => Math.max(0, Math.min(1, value));
+  const solveTeam = (side: 'home' | 'away') => {
+    const energy = timeline.integral_15m[side] ?? 0;
+    const eventScore = eventScores[side];
+    const xt = side === 'home' ? physical.xt_proxy.home_xt : physical.xt_proxy.away_xt;
+    const penetration = side === 'home' ? physical.penetration_rate.home_penetration : physical.penetration_rate.away_penetration;
+    const accuracy = side === 'home' ? physical.shot_efficiency.home_accuracy : physical.shot_efficiency.away_accuracy;
+    const corners = physical.corner_pressure.window_source === 'SNAPSHOT_DELTA' || physical.corner_pressure.window_source === 'EVENT_TIMELINE'
+      ? (side === 'home' ? physical.corner_pressure.home_corners_total : physical.corner_pressure.away_corners_total) : 0;
+    const momentumSupport = bounded(1 - Math.exp(-Math.max(0, energy) / 150));
+    const eventSupport = bounded(1 - Math.exp(-eventScore / 2.2));
+    const statsSupport = physical.stats_available
+      ? bounded(1 - Math.exp(-Math.max(0, xt * 0.32 + penetration * 1.2 + accuracy * 1.5 + corners * 0.08))) : 0;
+    const minSupport = Math.min(momentumSupport, eventSupport, statsSupport);
+    const maxSupport = Math.max(momentumSupport, eventSupport, statsSupport);
+    const alignmentScore = bounded(1 - (maxSupport - minSupport));
+    const conflict = momentumSupport >= 0.62 && (eventSupport < 0.20 || statsSupport < 0.20);
+    const calibratedThreat = bounded((0.45 * momentumSupport + 0.30 * eventSupport + 0.25 * statsSupport) * (0.55 + 0.45 * alignmentScore) * (conflict ? 0.45 : 1));
+    return {
+      momentum_support: Number(momentumSupport.toFixed(3)),
+      event_support: Number(eventSupport.toFixed(3)),
+      stats_support: Number(statsSupport.toFixed(3)),
+      alignment_score: Number(alignmentScore.toFixed(3)),
+      calibrated_threat: Number(calibratedThreat.toFixed(3)),
+      has_conflict: conflict
+    };
+  };
+  const home = solveTeam('home');
+  const away = solveTeam('away');
+  const dominant_side = home.calibrated_threat > away.calibrated_threat + 0.08 ? 'home' : away.calibrated_threat > home.calibrated_threat + 0.08 ? 'away' : 'none';
+  const hasMaterialConflict = home.has_conflict || away.has_conflict;
+  return {
+    home,
+    away,
+    dominant_side,
+    has_material_conflict: hasMaterialConflict,
+    rationale: hasMaterialConflict ? ['高危攻动量未获近窗事件或统计质量基线共同确认，已执行威胁折损。'] : ['动量、事件与技术统计质量基线已进入同一威胁校准链。']
+  };
+}
+
 /**
  * 维度一：计算攻防势能转化指数 (EPI)
  * 采用近 15 分钟时间窗口与连续时间衰减联合评估
@@ -174,6 +231,7 @@ export function calculateDecayedEventScore(
 export function calculateEventPressureConversion(
   timeline: MomentumTimelineFeatures,
   events: CanonicalTimelineEvent[],
+  trinity: LiveThreatTrinityFeatures,
   currentMinute: number
 ): EventPressureConversionFeatures {
   const windowStart = Math.max(0, currentMinute - 15);
@@ -199,12 +257,12 @@ export function calculateEventPressureConversion(
   const awayRatio = Number((awayEventScore / awayNormEnergy).toFixed(3));
 
   // 4. 连续隶属度战术类型软分类 (Continuous Membership Soft Classification)
-  const classify = (energy: number, score: number, ratio: number): EventPressureConversionType => {
+  const classify = (energy: number, score: number, ratio: number, integrity: number, conflict: boolean): EventPressureConversionType => {
     // 连续 Sigmoid 激活函数 S(x, x0, k)
     const sig = (x: number, x0: number, k: number) => 1.0 / (1.0 + Math.exp(-(x - x0) / k));
 
-    const pLethal = sig(energy, 150, 25) * sig(ratio, 0.70, 0.12);
-    const pBarren = sig(energy, 150, 25) * (1.0 - sig(ratio, 0.40, 0.12));
+    const pLethal = sig(energy, 150, 25) * sig(ratio, 0.70, 0.12) * sig(integrity, 0.55, 0.12);
+    const pBarren = sig(energy, 150, 25) * (1.0 - sig(ratio, 0.40, 0.12)) * (conflict ? 1.35 : 1.0);
     const pCounter = (1.0 - sig(energy, 130, 25)) * sig(score, 1.20, 0.35);
     const pLow = (1.0 - sig(energy, 60, 18)) * (1.0 - sig(score, 0.60, 0.20));
     const pBalanced = 0.20; // 基础均衡先验
@@ -225,14 +283,14 @@ export function calculateEventPressureConversion(
     conversion_ratio: homeRatio,
     event_score_15m: Number(homeEventScore.toFixed(2)),
     energy_15m: homeEnergy,
-    classification: classify(homeEnergy, homeEventScore, homeRatio)
+    classification: classify(homeEnergy, homeEventScore, homeRatio, trinity.home.calibrated_threat, trinity.home.has_conflict)
   };
 
   const awayTeam: TeamEPIFeatures = {
     conversion_ratio: awayRatio,
     event_score_15m: Number(awayEventScore.toFixed(2)),
     energy_15m: awayEnergy,
-    classification: classify(awayEnergy, awayEventScore, awayRatio)
+    classification: classify(awayEnergy, awayEventScore, awayRatio, trinity.away.calibrated_threat, trinity.away.has_conflict)
   };
 
   return {
@@ -380,7 +438,8 @@ export function evaluateTacticalRegime(
 export function evaluateGoalClimax(
   match: CanonicalMatch,
   timeline: MomentumTimelineFeatures,
-  epi: EventPressureConversionFeatures
+  epi: EventPressureConversionFeatures,
+  trinity: LiveThreatTrinityFeatures
 ): GoalClimaxFeatures {
   const currentMinute = match.timing.minute ?? 0;
   const events = match.reference?.timeline_events ?? (match as any).timeline_events ?? [];
@@ -411,17 +470,28 @@ export function evaluateGoalClimax(
 
   // (D) EPI 转化势能平滑加权 (最高 20 分)
   const maxRatio = Math.max(epi.home.conversion_ratio, epi.away.conversion_ratio);
-  const phiEpi = 20.0 * Math.tanh(maxRatio / 0.75);
+  const integrity = Math.max(trinity.home.calibrated_threat, trinity.away.calibrated_threat);
+  const phiEpi = 20.0 * Math.tanh(maxRatio / 0.75) * (0.35 + 0.65 * integrity);
 
   // 综合平滑连续破门临界分值
-  const rawClimax = 15.0 + phiSlope + phiAcceleration + phiDensity + phiEpi;
+  let lastGoalMinute: number | undefined;
+  for (const event of events as CanonicalTimelineEvent[]) {
+    if (!event.is_cancelled && isGoalEvent(event)) {
+      const eventMinute = getEventMinute(event);
+      if (lastGoalMinute === undefined || eventMinute > lastGoalMinute) {
+        lastGoalMinute = eventMinute;
+      }
+    }
+  }
+  const postGoalCooldownActive = lastGoalMinute !== undefined && currentMinute >= lastGoalMinute && currentMinute - lastGoalMinute < 4;
+  const rawClimax = (15.0 + phiSlope + phiAcceleration + phiDensity + phiEpi) * (postGoalCooldownActive ? 0.55 : 1.0);
   const climaxScore = Number(Math.min(100.0, Math.max(0.0, rawClimax)).toFixed(1));
 
   // (E) 判定主要进攻方 (基于连续动量与能量比率)
   let attackingSide: 'home' | 'away' | 'none' = 'none';
-  if (slope5m > 5 || epi.home.energy_15m > epi.away.energy_15m * 1.4) {
+  if (trinity.dominant_side === 'home' || (slope5m > 5 && trinity.home.alignment_score >= 0.45)) {
     attackingSide = 'home';
-  } else if (slope5m < -5 || epi.away.energy_15m > epi.home.energy_15m * 1.4) {
+  } else if (trinity.dominant_side === 'away' || (slope5m < -5 && trinity.away.alignment_score >= 0.45)) {
     attackingSide = 'away';
   }
 
@@ -441,7 +511,8 @@ export function evaluateGoalClimax(
     attacking_side: attackingSide,
     momentum_acceleration_5m: momentumAcceleration,
     recent_incident_density_5m: recentIncidentDensity,
-    is_imminent_threat: climaxScore >= 65.0
+    post_goal_cooldown_active: postGoalCooldownActive,
+    is_imminent_threat: !postGoalCooldownActive && climaxScore >= 65.0
   };
 }
 
@@ -458,14 +529,15 @@ export function calculateSpatioTemporalFeatures(
   const currentMinute = match.timing.minute ?? 0;
   const events = match.reference?.timeline_events ?? (match as any).timeline_events ?? [];
 
-  // 1. EPI 转化
-  const epi = calculateEventPressureConversion(timeline, events, currentMinute);
+  // 1. 三位一体实时威胁校准，再由同一证据链生成 EPI。
+  const liveThreatTrinity = calculateLiveThreatTrinity(timeline, events, physical, currentMinute);
+  const epi = calculateEventPressureConversion(timeline, events, liveThreatTrinity, currentMinute);
 
   // 2. 战术相变
   const regime = evaluateTacticalRegime(match, timeline, epi, physical);
 
   // 3. 破门临界态
-  const goalClimax = evaluateGoalClimax(match, timeline, epi);
+  const goalClimax = evaluateGoalClimax(match, timeline, epi, liveThreatTrinity);
 
   const activeTracer = tracer ?? Tracer.getInstance();
   activeTracer.log(
@@ -477,6 +549,7 @@ export function calculateSpatioTemporalFeatures(
       minute: currentMinute,
       epi_home: epi.home.classification,
       epi_away: epi.away.classification,
+      trinity_conflict: liveThreatTrinity.has_material_conflict,
       regime: regime.current_regime,
       climax_score: goalClimax.climax_score,
       attacking_side: goalClimax.attacking_side
@@ -485,6 +558,7 @@ export function calculateSpatioTemporalFeatures(
   );
 
   return {
+    live_threat_trinity: liveThreatTrinity,
     epi,
     regime,
     goal_climax: goalClimax

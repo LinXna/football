@@ -28,6 +28,8 @@ export interface QuantEngineOptions {
   h2h_half_life_days?: number;
   max_poisson_goals?: number;
   late_game_urgency_minute_threshold?: number;
+  calibration_profile?: QuantCalibrationProfile;
+  calibration_archive?: OosCalibrationArchive;
 }
 
 /**
@@ -234,6 +236,19 @@ export interface MomentumTimelineFeatures {
 }
 
 export interface RealTimePhysicalStatsFeatures {
+  stats_available: boolean;
+  stats_basis: 'CUMULATIVE_QUALITY_BASELINE' | 'UNAVAILABLE';
+  available_metrics: {
+    dangerous_attacks: boolean;
+    attacks: boolean;
+    shots: boolean;
+    shots_on_target: boolean;
+    shots_off_target: boolean;
+    corners: boolean;
+    possession: boolean;
+    yellow_cards: boolean;
+    red_cards: boolean;
+  };
   xt_proxy: {
     home_xt: number;
     away_xt: number;
@@ -250,13 +265,14 @@ export interface RealTimePhysicalStatsFeatures {
   shot_efficiency: {
     home_accuracy: number; // SOT / Total Shots
     away_accuracy: number;
-    home_woodwork_count: number; // 门柱造险 (Type 22)
+    home_woodwork_count: number; // 仅由明确的门柱/中柱事件确认，Type 22 仅代表射偏
     away_woodwork_count: number;
   };
   corner_pressure: {
-    home_corners_15m: number;
-    away_corners_15m: number;
+    home_corners_total: number;
+    away_corners_total: number;
     is_corner_cascade: boolean;
+    window_source?: 'SNAPSHOT_DELTA' | 'EVENT_TIMELINE' | 'CUMULATIVE_BASELINE' | 'UNAVAILABLE';
   };
   counter_threat_index: {
     home_counter_threat: number; // 越位 + 单刀打身后指数
@@ -299,6 +315,7 @@ export interface ScoreProbabilityItem {
 export interface InPlayPoissonFeatures {
   elapsed_minute: number;
   remaining_minutes: number;
+  is_stoppage_time_unpriceable: boolean;
   time_decay_curve: PoissonDecayCurve;
   lambda_home_rest: number;
   lambda_away_rest: number;
@@ -386,6 +403,88 @@ export interface EventPressureConversionFeatures {
   potency_differential: number; // home.conversion_ratio - away.conversion_ratio
 }
 
+export interface QuantCalibrationProfile {
+  status: 'VALIDATED' | 'INSUFFICIENT_EVIDENCE' | 'REJECTED';
+  league_key: string;
+  team_key?: string;
+  minute_band: string;
+  score_state: string;
+  red_card_state?: string;
+  market: OosMarket;
+  sample_size: number;
+  effective_sample_size: number;
+  oos_brier_score: number | null;
+  lambda_log_adjustment: number;
+}
+
+export type OosMarket = 'ASIAN_HANDICAP_MAIN' | 'TOTAL_GOALS_MAIN';
+
+/** 单条已结算、绝不参与同批模型拟合的 OOS 观测。 */
+export interface OosCalibrationSample {
+  sample_id: string;
+  /** 生成预测所用的冻结量化模型版本。 */
+  model_version: string;
+  /** 预测在该时间点已经固化；必须严格早于档案训练截止点。 */
+  prediction_at: string;
+  league_key: string;
+  home_team_key: string;
+  away_team_key: string;
+  stage: 'PREMATCH' | 'LIVE';
+  minute: number | null;
+  score_state: string;
+  red_card_state: string;
+  market: OosMarket;
+  model_probability: number;
+  /** 与 model_probability 对应的二元市场事件结果。 */
+  outcome: number;
+  predicted_lambda: number;
+  observed_goals: number;
+}
+
+/** 可持久化的 OOS 校准档案；仅 VALIDATED 档案可解锁机器候选。 */
+export interface OosCalibrationArchive {
+  schema_version: 1;
+  generated_at: string;
+  model_version: string;
+  training_window_start_at: string;
+  training_window_end_at: string;
+  prediction_window_start_at: string;
+  prediction_window_end_at: string;
+  training_cutoff_at: string;
+  global_profile: QuantCalibrationProfile;
+  profiles: readonly QuantCalibrationProfile[];
+}
+
+export interface OosArchiveBuildOptions {
+  generated_at: string;
+  model_version: string;
+  training_window_start_at: string;
+  training_window_end_at: string;
+  prediction_window_start_at: string;
+  prediction_window_end_at: string;
+}
+
+/**
+ * 三位一体实时威胁完整性：动量给出压制方向，事件给出近窗发生时点，
+ * 累计技术统计仅作为按比赛时间归一化的质量基线，三者必须共同确认。
+ */
+export interface TeamLiveThreatIntegrity {
+  momentum_support: number;
+  event_support: number;
+  stats_support: number;
+  alignment_score: number;
+  calibrated_threat: number;
+  has_conflict: boolean;
+}
+
+export interface LiveThreatTrinityFeatures {
+  home: TeamLiveThreatIntegrity;
+  away: TeamLiveThreatIntegrity;
+  dominant_side: 'home' | 'away' | 'none';
+  has_material_conflict: boolean;
+  rationale: string[];
+}
+
 /**
  * 战术相变与事件后态势 (Tactical Regime State)
  */
@@ -409,6 +508,7 @@ export interface GoalClimaxFeatures {
   attacking_side: 'home' | 'away' | 'none';
   momentum_acceleration_5m: number; // d²M/dt²
   recent_incident_density_5m: number;
+  post_goal_cooldown_active: boolean;
   is_imminent_threat: boolean;
 }
 
@@ -416,9 +516,21 @@ export interface GoalClimaxFeatures {
  * 时空事件共生综合特征 (Spatio-Temporal Event Co-Evolution)
  */
 export interface SpatioTemporalEventFeatures {
+  live_threat_trinity: LiveThreatTrinityFeatures;
   epi: EventPressureConversionFeatures;
   regime: TacticalRegimeFeatures;
   goal_climax: GoalClimaxFeatures;
+}
+
+/** 唯一实时决策状态：下游不得重新读取原始动量、xT 或累计统计。 */
+export interface UnifiedMatchState {
+  home_intensity: number;
+  away_intensity: number;
+  dominance_index: number;
+  imminent_goal: boolean;
+  post_goal_cooldown_active: boolean;
+  has_evidence_conflict: boolean;
+  source_lineage_discount: number;
 }
 
 export interface QuantitativeFeatures {
@@ -432,9 +544,15 @@ export interface QuantitativeFeatures {
   poisson: InPlayPoissonFeatures;
   devig: DeviggedMarketFeatures;
   spatio_temporal_events: SpatioTemporalEventFeatures;
+  match_state: UnifiedMatchState;
   battlefield_dominance_index: number;
   goal_phase_alert: GoalPhaseAlert;
   positive_ev_signals: PositiveEVSignal[];
   risk_flags: QuantAlert[];
   confidence_score: number;
+  confidence_breakdown: {
+    data_quality_score: number;
+    model_stability_score: number;
+    edge_confidence_score: number;
+  };
 }

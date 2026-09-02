@@ -1,25 +1,25 @@
 {
-  "test_timestamp": "2026-09-01T18:52:11.312Z",
+  "test_timestamp": "2026-09-02T03:44:45.470Z",
   "live_pathway": {
     "total_matches": 6,
     "aligned_count": 6,
-    "execution_duration_ms": 23.163299999999992,
+    "execution_duration_ms": 186.1563,
     "screening_distribution": {
-      "WATCH": 6,
-      "RESEARCH": 0,
-      "REJECTED": 0
+      "WATCH": 0,
+      "RESEARCH": 5,
+      "REJECTED": 1
     },
-    "positive_ev_matches": 6
+    "positive_ev_matches": 0
   },
   "prematch_pathway": {
     "total_matches": 2,
-    "execution_duration_ms": 3.162200000000013,
+    "execution_duration_ms": 2.668900000000008,
     "screening_distribution": {
-      "WATCH": 2,
+      "WATCH": 0,
       "RESEARCH": 0,
-      "REJECTED": 0
+      "REJECTED": 2
     },
-    "positive_ev_matches": 2
+    "positive_ev_matches": 0
   },
   "edge_case_defenses": {
     "swapped_home_away_blocked": true,

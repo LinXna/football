@@ -20,6 +20,8 @@ import {
   L0CircuitBreakerResult,
   HistoricalMatchWeight,
   RecentFormContextWeight,
+  RecentFormDetailedAnalytics,
+  H2HDetailedAnalytics,
   DataDeficitSeverity,
   L0MissingReason,
   Layer03OpId,

@@ -23,15 +23,21 @@ import {
   QuantEngineOptions,
   GoalPhaseAlert,
   PositiveEVSignal,
+  OosMarket,
+  QuantCalibrationProfile,
   QuantAlert,
   MomentumTimelineFeatures,
   RealTimePhysicalStatsFeatures,
+  LiveThreatTrinityFeatures,
+  UnifiedMatchState,
   CleanedContextFeatures,
   DeviggedMarketFeatures,
   BookmakerPosture,
+  MarketStanceType,
   Layer03OpId,
   Layer03FeatureId
 } from './types.js';
+import { selectOosCalibrationProfile } from './oosCalibrationEngine.js';
 import { extractCleanedContextFeatures } from './contextEngine.js';
 import { synthesizePrematchPrior } from './prematchPriorEngine.js';
 import { calibrateWithMarketOdds } from './marketDivergenceEngine.js';
@@ -51,30 +57,54 @@ export * from './momentumQuantEngine.js';
 export * from './eventMomentumFusion.js';
 export * from './poissonDecayModel.js';
 export * from './devigCalculator.js';
+export * from './oosCalibrationEngine.js';
 
 /**
  * 计算战场统治权指数 (Battlefield Dominance Index, BDI ∈ [-100, +100])
  * 融合 15m 动量积分、5m 斜率、xT 穿透威胁与全场危攻压迫
  */
 export function calculateBattlefieldDominanceIndex(
-  timeline: MomentumTimelineFeatures,
-  physical: RealTimePhysicalStatsFeatures
+  state: UnifiedMatchState
 ): number {
-  // 1. 动量时序贡献 (权重 40%)
-  const momentumScore = Math.max(-100, Math.min(100, (timeline.integral_15m.net / 6.0) + (timeline.slope_5m * 2.0)));
+  return Number(Math.max(-100, Math.min(100, state.dominance_index)).toFixed(2));
+}
 
-  // 2. xT 威胁贡献 (权重 35%)
-  const totalXT = physical.xt_proxy.home_xt + physical.xt_proxy.away_xt;
-  let xtScore = 0.0;
-  if (totalXT > 0) {
-    xtScore = ((physical.xt_proxy.home_xt - physical.xt_proxy.away_xt) / totalXT) * 100.0;
-  }
+function toOosMarket(signal: PositiveEVSignal | undefined): OosMarket | undefined {
+  if (signal?.market === 'ASIAN_HANDICAP_MAIN') return 'ASIAN_HANDICAP_MAIN';
+  if (signal?.market === 'TOTAL_GOALS_MAIN') return 'TOTAL_GOALS_MAIN';
+  return undefined;
+}
 
-  // 3. 禁区危攻压迫贡献 (权重 25%)
-  const daScore = physical.pressure_index * 100.0;
+function isValidatedOosProfile(profile: QuantCalibrationProfile | undefined): profile is QuantCalibrationProfile {
+  return profile?.status === 'VALIDATED' &&
+    profile.effective_sample_size >= 200 &&
+    profile.oos_brier_score !== null;
+}
 
-  const bdi = (momentumScore * 0.40) + (xtScore * 0.35) + (daScore * 0.25);
-  return Number(Math.max(-100, Math.min(100, bdi)).toFixed(2));
+type ValidatedOosProfile = QuantCalibrationProfile & { oos_brier_score: number };
+
+function hasValidatedOosProfile(profile: QuantCalibrationProfile | undefined): profile is ValidatedOosProfile {
+  return isValidatedOosProfile(profile) && typeof profile.oos_brier_score === 'number';
+}
+
+/** 将三源证据、战术状态和进球后冷却凝结为下游唯一可消费的实时状态。 */
+export function buildUnifiedMatchState(
+  spatioTemporal: QuantitativeFeatures['spatio_temporal_events']
+): UnifiedMatchState {
+  const trinity = spatioTemporal.live_threat_trinity;
+  const cooldown = spatioTemporal.goal_climax.post_goal_cooldown_active ? 0.70 : 1.0;
+  const homeIntensity = trinity.home.calibrated_threat * spatioTemporal.regime.regime_multiplier_home * cooldown;
+  const awayIntensity = trinity.away.calibrated_threat * spatioTemporal.regime.regime_multiplier_away * cooldown;
+  return Object.freeze({
+    home_intensity: Number(Math.max(0, Math.min(1.5, homeIntensity)).toFixed(3)),
+    away_intensity: Number(Math.max(0, Math.min(1.5, awayIntensity)).toFixed(3)),
+    dominance_index: Number(((homeIntensity - awayIntensity) * 100).toFixed(2)),
+    imminent_goal: spatioTemporal.goal_climax.is_imminent_threat,
+    post_goal_cooldown_active: spatioTemporal.goal_climax.post_goal_cooldown_active,
+    has_evidence_conflict: trinity.has_material_conflict,
+    // 动量、事件与技术统计来自同一雷速上游：一致性不获得“独立来源”额外加成。
+    source_lineage_discount: 1.0
+  });
 }
 
 /**
@@ -272,40 +302,53 @@ export function calculateQuantitativeFeatures(
     collector,
     tracer
   );
+  const matchState = buildUnifiedMatchState(spatioTemporalFeatures);
 
   // 3. M4: 滚球 0:0 Forward 泊松时间衰减推演 (注入博弈校准基准、物理场与战术相变乘子)
-  const poissonFeatures = calculateInPlayPoissonFeatures(
+  const rawPoissonFeatures = calculateInPlayPoissonFeatures(
     match,
     contextFeatures,
-    timelineFeatures,
-    physicalStatsFeatures,
-    spatioTemporalFeatures,
+    matchState,
     marketCalibration,
+    undefined,
     collector,
     tracer
   );
 
   // 4. M5: 多源微观去抽水与四分之一盘复合 EV 仲裁
-  const devigFeatures = calculateDeviggedMarketFeatures(
+  const rawDevigFeatures = calculateDeviggedMarketFeatures(
     match,
-    poissonFeatures,
+    rawPoissonFeatures,
     collector,
     tracer
   );
 
-  // 5. 综合计算战场统治权指数 (BDI)
-  const bdi = calculateBattlefieldDominanceIndex(timelineFeatures, physicalStatsFeatures);
-
-  // 6. 识别破门相变临界预警 (融合战局势能与事件临界)
-  const elapsedMinute = match.timing.minute ?? 0;
-  const scoreDiff = (match.score.home_score ?? 0) - (match.score.away_score ?? 0);
-  const goalPhase = evaluateGoalPhaseAlert(
-    elapsedMinute,
-    scoreDiff,
+  const rawConfidence = calculateConfidenceAndAlerts(
+    contextFeatures,
     timelineFeatures,
     physicalStatsFeatures,
-    poissonFeatures.expected_goals_rest
+    rawDevigFeatures,
+    match.timing.stage
   );
+  const resolveProfile = (market: OosMarket): QuantCalibrationProfile | undefined =>
+    options?.calibration_profile?.market === market
+      ? options.calibration_profile
+      : selectOosCalibrationProfile(options?.calibration_archive, match, market);
+  const totalCalibrationProfile = resolveProfile('TOTAL_GOALS_MAIN');
+  const totalCalibrationIsValidated = isValidatedOosProfile(totalCalibrationProfile);
+  const poissonFeatures = totalCalibrationIsValidated
+    ? calculateInPlayPoissonFeatures(match, contextFeatures, matchState, marketCalibration, totalCalibrationProfile, collector, tracer)
+    : rawPoissonFeatures;
+  const devigFeatures = totalCalibrationIsValidated
+    ? calculateDeviggedMarketFeatures(match, poissonFeatures, collector, tracer)
+    : rawDevigFeatures;
+
+  // 5. 综合计算战场统治权指数 (BDI)
+  const bdi = calculateBattlefieldDominanceIndex(matchState);
+
+  // 6. 识别破门相变临界预警 (融合战局势能与事件临界)
+  const goalPhase = matchState.imminent_goal
+    ? GoalPhaseAlert.IMMINENT_GOAL : GoalPhaseAlert.NONE;
 
   // 7. 评估量化置信度与风控信号 (扣减机构诱盘/离散度惩罚)
   const { confidence_score, risk_flags, positive_ev_signals } = calculateConfidenceAndAlerts(
@@ -317,9 +360,48 @@ export function calculateQuantitativeFeatures(
   );
 
   let adjustedConfidence = Math.max(0, confidence_score - marketCalibration.market_confidence_penalty);
+  if (!physicalStatsFeatures.stats_available) adjustedConfidence = Math.min(adjustedConfidence, 55);
+  if (spatioTemporalFeatures.live_threat_trinity.has_material_conflict) adjustedConfidence = Math.min(adjustedConfidence, 65);
+
+  const metricAvailability = Object.values(physicalStatsFeatures.available_metrics)
+    .filter((available) => available).length / Object.keys(physicalStatsFeatures.available_metrics).length;
+  const dataQualityScore = Math.round(100 * (
+    0.45 * metricAvailability +
+    0.30 * (timelineFeatures.total_points > 0 ? 1 : 0) +
+    0.25 * (match.score.score_verified ? 1 : 0)
+  ));
+  const modelStabilityScore = Math.round(100 * Math.max(0, Math.min(1,
+    0.45 + 0.55 * Math.min(
+      spatioTemporalFeatures.live_threat_trinity.home.alignment_score,
+      spatioTemporalFeatures.live_threat_trinity.away.alignment_score
+    ) - (spatioTemporalFeatures.goal_climax.post_goal_cooldown_active ? 0.20 : 0)
+  )));
+  const validatedSignalProfiles = positive_ev_signals
+    .map((signal) => {
+      const market = toOosMarket(signal);
+      return { signal, profile: market === undefined ? undefined : resolveProfile(market) };
+    })
+    .filter((item): item is { signal: PositiveEVSignal; profile: ValidatedOosProfile } => hasValidatedOosProfile(item.profile));
+  const edgeConfidenceScore = validatedSignalProfiles.length === 0
+    ? 0
+    : Math.round(Math.max(0, Math.min(100,
+      Math.max(...validatedSignalProfiles.map(({ profile }) =>
+        (adjustedConfidence - profile.oos_brier_score * 100) * Math.min(1, profile.effective_sample_size / 1000)
+      ))
+    )));
+  const screeningIntegrityScore = Math.min(adjustedConfidence, dataQualityScore, modelStabilityScore);
+  const machineCandidateSignals =
+    !poissonFeatures.is_stoppage_time_unpriceable &&
+    (match.timing.stage !== MatchStage.LIVE || physicalStatsFeatures.stats_available) &&
+    dataQualityScore >= 80 &&
+    modelStabilityScore >= 70 &&
+    !matchState.has_evidence_conflict &&
+    !matchState.post_goal_cooldown_active &&
+    edgeConfidenceScore > 0
+    ? validatedSignalProfiles.map(({ signal }) => signal) : [];
 
   const finalRiskFlags = [...risk_flags];
-  if (marketCalibration.market_stance === 'TRAP_INDUCEMENT' as any) {
+  if (marketCalibration.market_stance === MarketStanceType.TRAP_INDUCEMENT) {
     if (!finalRiskFlags.includes(QuantAlert.TRAP_HIGH_ODDS_WARNING)) {
       finalRiskFlags.push(QuantAlert.TRAP_HIGH_ODDS_WARNING);
     }
@@ -343,22 +425,32 @@ export function calculateQuantitativeFeatures(
     poisson: poissonFeatures,
     devig: devigFeatures,
     spatio_temporal_events: spatioTemporalFeatures,
+    match_state: matchState,
     battlefield_dominance_index: bdi,
-    goal_phase_alert: spatioTemporalFeatures.goal_climax.is_imminent_threat ? GoalPhaseAlert.IMMINENT_GOAL : goalPhase.alert,
-    positive_ev_signals: positive_ev_signals,
+    goal_phase_alert: goalPhase,
+    positive_ev_signals: machineCandidateSignals,
     risk_flags: finalRiskFlags,
-    confidence_score: adjustedConfidence
+    confidence_score: Math.min(screeningIntegrityScore, adjustedConfidence),
+    confidence_breakdown: {
+      data_quality_score: dataQualityScore,
+      model_stability_score: modelStabilityScore,
+      edge_confidence_score: edgeConfidenceScore
+    }
   });
 
   tracer?.info(
     Layer03OpId.ORCHESTRATE_QUANT,
     'ORCHESTRATION_COMPLETE',
-    `Layer 03 Quantitative orchestration completed. Confidence: ${confidence_score}, BDI: ${bdi}`,
+    `Layer 03 Quantitative orchestration completed. Screening integrity: ${screeningIntegrityScore}, BDI: ${bdi}`,
     {
-      confidence_score,
+      screening_integrity_score: screeningIntegrityScore,
+      data_quality_score: dataQualityScore,
+      model_stability_score: modelStabilityScore,
+      edge_confidence_score: edgeConfidenceScore,
       bdi,
-      goal_phase_alert: goalPhase.alert,
-      positive_ev_count: positive_ev_signals.length
+      goal_phase_alert: goalPhase,
+      raw_positive_ev_count: positive_ev_signals.length,
+      machine_candidate_count: machineCandidateSignals.length
     },
     match.canonical_id
   );

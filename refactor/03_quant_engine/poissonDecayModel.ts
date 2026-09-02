@@ -26,6 +26,8 @@ import {
   MomentumTimelineFeatures,
   RealTimePhysicalStatsFeatures,
   SpatioTemporalEventFeatures,
+  UnifiedMatchState,
+  QuantCalibrationProfile,
   PoissonDecayCurve,
   ScoreProbabilityItem,
   Layer03OpId,
@@ -276,86 +278,10 @@ export function calculateBivariatePoissonGrid(
  * 动量 OLS 斜率与 AUC 能量积分，建立连续平滑的统一实时攻防态势场 Φ(t) ∈ [0.4, 1.6]。
  */
 export function calculateContinuousThreatTensor(
-  match: CanonicalMatch,
-  physical: RealTimePhysicalStatsFeatures,
-  timeline: MomentumTimelineFeatures,
-  elapsedMinute: number
+  state: UnifiedMatchState
 ): { homeThreat: number; awayThreat: number } {
-  if (elapsedMinute <= 5) {
-    return { homeThreat: 1.0, awayThreat: 1.0 };
-  }
-
-  const rawStats = match.reference?.stats;
-  const shotsHome = rawStats?.shots?.home ?? 0;
-  const shotsAway = rawStats?.shots?.away ?? 0;
-  const onTargetHome = rawStats?.shots_on_target?.home ?? 0;
-  const onTargetAway = rawStats?.shots_on_target?.away ?? 0;
-  const cornersHome = rawStats?.corners?.home ?? 0;
-  const cornersAway = rawStats?.corners?.away ?? 0;
-
-  // 1. 每 90 分钟物理速率归一化 (Rate per 90)
-  const expectedShotsPerMinute = 12.0 / 90.0; // 常规单队场均 12 次射门基准
-  const expectedOnTargetPerMinute = 4.0 / 90.0; // 常规单队场均 4 次射正基准
-  const expectedCornersPerMinute = 5.0 / 90.0; // 常规单队场均 5 次角球基准
-
-  const rateShotsHome = (shotsHome / Math.max(1, elapsedMinute)) / expectedShotsPerMinute;
-  const rateShotsAway = (shotsAway / Math.max(1, elapsedMinute)) / expectedShotsPerMinute;
-
-  const rateOnTargetHome = (onTargetHome / Math.max(1, elapsedMinute)) / expectedOnTargetPerMinute;
-  const rateOnTargetAway = (onTargetAway / Math.max(1, elapsedMinute)) / expectedOnTargetPerMinute;
-
-  const rateCornersHome = (cornersHome / Math.max(1, elapsedMinute)) / expectedCornersPerMinute;
-  const rateCornersAway = (cornersAway / Math.max(1, elapsedMinute)) / expectedCornersPerMinute;
-
-  // 2. 注入 9 项实战攻防衍生指标
-  const peHome = physical.possession_effectiveness?.home_pe ?? 0.5;
-  const peAway = physical.possession_effectiveness?.away_pe ?? 0.5;
-  const counterHome = physical.counter_threat_index?.home_counter_threat ?? 0.5;
-  const counterAway = physical.counter_threat_index?.away_counter_threat ?? 0.5;
-  const defYellowsHome = physical.discipline_pressure?.home_defenders_on_yellow ?? 0;
-  const defYellowsAway = physical.discipline_pressure?.away_defenders_on_yellow ?? 0;
-  const woodworkHome = physical.shot_efficiency?.home_woodwork_count ?? 0;
-  const woodworkAway = physical.shot_efficiency?.away_woodwork_count ?? 0;
-
-  const xtHome = physical.xt_proxy?.home_xt ?? 0.5;
-  const xtAway = physical.xt_proxy?.away_xt ?? 0.5;
-  const energyHome = (timeline.integral_15m?.home ?? 0) / 100.0;
-  const energyAway = (timeline.integral_15m?.away ?? 0) / 100.0;
-
-  // 3. 多维威胁势能物理加权合成 Φ
-  // 结合射正质量、门柱险情、角球压迫、PE 控球有效性、刺客反击与对手后卫黄牌防线松动
-  const phiHomeRaw = (0.35 * rateOnTargetHome) + 
-                     (0.15 * rateShotsHome) + 
-                     (0.15 * rateCornersHome) + 
-                     (0.10 * xtHome) + 
-                     (0.08 * energyHome * Math.min(1.5, peHome)) + 
-                     (0.07 * counterHome) + 
-                     (0.05 * defYellowsAway * 0.2) + 
-                     (0.05 * woodworkHome * 0.3);
-
-  const phiAwayRaw = (0.35 * rateOnTargetAway) + 
-                     (0.15 * rateShotsAway) + 
-                     (0.15 * rateCornersAway) + 
-                     (0.10 * xtAway) + 
-                     (0.08 * energyAway * Math.min(1.5, peAway)) + 
-                     (0.07 * counterAway) + 
-                     (0.05 * defYellowsHome * 0.2) + 
-                     (0.05 * woodworkAway * 0.3);
-
-  // 4. 时间样本置信度平滑 Sigmoid 函数: S(t) = 1 / (1 + e^(-(t - 18)/6))
-  const sampleConfidence = 1.0 / (1.0 + Math.exp(-(elapsedMinute - 18.0) / 6.0));
-
-  // 5. 连续威胁乘子映射
-  const mapThreat = (phi: number) => {
-    const rawMultiplier = 0.50 + 0.50 * Math.tanh(phi * 1.2);
-    const continuousDamping = 1.0 * (1.0 - sampleConfidence) + rawMultiplier * sampleConfidence;
-    return Number(Math.max(0.40, Math.min(1.40, continuousDamping)).toFixed(3));
-  };
-
-  return {
-    homeThreat: mapThreat(phiHomeRaw),
-    awayThreat: mapThreat(phiAwayRaw)
-  };
+  const mapIntensity = (intensity: number) => Number(Math.max(0.40, Math.min(1.40, 0.65 + intensity * 0.70)).toFixed(3));
+  return { homeThreat: mapIntensity(state.home_intensity), awayThreat: mapIntensity(state.away_intensity) };
 }
 
 /**
@@ -364,22 +290,29 @@ export function calculateContinuousThreatTensor(
 export function calculateInPlayPoissonFeatures(
   match: CanonicalMatch,
   context: CleanedContextFeatures,
-  timeline: MomentumTimelineFeatures,
-  physical: RealTimePhysicalStatsFeatures,
-  spatioTemporal?: SpatioTemporalEventFeatures,
+  matchState: UnifiedMatchState,
   calibration?: MarketCalibrationResult,
+  oosCalibration?: QuantCalibrationProfile,
   collector?: DeficitCollector,
   tracer?: Tracer
 ): InPlayPoissonFeatures {
+  if (match.timing.stage === MatchStage.LIVE && match.timing.minute === null) {
+    throw new Error('Live Poisson pricing requires the YBTY-authoritative match minute.');
+  }
+  if ((match.timing.stage === MatchStage.LIVE || match.timing.stage === MatchStage.FINISHED) &&
+    (match.score.home_score === null || match.score.away_score === null || !match.score.score_verified)) {
+    throw new Error('Live or finished Poisson pricing requires a verified score.');
+  }
   const elapsedMinute = Math.min(90, Math.max(0, match.timing.minute ?? 0));
   const remainingMinutes = Math.max(0, 90 - elapsedMinute);
   const isFinished = match.timing.stage === MatchStage.FINISHED;
+  const isUnpriceableStoppageTime = !isFinished && match.timing.stage === MatchStage.LIVE && (match.timing.minute ?? 0) >= 90;
   const currentHomeScore = match.score.home_score ?? 0;
   const currentAwayScore = match.score.away_score ?? 0;
   const scoreDiff = currentHomeScore - currentAwayScore;
 
   // 完赛直接返回固定概率
-  if (isFinished || elapsedMinute >= 90) {
+  if (isFinished || isUnpriceableStoppageTime) {
     const isHomeWin = currentHomeScore > currentAwayScore;
     const isDraw = currentHomeScore === currentAwayScore;
     const isAwayWin = currentHomeScore < currentAwayScore;
@@ -387,6 +320,7 @@ export function calculateInPlayPoissonFeatures(
     return {
       elapsed_minute: elapsedMinute,
       remaining_minutes: 0,
+      is_stoppage_time_unpriceable: isUnpriceableStoppageTime,
       time_decay_curve: PoissonDecayCurve.LINEAR_UNIFORM,
       lambda_home_rest: 0.0,
       lambda_away_rest: 0.0,
@@ -439,42 +373,37 @@ export function calculateInPlayPoissonFeatures(
     baseAwayLambda *= (context.motivation_urgency.away_mui * context.lineup_impact.away_lis);
   }
 
+  if (oosCalibration?.market === 'TOTAL_GOALS_MAIN' && oosCalibration.status === 'VALIDATED' && oosCalibration.effective_sample_size >= 200) {
+    const multiplier = Math.exp(oosCalibration.lambda_log_adjustment);
+    baseHomeLambda *= multiplier;
+    baseAwayLambda *= multiplier;
+  }
+
   // 3. 计算时间衰减与局势非线性搏命因子 (结合 15 分钟进球时段 DNA)
   const homeWeights = context?.goal_distribution_dna?.home_scored_weights;
   const awayWeights = context?.goal_distribution_dna?.away_scored_weights;
   const timeDecay = calculateTimeDecayAndUrgencyMultiplier(elapsedMinute, scoreDiff, homeWeights, awayWeights);
 
-  // 4. 注入 M3 实时物理场与动量加权 (xT 穿透, 5m 斜率, 15m 围攻能量, 红牌折损)
-  const totalXT = physical.xt_proxy.home_xt + physical.xt_proxy.away_xt;
-  let xtHomeFactor = 1.0;
-  let xtAwayFactor = 1.0;
-  if (totalXT > 0.5) {
-    xtHomeFactor = 0.7 + (physical.xt_proxy.home_xt / totalXT) * 0.6;
-    xtAwayFactor = 0.7 + (physical.xt_proxy.away_xt / totalXT) * 0.6;
-  }
+  // 4. 唯一实时状态已经融合 xT、动量、事件、红牌与战术相变；本函数不得再次读取原始特征。
+  const regimeMultiplierHome = 1.0;
+  const regimeMultiplierAway = 1.0;
+  const redPenaltyHome = 1.0;
+  const redPenaltyAway = 1.0;
 
-  const momentumBiasHome = 1.0 + (timeline.integral_15m.home / 1000.0) + (timeline.slope_5m > 0 ? timeline.slope_5m * 0.015 : 0.0);
-  const momentumBiasAway = 1.0 + (timeline.integral_15m.away / 1000.0) + (timeline.slope_5m < 0 ? Math.abs(timeline.slope_5m) * 0.015 : 0.0);
-
-  const redPenaltyHome = physical.red_card_penalty.home_attack_multiplier * physical.red_card_penalty.away_defense_leak_multiplier;
-  const redPenaltyAway = physical.red_card_penalty.away_attack_multiplier * physical.red_card_penalty.home_defense_leak_multiplier;
-
-  // 4.5 注入 M3.5 战局相变因果乘子 (Regime Shift Multiplier)
-  const regimeMultiplierHome = spatioTemporal?.regime.regime_multiplier_home ?? 1.0;
-  const regimeMultiplierAway = spatioTemporal?.regime.regime_multiplier_away ?? 1.0;
-
-  // 4.6 注入连续多维攻防威胁强度张量 (Continuous Threat Intensity Tensor)
+  // 4.5 由唯一状态映射连续威胁强度张量。
   // 代替离散硬编码 if 语句，以连续数学模型动态调整真实进球期望
-  const threatTensor = calculateContinuousThreatTensor(match, physical, timeline, elapsedMinute);
+  const threatTensor = calculateContinuousThreatTensor(matchState);
   const threatDampingHome = threatTensor.homeThreat;
   const threatDampingAway = threatTensor.awayThreat;
+  const postGoalCooldownMultiplier = matchState.post_goal_cooldown_active ? 0.70 : 1.0;
 
   // 5. 综合求解滚球 0:0 剩余时段动态进球期望 (lambda_home_rest, lambda_away_rest)
   const remainingFactorHome = timeDecay.time_fraction_home * timeDecay.urgency_multiplier;
   const remainingFactorAway = timeDecay.time_fraction_away * timeDecay.urgency_multiplier;
 
-  let lambdaHomeRest = baseHomeLambda * remainingFactorHome * xtHomeFactor * momentumBiasHome * redPenaltyHome * regimeMultiplierHome * threatDampingHome;
-  let lambdaAwayRest = baseAwayLambda * remainingFactorAway * xtAwayFactor * momentumBiasAway * redPenaltyAway * regimeMultiplierAway * threatDampingAway;
+  // xT, shots, corners and momentum are already fused in the single threat tensor; do not multiply them again.
+  let lambdaHomeRest = baseHomeLambda * remainingFactorHome * redPenaltyHome * regimeMultiplierHome * threatDampingHome * postGoalCooldownMultiplier;
+  let lambdaAwayRest = baseAwayLambda * remainingFactorAway * redPenaltyAway * regimeMultiplierAway * threatDampingAway * postGoalCooldownMultiplier;
 
   // 极值安全钳位
   lambdaHomeRest = Math.max(0.01, Math.min(3.50, Number(lambdaHomeRest.toFixed(3))));
@@ -536,6 +465,7 @@ export function calculateInPlayPoissonFeatures(
   return {
     elapsed_minute: elapsedMinute,
     remaining_minutes: remainingMinutes,
+    is_stoppage_time_unpriceable: false,
     time_decay_curve: timeDecay.curve,
     lambda_home_rest: lambdaHomeRest,
     lambda_away_rest: lambdaAwayRest,

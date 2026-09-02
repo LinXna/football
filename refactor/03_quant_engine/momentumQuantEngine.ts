@@ -234,6 +234,27 @@ export function extractRealTimePhysicalStats(
   tracer?: Tracer
 ): RealTimePhysicalStatsFeatures {
   const stats = match.reference?.stats;
+  const hasPair = (values: { home: number | null; away: number | null } | null | undefined): boolean =>
+    values?.home !== null && values?.home !== undefined && values?.away !== null && values?.away !== undefined;
+  const availableMetrics = Object.freeze({
+    dangerous_attacks: hasPair(stats?.dangerous_attacks),
+    attacks: hasPair(stats?.attacks),
+    shots: hasPair(stats?.shots),
+    shots_on_target: hasPair(stats?.shots_on_target),
+    shots_off_target: hasPair(stats?.shots_off_target),
+    corners: hasPair(stats?.corners),
+    possession: hasPair(stats?.possession),
+    yellow_cards: hasPair(stats?.yellow_cards),
+    red_cards: hasPair(stats?.red_cards)
+  });
+  const statsAvailable = availableMetrics.dangerous_attacks && availableMetrics.attacks &&
+    availableMetrics.shots && availableMetrics.shots_on_target && availableMetrics.possession;
+  if (!statsAvailable) {
+    const missingMetrics = Object.entries(availableMetrics)
+      .filter(([, available]) => !available)
+      .map(([metric]) => metric);
+    collector?.record('LIVE_STATS_UNAVAILABLE', Layer03OpId.MOMENTUM_ANALYSIS, 'RC-002', `Live technical statistics are incomplete (${missingMetrics.join(', ')}); zero is not a match fact.`, undefined, match.canonical_id);
+  }
   const events = match.reference?.timeline_events ?? (match as any).timeline_events ?? [];
 
   const homeDA = stats?.dangerous_attacks?.home ?? 0;
@@ -255,7 +276,7 @@ export function extractRealTimePhysicalStats(
   const homePossession = stats?.possession?.home ?? 50;
   const awayPossession = stats?.possession?.away ?? 50;
 
-  // 1. 统计时序事件中的越位 (Offside) 与门柱造险 (Woodwork / Type 22)
+  // 1. 统计时序事件中的越位与明确文本确认的门柱造险（Type 22 仅为射偏）
   let homeOffsides = 0;
   let awayOffsides = 0;
   let homeWoodwork = 0;
@@ -275,8 +296,8 @@ export function extractRealTimePhysicalStats(
       else if (side === 'away') awayOffsides++;
     }
 
-    // 门柱造险 (Type 22 且文本含门柱/中柱)
-    if (type === 22 || text.includes('门柱') || text.includes('中柱') || text.includes('Woodwork')) {
+    // Type 22 是射偏，只有明确文本提及门柱/中柱时才记录为门柱险情。
+    if (text.includes('门柱') || text.includes('中柱') || text.includes('Woodwork')) {
       if (side === 'home') homeWoodwork++;
       else if (side === 'away') awayWoodwork++;
     }
@@ -340,6 +361,9 @@ export function extractRealTimePhysicalStats(
   const isCornerCascade = (homeCorners >= 5 || awayCorners >= 5);
 
   const result: RealTimePhysicalStatsFeatures = Object.freeze({
+    stats_available: statsAvailable,
+    stats_basis: statsAvailable ? 'CUMULATIVE_QUALITY_BASELINE' : 'UNAVAILABLE',
+    available_metrics: availableMetrics,
     xt_proxy: Object.freeze({
       home_xt: homeXT,
       away_xt: awayXT,
@@ -360,9 +384,10 @@ export function extractRealTimePhysicalStats(
       away_woodwork_count: awayWoodwork
     }),
     corner_pressure: Object.freeze({
-      home_corners_15m: homeCorners,
-      away_corners_15m: awayCorners,
-      is_corner_cascade: isCornerCascade
+      home_corners_total: homeCorners,
+      away_corners_total: awayCorners,
+      is_corner_cascade: false,
+      window_source: statsAvailable ? 'CUMULATIVE_BASELINE' : 'UNAVAILABLE'
     }),
     counter_threat_index: Object.freeze({
       home_counter_threat: homeCounterThreat,

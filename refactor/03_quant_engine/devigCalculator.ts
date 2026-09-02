@@ -30,6 +30,19 @@ import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
 import { poissonPMF, calculateBivariatePoissonGrid } from './poissonDecayModel.js';
 
+type PoissonExpectation = Pick<InPlayPoissonFeatures, 'lambda_home_rest' | 'lambda_away_rest' | 'expected_goals_rest'>;
+
+function requireFiniteNonNegative(value: number, field: string): number {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${field} must be a finite non-negative Poisson expectation.`);
+  }
+  return value;
+}
+
+function poissonSupportUpperBound(lambda: number): number {
+  return Math.max(12, Math.ceil(lambda + 10 * Math.sqrt(lambda + 1)));
+}
+
 /**
  * 比例剥水模型 (Multiplicative / Proportional De-vig)
  * Fair_P_i = (1 / Odds_i) / sum(1 / Odds_j)
@@ -206,14 +219,14 @@ export function calculateAsianHandicapEV(
   handicapLineStr: string,
   homeOdds: number,
   awayOdds: number,
-  poisson: InPlayPoissonFeatures
+  poisson: PoissonExpectation
 ): SpreadEVAssessment {
   const line = parseAsianHandicapLine(handicapLineStr);
-  const lambdaHome = typeof poisson.lambda_home_rest === 'number' && !isNaN(poisson.lambda_home_rest) ? poisson.lambda_home_rest : 1.25;
-  const lambdaAway = typeof poisson.lambda_away_rest === 'number' && !isNaN(poisson.lambda_away_rest) ? poisson.lambda_away_rest : 1.05;
+  const lambdaHome = requireFiniteNonNegative(poisson.lambda_home_rest, 'lambda_home_rest');
+  const lambdaAway = requireFiniteNonNegative(poisson.lambda_away_rest, 'lambda_away_rest');
 
   // 使用双变量泊松分布网格闭式求解
-  const gridObj = calculateBivariatePoissonGrid(lambdaHome, lambdaAway, 7);
+  const gridObj = calculateBivariatePoissonGrid(lambdaHome, lambdaAway, Math.max(poissonSupportUpperBound(lambdaHome), poissonSupportUpperBound(lambdaAway)));
   const matrix = gridObj.grid;
 
   let homeEV = 0.0;
@@ -299,17 +312,17 @@ export function calculateTotalGoalsEV(
   overOdds: number,
   underOdds: number,
   currentTotalGoals: number,
-  poisson: InPlayPoissonFeatures
+  poisson: PoissonExpectation
 ): TotalEVAssessment {
   const line = parseAsianHandicapLine(totalLineStr);
   const remainingTarget = line - currentTotalGoals;
-  const lambdaRest = typeof poisson.expected_goals_rest === 'number' && !isNaN(poisson.expected_goals_rest) ? poisson.expected_goals_rest : 2.30;
+  const lambdaRest = requireFiniteNonNegative(poisson.expected_goals_rest, 'expected_goals_rest');
 
   let overEV = 0.0;
   let underEV = 0.0;
 
-  // 展开 0~10 个剩余进球
-  for (let k = 0; k <= 10; k++) {
+  // 动态展开至可忽略尾部，避免深盘与高 λ 时丢失概率质量。
+  for (let k = 0; k <= poissonSupportUpperBound(lambdaRest); k++) {
     const pK = poissonPMF(k, lambdaRest);
     if (pK <= 0) continue;
 

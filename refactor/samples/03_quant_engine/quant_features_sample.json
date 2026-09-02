@@ -1,6 +1,6 @@
 {
   "canonical_id": "4562395",
-  "calculated_at": "2026-09-01T18:52:06.467Z",
+  "calculated_at": "2026-09-02T04:12:31.244Z",
   "context": {
     "circuit_breaker": {
       "is_triggered": false,
@@ -465,11 +465,11 @@
         {
           "match_id": "4351582",
           "match_date": "2026-03-10",
-          "days_ago": 174,
-          "time_decay_weight": 0.1895,
+          "days_ago": 175,
+          "time_decay_weight": 0.1873,
           "venue_homomorphism_weight": 1,
           "competition_importance_weight": 0.8,
-          "final_composite_weight": 0.1516,
+          "final_composite_weight": 0.1498,
           "is_valid_time_window": true,
           "scored_full": 1,
           "conceded_full": 1,
@@ -525,7 +525,7 @@
         {
           "match_id": "4351520",
           "match_date": "2026-02-25",
-          "days_ago": 187,
+          "days_ago": 188,
           "time_decay_weight": 0,
           "venue_homomorphism_weight": 0.65,
           "competition_importance_weight": 0.8,
@@ -605,7 +605,7 @@
         {
           "match_id": "4351257",
           "match_date": "2026-02-03",
-          "days_ago": 209,
+          "days_ago": 210,
           "time_decay_weight": 0,
           "venue_homomorphism_weight": 0.65,
           "competition_importance_weight": 0.8,
@@ -665,7 +665,7 @@
         {
           "match_id": "4351391",
           "match_date": "2026-01-20",
-          "days_ago": 223,
+          "days_ago": 224,
           "time_decay_weight": 0,
           "venue_homomorphism_weight": 1,
           "competition_importance_weight": 0.8,
@@ -765,7 +765,7 @@
         {
           "match_id": "4351339",
           "match_date": "2025-12-29",
-          "days_ago": 245,
+          "days_ago": 246,
           "time_decay_weight": 0,
           "venue_homomorphism_weight": 1,
           "competition_importance_weight": 0.8,
@@ -825,7 +825,7 @@
         {
           "match_id": "4351297",
           "match_date": "2025-12-15",
-          "days_ago": 259,
+          "days_ago": 260,
           "time_decay_weight": 0,
           "venue_homomorphism_weight": 1,
           "competition_importance_weight": 0.8,
@@ -845,7 +845,7 @@
         {
           "match_id": "4351279",
           "match_date": "2025-12-09",
-          "days_ago": 265,
+          "days_ago": 266,
           "time_decay_weight": 0,
           "venue_homomorphism_weight": 0.65,
           "competition_importance_weight": 0.8,
@@ -885,7 +885,7 @@
         {
           "match_id": "4351232",
           "match_date": "2025-11-26",
-          "days_ago": 278,
+          "days_ago": 279,
           "time_decay_weight": 0,
           "venue_homomorphism_weight": 0.65,
           "competition_importance_weight": 0.8,
@@ -1107,11 +1107,11 @@
         {
           "match_id": "4538617",
           "match_date": "2026-05-14",
-          "days_ago": 109,
-          "time_decay_weight": 0.4015,
+          "days_ago": 110,
+          "time_decay_weight": 0.3969,
           "venue_homomorphism_weight": 1,
           "competition_importance_weight": 0.8,
-          "final_composite_weight": 0.3212,
+          "final_composite_weight": 0.3175,
           "is_valid_time_window": true,
           "scored_full": 1,
           "conceded_full": 0,
@@ -1127,11 +1127,11 @@
         {
           "match_id": "4538596",
           "match_date": "2026-05-09",
-          "days_ago": 114,
-          "time_decay_weight": 0.3789,
+          "days_ago": 115,
+          "time_decay_weight": 0.3746,
           "venue_homomorphism_weight": 1,
           "competition_importance_weight": 0.8,
-          "final_composite_weight": 0.3031,
+          "final_composite_weight": 0.2997,
           "is_valid_time_window": true,
           "scored_full": 0,
           "conceded_full": 1,
@@ -1307,11 +1307,11 @@
         {
           "match_id": "4350322",
           "match_date": "2026-03-17",
-          "days_ago": 167,
-          "time_decay_weight": 0.2054,
+          "days_ago": 168,
+          "time_decay_weight": 0.2031,
           "venue_homomorphism_weight": 1,
           "competition_importance_weight": 0.8,
-          "final_composite_weight": 0.1643,
+          "final_composite_weight": 0.1625,
           "is_valid_time_window": true,
           "scored_full": 1,
           "conceded_full": 1,
@@ -1347,11 +1347,11 @@
         {
           "match_id": "4349311",
           "match_date": "2026-03-11",
-          "days_ago": 173,
-          "time_decay_weight": 0.1917,
+          "days_ago": 174,
+          "time_decay_weight": 0.1895,
           "venue_homomorphism_weight": 1,
           "competition_importance_weight": 0.8,
-          "final_composite_weight": 0.1533,
+          "final_composite_weight": 0.1516,
           "is_valid_time_window": true,
           "scored_full": 2,
           "conceded_full": 0,
@@ -1407,7 +1407,7 @@
         {
           "match_id": "4349391",
           "match_date": "2026-02-24",
-          "days_ago": 188,
+          "days_ago": 189,
           "time_decay_weight": 0,
           "venue_homomorphism_weight": 1,
           "competition_importance_weight": 0.8,
@@ -1447,7 +1447,7 @@
         {
           "match_id": "4349986",
           "match_date": "2026-02-17",
-          "days_ago": 195,
+          "days_ago": 196,
           "time_decay_weight": 0,
           "venue_homomorphism_weight": 1,
           "competition_importance_weight": 0.8,
@@ -1527,7 +1527,7 @@
         {
           "match_id": "4349631",
           "match_date": "2026-01-27",
-          "days_ago": 216,
+          "days_ago": 217,
           "time_decay_weight": 0,
           "venue_homomorphism_weight": 1,
           "competition_importance_weight": 0.8,
@@ -1627,7 +1627,7 @@
         {
           "match_id": "4349357",
           "match_date": "2025-12-29",
-          "days_ago": 245,
+          "days_ago": 246,
           "time_decay_weight": 0,
           "venue_homomorphism_weight": 1,
           "competition_importance_weight": 0.8,
@@ -1727,7 +1727,7 @@
         {
           "match_id": "4458223",
           "match_date": "2025-12-02",
-          "days_ago": 272,
+          "days_ago": 273,
           "time_decay_weight": 0,
           "venue_homomorphism_weight": 1,
           "competition_importance_weight": 0.8,
@@ -1755,13 +1755,13 @@
         "first_half_scored_avg": 0.5,
         "first_half_conceded_avg": 0.53,
         "second_half_scored_avg": 0.57,
-        "second_half_conceded_avg": 0.6,
+        "second_half_conceded_avg": 0.59,
         "slow_starter_index": 0.53,
         "second_half_surge_rate": 0.5,
         "clean_sheet_rate": 0.252,
         "failed_to_score_rate": 0.199,
         "handicap_win_rate": 0.809,
-        "over_goals_rate": 0.364
+        "over_goals_rate": 0.365
       },
       "away": {
         "sample_count": 40,
@@ -1774,10 +1774,10 @@
         "second_half_conceded_avg": 0.99,
         "slow_starter_index": 0.698,
         "second_half_surge_rate": 1,
-        "clean_sheet_rate": 0.156,
-        "failed_to_score_rate": 0.463,
+        "clean_sheet_rate": 0.155,
+        "failed_to_score_rate": 0.464,
         "handicap_win_rate": 0.491,
-        "over_goals_rate": 0.232
+        "over_goals_rate": 0.233
       }
     },
     "iso_venue_standings": {
@@ -1860,9 +1860,9 @@
     "theory_total_goals_expected": 0.787
   },
   "market_calibration": {
-    "lambda_base_home": 0.875,
-    "lambda_base_away": 0.893,
-    "divergence_delta": 0.022,
+    "lambda_base_home": 1.2,
+    "lambda_base_away": 1.25,
+    "divergence_delta": 0.043,
     "market_stance": "CONSENSUS_ALIGNED",
     "market_confidence_penalty": 0,
     "implied_market_home_win_prob": 0.3521,
@@ -1896,10 +1896,23 @@
     "is_counter_attack_surge": false
   },
   "physical_stats": {
+    "stats_available": true,
+    "stats_basis": "CUMULATIVE_QUALITY_BASELINE",
+    "available_metrics": {
+      "dangerous_attacks": true,
+      "attacks": true,
+      "shots": true,
+      "shots_on_target": true,
+      "shots_off_target": true,
+      "corners": true,
+      "possession": true,
+      "yellow_cards": true,
+      "red_cards": true
+    },
     "xt_proxy": {
-      "home_xt": 3.32,
-      "away_xt": 2.555,
-      "xt_ratio": 0.565
+      "home_xt": 1.82,
+      "away_xt": 1.655,
+      "xt_ratio": 0.524
     },
     "possession_effectiveness": {
       "home_pe": 0.623,
@@ -1912,13 +1925,14 @@
     "shot_efficiency": {
       "home_accuracy": 0.375,
       "away_accuracy": 0.5,
-      "home_woodwork_count": 10,
-      "away_woodwork_count": 6
+      "home_woodwork_count": 0,
+      "away_woodwork_count": 0
     },
     "corner_pressure": {
-      "home_corners_15m": 6,
-      "away_corners_15m": 7,
-      "is_corner_cascade": true
+      "home_corners_total": 6,
+      "away_corners_total": 7,
+      "is_corner_cascade": false,
+      "window_source": "CUMULATIVE_BASELINE"
     },
     "counter_threat_index": {
       "home_counter_threat": 1.353,
@@ -1953,51 +1967,52 @@
   "poisson": {
     "elapsed_minute": 62,
     "remaining_minutes": 28,
+    "is_stoppage_time_unpriceable": false,
     "time_decay_curve": "LINEAR_UNIFORM",
-    "lambda_home_rest": 0.223,
-    "lambda_away_rest": 0.555,
-    "expected_goals_rest": 0.778,
+    "lambda_home_rest": 0.245,
+    "lambda_away_rest": 0.576,
+    "expected_goals_rest": 0.821,
     "lambda_source": "MARKET_IMPLIED",
     "top_final_scores": [
       {
         "home": 0,
         "away": 1,
-        "probability": 0.4593,
-        "percentage_str": "45.9%"
+        "probability": 0.44,
+        "percentage_str": "44.0%"
       },
       {
         "home": 0,
         "away": 2,
-        "probability": 0.2549,
-        "percentage_str": "25.5%"
+        "probability": 0.2534,
+        "percentage_str": "25.3%"
       },
       {
         "home": 1,
         "away": 1,
-        "probability": 0.1024,
-        "percentage_str": "10.2%"
+        "probability": 0.1078,
+        "percentage_str": "10.8%"
       },
       {
         "home": 0,
         "away": 3,
-        "probability": 0.0707,
-        "percentage_str": "7.1%"
+        "probability": 0.073,
+        "percentage_str": "7.3%"
       },
       {
         "home": 1,
         "away": 2,
-        "probability": 0.0568,
-        "percentage_str": "5.7%"
+        "probability": 0.0621,
+        "percentage_str": "6.2%"
       }
     ],
     "rest_score_matrix": {
-      "prob_home_win_rest": 0.1217,
-      "prob_draw_rest": 0.518,
-      "prob_away_win_rest": 0.3603
+      "prob_home_win_rest": 0.1306,
+      "prob_draw_rest": 0.5043,
+      "prob_away_win_rest": 0.3651
     },
     "projected_final_score": {
-      "home": 0.22,
-      "away": 1.56,
+      "home": 0.24,
+      "away": 1.58,
       "most_likely_score": "0-1"
     }
   },
@@ -2021,8 +2036,8 @@
       "line": "-0/0.5",
       "home_odds": 2.2,
       "away_odds": 1.71,
-      "home_ev": -0.4732,
-      "away_ev": 0.318,
+      "home_ev": -0.4605,
+      "away_ev": 0.3076,
       "preferred_side": "away",
       "is_positive_ev": true
     },
@@ -2031,8 +2046,8 @@
       "line": "2",
       "over_odds": 1.91,
       "under_odds": 1.95,
-      "over_ev": -0.2925,
-      "under_ev": 0.253,
+      "over_ev": -0.2591,
+      "under_ev": 0.2192,
       "preferred_side": "under",
       "is_positive_ev": true
     },
@@ -2044,6 +2059,29 @@
     "bookmaker_posture": "BALANCED_NEUTRAL"
   },
   "spatio_temporal_events": {
+    "live_threat_trinity": {
+      "home": {
+        "momentum_support": 0.907,
+        "event_support": 0.585,
+        "stats_support": 0.849,
+        "alignment_score": 0.678,
+        "calibrated_threat": 0.681,
+        "has_conflict": false
+      },
+      "away": {
+        "momentum_support": 0.916,
+        "event_support": 0.937,
+        "stats_support": 0.834,
+        "alignment_score": 0.897,
+        "calibrated_threat": 0.86,
+        "has_conflict": false
+      },
+      "dominant_side": "away",
+      "has_material_conflict": false,
+      "rationale": [
+        "动量、事件与技术统计质量基线已进入同一威胁校准链。"
+      ]
+    },
     "epi": {
       "home": {
         "conversion_ratio": 0.116,
@@ -2069,39 +2107,35 @@
       "regime_multiplier_away": 1.006
     },
     "goal_climax": {
-      "climax_score": 82.8,
+      "climax_score": 81.4,
       "climax_level": "EXTREME_IMMINENT",
       "attacking_side": "away",
       "momentum_acceleration_5m": -30.01,
       "recent_incident_density_5m": 2,
+      "post_goal_cooldown_active": false,
       "is_imminent_threat": true
     }
   },
-  "battlefield_dominance_index": -16.44,
+  "match_state": {
+    "home_intensity": 0.707,
+    "away_intensity": 0.865,
+    "dominance_index": -15.83,
+    "imminent_goal": true,
+    "post_goal_cooldown_active": false,
+    "has_evidence_conflict": false,
+    "source_lineage_discount": 1
+  },
+  "battlefield_dominance_index": -15.83,
   "goal_phase_alert": "IMMINENT_GOAL",
-  "positive_ev_signals": [
-    {
-      "market": "ASIAN_HANDICAP_MAIN",
-      "line": "-0/0.5",
-      "side": "away",
-      "odds": 1.71,
-      "ev": 0.318,
-      "confidence": 98,
-      "kelly_fraction": 0
-    },
-    {
-      "market": "TOTAL_GOALS_MAIN",
-      "line": "2",
-      "side": "under",
-      "odds": 1.95,
-      "ev": 0.253,
-      "confidence": 98,
-      "kelly_fraction": 0
-    }
-  ],
+  "positive_ev_signals": [],
   "risk_flags": [
     "LETHAL_COUNTER_WARNING",
     "GOAL_CLIMAX_TRIGGERED"
   ],
-  "confidence_score": 98
+  "confidence_score": 82,
+  "confidence_breakdown": {
+    "data_quality_score": 100,
+    "model_stability_score": 82,
+    "edge_confidence_score": 0
+  }
 }

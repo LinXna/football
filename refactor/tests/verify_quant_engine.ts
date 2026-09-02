@@ -15,6 +15,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
   calculateQuantitativeFeatures,
+  calculateInPlayPoissonFeatures,
+  buildUnifiedMatchState,
+  extractCleanedContextFeatures,
   calculateLinearRegressionSlope,
   calculateMomentumIntegral,
   devigShin,
@@ -28,9 +31,12 @@ import {
   checkL0CircuitBreaker,
   extractMomentumTimelineFeatures,
   extractRealTimePhysicalStats,
+  calculateLiveThreatTrinity,
   calculateEventPressureConversion,
   evaluateTacticalRegime,
   evaluateGoalClimax,
+  buildOosCalibrationArchive,
+  selectOosCalibrationProfile,
   extractSpatioTemporalEventFeatures,
   EventPressureConversionType,
   TacticalRegimeType,
@@ -58,7 +64,7 @@ async function runQuantEngineTests() {
   // -------------------------------------------------------------------------
   // 单元测试 1: M2 数据清洗与时效熔炉算法测试
   // -------------------------------------------------------------------------
-  console.log('👉 [Test 1/7] M2: 时效衰减与 L0 熔断算法测试...');
+  console.log('👉 [Test 1/8] M2: 时效衰减与 L0 熔断算法测试...');
   {
     // (1) H2H 衰减测试
     const mockH2HMatch: CanonicalMatch = {
@@ -156,7 +162,7 @@ async function runQuantEngineTests() {
   // -------------------------------------------------------------------------
   // 单元测试 2: M3 最小二乘斜率、危攻积分与 xT 威胁模型测试
   // -------------------------------------------------------------------------
-  console.log('👉 [Test 2/7] M3: 最小二乘斜率、AUC 积分与 xT 模型测试...');
+  console.log('👉 [Test 2/8] M3: 最小二乘斜率、AUC 积分与 xT 模型测试...');
   {
     // (1) 最小二乘斜率
     const flatSeries = [10, 10, 10, 10, 10];
@@ -179,7 +185,7 @@ async function runQuantEngineTests() {
   // -------------------------------------------------------------------------
   // 单元测试 3: M4 滚球 0:0 Forward 泊松与非线性衰减测试
   // -------------------------------------------------------------------------
-  console.log('👉 [Test 3/7] M4: 滚球 0:0 Forward 泊松与非线性时间衰减测试...');
+  console.log('👉 [Test 3/8] M4: 滚球 0:0 Forward 泊松与非线性时间衰减测试...');
   {
     // (1) 80 分钟单球分差绝境搏命放大
     const lateGameDecay = calculateTimeDecayAndUrgencyMultiplier(82, 1);
@@ -197,7 +203,7 @@ async function runQuantEngineTests() {
   // -------------------------------------------------------------------------
   // 单元测试 4: M5 Shin 去抽水与四分之一盘复合 EV 测试
   // -------------------------------------------------------------------------
-  console.log('👉 [Test 4/7] M5: Shin 知情交易者去抽水与四分之一盘复合 EV 测试...');
+  console.log('👉 [Test 4/8] M5: Shin 知情交易者去抽水与四分之一盘复合 EV 测试...');
   {
     // (1) 比例剥水 vs Shin
     const odds = [1.90, 3.40, 4.20];
@@ -247,7 +253,7 @@ async function runQuantEngineTests() {
   // -------------------------------------------------------------------------
   // 单元测试 5: 战局势能与关键事件因果共生分析 (EPI、战术相变与破门临界)
   // -------------------------------------------------------------------------
-  console.log('👉 [Test 5/7] M3.5: 战局势能与关键事件因果共生分析测试...');
+  console.log('👉 [Test 5/8] M3.5: 战局势能与关键事件因果共生分析测试...');
   {
     // (1) 测试 EPI 攻防势能转化: 真实致命压迫 vs 无效围攻虚火
     const mockTimelineLethal = {
@@ -263,13 +269,33 @@ async function runQuantEngineTests() {
       { minute: 68, type: 'PENALTY' as any, team_side: 'home' as any, is_cancelled: false }
     ] as any;
 
-    const epiLethal = calculateEventPressureConversion(mockTimelineLethal, mockEventsLethal, 70);
+    const mockPhysicalLethal = {
+      stats_available: true,
+      xt_proxy: { home_xt: 3.5, away_xt: 0.3 },
+      penetration_rate: { home_penetration: 0.62, away_penetration: 0.10 },
+      shot_efficiency: { home_accuracy: 0.60, away_accuracy: 0.10 },
+      corner_pressure: { home_corners_total: 4, away_corners_total: 0, window_source: 'EVENT_TIMELINE' }
+    } as any;
+    const trinityLethal = calculateLiveThreatTrinity(mockTimelineLethal, mockEventsLethal, mockPhysicalLethal, 70);
+    assert(trinityLethal.home.alignment_score > 0.5, 'Three-source alignment must be high for corroborated siege');
+
+    const epiLethal = calculateEventPressureConversion(mockTimelineLethal, mockEventsLethal, trinityLethal, 70);
     assert(epiLethal.home.classification === EventPressureConversionType.LETHAL_SIEGE, 'Home should be classified as LETHAL_SIEGE');
     assert(epiLethal.home.conversion_ratio > 0.8, 'Lethal siege conversion ratio should be > 0.8');
 
     // (2) 无效围攻虚火 (高危攻但 0 事件)
     const mockEventsBarren = [] as any;
-    const epiBarren = calculateEventPressureConversion(mockTimelineLethal, mockEventsBarren, 70);
+    const mockPhysicalBarren = {
+      stats_available: true,
+      xt_proxy: { home_xt: 0.05, away_xt: 0.3 },
+      penetration_rate: { home_penetration: 0.01, away_penetration: 0.10 },
+      shot_efficiency: { home_accuracy: 0, away_accuracy: 0.10 },
+      corner_pressure: { home_corners_total: 0, away_corners_total: 0, window_source: 'EVENT_TIMELINE' }
+    } as any;
+    const trinityBarren = calculateLiveThreatTrinity(mockTimelineLethal, mockEventsBarren, mockPhysicalBarren, 70);
+    assert(trinityBarren.home.has_conflict, 'High momentum without event/stat corroboration must be flagged as conflict');
+    assert(trinityBarren.home.calibrated_threat < trinityLethal.home.calibrated_threat, 'Uncorroborated momentum must be damped');
+    const epiBarren = calculateEventPressureConversion(mockTimelineLethal, mockEventsBarren, trinityBarren, 70);
     assert(epiBarren.home.classification === EventPressureConversionType.BARREN_DOMINANCE, 'Home should be classified as BARREN_DOMINANCE when no events');
 
     // (3) 破门临界态探测 (二阶加速度与尾端事件爆发)
@@ -282,18 +308,123 @@ async function runQuantEngineTests() {
       ]
     } as any;
 
-    const climaxRes = evaluateGoalClimax(mockClimaxMatch, mockTimelineLethal, epiLethal);
+    const climaxRes = evaluateGoalClimax(mockClimaxMatch, mockTimelineLethal, epiLethal, trinityLethal);
     assert(climaxRes.climax_score >= 55, 'Climax score should be >= 55 under dense incidents and surging slope');
     assert(climaxRes.attacking_side === 'home', 'Attacking side should be home');
     assert(climaxRes.momentum_acceleration_5m === 15, 'Momentum acceleration should be 15 (20 - 5)');
+
+    // (4) 进球后的短时重置：刚发生的进球不得被继续解释为下一球临界压力。
+    const mockPostGoalMatch = {
+      timing: { minute: 65 },
+      timeline_events: [
+        { minute: 63, type: 'GOAL' as any, team_side: 'home' as any, is_cancelled: false },
+        { minute: 64, type: 'CORNER' as any, team_side: 'home' as any, is_cancelled: false }
+      ]
+    } as any;
+    const postGoalClimax = evaluateGoalClimax(mockPostGoalMatch, mockTimelineLethal, epiLethal, trinityLethal);
+    assert(postGoalClimax.post_goal_cooldown_active, 'Goal inside the cooldown window must activate a regime reset');
+    assert(!postGoalClimax.is_imminent_threat, 'A post-goal cooldown must prevent an IMMINENT_GOAL alert');
 
     console.log('   ✅ M3.5 攻防势能转化 (EPI) 与破门临界探测测试 PASS');
   }
 
   // -------------------------------------------------------------------------
+  // 单元测试 6: OOS 校准档案分桶、球队收缩与加载门禁
+  // -------------------------------------------------------------------------
+  console.log('👉 [Test 6/8] OOS: 分桶、球队收缩与已验证档案加载测试...');
+  {
+    const oosSamples = Array.from({ length: 240 }, (_, index) => ({
+      sample_id: `oos-${index}`,
+      model_version: 'layer03-v1',
+      prediction_at: '2026-09-01T00:00:00.000Z',
+      league_key: 'Premier League',
+      home_team_key: index < 120 ? 'Team A' : 'Team C',
+      away_team_key: index < 120 ? 'Team B' : 'Team D',
+      stage: 'LIVE' as const,
+      minute: 62,
+      score_state: '1-0',
+      red_card_state: '0-0',
+      market: 'TOTAL_GOALS_MAIN' as const,
+      model_probability: 0.6,
+      outcome: index % 2 === 0 ? 1 : 0,
+      predicted_lambda: 1.0,
+      observed_goals: 2
+    }));
+    const oosArchiveOptions = {
+      generated_at: '2026-09-02T00:00:00.000Z',
+      model_version: 'layer03-v1',
+      training_window_start_at: '2025-01-01T00:00:00.000Z',
+      training_window_end_at: '2026-08-01T00:00:00.000Z',
+      prediction_window_start_at: '2026-08-02T00:00:00.000Z',
+      prediction_window_end_at: '2026-09-01T23:59:59.000Z'
+    };
+    const archive = buildOosCalibrationArchive(oosSamples, oosArchiveOptions);
+    assert(archive.global_profile.status === 'VALIDATED', '240 settled samples must validate the global archive');
+    const teamAProfile = archive.profiles.find((profile) => profile.team_key === 'Team A');
+    assert(teamAProfile !== undefined, 'Team-specific OOS profile must be generated');
+    assert(teamAProfile!.status === 'INSUFFICIENT_EVIDENCE', 'A 120-sample team bucket must not borrow fictitious evidence to validate itself');
+    const calibrationSamplePath = path.resolve(process.cwd(), 'refactor/samples/02_canonical_model/canonical_match_sample.json');
+    const calibrationRaw = fs.readFileSync(calibrationSamplePath, 'utf-8');
+    const calibrationParsed = JSON.parse(calibrationRaw);
+    const calibrationBase: CanonicalMatch = calibrationParsed.canonical_match || calibrationParsed;
+    const calibrationMatch: CanonicalMatch = {
+      ...calibrationBase,
+      league_name: 'Premier League',
+      home_team_name: 'Team A',
+      away_team_name: 'Team B',
+      timing: { ...calibrationBase.timing, minute: 62 },
+      score: { ...calibrationBase.score, home_score: 1, away_score: 0 }
+    };
+    const selected = selectOosCalibrationProfile(archive, calibrationMatch, 'TOTAL_GOALS_MAIN');
+    assert(selected?.team_key === undefined && selected?.league_key === 'Premier League', 'Only the validated non-team bucket may be selected when team evidence is insufficient');
+    const noMatch = selectOosCalibrationProfile(archive, { ...calibrationMatch, league_name: 'Other League' }, 'TOTAL_GOALS_MAIN');
+    assert(noMatch?.league_key === 'GLOBAL', 'Unmatched context may only fall back to the validated global profile');
+    const basePoisson = calculateInPlayPoissonFeatures(
+      calibrationMatch,
+      extractCleanedContextFeatures(calibrationMatch),
+      buildUnifiedMatchState(extractSpatioTemporalEventFeatures(
+        calibrationMatch,
+        extractMomentumTimelineFeatures(calibrationMatch),
+        extractRealTimePhysicalStats(calibrationMatch)
+      ))
+    );
+    const adjustedPoisson = calculateInPlayPoissonFeatures(
+      calibrationMatch,
+      extractCleanedContextFeatures(calibrationMatch),
+      buildUnifiedMatchState(extractSpatioTemporalEventFeatures(
+        calibrationMatch,
+        extractMomentumTimelineFeatures(calibrationMatch),
+        extractRealTimePhysicalStats(calibrationMatch)
+      )),
+      undefined,
+      selected
+    );
+    assert(adjustedPoisson.expected_goals_rest > basePoisson.expected_goals_rest, 'Validated OOS lambda adjustment must change the Poisson output');
+    let leakageBlocked = false;
+    try {
+      buildOosCalibrationArchive([{ ...oosSamples[0], sample_id: 'future-oos', prediction_at: '2026-09-02T00:00:00.000Z' }], oosArchiveOptions);
+    } catch {
+      leakageBlocked = true;
+    }
+    assert(leakageBlocked, 'A prediction at or after the training cutoff must be rejected to prevent OOS leakage');
+    const stoppageMatch: CanonicalMatch = { ...calibrationMatch, timing: { ...calibrationMatch.timing, minute: 95 } };
+    const stoppagePoisson = calculateInPlayPoissonFeatures(
+      stoppageMatch,
+      extractCleanedContextFeatures(stoppageMatch),
+      buildUnifiedMatchState(extractSpatioTemporalEventFeatures(
+        stoppageMatch,
+        extractMomentumTimelineFeatures(stoppageMatch),
+        extractRealTimePhysicalStats(stoppageMatch)
+      ))
+    );
+    assert(stoppagePoisson.is_stoppage_time_unpriceable, 'A live 90+ clock must be marked unpriceable rather than treated as a finished match');
+    console.log('   ✅ OOS 校准档案测试 PASS');
+  }
+
+  // -------------------------------------------------------------------------
   // 综合测试 6: 端到端统帅部编排与真实样本特征提取
   // -------------------------------------------------------------------------
-  console.log('👉 [Test 6/7] M6: 最高统帅部端到端真实样本量化特征推演...');
+  console.log('👉 [Test 7/8] M6: 最高统帅部端到端真实样本量化特征推演...');
   {
     // 读取 Layer 02 生成的真实对齐赛事样本
     const samplePath = path.resolve(process.cwd(), 'refactor/samples/02_canonical_model/canonical_match_sample.json');
@@ -317,6 +448,10 @@ async function runQuantEngineTests() {
     assert(quantResult.poisson.lambda_home_rest > 0, 'Poisson lambda home rest must be > 0');
     assert(quantResult.timeline.total_points > 0, 'Timeline total points must be > 0');
     assert(quantResult.physical_stats.xt_proxy.home_xt >= 0, 'Home xT must be non-negative');
+    assert(quantResult.physical_stats.corner_pressure.window_source === 'CUMULATIVE_BASELINE', 'Live technical corners must remain cumulative baseline, never a recent-window claim');
+    assert(quantResult.confidence_breakdown.edge_confidence_score === 0, 'Unvalidated OOS calibration must not create tradable edge confidence');
+    assert(quantResult.positive_ev_signals.length === 0, 'Raw devig EV without validated OOS evidence must not become a machine trade candidate');
+    assert(quantResult.battlefield_dominance_index === quantResult.match_state.dominance_index, 'BDI must consume the unified match state only');
 
     console.log(`   📊 [量化推演战报]:`);
     console.log(`      - 法定进行时间: ${quantResult.poisson.elapsed_minute}' (剩余: ${quantResult.poisson.remaining_minutes}')`);
@@ -343,7 +478,7 @@ async function runQuantEngineTests() {
   // -------------------------------------------------------------------------
   // 综合测试 7: L0 致命数据缺失一票否决与降级容错测试
   // -------------------------------------------------------------------------
-  console.log('👉 [Test 7/7] M6: L0 致命缺失一票否决与降级容错测试...');
+  console.log('👉 [Test 8/8] M6: L0 致命缺失一票否决与降级容错测试...');
   {
     const brokenMatch: CanonicalMatch = {
       canonical_id: 'fatal_test_match_001',
@@ -387,15 +522,18 @@ async function runQuantEngineTests() {
       reference: null
     };
 
-    const fatalQuant = calculateQuantitativeFeatures(brokenMatch, undefined, collector, tracer);
-    assert(fatalQuant.confidence_score === 0, 'Fatal match confidence score must be strictly 0');
-    assert(fatalQuant.context.circuit_breaker.is_triggered === true, 'Fatal match circuit breaker must trigger');
-    assert(fatalQuant.positive_ev_signals.length === 0, 'Fatal match must yield 0 positive EV signals');
+    let fatalPricingBlocked = false;
+    try {
+      calculateQuantitativeFeatures(brokenMatch, undefined, collector, tracer);
+    } catch {
+      fatalPricingBlocked = true;
+    }
+    assert(fatalPricingBlocked, 'A live match without an authoritative minute and verified score must be unpriceable.');
     console.log('   ✅ L0 致命熔断一票否决测试 PASS');
   }
 
   console.log('\n================================================================');
-  console.log('🎉 [Layer 03 Test Suite] 全部 7 项确定性量化与博弈引擎测试 100% 通过！');
+  console.log('🎉 [Layer 03 Test Suite] 全部 8 项确定性量化与博弈引擎测试 100% 通过！');
   console.log('================================================================\n');
 }
 
