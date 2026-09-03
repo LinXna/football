@@ -403,6 +403,7 @@ export function assembleCanonicalMatch(
       odds_matrix: leisuMatch.odds_matrix ?? null,
       league_standings: leisuMatch.league_standings ?? null,
       goal_distribution: leisuMatch.goal_distribution ?? null,
+      environment: leisuMatch.environment ?? null,
     };
 
     // 1. 阵容与首发真实有效性校验
@@ -641,7 +642,7 @@ export function extractAiEvaluationBrief(canonical: CanonicalMatch): AiEvaluatio
     league: canonical.league_name,
     kickoff_time: kickoffTimeDisplay,
     status_summary: canonical.timing.stage === MatchStage.LIVE
-      ? `LIVE ${canonical.timing.minute ?? 0}' (${canonical.score.home_score}-${canonical.score.away_score})`
+      ? (canonical.timing.is_half_time ? `HALF-TIME 中场休息 (${canonical.score.home_score}-${canonical.score.away_score})` : `LIVE ${canonical.timing.minute ?? 0}' (${canonical.score.home_score}-${canonical.score.away_score})`)
       : "PREMATCH",
     teams: {
       home: canonical.home_team_name,

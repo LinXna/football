@@ -7,6 +7,7 @@ import { normalizeYbtyMarketTypes } from '../services/marketTypeNormalizer';
 import { enforceLiveScoreVerification, validateAssessmentAgainstVerifiedMarkets } from '../services/verifiedMarketAssessment';
 import { resolveScoreVerification } from '../services/scoreValidation';
 import { normalizeMatchPredictionsAndAssessments } from '../services/marketAssessmentsNormalizer';
+import { assembleMatchesForMode } from './canonicalRoutes';
 
 /** Read-only access to retained AI evaluation snapshots. */
 export function registerAiReadRoutes(app: express.Express): void {
@@ -96,13 +97,70 @@ export function registerAiManualImportRoutes(app: express.Express, deps: { parse
   const categories = ['全场大小球', '半场大小球', '全场让球', '半场让球', '全场独赢1X2'];
   app.post('/api/ai/import-evaluation', (req, res) => {
     try {
-      // `expected_match_count` is optional – supplied by the front-end when it has the count from the export step.
-      // When absent (e.g. user pastes directly without having exported), we skip the count check gracefully.
-      const { raw_text, mode = 'live_eval', expected_match_count } = req.body || {};
+      // `expected_match_count` and `selected_match_ids` are supplied by the front-end.
+      const { raw_text, mode = 'live_eval', expected_match_count, selected_match_ids } = req.body || {};
       if (typeof raw_text !== 'string' || !raw_text.trim()) return res.status(400).json({ error: 'Paste a JSON result from Gemini Web' });
-      const parsed = deps.parse(raw_text);
+      let parsed = deps.parse(raw_text);
+      if (Array.isArray(parsed)) {
+        parsed = { matches: parsed };
+      } else if (parsed && typeof parsed === 'object' && !Array.isArray(parsed.matches) && !Array.isArray(parsed.parlay_recommendations)) {
+        if (parsed.blind_spot_analysis || parsed.qualitative_summary || parsed.internal_logical_audit || parsed.grade) {
+          parsed = { matches: [parsed] };
+        }
+      }
+
+      // 提取重构系统 CanonicalMatch 池作为最高优先级数据源
+      const canonicalTargetMode = mode === 'prematch_eval' ? 'prematch' : 'live';
+      let refactorCanonicalList: any[] = [];
+      try {
+        const canonicalResult = assembleMatchesForMode(canonicalTargetMode);
+        if (canonicalResult && Array.isArray(canonicalResult.canonicalMatches)) {
+          refactorCanonicalList = canonicalResult.canonicalMatches;
+        }
+      } catch (err) {
+        console.warn('[aiReadRoutes] assembleMatchesForMode lookup failed:', err);
+      }
+
+      const selectedIdList: string[] = Array.isArray(selected_match_ids)
+        ? selected_match_ids.map(id => String(id).trim()).filter(Boolean)
+        : [];
+
       if (Array.isArray(parsed.matches)) {
-        parsed.matches = parsed.matches.map((m: any) => normalizeMatchPredictionsAndAssessments(m));
+        parsed.matches = parsed.matches.map((m: any, matchIdx: number) => {
+          if (!m || typeof m !== 'object') return m;
+
+          // 智能关联比赛ID：
+          // 1. 若自身已有 match_id 则优先保留
+          // 2. 若前端提供了 selected_match_ids，且当前索引在范围内，强绑定对应的 canonical_id
+          if (!m.match_id && selectedIdList.length > 0 && selectedIdList[matchIdx]) {
+            m.match_id = selectedIdList[matchIdx];
+            m.canonical_id = selectedIdList[matchIdx];
+          }
+
+          if (m.qualitative_summary && !m.summary) {
+            m.summary = m.qualitative_summary;
+          }
+          if (typeof m.grade === 'string') {
+            m.grade_raw = m.grade;
+            m.grade = m.grade.replace(/_GRADE$/i, '');
+          }
+          if (Array.isArray(m.recommended_legs) && !m.recommendation) {
+            if (m.recommended_legs.length > 0) {
+              const leg = m.recommended_legs[0];
+              m.recommendation = {
+                market: leg.market,
+                line: leg.selected_line,
+                odds: leg.current_odds,
+                direction: leg.direction,
+                reason: leg.basis,
+                grade: m.grade || 'B'
+              };
+            } else {
+              m.recommendation = null;
+            }
+          }
+          return normalizeMatchPredictionsAndAssessments(m);
+        });
       } else if (parsed && typeof parsed === 'object') {
         Object.assign(parsed, normalizeMatchPredictionsAndAssessments(parsed));
       }
@@ -143,9 +201,36 @@ export function registerAiManualImportRoutes(app: express.Express, deps: { parse
         cleanTeam(homeA) === cleanTeam(homeB) && cleanTeam(awayA) === cleanTeam(awayB);
 
       const matchPrimaryId = (m: any): string =>
-        String(m?.match_id || m?.leisu_match_id || m?.id || m?.matched_leisu_id || m?.candidate?.match_id || m?.candidate?.id || '').trim();
+        String(m?.canonical_id || m?.match_id || m?.leisu_match_id || m?.id || m?.matched_leisu_id || m?.candidate?.match_id || m?.candidate?.id || '').trim();
 
-      const sourceMatches = storedMatches.map((stored: any) => {
+      // 构建统一 sourceMatches，优先将重构系统 CanonicalMatch 融入
+      const canonicalSourceMatches = refactorCanonicalList.map((c: any) => {
+        const hScore = c.score?.home_score ?? 0;
+        const aScore = c.score?.away_score ?? 0;
+        const rawMarkets: any[] = [];
+        if (c.markets?.full_spread_main) rawMarkets.push({ type: 'full_spread', ...c.markets.full_spread_main });
+        if (c.markets?.full_total_main) rawMarkets.push({ type: 'full_total', ...c.markets.full_total_main });
+        if (c.markets?.full_h2h) rawMarkets.push({ type: 'full_h2h', ...c.markets.full_h2h });
+        if (c.markets?.half_spread_main) rawMarkets.push({ type: 'half_spread', ...c.markets.half_spread_main });
+        if (c.markets?.half_total_main) rawMarkets.push({ type: 'half_total', ...c.markets.half_total_main });
+        return {
+          match_id: c.canonical_id,
+          canonical_id: c.canonical_id,
+          leisu_match_id: c.reference?.leisu_match_id || c.canonical_id,
+          match: `${c.home_team_name} vs ${c.away_team_name}`,
+          ybty_home: c.home_team_name,
+          ybty_away: c.away_team_name,
+          league: c.league_name,
+          score: `${hScore}-${aScore}`,
+          minute: c.timing?.minute ?? 0,
+          score_verified: c.score?.score_verified ?? false,
+          score_source: c.score?.score_source ?? 'unverified',
+          ybty_raw_markets: normalizeYbtyMarketTypes(rawMarkets),
+          verified_ybty_markets: normalizeYbtyMarketTypes(rawMarkets),
+        };
+      });
+
+      const legacySourceMatches = storedMatches.map((stored: any) => {
         const storedId = matchPrimaryId(stored);
         const wrapper = parlayCandidatePool.find((entry: any) => {
           const entryId = matchPrimaryId(entry);
@@ -185,15 +270,33 @@ export function registerAiManualImportRoutes(app: express.Express, deps: { parse
         };
       });
 
+      const sourceMatches = [...canonicalSourceMatches, ...legacySourceMatches];
+
       const normalizeName = (value: unknown) => String(value || '').toLowerCase().replace(/[\s._\-()（）]/g, '');
       if (Array.isArray(parsed.matches)) parsed.matches = parsed.matches.map((match: any) => {
         const assessments = Array.isArray(match.market_assessments) ? match.market_assessments : [];
         const existing = new Map(assessments.map((item: any) => [String(item.category || ''), item]));
         const matchId = matchPrimaryId(match);
-        const source = (matchId ? sourceMatches.find((item: any) => matchPrimaryId(item) === matchId) : undefined)
+        let source = (matchId ? sourceMatches.find((item: any) => matchPrimaryId(item) === matchId) : undefined)
           || sourceMatches.find((item: any) => normalizeName(item.match) === normalizeName(match.match))
           || sourceMatches.find((item: any) => normalizeName(item.ybty_home) === normalizeName(match.ybty_home) && normalizeName(item.ybty_away) === normalizeName(match.ybty_away))
           || sourceMatches.find((item: any) => cleanTeam(item.ybty_home) === cleanTeam(match.ybty_home) && cleanTeam(item.ybty_away) === cleanTeam(match.ybty_away));
+        
+        if (!source) {
+          const matchContent = JSON.stringify(match);
+          source = sourceMatches.find((item: any) => {
+            const h = cleanTeam(item.ybty_home);
+            const a = cleanTeam(item.ybty_away);
+            return (h && matchContent.includes(h)) || (a && matchContent.includes(a));
+          });
+        }
+        // 如果提供了 selected_match_ids，优先按索引回落到对应的选中比赛
+        if (!source && selectedIdList.length > 0 && selectedIdList[matchIdx]) {
+          source = sourceMatches.find((item: any) => matchPrimaryId(item) === selectedIdList[matchIdx]);
+        }
+        if (!source && sourceMatches.length === 1) {
+          source = sourceMatches[0];
+        }
         
         const rawSourceMarkets = (Array.isArray(source?.verified_ybty_markets) && source.verified_ybty_markets.length > 0)
           ? source.verified_ybty_markets

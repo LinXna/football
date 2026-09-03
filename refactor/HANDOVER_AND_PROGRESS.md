@@ -1,5 +1,34 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
+- **任务编号 (Task)**: `SNAPSHOT-20260904-REFACTOR-AI-EVAL-IMPORT-AND-PARLAY-FIX`
+- **当前状态 (Status)**: `IN_PROGRESS`
+- **任务目标 (Goal)**：
+  彻底根治重构比赛面板（CanonicalMatchCenter）中“粘贴 AI 返回结果并入库后，面板看不到 AI 评估结果及串关被隔离”的问题：
+  1. **全链路绑定 `selected_match_ids`**：
+     - 前端 `CanonicalMatchCenter.tsx` 导入请求传递当前勾选的 `selected_match_ids` 列表；
+     - 后端 `/api/ai/import-evaluation` (`server/routes/aiReadRoutes.ts`) 接收 `selected_match_ids`，并注入重构系统 `assembleMatchesForMode` 的 CanonicalMatches 作为首要优先匹配源，当 AI 返回缺少 `match_id` 或队名模糊时，精确按勾选的 `canonical_id` 顺序回填强绑定，杜绝 `undefined vs undefined`；
+  2. **比赛面板（CanonicalMatchCenter）直接呈现 AI 评估徽章与定性展开 TAB**：
+     - 在比赛卡片顶部状态行直接渲染 AI 评估评级（如 `🤖 AI: C (58分)` 或 `🤖 AI: B (82分)`）；
+     - 增加独立 TAB：`🤖 04 AI 深度定性评估`，就地展示完整的定性盲区分析、战术态势、逻辑审计、风险标签及推荐方案；
+  3. **串关评估（Parlay Check）联动与状态提示优化**：
+     - 全局加载 `aiEvaluations`，`isMatchQualifiedForParlay` 兼容 `'A'` / `'B'` / `'A_GRADE'` / `'B_GRADE'` 等所有格式；
+     - 当无任何 A/B 熟肉赛事时，在串关列表给出清晰提示，列出已评估为 C/观望的场次原因（如盲区隔离），让用户一目了然为何不可勾选，而非无端静默消失。
+- **交付物清单 (Deliverables)**:
+  - `server/routes/canonicalRoutes.ts`: 导出 `assembleMatchesForMode` 供路由无缝对齐使用；
+  - `server/routes/aiReadRoutes.ts`: 支持 `selected_match_ids` 和 CanonicalMatch 首选数据源智能对齐；
+  - `src/components/CanonicalMatchCenter.tsx`: 升级导入请求参数、卡片顶部 AI 徽章、AI 评估 TAB 渲染与串关清晰度优化；
+  - `refactor/HANDOVER_AND_PROGRESS.md`: 登记工作快照。
+- **改动文件 (Target Files)**:
+  - `server/routes/canonicalRoutes.ts`
+  - `server/routes/aiReadRoutes.ts`
+  - `src/components/CanonicalMatchCenter.tsx`
+  - `refactor/HANDOVER_AND_PROGRESS.md`
+
+## 二、历史活动快照 (Archived Snapshots)
+
+- **任务编号 (Task)**: `SNAPSHOT-20260903-AI-EVAL-IMPORT-LEDGER-ALIGNMENT`
+- **当前状态 (Status)**: `DONE`
+
 - **任务编号 (Task)**: `SNAPSHOT-20260903-LAYER03-MULTI-SCALE-EPI-FIX`
 - **当前状态 (Status)**: `DONE`
 - **任务目标 (Goal)**：

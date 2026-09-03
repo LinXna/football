@@ -326,8 +326,25 @@ export function calculateBivariatePoissonGrid(
 export function calculateContinuousThreatTensor(
   state: UnifiedMatchState
 ): { homeThreat: number; awayThreat: number } {
-  const mapIntensity = (intensity: number) => Number(Math.max(0.20, Math.min(2.50, 0.65 + intensity * 0.70)).toFixed(3));
-  return { homeThreat: mapIntensity(state.home_intensity), awayThreat: mapIntensity(state.away_intensity) };
+  // 当队伍处于极端被动（零射正、零角球、低强度）时，允许威胁度下探，严禁给予0.65的虚高硬性保底
+  const mapIntensity = (intensity: number, opponentIntensity: number) => {
+    let val: number;
+    if (intensity <= 0.15) {
+      // 极端被动/零威胁/无射正态势，威胁阻尼线性下沉至 0.05 ~ 0.25
+      val = 0.05 + intensity * 1.33;
+    } else {
+      val = 0.25 + (intensity - 0.15) * 0.85;
+    }
+    // 场面被绝对压制惩罚 (对方绝对统治且自身微弱)
+    if (opponentIntensity >= 0.60 && intensity <= 0.20) {
+      val *= 0.50; // 深度压制折损 50%
+    }
+    return Number(Math.max(0.02, Math.min(2.50, val)).toFixed(3));
+  };
+  return {
+    homeThreat: mapIntensity(state.home_intensity, state.away_intensity),
+    awayThreat: mapIntensity(state.away_intensity, state.home_intensity)
+  };
 }
 
 /**

@@ -101,14 +101,13 @@ describe('Joint Layer 03 and Layer 04 Integration & Hardening Tests', () => {
       assert.strictEqual(parsed.length, 1);
 
       const matchPayload = parsed[0];
-      assert(matchPayload.quant_features.devig !== undefined);
-      assert(matchPayload.quant_features.bdi !== undefined);
-      assert(matchPayload.quant_features.poisson !== undefined, 'quant_features.poisson must be forwarded to Layer 04 prompt');
-      assert(matchPayload.quant_features.spatio_temporal_events !== undefined, 'quant_features.spatio_temporal_events must be forwarded to Layer 04 prompt');
-      assert(matchPayload.time_context.expected_remaining_minutes_including_stoppage > 0);
+      assert(matchPayload.quant_features.mathematical_ev_signals !== undefined);
+      assert(matchPayload.quant_features.market_divergence_insights !== undefined);
+      assert(matchPayload.quant_features.poisson_expected_goals !== undefined, 'poisson stats must be forwarded to Layer 04 prompt');
+      assert(matchPayload.live_physical_context.expected_remaining_minutes_including_stoppage > 0);
     });
 
-    it('should inject narrative timeline events (goals, cards, substitutions) into tactical_phase_transitions', () => {
+    it('should inject narrative timeline events (goals, cards, substitutions) into live_physical_context', () => {
       const match = createMockMatch();
       match.reference.timeline_events = [
         {
@@ -155,8 +154,8 @@ describe('Joint Layer 03 and Layer 04 Integration & Hardening Tests', () => {
       const parsed = JSON.parse(payloadJson);
       const matchPayload = parsed[0];
 
-      assert(matchPayload.tactical_phase_transitions.some((t: string) => t.includes("12'") && t.includes('进球') && t.includes('Kane')));
-      assert(matchPayload.tactical_phase_transitions.some((t: string) => t.includes("35'") && t.includes('黄牌') && t.includes('Brandt')));
+      assert(matchPayload.live_physical_context.match_timeline_events.some((t: string) => t.includes("12'") && t.includes('进球') && t.includes('Kane')));
+      assert(matchPayload.live_physical_context.match_timeline_events.some((t: string) => t.includes("35'") && t.includes('黄牌') && t.includes('Brandt')));
     });
   });
 

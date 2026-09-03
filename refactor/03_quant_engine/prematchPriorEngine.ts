@@ -146,8 +146,12 @@ export function synthesizePrematchPrior(
     baseGoalsA = Math.max(0.40, Math.min(2.5, Math.sqrt(scoredA * concededH)));
   } else if (homeFormAnalytics.valid_count >= 2 && awayFormAnalytics.valid_count >= 2) {
     // 降级使用近期战绩同构攻防几何均值
-    baseGoalsH = Math.max(0.60, Math.min(3.0, Math.sqrt(homeFormAnalytics.weighted_scored_per_game * awayFormAnalytics.weighted_conceded_per_game)));
-    baseGoalsA = Math.max(0.40, Math.min(2.5, Math.sqrt(awayFormAnalytics.weighted_scored_per_game * homeFormAnalytics.weighted_conceded_per_game)));
+    baseGoalsH = Math.max(0.20, Math.min(3.5, Math.sqrt(homeFormAnalytics.weighted_scored_per_game * awayFormAnalytics.weighted_conceded_per_game)));
+    baseGoalsA = Math.max(0.10, Math.min(3.0, Math.sqrt(awayFormAnalytics.weighted_scored_per_game * homeFormAnalytics.weighted_conceded_per_game)));
+  } else if (homeFormAnalytics.sample_count >= 2 && awayFormAnalytics.sample_count >= 2) {
+    // 再降级使用未衰减的原始平均得失球(适合野鸡青年杯赛)
+    baseGoalsH = Math.max(0.20, Math.min(4.0, Math.sqrt(homeFormAnalytics.weighted_scored_per_game * awayFormAnalytics.weighted_conceded_per_game)));
+    baseGoalsA = Math.max(0.05, Math.min(4.0, Math.sqrt(awayFormAnalytics.weighted_scored_per_game * homeFormAnalytics.weighted_conceded_per_game)));
   }
 
   let lambdaH = baseGoalsH * squadAttH * squadDefA * formFactorH * muiH * (1.0 + h2hAdvantage + stylisticClash * 0.05) * formationFactorH;

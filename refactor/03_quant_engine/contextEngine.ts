@@ -535,13 +535,13 @@ export function calculateRecentFormWeights(
         ? Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24)))
         : -1;
 
-      const isValidTime = hasValidTime && daysAgo >= 0 && daysAgo <= 180;
+      const isValidTime = hasValidTime && daysAgo >= 0 && daysAgo <= 730;
       let timeDecay = 0.0;
       if (isValidTime) {
         if (daysAgo <= 30) {
           timeDecay = 1.0;
         } else {
-          timeDecay = Math.exp(- (Math.LN2 / 60) * (daysAgo - 30));
+          timeDecay = Math.exp(- (Math.LN2 / 120) * (daysAgo - 30)); // 延长半衰期至120天
         }
       }
 

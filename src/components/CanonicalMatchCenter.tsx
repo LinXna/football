@@ -231,7 +231,7 @@ export const CanonicalMatchCenter: React.FC = () => {
   // 卡片折叠/展开与多维查看器状态
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
   const [activeTabByMatch, setActiveTabByMatch] = useState<
-    Record<string, "quant" | "diagnostics" | "markets" | "stats" | "h2h" | "alignment" | "json">
+    Record<string, "quant" | "diagnostics" | "ai" | "markets" | "stats" | "h2h" | "alignment" | "json">
   >({});
   const [copiedMatchId, setCopiedMatchId] = useState<string | null>(null);
 
@@ -272,30 +272,89 @@ export const CanonicalMatchCenter: React.FC = () => {
     events: any[];
   } | null>(null);
 
-  // 导出全部 Canonical JSON
-  
+  // 持续加载 AI 评估历史
+  const loadAiEvaluations = useCallback(() => {
+    fetch('/api/ai/evaluations')
+      .then(res => res.json())
+      .then(data => {
+        if (data.evaluations) {
+          setAiEvaluations(data.evaluations);
+        }
+      })
+      .catch(err => console.error("Failed to fetch AI evaluations", err));
+  }, []);
+
+  useEffect(() => {
+    loadAiEvaluations();
+  }, [loadAiEvaluations]);
+
   useEffect(() => {
     if (isAiModalOpen) {
-      fetch('/api/ai/evaluations')
-        .then(res => res.json())
-        .then(data => {
-          if (data.evaluations) {
-            setAiEvaluations(data.evaluations);
-          }
-        })
-        .catch(err => console.error("Failed to fetch AI evaluations", err));
+      loadAiEvaluations();
     }
-  }, [isAiModalOpen]);
+  }, [isAiModalOpen, loadAiEvaluations]);
+
+  // 核心匹配算法：根据比赛实体在历史记录中检索对应的 AI 评估结果
+  const findAiEvaluationForMatch = useCallback((m: CanonicalMatch) => {
+    const cleanStr = (s: string) => s.toLowerCase().replace(/-(ybty|leisu)$/gi, '').replace(/fc|football club|俱乐部|体育/gi, '').replace(/[\s\-_:\.()（）\[\]【】]/g, '').trim();
+    const homeClean = cleanStr(m.home_team_name);
+    const awayClean = cleanStr(m.away_team_name);
+
+    for (const evalObj of aiEvaluations) {
+      const candidates: any[] = [];
+      if (evalObj.result && Array.isArray(evalObj.result.matches)) {
+        candidates.push(...evalObj.result.matches);
+      } else if (evalObj.result && typeof evalObj.result === 'object') {
+        candidates.push(evalObj.result);
+      }
+
+      for (const item of candidates) {
+        if (!item || typeof item !== 'object') continue;
+        // 1. match_id / canonical_id 精确对齐
+        if (item.canonical_id && item.canonical_id === m.canonical_id) return item;
+        if (item.match_id && (item.match_id === m.canonical_id || item.match_id === m.reference?.leisu_match_id)) return item;
+        if (item.leisu_match_id && item.leisu_match_id === m.reference?.leisu_match_id) return item;
+        
+        // 2. 队名对齐
+        if (item.ybty_home && item.ybty_away) {
+          if (cleanStr(item.ybty_home) === homeClean && cleanStr(item.ybty_away) === awayClean) return item;
+        }
+        if (item.match && typeof item.match === 'string') {
+          const mStr = item.match.toLowerCase();
+          if (homeClean && awayClean && mStr.includes(homeClean) && mStr.includes(awayClean)) return item;
+        }
+        // 3. 全文盲区文本对齐（当大模型分析文本包含两队名称）
+        const fullContent = JSON.stringify(item);
+        if (homeClean && awayClean && fullContent.includes(homeClean) && fullContent.includes(awayClean)) {
+          return item;
+        }
+      }
+    }
+    return null;
+  }, [aiEvaluations]);
 
   const isMatchQualifiedForParlay = (matchId: string) => {
+    const matchObj = matches.find(m => m.canonical_id === matchId);
+    if (matchObj) {
+      const foundEval = findAiEvaluationForMatch(matchObj);
+      if (foundEval) {
+        const grade = String(foundEval.grade || foundEval.grade_raw || '').toUpperCase();
+        return grade === 'A' || grade === 'B' || grade === 'A_GRADE' || grade === 'B_GRADE';
+      }
+    }
     for (const evalObj of aiEvaluations) {
+      const candidates: any[] = [];
       if (evalObj.result && Array.isArray(evalObj.result.matches)) {
-        const found = evalObj.result.matches.find((m: any) => m.match_id === matchId || m.leisu_match_id === matchId || m.canonical_id === matchId);
-        if (found) {
-          return found.grade === 'A_GRADE' || found.grade === 'B_GRADE';
+        candidates.push(...evalObj.result.matches);
+      } else if (evalObj.result && typeof evalObj.result === 'object') {
+        candidates.push(evalObj.result);
+      }
+      for (const item of candidates) {
+        if (!item) continue;
+        if (item.canonical_id === matchId || item.match_id === matchId || item.leisu_match_id === matchId) {
+          const grade = String(item.grade || item.grade_raw || '').toUpperCase();
+          return grade === 'A' || grade === 'B' || grade === 'A_GRADE' || grade === 'B_GRADE';
         }
-      } else if (evalObj.result && (evalObj.result.match_id === matchId || evalObj.result.leisu_match_id === matchId || evalObj.result.canonical_id === matchId)) {
-        return evalObj.result.grade === 'A_GRADE' || evalObj.result.grade === 'B_GRADE';
       }
     }
     return false;
@@ -389,16 +448,23 @@ export const CanonicalMatchCenter: React.FC = () => {
     setIsAiLoading(true);
     setAiFeedback(null);
     try {
+      const selectedIdsArray = Array.from(aiSelectedMatchIds);
       const resp = await fetch('/api/ai/import-evaluation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw_text: aiImportJson, expected_match_count: aiSelectedMatchIds.size, mode: aiEvalMode })
+        body: JSON.stringify({
+          raw_text: aiImportJson,
+          expected_match_count: selectedIdsArray.length,
+          selected_match_ids: selectedIdsArray,
+          mode: aiEvalMode
+        })
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || '导入失败');
       
-      setAiFeedback({ type: 'success', message: '✅ 成功导入并保存至台账！您可以在【投注建议中心】或【推荐台账】中查看。' });
+      setAiFeedback({ type: 'success', message: '✅ 成功导入 AI 评估！已自动与当前重构赛事关联并在比赛卡片就地呈现。' });
       setAiImportJson('');
+      loadAiEvaluations();
     } catch (err: any) {
       setAiFeedback({ type: 'error', message: `❌ 导入失败: ${err.message}` });
     } finally {
