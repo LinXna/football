@@ -384,8 +384,8 @@ export function calculateTotalGoalsEV(
  * 识别机构设防与诱盘姿态 (Bookmaker Posture)
  */
 export function identifyBookmakerPosture(
-  spreadEV: SpreadEVAssessment,
-  totalEV: TotalEVAssessment,
+  spreadEV: SpreadEVAssessment | undefined,
+  totalEV: TotalEVAssessment | undefined,
   overround: number,
   shinZ: number
 ): BookmakerPosture {
@@ -395,12 +395,12 @@ export function identifyBookmakerPosture(
   }
 
   // 2. 异常高赔诱盘陷阱 (赔率极诱人但理论胜率支撑不足)
-  if ((spreadEV.home_ev < -0.08 && spreadEV.home_odds > 2.20) || (spreadEV.away_ev < -0.08 && spreadEV.away_odds > 2.20)) {
+  if (spreadEV && ((spreadEV.home_ev < -0.08 && spreadEV.home_odds > 2.20) || (spreadEV.away_ev < -0.08 && spreadEV.away_odds > 2.20))) {
     return BookmakerPosture.TRAP_HIGH_ODDS;
   }
 
   // 3. 抽水率偏高且无明确正 EV
-  if (overround > 1.10 && !spreadEV.is_positive_ev && !totalEV.is_positive_ev) {
+  if (overround > 1.10 && (!spreadEV || !spreadEV.is_positive_ev) && (!totalEV || !totalEV.is_positive_ev)) {
     return BookmakerPosture.DISPERSED_UNCERTAIN;
   }
 
@@ -425,7 +425,7 @@ export function calculateDeviggedMarketFeatures(
   }
 
   // 1. 欧赔去抽水
-  let h2hDevig: SingleMarketDevig;
+  let h2hDevig: SingleMarketDevig | undefined;
   if (decimalOdds.length === 3) {
     const shin = devigShin(decimalOdds);
     h2hDevig = {
@@ -435,23 +435,13 @@ export function calculateDeviggedMarketFeatures(
       fair_probabilities: shin.fair_probs,
       fair_odds: shin.fair_probs.map((p) => (p > 0 ? Number((1.0 / p).toFixed(3)) : 0.0))
     };
-  } else {
-    h2hDevig = {
-      market_type: MarketType.MONEYLINE_1X2,
-      raw_overround: 1.07,
-      devig_method: DevigMethod.MULTIPLICATIVE,
-      fair_probabilities: [0.45, 0.28, 0.27],
-      fair_odds: [2.22, 3.57, 3.70]
-    };
   }
 
   // 2. 亚洲让球盘 EV
   const spreadMarket = match.markets?.full_spread_main;
-  let spreadMain: SpreadEVAssessment;
+  let spreadMain: SpreadEVAssessment | undefined;
   if (spreadMarket && spreadMarket.home_selection && spreadMarket.home_odds && spreadMarket.away_odds) {
     spreadMain = calculateAsianHandicapEV(spreadMarket.home_selection, spreadMarket.home_odds, spreadMarket.away_odds, poisson);
-  } else {
-    spreadMain = { line: '0.0', home_odds: 1.95, away_odds: 1.95, home_ev: 0.0, away_ev: 0.0, preferred_side: 'none', is_positive_ev: false };
   }
 
   const spreadSecondaryEV: SpreadEVAssessment[] = [];
@@ -466,11 +456,9 @@ export function calculateDeviggedMarketFeatures(
   // 3. 大小球盘 EV
   const totalMarket = match.markets?.full_total_main;
   const currentTotal = (match.score.home_score ?? 0) + (match.score.away_score ?? 0);
-  let totalMain: TotalEVAssessment;
+  let totalMain: TotalEVAssessment | undefined;
   if (totalMarket && totalMarket.line && totalMarket.over_odds && totalMarket.under_odds) {
     totalMain = calculateTotalGoalsEV(totalMarket.line, totalMarket.over_odds, totalMarket.under_odds, currentTotal, poisson);
-  } else {
-    totalMain = { line: '2.5', over_odds: 1.95, under_odds: 1.95, over_ev: 0.0, under_ev: 0.0, preferred_side: 'none', is_positive_ev: false };
   }
 
   const totalSecondaryEV: TotalEVAssessment[] = [];
@@ -483,7 +471,7 @@ export function calculateDeviggedMarketFeatures(
   }
 
   // 4. 机构姿态识别
-  const posture = identifyBookmakerPosture(spreadMain, totalMain, h2hDevig.raw_overround, 0.02);
+  const posture = identifyBookmakerPosture(spreadMain, totalMain, h2hDevig?.raw_overround ?? 1.05, 0.02);
 
   const activeTracer = tracer ?? Tracer.getInstance();
   activeTracer.log(

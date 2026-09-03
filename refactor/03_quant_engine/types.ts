@@ -365,10 +365,10 @@ export interface TotalEVAssessment {
 }
 
 export interface DeviggedMarketFeatures {
-  h2h_devig: SingleMarketDevig;
-  spread_main_ev: SpreadEVAssessment;
+  h2h_devig?: SingleMarketDevig;
+  spread_main_ev?: SpreadEVAssessment;
   spread_secondary_ev: SpreadEVAssessment[];
-  total_main_ev: TotalEVAssessment;
+  total_main_ev?: TotalEVAssessment;
   total_secondary_ev: TotalEVAssessment[];
   line_dispersion: {
     spread_variance: number;

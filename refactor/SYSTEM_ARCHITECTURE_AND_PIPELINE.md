@@ -90,20 +90,21 @@
 
 ### 4. 纯 Forward 泊松推演与绝境搏命非线性时间衰减模型 (Poisson Time-Decay)
 - **剩余时间比例**：$\tau = \max\left(0, \frac{90 - t}{90}\right)$
-- **绝境搏命非线性修正因子**：
-  - 临近终场（$t \ge 75$）且比分仅落后 1 球（如 $0-1$ 或 $1-2$）时，落后方将采取全员压上进攻（高风险高转化）战术：
-  $$\kappa_{\text{behind}} = 1.0 + 0.35 \times \left(\frac{t - 75}{15}\right) \times \text{MUI}_{\text{behind}}$$
+- **绝境搏命非线性修正因子 (含先验实力不对称性 `priorStrengthRatio`)**：
+  - 临近终场（$t \ge 75$）且比分仅落后 1 球（如 $0-1$ 或 $1-2$）时，落后方将采取全员压上进攻战术。强队落后获得最高 2.0 倍搏命乘子，弱队落后被压缩至 0.5，符合真实物理不对称性：
+  $$\kappa_{\text{behind}} = 1.0 + 0.35 \times \left(\frac{t - 75}{15}\right) \times \text{MUI}_{\text{behind}} \times \text{StrengthRatio}$$
   $$\lambda_{\text{behind\_rest}} = \lambda_{\text{base}} \times \tau \times \kappa_{\text{behind}}$$
-- **0:0 泊松二维网格联合分布**：
-  $$P(X = x, Y = y) = \frac{\lambda_H^x e^{-\lambda_H}}{x!} \times \frac{\lambda_A^y e^{-\lambda_A}}{y!}, \quad (x, y \in [0, 8])$$
+- **Dixon-Coles 修正二维网格联合分布 ($\rho = 0.05$)**：
+  - 独立泊松会导致极低比分平局概率被严重低估，系统引入 Dixon-Coles $\rho$ 修正：
+  $$P(X = x, Y = y) = \tau(x, y, \rho) \times \frac{\lambda_H^x e^{-\lambda_H}}{x!} \times \frac{\lambda_A^y e^{-\lambda_A}}{y!}, \quad (x, y \in [0, 8])$$
 - **剩余胜平负概率**：
   $$P(\text{HomeWin}_{\text{rest}}) = \sum_{x > y} P(x, y), \quad P(\text{Draw}_{\text{rest}}) = \sum_{x = y} P(x, y), \quad P(\text{AwayWin}_{\text{rest}}) = \sum_{x < y} P(x, y)$$
 
-### 5. Shin 知情交易者去抽水模型 (Shin De-Vig Algorithm)
-- 考虑市场存在内幕交易者（Informed Traders）占比 $z \in [0, 0.4]$，通过牛顿迭代法精确解耦公允真实概率 $p_i$：
-  $$\pi_i = \frac{1}{O_i}, \quad \beta = \sum \pi_i$$
-  $$p_i = \frac{\sqrt{z^2 + 4(1-z)\frac{\pi_i^2}{\beta}} - z}{2(1-z)}$$
-  保证无偏公允概率满足 $\sum_{i=1}^n p_i = 1.0$。
+### 5. Shin 知情交易者去抽水模型与联合盘口数值反演 (Shin De-Vig & Joint Market Inversion)
+- **Shin 去抽水**：考虑市场存在内幕交易者占比 $z \in [0, 0.4]$，通过牛顿迭代法精确解耦 1X2 欧赔真实概率。
+- **联合反演与混合贝叶斯收缩**：
+  - 不再将四分之一盘伪装为二元赔率，而是以统一泊松盘口概率作为唯一目标函数，联合拟合 1X2、亚洲让球与大小球，提取市场隐含进球期望 $\lambda_{\text{mkt}}$。
+  - **贝叶斯先验融合**：删除了盲从的 `CONSENSUS_ALIGNED` 规则，采用 85% 盘口反演 $\lambda_{\text{mkt}}$ 与 15% 理论先验 $\lambda_{\text{theory}}$ 的混合贝叶斯收缩，得出基准进球期望。
 
 ### 6. 亚洲四分之一盘复合期望与半赢半输精确结算
 - 对于四分之一盘（如 `-0/0.5` 即 $-0.25$ 盘），其期望价值与胜率由相邻两个半整数盘等权复合：

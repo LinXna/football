@@ -101,11 +101,11 @@ export function synthesizePrematchPrior(
   const awayFormAnalytics = context.recent_form_analytics.away;
 
   // 近期攻防效率加成 (基准均值 1.30 球)
-  const homeAttackForm = Math.max(0.70, Math.min(1.35, homeFormAnalytics.weighted_scored_per_game / 1.30));
-  const homeDefenseForm = Math.max(0.70, Math.min(1.35, 1.30 / Math.max(0.40, homeFormAnalytics.weighted_conceded_per_game)));
+  const homeAttackForm = homeFormAnalytics.sample_count > 0 ? Math.max(0.70, Math.min(1.35, homeFormAnalytics.weighted_scored_per_game / 1.30)) : 1.0;
+  const homeDefenseForm = homeFormAnalytics.sample_count > 0 ? Math.max(0.70, Math.min(1.35, 1.30 / Math.max(0.40, homeFormAnalytics.weighted_conceded_per_game))) : 1.0;
 
-  const awayAttackForm = Math.max(0.70, Math.min(1.35, awayFormAnalytics.weighted_scored_per_game / 1.30));
-  const awayDefenseForm = Math.max(0.70, Math.min(1.35, 1.30 / Math.max(0.40, awayFormAnalytics.weighted_conceded_per_game)));
+  const awayAttackForm = awayFormAnalytics.sample_count > 0 ? Math.max(0.70, Math.min(1.35, awayFormAnalytics.weighted_scored_per_game / 1.30)) : 1.0;
+  const awayDefenseForm = awayFormAnalytics.sample_count > 0 ? Math.max(0.70, Math.min(1.35, 1.30 / Math.max(0.40, awayFormAnalytics.weighted_conceded_per_game))) : 1.0;
 
   // 综合近态修正
   const formFactorH = (homeAttackForm * 0.6 + homeDefenseForm * 0.4);

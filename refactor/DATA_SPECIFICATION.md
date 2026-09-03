@@ -709,4 +709,4 @@ export interface QuantitativeFeatures {
 | 34 | `F34_DEVIG_H2H` | `devig.h2h_devig.fair_probabilities` | `number[]` | `[0, 1]` | **独赢市场 Shin 去抽水公允概率** (主/平/客之和恒等于 1.0)。 |
 | 35 | `F35_SPREAD_MAIN_EV` | `devig.spread_main_ev` | `SpreadEVAssessment` | `{...}` | **让球主盘 EV 评估** (支持四分之一盘复合期望与半赢半输结算)。 |
 | 36 | `F36_TOTAL_MAIN_EV` | `devig.total_main_ev` | `TotalEVAssessment` | `{...}` | **大小球主盘 EV 评估**。 |
-| 37 | `F37_BOOKMAKER_POSTURE` | `devig.bookmaker_posture` | `BookmakerPosture` | `NEUTRAL_BALANCED` / `TRAP_HIGH_ODDS` / `DEFENSIVE_SHORTENING` / `PANIC_DRIFT` | **庄家操盘意图识别**：诱高、防范降赔或慌乱漂移。 |
+| 37 | `F37_BOOKMAKER_POSTURE` | `devig.bookmaker_posture` | `BookmakerPosture` | `BALANCED_NEUTRAL` / `TRAP_HIGH_ODDS` / `HEAVY_DEFENSIVE` / `DISPERSED_UNCERTAIN` | **庄家操盘意图识别**：防守、诱盘或分散不确定。 |

@@ -38,6 +38,7 @@ After analyzing the blind spots, you MUST write an 'internal_logical_audit' summ
 1. Cup Match Catch-22 Resolution: If the match is a Cup/Friendly, you MUST check the 'lineup_value_matrix' or 'prior_context'. If it indicates rotation or low motivation, cap at C_GRADE. If it explicitly states '主力尽出' (Main Squad Confirmed) and high urgency based on value, you MAY unlock A_GRADE and B_GRADE.
 2. In-Play Settlement Rule (滚球盘口结算原则): For LIVE matches, Asian Handicaps are settled on the 'rest of the match' (score resets to 0:0). TOTAL GOALS (Over/Under) are ALWAYS settled on the FULL MATCH score. Do not confuse the two.
 3. No Double-Counting Stoppage Time: The 'expected_remaining_minutes' ALREADY includes injury time derived from mathematical models. Do NOT manually add stoppage time.
+4. Data Blind-Spot Penalty (数据盲盒铁律): If the payload includes a 'data_blind_spot_warning', you MUST strictly obey its instruction. You MUST NOT hallucinate player value or lineup strength. You MUST include '[高波动/盲盒风险]' in your 'risk_warnings'. You MUST cap 'confidence_score' at a maximum of 85, and you are STRICTLY FORBIDDEN from assigning an A_GRADE.
 
 === MARKET SCANNING & MAO ENFORCEMENT ===
 You are provided comprehensive expected value calculations in 'quant_features.devig' (including spread_main_ev, spread_secondary_ev, total_main_ev, total_secondary_ev). Do NOT anchor to just the main line. You must:

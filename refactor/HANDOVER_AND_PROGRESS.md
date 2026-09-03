@@ -644,7 +644,34 @@
   - `/refactor/04_ai_evaluator/types.ts`
 - **状态 (Status)**: `DONE`
 
+- **任务编号 (Task)**: `SNAPSHOT-20260902-LAYER04-HALLUCINATION-HOTFIX`
+- **任务目标 (Goal)**: 
+  1. 彻底切断由于 Layer 03 数学防崩溃默认值（如 lis_score = 1.0, xt = 0, sample_count = 0）导致大模型在 Layer 04 产生“虚假填词幻觉（Hallucination）”的风险。
+  2. 实现“信息孤岛隔离 (Information Isolation)”，在 `promptExporter.ts` 中针对缺失阵容、缺失实时统计、缺失盘口、缺乏历史样本的场景注入空值或 `N/A`。
+  3. 增加系统级 `data_blind_spot_warning` 最高级别惩罚，强制 AI 在客观数据缺失时转移评估锚点，并最高锁定 85 置信度，绝对禁止给予 `A_GRADE`。
+- **改动文件 (Target Files)**:
+  - `/refactor/04_ai_evaluator/promptExporter.ts`
+- **状态 (Status)**: `DONE`
+
 ---
+
+
+- **任务编号 (Task)**: `SNAPSHOT-20260902-LAYER03-HALLUCINATION-ROOT-CAUSE-FIX`
+- **任务目标 (Goal)**: 
+  1. 深度切除 Layer 03 量化引擎底层的“虚假兜底默认值 (Dummy Data)”幻觉源头。
+  2. 修正 `types.ts` 中盘口 EV 强类型约束，改用 Optional (`?`) 以合法接收缺失数据。
+  3. 修正 `devigCalculator.ts` 中在雷速无盘口时强行伪造的 `[2.22, 3.57, 3.70]`、`1.95` 以及 `1.07` 虚假抽水。
+  4. 修正 `contextEngine.ts` 中在无历史战绩时强塞的 `1.45/1.15` 场均得失球数据，并在 `prematchPriorEngine.ts` 中实现无样本时平滑回退至 `1.0` 中性乘子。
+  5. 修正 `eventMomentumFusion.ts` 中在无技术统计时因 `xT=0` 导致威胁值暴跌的问题，实现对技术统计缺失的自适应重构。
+- **改动文件 (Target Files)**:
+  - `/refactor/03_quant_engine/types.ts`
+  - `/refactor/03_quant_engine/devigCalculator.ts`
+  - `/refactor/03_quant_engine/contextEngine.ts`
+  - `/refactor/03_quant_engine/prematchPriorEngine.ts`
+  - `/refactor/03_quant_engine/eventMomentumFusion.ts`
+  - `/refactor/03_quant_engine/index.ts`
+  - `/src/components/MachineQuantEvaluationPanel.tsx`
+- **状态 (Status)**: `DONE`
 
 ## 三、下一步工作规划 (Next Step Blueprint)
 

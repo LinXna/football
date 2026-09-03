@@ -199,7 +199,7 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
             </p>
           </div>
           <div className="text-[10px] text-slate-500 font-mono">
-            去抽水: {quant.devig.h2h_devig?.devig_method ?? "Shin / Mult"}
+            去抽水: {quant.devig.h2h_devig?.devig_method ?? "未开盘(N/A)"}
           </div>
         </div>
       </div>

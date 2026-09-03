@@ -221,7 +221,7 @@ export function calculateConfidenceAndAlerts(
   }
 
   // 提取让球与大小球的正 EV 信号
-  if (devig.spread_main_ev.is_positive_ev && devig.spread_main_ev.preferred_side !== 'none') {
+  if (devig.spread_main_ev && devig.spread_main_ev.is_positive_ev && devig.spread_main_ev.preferred_side !== 'none') {
     const side = devig.spread_main_ev.preferred_side;
     const ev = side === 'home' ? devig.spread_main_ev.home_ev : devig.spread_main_ev.away_ev;
     const odds = side === 'home' ? devig.spread_main_ev.home_odds : devig.spread_main_ev.away_odds;
@@ -237,7 +237,7 @@ export function calculateConfidenceAndAlerts(
     }));
   }
 
-  if (devig.total_main_ev.is_positive_ev && devig.total_main_ev.preferred_side !== 'none') {
+  if (devig.total_main_ev && devig.total_main_ev.is_positive_ev && devig.total_main_ev.preferred_side !== 'none') {
     const side = devig.total_main_ev.preferred_side;
     const ev = side === 'over' ? devig.total_main_ev.over_ev : devig.total_main_ev.under_ev;
     const odds = side === 'over' ? devig.total_main_ev.over_odds : devig.total_main_ev.under_odds;

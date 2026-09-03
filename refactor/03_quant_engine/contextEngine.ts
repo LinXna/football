@@ -335,18 +335,18 @@ export function calculateRecentFormWeights(
         analytics: {
           sample_count: 0,
           valid_count: 0,
-          weighted_scored_per_game: isTargetHome ? 1.45 : 1.15,
-          weighted_conceded_per_game: isTargetHome ? 1.15 : 1.45,
-          first_half_scored_avg: 0.6,
-          first_half_conceded_avg: 0.5,
-          second_half_scored_avg: 0.8,
-          second_half_conceded_avg: 0.7,
-          slow_starter_index: 0.55,
-          second_half_surge_rate: 0.5,
-          clean_sheet_rate: 0.3,
-          failed_to_score_rate: 0.25,
-          handicap_win_rate: 0.5,
-          over_goals_rate: 0.5
+          weighted_scored_per_game: 0,
+          weighted_conceded_per_game: 0,
+          first_half_scored_avg: 0,
+          first_half_conceded_avg: 0,
+          second_half_scored_avg: 0,
+          second_half_conceded_avg: 0,
+          slow_starter_index: 0,
+          second_half_surge_rate: 0,
+          clean_sheet_rate: 0,
+          failed_to_score_rate: 0,
+          handicap_win_rate: 0,
+          over_goals_rate: 0
         }
       };
     }
@@ -476,15 +476,15 @@ export function calculateRecentFormWeights(
     });
 
     const denom = totalEffectiveWeight > 0 ? totalEffectiveWeight : 1.0;
-    const avgScored = totalEffectiveWeight > 0 ? Number((sumScored / denom).toFixed(2)) : (isTargetHome ? 1.45 : 1.15);
-    const avgConceded = totalEffectiveWeight > 0 ? Number((sumConceded / denom).toFixed(2)) : (isTargetHome ? 1.15 : 1.45);
-    const avgHalfScored = totalEffectiveWeight > 0 ? Number((sumHalfScored / denom).toFixed(2)) : 0.60;
-    const avgHalfConceded = totalEffectiveWeight > 0 ? Number((sumHalfConceded / denom).toFixed(2)) : 0.50;
-    const avgSecondScored = totalEffectiveWeight > 0 ? Number((sumSecondHalfScored / denom).toFixed(2)) : 0.80;
-    const avgSecondConceded = totalEffectiveWeight > 0 ? Number((sumSecondHalfConceded / denom).toFixed(2)) : 0.70;
+    const avgScored = totalEffectiveWeight > 0 ? Number((sumScored / denom).toFixed(2)) : 0;
+    const avgConceded = totalEffectiveWeight > 0 ? Number((sumConceded / denom).toFixed(2)) : 0;
+    const avgHalfScored = totalEffectiveWeight > 0 ? Number((sumHalfScored / denom).toFixed(2)) : 0;
+    const avgHalfConceded = totalEffectiveWeight > 0 ? Number((sumHalfConceded / denom).toFixed(2)) : 0;
+    const avgSecondScored = totalEffectiveWeight > 0 ? Number((sumSecondHalfScored / denom).toFixed(2)) : 0;
+    const avgSecondConceded = totalEffectiveWeight > 0 ? Number((sumSecondHalfConceded / denom).toFixed(2)) : 0;
 
     const totalScoredSum = sumHalfScored + sumSecondHalfScored;
-    const slowStarter = totalScoredSum > 0 ? Number((sumSecondHalfScored / totalScoredSum).toFixed(3)) : 0.55;
+    const slowStarter = totalScoredSum > 0 ? Number((sumSecondHalfScored / totalScoredSum).toFixed(3)) : 0;
 
     return {
       weights,
