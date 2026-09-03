@@ -192,6 +192,12 @@ export function calculateConfidenceAndAlerts(
     }
   }
 
+  // 滚球缺失客观攻防统计扣分
+  if (!physical.stats_available && stage === MatchStage.LIVE) {
+    score -= 25;
+    riskFlags.push(QuantAlert.TECHNICAL_METRICS_DEFICIT);
+  }
+
   if (physical.tactical_anomaly.home_barren_dominance || physical.tactical_anomaly.away_barren_dominance) {
     score -= 8;
     riskFlags.push(QuantAlert.BARREN_DOMINANCE_WARNING);
@@ -201,7 +207,7 @@ export function calculateConfidenceAndAlerts(
     riskFlags.push(QuantAlert.LETHAL_COUNTER_WARNING);
   }
 
-  if (physical.red_card_penalty.home_attack_multiplier < 1.0 || physical.red_card_penalty.away_attack_multiplier < 1.0) {
+  if ((physical.red_card_penalty?.home_attack_multiplier ?? 1.0) < 1.0 || (physical.red_card_penalty?.away_attack_multiplier ?? 1.0) < 1.0) {
     riskFlags.push(QuantAlert.RED_CARD_TACTICAL_COLLAPSE);
   }
 
@@ -225,7 +231,7 @@ export function calculateConfidenceAndAlerts(
     const side = devig.spread_main_ev.preferred_side;
     const ev = side === 'home' ? devig.spread_main_ev.home_ev : devig.spread_main_ev.away_ev;
     const odds = side === 'home' ? devig.spread_main_ev.home_odds : devig.spread_main_ev.away_odds;
-    const kelly = devig.spread_main_ev.kelly_fraction ?? 0;
+    const kelly = devig.spread_main_ev.kelly_fraction as number;
     positiveEVSignals.push(Object.freeze({
       market: 'ASIAN_HANDICAP_MAIN',
       line: devig.spread_main_ev.line,
@@ -241,7 +247,7 @@ export function calculateConfidenceAndAlerts(
     const side = devig.total_main_ev.preferred_side;
     const ev = side === 'over' ? devig.total_main_ev.over_ev : devig.total_main_ev.under_ev;
     const odds = side === 'over' ? devig.total_main_ev.over_odds : devig.total_main_ev.under_odds;
-    const kelly = devig.total_main_ev.kelly_fraction ?? 0;
+    const kelly = devig.total_main_ev.kelly_fraction as number;
     positiveEVSignals.push(Object.freeze({
       market: 'TOTAL_GOALS_MAIN',
       line: devig.total_main_ev.line,
@@ -280,6 +286,14 @@ export function calculateQuantitativeFeatures(
     undefined,
     match.canonical_id
   );
+
+  // 0. 核心定价要素前置强阻断检查 (Hard Block)
+  if ((match.timing.stage === MatchStage.LIVE && (match.timing.minute === null || match.timing.minute === undefined)) ||
+      ((match.timing.stage === MatchStage.LIVE || match.timing.stage === MatchStage.FINISHED) &&
+        (match.score.home_score === null || match.score.home_score === undefined || match.score.away_score === null || match.score.away_score === undefined || !match.score.score_verified))) {
+    collector?.record('UNPRICEABLE_MATCH', Layer03OpId.ORCHESTRATE_QUANT, 'RC-005', 'Core pricing data (minute or verified score) is missing. Cannot evaluate expected values.', undefined, match.canonical_id);
+    throw new Error(`UNPRICEABLE_MATCH: Core pricing data is missing, blocking Quantitative Engine execution for match ${match.canonical_id}.`);
+  }
 
   // 1. M2: 数据时效衰减与情境清洗
   const contextFeatures = extractCleanedContextFeatures(match, collector, tracer);
@@ -360,16 +374,28 @@ export function calculateQuantitativeFeatures(
   );
 
   let adjustedConfidence = Math.max(0, confidence_score - marketCalibration.market_confidence_penalty);
-  if (!physicalStatsFeatures.stats_available) adjustedConfidence = Math.min(adjustedConfidence, 55);
-  if (spatioTemporalFeatures.live_threat_trinity.has_material_conflict) adjustedConfidence = Math.min(adjustedConfidence, 65);
+  if (match.timing.stage === MatchStage.LIVE && !physicalStatsFeatures.stats_available) {
+    adjustedConfidence = Math.min(adjustedConfidence, 55);
+  }
+  if (spatioTemporalFeatures.live_threat_trinity.has_material_conflict) {
+    adjustedConfidence = Math.min(adjustedConfidence, 65);
+  }
 
   const metricAvailability = Object.values(physicalStatsFeatures.available_metrics)
     .filter((available) => available).length / Object.keys(physicalStatsFeatures.available_metrics).length;
-  const dataQualityScore = Math.round(100 * (
-    0.45 * metricAvailability +
-    0.30 * (timelineFeatures.total_points > 0 ? 1 : 0) +
-    0.25 * (match.score.score_verified ? 1 : 0)
-  ));
+
+  // 严禁假数据：按比赛阶段真实评估数据质量，赛前评估基本面维度真实齐备度，滚球评估客观攻防与动量波形
+  const dataQualityScore = match.timing.stage === MatchStage.PREMATCH
+    ? Math.round(100 * (
+        0.40 * (match.reference?.lineups?.confirmed ? 1 : ((match.reference?.lineups?.home_starters?.length ?? 0) > 0 ? 0.6 : 0)) +
+        0.35 * (match.reference?.league_standings?.has_data ? 1 : 0) +
+        0.25 * (match.reference?.goal_distribution?.has_data ? 1 : 0)
+      ))
+    : Math.round(100 * (
+        0.45 * metricAvailability +
+        0.30 * (timelineFeatures.total_points > 0 ? 1 : 0) +
+        0.25 * (match.score.score_verified ? 1 : 0)
+      ));
   const modelStabilityScore = Math.round(100 * Math.max(0, Math.min(1,
     0.45 + 0.55 * Math.min(
       spatioTemporalFeatures.live_threat_trinity.home.alignment_score,

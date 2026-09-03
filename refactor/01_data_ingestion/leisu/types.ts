@@ -381,15 +381,15 @@ export interface ParsedLeisuVenue {
 }
 
 export interface ParsedLeisuStats {
-  corners: MetricPair;
-  yellow_cards: MetricPair;
-  red_cards: MetricPair;
-  attacks: MetricPair;
-  dangerous_attacks: MetricPair;
-  possession: MetricPair;
-  shots_on_target: MetricPair;
-  shots_off_target: MetricPair;
-  shots: MetricPair; // shots = shots_on_target + shots_off_target
+  corners: MetricPair | null;
+  yellow_cards: MetricPair | null;
+  red_cards: MetricPair | null;
+  attacks: MetricPair | null;
+  dangerous_attacks: MetricPair | null;
+  possession: MetricPair | null;
+  shots_on_target: MetricPair | null;
+  shots_off_target: MetricPair | null;
+  shots: MetricPair | null; // shots = shots_on_target + shots_off_target
 }
 
 export interface ParsedLeisuMomentum {
@@ -575,7 +575,7 @@ export interface ParsedLeisuMatch {
   score_verified: boolean;
   environment: ParsedLeisuEnvironment;
   venue: ParsedLeisuVenue | null;
-  stats: ParsedLeisuStats;
+  stats: ParsedLeisuStats | null;
   attack_momentum: ParsedLeisuMomentum;
   timeline_events: ParsedLeisuTimelineEvent[];
   lineups: ParsedLeisuLineup;

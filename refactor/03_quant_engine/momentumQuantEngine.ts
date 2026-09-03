@@ -257,24 +257,24 @@ export function extractRealTimePhysicalStats(
   }
   const events = match.reference?.timeline_events ?? (match as any).timeline_events ?? [];
 
-  const homeDA = stats?.dangerous_attacks?.home ?? 0;
-  const awayDA = stats?.dangerous_attacks?.away ?? 0;
-  const homeAttacks = stats?.attacks?.home ?? 0;
-  const awayAttacks = stats?.attacks?.away ?? 0;
-  const homeShots = stats?.shots?.home ?? 0;
-  const awayShots = stats?.shots?.away ?? 0;
-  const homeOn = stats?.shots_on_target?.home ?? 0;
-  const awayOn = stats?.shots_on_target?.away ?? 0;
-  const homeOff = stats?.shots_off_target?.home ?? 0;
-  const awayOff = stats?.shots_off_target?.away ?? 0;
-  const homeCorners = stats?.corners?.home ?? 0;
-  const awayCorners = stats?.corners?.away ?? 0;
-  const homeYellow = stats?.yellow_cards?.home ?? 0;
-  const awayYellow = stats?.yellow_cards?.away ?? 0;
-  const homeRed = stats?.red_cards?.home ?? 0;
-  const awayRed = stats?.red_cards?.away ?? 0;
-  const homePossession = stats?.possession?.home ?? 50;
-  const awayPossession = stats?.possession?.away ?? 50;
+  const homeDA = stats?.dangerous_attacks?.home;
+  const awayDA = stats?.dangerous_attacks?.away;
+  const homeAttacks = stats?.attacks?.home;
+  const awayAttacks = stats?.attacks?.away;
+  const homeShots = stats?.shots?.home;
+  const awayShots = stats?.shots?.away;
+  const homeOn = stats?.shots_on_target?.home;
+  const awayOn = stats?.shots_on_target?.away;
+  const homeOff = stats?.shots_off_target?.home;
+  const awayOff = stats?.shots_off_target?.away;
+  const homeCorners = stats?.corners?.home;
+  const awayCorners = stats?.corners?.away;
+  const homeYellow = stats?.yellow_cards?.home;
+  const awayYellow = stats?.yellow_cards?.away;
+  const homeRed = stats?.red_cards?.home;
+  const awayRed = stats?.red_cards?.away;
+  const homePossession = stats?.possession?.home;
+  const awayPossession = stats?.possession?.away;
 
   // 1. 统计时序事件中的越位与明确文本确认的门柱造险（Type 22 仅为射偏）
   let homeOffsides = 0;
@@ -312,38 +312,38 @@ export function extractRealTimePhysicalStats(
   }
 
   // 2. 控球有效性 (PE: Possession Effectiveness)
-  const homePE = Number((homeDA / (homePossession + 1.0)).toFixed(3));
-  const awayPE = Number((awayDA / (awayPossession + 1.0)).toFixed(3));
+  const homePE = (homeDA !== undefined && homePossession !== undefined) ? Number((homeDA / (homePossession + 1.0)).toFixed(3)) : undefined;
+  const awayPE = (awayDA !== undefined && awayPossession !== undefined) ? Number((awayDA / (awayPossession + 1.0)).toFixed(3)) : undefined;
 
   // 3. 进攻渗透率 (Penetration Rate)
-  const homePenetration = homeAttacks > 0 ? Number((homeDA / homeAttacks).toFixed(3)) : 0.0;
-  const awayPenetration = awayAttacks > 0 ? Number((awayDA / awayAttacks).toFixed(3)) : 0.0;
+  const homePenetration = (homeDA !== undefined && homeAttacks !== undefined) ? (homeAttacks > 0 ? Number((homeDA / homeAttacks).toFixed(3)) : 0.0) : undefined;
+  const awayPenetration = (awayDA !== undefined && awayAttacks !== undefined) ? (awayAttacks > 0 ? Number((awayDA / awayAttacks).toFixed(3)) : 0.0) : undefined;
 
   // 4. 射门终结质量与门柱
-  const homeAccuracy = homeShots > 0 ? Number((homeOn / homeShots).toFixed(3)) : 0.0;
-  const awayAccuracy = awayShots > 0 ? Number((awayOn / awayShots).toFixed(3)) : 0.0;
-  const homeConversion = homeDA > 0 ? Number((homeShots / homeDA).toFixed(3)) : 0.0;
-  const awayConversion = awayDA > 0 ? Number((awayShots / awayDA).toFixed(3)) : 0.0;
+  const homeAccuracy = (homeOn !== undefined && homeShots !== undefined) ? (homeShots > 0 ? Number((homeOn / homeShots).toFixed(3)) : 0.0) : undefined;
+  const awayAccuracy = (awayOn !== undefined && awayShots !== undefined) ? (awayShots > 0 ? Number((awayOn / awayShots).toFixed(3)) : 0.0) : undefined;
+  const homeConversion = (homeShots !== undefined && homeDA !== undefined) ? (homeDA > 0 ? Number((homeShots / homeDA).toFixed(3)) : 0.0) : undefined;
+  const awayConversion = (awayShots !== undefined && awayDA !== undefined) ? (awayDA > 0 ? Number((awayShots / awayDA).toFixed(3)) : 0.0) : undefined;
 
   // 5. 刺客防反威胁指数 (结合越位冲刺、射正率与低控球比)
-  const homeCounterThreat = Number(((homeOffsides * 0.35 + homeAccuracy * 1.2) * (100.0 / (homePossession + 25.0))).toFixed(3));
-  const awayCounterThreat = Number(((awayOffsides * 0.35 + awayAccuracy * 1.2) * (100.0 / (awayPossession + 25.0))).toFixed(3));
+  const homeCounterThreat = (homePossession !== undefined && homeAccuracy !== undefined) ? Number(((homeOffsides * 0.35 + homeAccuracy * 1.2) * (100.0 / (homePossession + 25.0))).toFixed(3)) : undefined;
+  const awayCounterThreat = (awayPossession !== undefined && awayAccuracy !== undefined) ? Number(((awayOffsides * 0.35 + awayAccuracy * 1.2) * (100.0 / (awayPossession + 25.0))).toFixed(3)) : undefined;
 
   // 6. xT (Expected Threat Proxy) 真实穿透威胁模型
-  const homeXT = Number(((homeDA * 0.015) + (homeCorners * 0.035) + (homeOff * 0.040) + (homeOn * 0.280) + (homeWoodwork * 0.15)).toFixed(3));
-  const awayXT = Number(((awayDA * 0.015) + (awayCorners * 0.035) + (awayOff * 0.040) + (awayOn * 0.280) + (awayWoodwork * 0.15)).toFixed(3));
-  const totalXT = homeXT + awayXT;
-  const xtRatio = totalXT > 0 ? Number((homeXT / totalXT).toFixed(3)) : 0.50;
+  const homeXT = (homeDA !== undefined && homeCorners !== undefined && homeOff !== undefined && homeOn !== undefined) ? Number(((homeDA * 0.015) + (homeCorners * 0.035) + (homeOff * 0.040) + (homeOn * 0.280) + (homeWoodwork * 0.15)).toFixed(3)) : undefined;
+  const awayXT = (awayDA !== undefined && awayCorners !== undefined && awayOff !== undefined && awayOn !== undefined) ? Number(((awayDA * 0.015) + (awayCorners * 0.035) + (awayOff * 0.040) + (awayOn * 0.280) + (awayWoodwork * 0.15)).toFixed(3)) : undefined;
+  const totalXT = (homeXT !== undefined && awayXT !== undefined) ? homeXT + awayXT : undefined;
+  const xtRatio = (totalXT !== undefined && homeXT !== undefined) ? (totalXT > 0 ? Number((homeXT / totalXT).toFixed(3)) : 0.50) : undefined;
 
   // 7. 禁区压迫指数 (Pressure Index ∈ [-1.0, +1.0])
-  const totalDA = homeDA + awayDA;
-  const pressureIndex = totalDA > 0 ? Number(((homeDA - awayDA) / totalDA).toFixed(3)) : 0.0;
+  const totalDA = (homeDA !== undefined && awayDA !== undefined) ? homeDA + awayDA : undefined;
+  const pressureIndex = (totalDA !== undefined && homeDA !== undefined && awayDA !== undefined) ? (totalDA > 0 ? Number(((homeDA - awayDA) / totalDA).toFixed(3)) : 0.0) : undefined;
 
   // 8. 战术异常特征识别 (Barren Dominance 无效控球 vs Lethal Counter 致命反击)
-  const homeBarren = (homePossession >= 60) && (homeOn <= 1) && (homePE <= awayPE * 0.8);
-  const awayBarren = (awayPossession >= 60) && (awayOn <= 1) && (awayPE <= homePE * 0.8);
-  const homeLethal = (homePossession <= 40) && (homeOn >= 2 || homeCounterThreat >= 1.5);
-  const awayLethal = (awayPossession <= 40) && (awayOn >= 2 || awayCounterThreat >= 1.5);
+  const homeBarren = (homePossession !== undefined && homeOn !== undefined && homePE !== undefined && awayPE !== undefined) ? ((homePossession >= 60) && (homeOn <= 1) && (homePE <= awayPE * 0.8)) : undefined;
+  const awayBarren = (awayPossession !== undefined && awayOn !== undefined && awayPE !== undefined && homePE !== undefined) ? ((awayPossession >= 60) && (awayOn <= 1) && (awayPE <= homePE * 0.8)) : undefined;
+  const homeLethal = (homePossession !== undefined && homeOn !== undefined && homeCounterThreat !== undefined) ? ((homePossession <= 40) && (homeOn >= 2 || homeCounterThreat >= 1.5)) : undefined;
+  const awayLethal = (awayPossession !== undefined && awayOn !== undefined && awayCounterThreat !== undefined) ? ((awayPossession <= 40) && (awayOn >= 2 || awayCounterThreat >= 1.5)) : undefined;
 
   // 9. 连续红牌减员战力崩盘模型
   const evaluateRedPenalty = (redCount: number) => {
@@ -355,10 +355,10 @@ export function extractRealTimePhysicalStats(
     return { attack, leak };
   };
 
-  const homeRedPen = evaluateRedPenalty(homeRed);
-  const awayRedPen = evaluateRedPenalty(awayRed);
+  const homeRedPen = evaluateRedPenalty(homeRed ?? 0);
+  const awayRedPen = evaluateRedPenalty(awayRed ?? 0);
 
-  const isCornerCascade = (homeCorners >= 5 || awayCorners >= 5);
+  const isCornerCascade = ((homeCorners ?? 0) >= 5 || (awayCorners ?? 0) >= 5);
 
   const result: RealTimePhysicalStatsFeatures = Object.freeze({
     stats_available: statsAvailable,

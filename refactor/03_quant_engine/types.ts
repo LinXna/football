@@ -79,6 +79,9 @@ export interface HistoricalMatchWeight {
   handicap_current_line: number | null;
   dangerous_attack_ratio: number | null; // 主队危攻占比 home / (home + away)
   shots_ratio: number | null;            // 主队射门占比
+  // 深层攻防全指标双向真实门禁
+  is_tactical_valid: boolean;           // 是否满足双向全套客观真实攻防统计与有效角球
+  tactical_invalidation_reason?: string;// 若深层战术数据无效，记录具体原因
 }
 
 export interface RecentFormContextWeight {
@@ -124,16 +127,20 @@ export interface RecentFormDetailedAnalytics {
 }
 
 export interface H2HDetailedAnalytics {
-  sample_count: number;
-  valid_count: number;
+  sample_count: number;                  // 历史交锋总场次
+  valid_count: number;                   // 时间与基础比分有效场次 (<=730天)
+  tactical_valid_count: number;          // 具备全套双向真实攻防与角球客观统计的有效场次
+  tactical_metrics_available: boolean;   // 是否具备充足有效的战术攻防样本 (tactical_valid_count >= 1)
   total_decayed_weight: number;
-  // 历史交锋净胜均值与场面压制
+  tactical_decayed_weight: number;       // 战术攻防样本衰减权重和
+  // 历史交锋净胜均值与场面压制 (基于宏观真实比分)
   net_goal_differential_weighted: number;
   historical_h2h_advantage_home: number;  // [-0.20, +0.20]
   historical_under_rate: number;         // 历史交锋小球倾向率
-  historical_avg_corners: number;        // 历史平均角球
+  // 深度战术指标 (严禁假 0 与假默认值，仅当 tactical_metrics_available 时真实计算，否则为 null 或 0.0)
+  historical_avg_corners: number | null; // 历史平均角球 (若无有效深层统计则为 null，严禁假 0 或假 9.0)
   historical_avg_red_cards: number;      // 历史平均红牌
-  tactical_stylistic_clash_index: number;// 球风相克指数 [-1.0, 1.0] (基于危攻比与射门比)
+  tactical_stylistic_clash_index: number;// 球风相克指数 [-1.0, 1.0] (仅基于有效战术样本，若无有效样本严格为 0.0)
 }
 
 export interface L0CircuitBreakerResult {
@@ -250,58 +257,58 @@ export interface RealTimePhysicalStatsFeatures {
     red_cards: boolean;
   };
   xt_proxy: {
-    home_xt: number;
-    away_xt: number;
-    xt_ratio: number;
+    home_xt?: number;
+    away_xt?: number;
+    xt_ratio?: number;
   };
   possession_effectiveness: {
-    home_pe: number; // DA / (Possession + ε)
-    away_pe: number;
+    home_pe?: number; // DA / (Possession + ε)
+    away_pe?: number;
   };
   penetration_rate: {
-    home_penetration: number; // DA / Attacks
-    away_penetration: number;
+    home_penetration?: number; // DA / Attacks
+    away_penetration?: number;
   };
   shot_efficiency: {
-    home_accuracy: number; // SOT / Total Shots
-    away_accuracy: number;
-    home_woodwork_count: number; // 仅由明确的门柱/中柱事件确认，Type 22 仅代表射偏
-    away_woodwork_count: number;
+    home_accuracy?: number; // SOT / Total Shots
+    away_accuracy?: number;
+    home_woodwork_count?: number; // 仅由明确的门柱/中柱事件确认，Type 22 仅代表射偏
+    away_woodwork_count?: number;
   };
   corner_pressure: {
-    home_corners_total: number;
-    away_corners_total: number;
-    is_corner_cascade: boolean;
+    home_corners_total?: number;
+    away_corners_total?: number;
+    is_corner_cascade?: boolean;
     window_source?: 'SNAPSHOT_DELTA' | 'EVENT_TIMELINE' | 'CUMULATIVE_BASELINE' | 'UNAVAILABLE';
   };
   counter_threat_index: {
-    home_counter_threat: number; // 越位 + 单刀打身后指数
-    away_counter_threat: number;
+    home_counter_threat?: number; // 越位 + 单刀打身后指数
+    away_counter_threat?: number;
   };
   discipline_pressure: {
-    home_yellows: number;
-    away_yellows: number;
-    home_defenders_on_yellow: number;
-    away_defenders_on_yellow: number;
+    home_yellows?: number;
+    away_yellows?: number;
+    home_defenders_on_yellow?: number;
+    away_defenders_on_yellow?: number;
   };
   conversion_efficiency: {
-    home_conversion: number;
-    away_conversion: number;
-    home_accuracy: number;
-    away_accuracy: number;
+    home_conversion?: number;
+    away_conversion?: number;
+    home_accuracy?: number;
+    away_accuracy?: number;
   };
-  pressure_index: number;
+  pressure_index?: number;
   tactical_anomaly: {
-    home_barren_dominance: boolean;
-    away_barren_dominance: boolean;
-    home_lethal_counter: boolean;
-    away_lethal_counter: boolean;
+    home_barren_dominance?: boolean;
+    away_barren_dominance?: boolean;
+    home_lethal_counter?: boolean;
+    away_lethal_counter?: boolean;
   };
   red_card_penalty: {
-    home_attack_multiplier: number;
-    home_defense_leak_multiplier: number;
-    away_attack_multiplier: number;
-    away_defense_leak_multiplier: number;
+    home_attack_multiplier?: number;
+    home_defense_leak_multiplier?: number;
+    away_attack_multiplier?: number;
+    away_defense_leak_multiplier?: number;
   };
 }
 

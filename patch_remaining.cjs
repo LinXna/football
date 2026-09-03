@@ -1,0 +1,20 @@
+const fs = require('fs');
+let file = 'refactor/03_quant_engine/index.ts';
+let code = fs.readFileSync(file, 'utf8');
+code = code.replace(/devig\.spread_main_ev\.kelly_fraction \?\? 0/g, 'devig.spread_main_ev.kelly_fraction as number');
+code = code.replace(/devig\.total_main_ev\.kelly_fraction \?\? 0/g, 'devig.total_main_ev.kelly_fraction as number');
+fs.writeFileSync(file, code);
+
+file = 'refactor/03_quant_engine/contextEngine.ts';
+code = fs.readFileSync(file, 'utf8');
+code = code.replace(/const homeGoals = homeScores\[0\] \?\? 0;/g, 'const homeGoals = homeScores[0] as number;');
+code = code.replace(/const awayGoals = awayScores\[0\] \?\? 0;/g, 'const awayGoals = awayScores[0] as number;');
+code = code.replace(/const halfHomeGoals = homeScores\[1\] \?\? 0;/g, 'const halfHomeGoals = homeScores[1] as number;');
+code = code.replace(/const halfAwayGoals = awayScores\[1\] \?\? 0;/g, 'const halfAwayGoals = awayScores[1] as number;');
+code = code.replace(/const redHome = homeScores\[2\] \?\? 0;/g, 'const redHome = homeScores[2] as number;');
+code = code.replace(/const redAway = awayScores\[2\] \?\? 0;/g, 'const redAway = awayScores[2] as number;');
+code = code.replace(/const cornerHome = homeScores\[4\] \?\? 0;/g, 'const cornerHome = homeScores[4] as number;');
+code = code.replace(/const cornerAway = awayScores\[4\] \?\? 0;/g, 'const cornerAway = awayScores[4] as number;');
+code = code.replace(/weights\[idx\] = iv\.goals \?\? 0;/g, 'weights[idx] = iv.goals as number;');
+code = code.replace(/totalGoals \+= \(iv\.goals \?\? 0\);/g, 'totalGoals += (iv.goals as number);');
+fs.writeFileSync(file, code);

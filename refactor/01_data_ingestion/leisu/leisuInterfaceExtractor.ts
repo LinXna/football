@@ -101,27 +101,49 @@ export function isLiveStatus(statusId: number): boolean {
   return statusId >= LeisuMatchStatus.FIRST_HALF && statusId <= LeisuMatchStatus.PENALTY_SHOOTOUT;
 }
 
-export function parseMetricPair(pair?: LeisuRawMetricPair | null): MetricPair {
+export function parseMetricPair(pair?: LeisuRawMetricPair | null): MetricPair | null {
+  if (!pair) return null;
+  const home = safeNullableNumber(pair.home);
+  const away = safeNullableNumber(pair.away);
+  if (home === null && away === null) return null;
   return {
-    home: safeNumber(pair?.home, 0),
-    away: safeNumber(pair?.away, 0),
+    home: home ?? 0,
+    away: away ?? 0,
   };
 }
 
-export function parseConfirmedStats(rawStats?: LeisuRawConfirmedStatistics | null): ParsedLeisuStats {
-  const corners = parseMetricPair(rawStats?.corners);
-  const yellow_cards = parseMetricPair(rawStats?.yellow_cards);
-  const red_cards = parseMetricPair(rawStats?.red_cards);
-  const attacks = parseMetricPair(rawStats?.attacks);
-  const dangerous_attacks = parseMetricPair(rawStats?.dangerous_attacks);
-  const possession = parseMetricPair(rawStats?.possession);
-  const shots_on_target = parseMetricPair(rawStats?.shots_on_target);
-  const shots_off_target = parseMetricPair(rawStats?.shots_off_target);
+export function parseConfirmedStats(rawStats?: LeisuRawConfirmedStatistics | null): ParsedLeisuStats | null {
+  if (!rawStats) return null;
 
-  const shots: MetricPair = {
-    home: shots_on_target.home + shots_off_target.home,
-    away: shots_on_target.away + shots_off_target.away,
-  };
+  const corners = parseMetricPair(rawStats.corners);
+  const yellow_cards = parseMetricPair(rawStats.yellow_cards);
+  const red_cards = parseMetricPair(rawStats.red_cards);
+  const attacks = parseMetricPair(rawStats.attacks);
+  const dangerous_attacks = parseMetricPair(rawStats.dangerous_attacks);
+  const possession = parseMetricPair(rawStats.possession);
+  const shots_on_target = parseMetricPair(rawStats.shots_on_target);
+  const shots_off_target = parseMetricPair(rawStats.shots_off_target);
+
+  // 严禁假数据：若 8 项攻防统计全部为 null，说明该场比赛不存在客观技术统计，严格返回 null，绝不伪造全 0 对象
+  if (
+    corners === null &&
+    yellow_cards === null &&
+    red_cards === null &&
+    attacks === null &&
+    dangerous_attacks === null &&
+    possession === null &&
+    shots_on_target === null &&
+    shots_off_target === null
+  ) {
+    return null;
+  }
+
+  const shots: MetricPair | null = (shots_on_target !== null || shots_off_target !== null)
+    ? {
+        home: (shots_on_target?.home ?? 0) + (shots_off_target?.home ?? 0),
+        away: (shots_on_target?.away ?? 0) + (shots_off_target?.away ?? 0),
+      }
+    : null;
 
   return {
     corners,

@@ -1371,8 +1371,15 @@ export const CanonicalMatchCenter: React.FC = () => {
             }
 
             // Layer 03: 确定性量化评估与博弈决策计算
-            const quant = calculateQuantitativeFeatures(m);
-            const quantDecision = getQuantScreeningDecision(quant);
+            let quant: any = null;
+            let quantDecision: any = null;
+            let quantError: string | null = null;
+            try {
+              quant = calculateQuantitativeFeatures(m);
+              quantDecision = getQuantScreeningDecision(quant);
+            } catch (err: any) {
+              quantError = err.message || String(err);
+            }
 
             return (
               <div
@@ -1433,13 +1440,13 @@ export const CanonicalMatchCenter: React.FC = () => {
                           }, 60);
                         }
                       }}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-all shadow-2xs ${quantDecision.bgClass} ${quantDecision.colorClass} ${quantDecision.borderClass} hover:opacity-90`}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-all shadow-2xs ${quantDecision?.bgClass || 'bg-slate-800'} ${quantDecision?.colorClass || 'text-slate-400'} ${quantDecision?.borderClass || 'border-slate-700'} hover:opacity-90`}
                       title="点击展开查看 Layer 03 机器量化评估与最优投注"
                     >
                       <Zap className="w-3.5 h-3.5 text-amber-400" />
-                      <span>{quantDecision.badge}</span>
+                      <span>{quantDecision ? quantDecision.badge : '无法评估'}</span>
                       <span className="font-mono text-[11px] opacity-80">
-                        (BDI: {quant.battlefield_dominance_index > 0 ? `+${quant.battlefield_dominance_index.toFixed(0)}` : quant.battlefield_dominance_index.toFixed(0)})
+                        (BDI: {quant ? (quant.battlefield_dominance_index > 0 ? `+${quant.battlefield_dominance_index.toFixed(0)}` : quant.battlefield_dominance_index.toFixed(0)) : 'N/A'})
                       </span>
                     </button>
 
@@ -1966,7 +1973,7 @@ export const CanonicalMatchCenter: React.FC = () => {
 
                 {/* 机器量化评估与下注决策矩阵 (全场核心玩法常驻面板) */}
                 <div className="pt-2">
-                  <QuantBettingDecisionMatrix match={m} quant={quant} showHeader={false} />
+                  {!quantError && quant && <QuantBettingDecisionMatrix match={m} quant={quant} showHeader={false} />}
                 </div>
 
                 {/* 操作栏与明细展开入口 */}
@@ -1974,13 +1981,13 @@ export const CanonicalMatchCenter: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-400 font-mono flex items-center gap-1.5">
                       <Zap className="w-3.5 h-3.5 text-amber-400" />
-                      模型置信度: <strong className="text-emerald-400">{quant.confidence_score}分</strong>
-                      {quant.positive_ev_signals.length > 0 ? (
+                      模型置信度: <strong className="text-emerald-400">{quant ? quant.confidence_score : 'N/A'}分</strong>
+                      {quant && quant.positive_ev_signals && quant.positive_ev_signals.length > 0 ? (
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                           {quant.positive_ev_signals.length}项+EV
                         </span>
                       ) : (
-                        <span className="text-slate-500 text-[10px]">无+EV</span>
+                        <span className="text-slate-500 text-[10px]">{quant ? '无+EV' : '阻断'}</span>
                       )}
                     </span>
                   </div>
@@ -2012,7 +2019,7 @@ export const CanonicalMatchCenter: React.FC = () => {
                     >
                       <Zap className="w-3.5 h-3.5 text-amber-400" />
                       <span>03 机器量化</span>
-                      {quant.positive_ev_signals.length > 0 && (
+                      {quant && quant.positive_ev_signals.length > 0 && (
                         <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500 text-slate-950 font-black">
                           {quant.positive_ev_signals.length}
                         </span>
@@ -2074,7 +2081,7 @@ export const CanonicalMatchCenter: React.FC = () => {
                     <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-800 pb-2">
                       <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800/80 flex-wrap">
                         {[
-                          { id: "quant", label: `⚡ 03 机器量化评估与最优投注 (${quant.positive_ev_signals.length > 0 ? `${quant.positive_ev_signals.length}项+EV` : "已评估"})`, icon: Zap },
+                          { id: "quant", label: `⚡ 03 机器量化评估与最优投注 (${quant ? (quant.positive_ev_signals.length > 0 ? `${quant.positive_ev_signals.length}项+EV` : "已评估") : "评估阻断"})`, icon: Zap },
                           { id: "diagnostics", label: `🛡️ 11维体检 (${m.missing_reasons.length > 0 ? `${m.missing_reasons.length}项缺口` : "全齐备"})`, icon: Shield },
                           { id: "markets", label: "🎯 YBTY 盘口全集", icon: Target },
                           { id: "stats", label: "📊 雷速统计增强", icon: BarChart2 },
@@ -2112,7 +2119,15 @@ export const CanonicalMatchCenter: React.FC = () => {
 
                     {/* TAB 0: ⚡ 03 机器量化评估与最优投注 (Machine Quant Evaluation Panel) */}
                     {(activeTabByMatch[m.canonical_id] || "quant") === "quant" && (
-                      <MachineQuantEvaluationPanel match={m} quant={quant} />
+                      quantError ? (
+                        <div className="p-6 bg-red-900/20 border border-red-500/30 rounded-xl text-red-200">
+                          <h4 className="font-semibold text-red-400 mb-2">模型计算被强行阻断</h4>
+                          <p className="text-sm font-mono opacity-80">{quantError}</p>
+                          <p className="text-xs opacity-60 mt-4">数据严重缺失导致无法评估，强行估算会引发严重偏差，故停止对该场比赛进行博弈分析。</p>
+                        </div>
+                      ) : (
+                        <MachineQuantEvaluationPanel match={m} quant={quant} />
+                      )
                     )}
 
                     {/* TAB 1: 🛡️ 赛事数据完整度 11 维全景体检报告 (Inline 11-Dimension Diagnostics) */}
@@ -2204,15 +2219,39 @@ export const CanonicalMatchCenter: React.FC = () => {
                                 </div>
                               </div>
                               <div>
-                                {m.reference?.stats ? (
-                                  <span className="px-2.5 py-1 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-medium">
-                                    ✅ 完整具备 (9项指标)
-                                  </span>
-                                ) : (
-                                  <span className="px-2.5 py-1 rounded bg-rose-950/60 text-rose-300 border border-rose-800 font-medium">
-                                    ❌ 缺失 (NO_STATS)
-                                  </span>
-                                )}
+                                {(() => {
+                                  const stats = m.reference?.stats;
+                                  if (!stats) {
+                                    return (
+                                      <span className="px-2.5 py-1 rounded bg-rose-950/60 text-rose-300 border border-rose-800 font-medium">
+                                        ❌ 缺失 (NO_STATS)
+                                      </span>
+                                    );
+                                  }
+                                  const validMetrics = [
+                                    stats.corners,
+                                    stats.yellow_cards,
+                                    stats.red_cards,
+                                    stats.attacks,
+                                    stats.dangerous_attacks,
+                                    stats.possession,
+                                    stats.shots_on_target,
+                                    stats.shots_off_target,
+                                    stats.shots,
+                                  ].filter(Boolean).length;
+                                  if (validMetrics === 0) {
+                                    return (
+                                      <span className="px-2.5 py-1 rounded bg-rose-950/60 text-rose-300 border border-rose-800 font-medium">
+                                        ❌ 缺失 (全部指标无事实)
+                                      </span>
+                                    );
+                                  }
+                                  return (
+                                    <span className="px-2.5 py-1 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-medium">
+                                      ✅ 具备 ({validMetrics}/9项真实指标)
+                                    </span>
+                                  );
+                                })()}
                               </div>
                             </div>
 
@@ -2584,8 +2623,8 @@ export const CanonicalMatchCenter: React.FC = () => {
                       <div className="space-y-4">
                         {m.reference ? (
                           <>
-                            {/* 1. 核心攻防技术统计 (优化为单行紧凑 9 宫格) */}
-                            {m.reference.stats && (
+                            {/* 1. 核心攻防技术统计 (优化为单行紧凑 9 宫格，严格杜绝假数据) */}
+                            {m.reference.stats ? (
                               <div className="bg-slate-950/70 p-3.5 rounded-lg border border-slate-800 space-y-2">
                                 <div className="text-xs font-bold text-slate-300 flex items-center justify-between">
                                   <span>实时攻防与技术统计 (Live Technical Stats)</span>
@@ -2595,26 +2634,39 @@ export const CanonicalMatchCenter: React.FC = () => {
                                 </div>
                                 <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-1.5 text-center text-xs font-mono">
                                   {[
-                                    { label: "射门", h: m.reference.stats.shots.home, a: m.reference.stats.shots.away },
-                                    { label: "射正", h: m.reference.stats.shots_on_target.home, a: m.reference.stats.shots_on_target.away },
-                                    { label: "射偏", h: m.reference.stats.shots_off_target.home, a: m.reference.stats.shots_off_target.away },
-                                    { label: "危攻", h: m.reference.stats.dangerous_attacks.home, a: m.reference.stats.dangerous_attacks.away },
-                                    { label: "总攻", h: m.reference.stats.attacks.home, a: m.reference.stats.attacks.away },
-                                    { label: "控球", h: `${m.reference.stats.possession.home}%`, a: `${m.reference.stats.possession.away}%` },
-                                    { label: "角球", h: m.reference.stats.corners.home, a: m.reference.stats.corners.away },
-                                    { label: "黄牌", h: m.reference.stats.yellow_cards.home, a: m.reference.stats.yellow_cards.away },
-                                    { label: "红牌", h: m.reference.stats.red_cards.home, a: m.reference.stats.red_cards.away },
-                                  ].map((st, sIdx) => (
-                                    <div key={sIdx} className="bg-slate-900/90 p-1.5 rounded-lg border border-slate-800 flex flex-col justify-between">
-                                      <div className="text-[10px] text-slate-400 font-sans truncate">{st.label}</div>
-                                      <div className="flex justify-center items-center gap-1 font-bold mt-1 text-xs">
-                                        <span className="text-blue-400">{st.h}</span>
-                                        <span className="text-slate-600 font-normal text-[10px]">:</span>
-                                        <span className="text-amber-400">{st.a}</span>
+                                    { label: "射门", pair: m.reference.stats.shots },
+                                    { label: "射正", pair: m.reference.stats.shots_on_target },
+                                    { label: "射偏", pair: m.reference.stats.shots_off_target },
+                                    { label: "危攻", pair: m.reference.stats.dangerous_attacks },
+                                    { label: "总攻", pair: m.reference.stats.attacks },
+                                    { label: "控球", pair: m.reference.stats.possession, isPercent: true },
+                                    { label: "角球", pair: m.reference.stats.corners },
+                                    { label: "黄牌", pair: m.reference.stats.yellow_cards },
+                                    { label: "红牌", pair: m.reference.stats.red_cards },
+                                  ].map((st, sIdx) => {
+                                    const hasData = Boolean(st.pair);
+                                    const hVal = hasData ? (st.isPercent ? `${st.pair!.home}%` : st.pair!.home) : "-";
+                                    const aVal = hasData ? (st.isPercent ? `${st.pair!.away}%` : st.pair!.away) : "-";
+                                    return (
+                                      <div key={sIdx} className="bg-slate-900/90 p-1.5 rounded-lg border border-slate-800 flex flex-col justify-between">
+                                        <div className="text-[10px] text-slate-400 font-sans truncate">{st.label}</div>
+                                        <div className="flex justify-center items-center gap-1 font-bold mt-1 text-xs">
+                                          <span className={hasData ? "text-blue-400" : "text-slate-600"}>{hVal}</span>
+                                          <span className="text-slate-600 font-normal text-[10px]">:</span>
+                                          <span className={hasData ? "text-amber-400" : "text-slate-600"}>{aVal}</span>
+                                        </div>
                                       </div>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
+                              </div>
+                            ) : (
+                              <div className="bg-slate-950/70 p-3 rounded-lg border border-slate-800/80 flex items-center justify-between text-xs text-slate-400 font-mono">
+                                <span className="flex items-center gap-2">
+                                  <AlertTriangle className="w-4 h-4 text-amber-400" />
+                                  <span>未提供实时攻防统计事实 (赛前阶段或源头未采集统计)</span>
+                                </span>
+                                <span className="text-[11px] text-slate-500">零假数据保护已生效</span>
                               </div>
                             )}
 
@@ -2726,10 +2778,24 @@ export const CanonicalMatchCenter: React.FC = () => {
                       <div className="space-y-4">
                         {m.reference ? (
                           <>
-                            {/* 1. 历史交锋记录 (中文队名、全半场合并不割裂、12栅格严格居中) */}
-                            <div className="bg-slate-950/70 p-3.5 rounded-lg border border-slate-800 space-y-2">
-                              <div className="text-xs font-bold text-slate-300 flex items-center justify-between">
-                                <span>历史对赛交锋记录 (Head to Head)</span>
+                            {/* 1. 历史交锋记录 (中文队名、全半场合并不割裂、12栅格严格居中、深层战术门禁质检) */}
+                            <div className="bg-slate-950/70 p-3.5 rounded-lg border border-slate-800 space-y-2.5">
+                              <div className="text-xs font-bold text-slate-300 flex items-center justify-between flex-wrap gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span>历史对赛交锋记录 (Head to Head)</span>
+                                  {quant?.context?.h2h_analytics && quant.context.h2h_analytics.sample_count > 0 && (
+                                    quant.context.h2h_analytics.tactical_metrics_available ? (
+                                      <span className="bg-emerald-950/70 border border-emerald-700/50 text-emerald-400 text-[10px] px-2 py-0.5 rounded font-mono flex items-center gap-1">
+                                        <span>✅ 战术攻防真实样本: {quant.context.h2h_analytics.tactical_valid_count}/{quant.context.h2h_analytics.valid_count}场</span>
+                                        <span>(均角: {quant.context.h2h_analytics.historical_avg_corners ?? '-'})</span>
+                                      </span>
+                                    ) : (
+                                      <span className="bg-amber-950/70 border border-amber-700/50 text-amber-400 text-[10px] px-2 py-0.5 rounded font-mono" title="历史交锋缺少双方客观攻防/角球记录，模型已自动拦截假0数据，仅采信宏观胜负比分">
+                                        ⚠️ 深层攻防数据缺失 (已过滤伪角球/伪相克，仅采信基础比分)
+                                      </span>
+                                    )
+                                  )}
+                                </div>
                                 <span className="text-[11px] text-slate-500">
                                   共收录 {m.reference.tactical_context?.head_to_head_count || 0} 场历史交锋
                                 </span>
@@ -2744,12 +2810,24 @@ export const CanonicalMatchCenter: React.FC = () => {
                                     const hHalf = h.home_scores && h.home_scores.length > 1 ? h.home_scores[1] : "-";
                                     const aHalf = h.away_scores && h.away_scores.length > 1 ? h.away_scores[1] : "-";
                                     const matchDate = h.match_time ? new Date(Number(h.match_time) * 1000).toISOString().slice(0, 10) : "-";
+                                    const hw = quant?.context?.historical_weights?.[hIdx];
 
                                     return (
                                       <div key={hIdx} className="bg-slate-900/90 p-2 rounded-lg text-xs grid grid-cols-12 items-center font-mono border border-slate-800/80 hover:border-slate-700 transition-colors">
-                                        {/* 日期: 2列 */}
-                                        <div className="col-span-2 text-slate-400 truncate text-[11px]">
+                                        {/* 日期与门禁标识: 2列 */}
+                                        <div className="col-span-2 text-slate-400 truncate text-[11px] flex flex-col">
                                           <span>{matchDate}</span>
+                                          {hw && (
+                                            hw.is_tactical_valid ? (
+                                              <span className="text-[9px] text-emerald-400 font-sans" title="角球、危攻、射门、控球率双向客观完整">
+                                                [攻防完整]
+                                              </span>
+                                            ) : (
+                                              <span className="text-[9px] text-slate-500 font-sans truncate" title={hw.tactical_invalidation_reason || "深层攻防缺失"}>
+                                                [仅比分]
+                                              </span>
+                                            )
+                                          )}
                                         </div>
 
                                         {/* 主队: 4列 靠右对齐 */}

@@ -593,8 +593,8 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
 
                   <div className="text-[10px] text-slate-400 space-y-1 px-0.5">
                     <div className="flex justify-between">
-                      <span>剩余期望 λ={quant.poisson.expected_goals_rest.toFixed(2)}球</span>
-                      <span>最可能: <strong className="text-purple-300 font-mono">{quant.poisson.projected_final_score.most_likely_score}</strong></span>
+                      <span>剩余期望 λ={quant.poisson?.expected_goals_rest != null ? quant.poisson.expected_goals_rest.toFixed(2) : "0.00"}球</span>
+                      <span>最可能: <strong className="text-purple-300 font-mono">{quant.poisson?.projected_final_score?.most_likely_score ?? "-"}</strong></span>
                     </div>
                     {quant.poisson.top_final_scores && quant.poisson.top_final_scores.length > 0 && (
                       <div className="flex items-center gap-1.5 flex-wrap text-[9.5px] text-slate-400">

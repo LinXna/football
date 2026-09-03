@@ -111,10 +111,12 @@ export function synthesizePrematchPrior(
   const formFactorH = (homeAttackForm * 0.6 + homeDefenseForm * 0.4);
   const formFactorA = (awayAttackForm * 0.6 + awayDefenseForm * 0.4);
 
-  // 3. 历史交锋深度加权与球风相克
+  // 3. 历史交锋深度加权与球风相克 (仅当战术攻防统计客观有效且具备真实样本时才允许球风相克生效)
   const h2hAnalytics = context.h2h_analytics;
   const h2hAdvantage = h2hAnalytics.historical_h2h_advantage_home; // [-0.20, +0.20]
-  const stylisticClash = h2hAnalytics.tactical_stylistic_clash_index; // [-1.0, 1.0]
+  const stylisticClash = (h2hAnalytics.tactical_metrics_available && h2hAnalytics.tactical_valid_count >= 1)
+    ? h2hAnalytics.tactical_stylistic_clash_index // [-1.0, 1.0]
+    : 0.0;
 
   // 4. 阵型空间张力克制与中场绞杀
   const formation = context.tactical_formation;

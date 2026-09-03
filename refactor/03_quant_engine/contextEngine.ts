@@ -138,6 +138,94 @@ export function checkL0CircuitBreaker(
  * - delta_days <= 180 天: w ≈ 1.0
  * - delta_days > 730 天 (2年): 强制截断归零 (w = 0.0, is_valid = false)
  */
+/**
+ * 历史交锋全指标双向客观真实校验门禁 (Full-Metric Two-Way Tactical Integrity Gate)
+ * 必须主客双方均有客观真实的攻防记录，均有角球数据，才能判定为有效深层战术对抗样本
+ */
+export function checkH2HTacticalIntegrity(
+  homeStats: any,
+  awayStats: any,
+  cornerHome: number | undefined | null,
+  cornerAway: number | undefined | null,
+  daysAgo: number
+): { isValid: boolean; reason?: string } {
+  // 1. 战术时效性门禁：超过 730 天 (2年) 的深层攻防战术失去了人员教练连续性
+  if (daysAgo > 730) {
+    return { isValid: false, reason: 'EXCEEDS_MAX_TACTICAL_DAYS_730' };
+  }
+  // 2. 双向 stats 对象必须均存在且非空字典
+  if (!homeStats || !awayStats || typeof homeStats !== 'object' || typeof awayStats !== 'object') {
+    return { isValid: false, reason: 'MISSING_STATS_OBJECT' };
+  }
+  if (Object.keys(homeStats).length === 0 || Object.keys(awayStats).length === 0) {
+    return { isValid: false, reason: 'EMPTY_STATS_OBJECT' };
+  }
+
+  // 3. 双向角球必须客观有效（非-1，且两队之和必须 >= 1）
+  if (cornerHome == null || cornerAway == null || cornerHome < 0 || cornerAway < 0) {
+    return { isValid: false, reason: 'INVALID_OR_MISSING_CORNERS' };
+  }
+  if (cornerHome + cornerAway === 0) {
+    return { isValid: false, reason: 'ZERO_TOTAL_CORNERS_UNVERIFIED' };
+  }
+
+  // 4. 双向危险进攻必须真实客观存在且大于 0
+  const daH = homeStats.dangerous_attack;
+  const daA = awayStats.dangerous_attack;
+  if (daH == null || daA == null || typeof daH !== 'number' || typeof daA !== 'number') {
+    return { isValid: false, reason: 'MISSING_DANGEROUS_ATTACK' };
+  }
+  if (daH <= 0 || daA <= 0) {
+    return { isValid: false, reason: 'NON_POSITIVE_DANGEROUS_ATTACK' };
+  }
+
+  // 5. 双向常规进攻必须真实客观存在且不低于危险进攻
+  const attH = homeStats.attack;
+  const attA = awayStats.attack;
+  if (attH != null && attA != null) {
+    if (attH <= 0 || attA <= 0 || attH < daH || attA < daA) {
+      return { isValid: false, reason: 'ILLOGICAL_ATTACK_STATS' };
+    }
+  }
+
+  // 6. 双向总射门必须客观真实且大于 0，且双方总射门 >= 3
+  const shotsH = homeStats.shots;
+  const shotsA = awayStats.shots;
+  if (shotsH == null || shotsA == null || typeof shotsH !== 'number' || typeof shotsA !== 'number') {
+    return { isValid: false, reason: 'MISSING_SHOTS' };
+  }
+  if (shotsH <= 0 || shotsA <= 0) {
+    return { isValid: false, reason: 'NON_POSITIVE_SHOTS' };
+  }
+  if (shotsH + shotsA < 3) {
+    return { isValid: false, reason: 'TOTAL_SHOTS_LESS_THAN_3' };
+  }
+
+  // 7. 双向射正必须客观合理 (<= 总射门)
+  const sogH = homeStats.shots_on_goal;
+  const sogA = awayStats.shots_on_goal;
+  if (sogH != null && sogA != null) {
+    if (sogH < 0 || sogA < 0 || sogH > shotsH || sogA > shotsA) {
+      return { isValid: false, reason: 'ILLOGICAL_SHOTS_ON_GOAL' };
+    }
+  }
+
+  // 8. 双向控球率必须客观真实存在且符合守恒定律 (95% ~ 105%)
+  const possH = homeStats.ball_possession;
+  const possA = awayStats.ball_possession;
+  if (possH == null || possA == null || typeof possH !== 'number' || typeof possA !== 'number') {
+    return { isValid: false, reason: 'MISSING_BALL_POSSESSION' };
+  }
+  if (possH <= 0 || possA <= 0 || possH + possA < 95 || possH + possA > 105) {
+    return { isValid: false, reason: 'INVALID_POSSESSION_CONSERVATION' };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * 计算交锋历史时间连续指数衰减权重、赛事级别加权与球风克制指数
+ */
 export function calculateH2HDecayWeights(
   match: CanonicalMatch,
   halfLifeDays: number = 365,
@@ -150,12 +238,15 @@ export function calculateH2HDecayWeights(
       analytics: {
         sample_count: 0,
         valid_count: 0,
+        tactical_valid_count: 0,
+        tactical_metrics_available: false,
         total_decayed_weight: 0,
+        tactical_decayed_weight: 0,
         net_goal_differential_weighted: 0,
         historical_h2h_advantage_home: 0,
         historical_under_rate: 0.5,
-        historical_avg_corners: 9.0,
-        historical_avg_red_cards: 0.1,
+        historical_avg_corners: null,
+        historical_avg_red_cards: 0.0,
         tactical_stylistic_clash_index: 0
       }
     };
@@ -167,9 +258,13 @@ export function calculateH2HDecayWeights(
   let totalDecayedWeight = 0;
   let weightedNetGoals = 0;
   let validUnderCount = 0;
-  let totalCorners = 0;
   let totalRedCards = 0;
   let validCount = 0;
+
+  // 深度战术攻防样本聚合器 (仅限通过全指标双向真实门禁的样本)
+  let tacticalDecayedWeight = 0;
+  let tacticalValidCount = 0;
+  let totalTacticalCorners = 0;
   let totalClashScore = 0;
 
   const weights: HistoricalMatchWeight[] = h2hList.map((h2h) => {
@@ -192,7 +287,7 @@ export function calculateH2HDecayWeights(
       decayWeight = Math.exp(-decayConstant * daysAgo);
     }
 
-    // 赛事级别加权 (同名赛事 1.0, 杯赛/其他 0.7)
+    // 赛事级别加权 (同名赛事 1.0, 杯赛/其他 0.75)
     let compImp = 1.0;
     // @ts-ignore
     if (h2h.competition_id && match.reference?.competition_id) {
@@ -202,14 +297,14 @@ export function calculateH2HDecayWeights(
 
     const homeScores = h2h.home_scores || [];
     const awayScores = h2h.away_scores || [];
-    const homeGoals = homeScores[0] ?? 0;
-    const awayGoals = awayScores[0] ?? 0;
-    const halfHomeGoals = homeScores[1] ?? 0;
-    const halfAwayGoals = awayScores[1] ?? 0;
-    const redHome = homeScores[2] ?? 0;
-    const redAway = awayScores[2] ?? 0;
-    const cornerHome = homeScores[4] ?? 0;
-    const cornerAway = awayScores[4] ?? 0;
+    const homeGoals = typeof homeScores[0] === 'number' ? homeScores[0] : 0;
+    const awayGoals = typeof awayScores[0] === 'number' ? awayScores[0] : 0;
+    const halfHomeGoals = typeof homeScores[1] === 'number' ? homeScores[1] : 0;
+    const halfAwayGoals = typeof awayScores[1] === 'number' ? awayScores[1] : 0;
+    const redHome = typeof homeScores[2] === 'number' ? homeScores[2] : 0;
+    const redAway = typeof awayScores[2] === 'number' ? awayScores[2] : 0;
+    const cornerHome = typeof homeScores[4] === 'number' ? homeScores[4] : -1;
+    const cornerAway = typeof awayScores[4] === 'number' ? awayScores[4] : -1;
 
     // 解析让球初盘与即时盘
     let ahOpenLine: number | null = null;
@@ -229,22 +324,14 @@ export function calculateH2HDecayWeights(
       }
     }
 
-    // 解析场面压制与球风克制数据
-    const homeStats = h2h.home_stats || {};
-    const awayStats = h2h.away_stats || {};
-    const daH = homeStats.dangerous_attack ?? 0;
-    const daA = awayStats.dangerous_attack ?? 0;
-    const shotsH = homeStats.shots ?? 0;
-    const shotsA = awayStats.shots ?? 0;
+    // 执行深层战术全指标双向真实门禁检验
+    const tacticalCheck = isValid
+      ? checkH2HTacticalIntegrity(h2h.home_stats, h2h.away_stats, cornerHome, cornerAway, daysAgo)
+      : { isValid: false, reason: 'EXCEEDS_MAX_VALID_DAYS_730' };
 
+    const isTacticalValid = tacticalCheck.isValid;
     let daRatio: number | null = null;
     let shotsRatio: number | null = null;
-    if (daH + daA > 0) {
-      daRatio = Number((daH / (daH + daA)).toFixed(3));
-    }
-    if (shotsH + shotsA > 0) {
-      shotsRatio = Number((shotsH / (shotsH + shotsA)).toFixed(3));
-    }
 
     if (isValid) {
       const effWeight = decayWeight * compImp;
@@ -255,11 +342,27 @@ export function calculateH2HDecayWeights(
       if (homeGoals + awayGoals <= 2) {
         validUnderCount += effWeight;
       }
-      totalCorners += (cornerHome + cornerAway);
-      totalRedCards += (redHome + redAway);
+      if (redHome >= 0 && redAway >= 0) {
+        totalRedCards += (redHome + redAway);
+      }
 
-      if (daRatio !== null && shotsRatio !== null) {
-        // 球风压制得分: (危攻比 - 0.5) * 2
+      // 仅当通过全套客观真实攻防门禁时，才计入角球与球风克制
+      if (isTacticalValid) {
+        tacticalValidCount++;
+        tacticalDecayedWeight += effWeight;
+        totalTacticalCorners += (cornerHome + cornerAway);
+
+        const homeStats = h2h.home_stats!;
+        const awayStats = h2h.away_stats!;
+        const daH = homeStats.dangerous_attack as number;
+        const daA = awayStats.dangerous_attack as number;
+        const shotsH = homeStats.shots as number;
+        const shotsA = awayStats.shots as number;
+
+        daRatio = Number((daH / (daH + daA)).toFixed(3));
+        shotsRatio = Number((shotsH / (shotsH + shotsA)).toFixed(3));
+
+        // 球风压制得分: (危攻比 - 0.5) * 1.2 + (射门比 - 0.5) * 0.8
         totalClashScore += ((daRatio - 0.5) * 1.2 + (shotsRatio - 0.5) * 0.8) * effWeight;
       }
     }
@@ -282,23 +385,33 @@ export function calculateH2HDecayWeights(
       handicap_opening_line: ahOpenLine,
       handicap_current_line: ahCurrLine,
       dangerous_attack_ratio: daRatio,
-      shots_ratio: shotsRatio
+      shots_ratio: shotsRatio,
+      is_tactical_valid: isTacticalValid,
+      tactical_invalidation_reason: tacticalCheck.reason
     });
   });
 
   const netDiffWeighted = totalDecayedWeight > 0 ? Number((weightedNetGoals / totalDecayedWeight).toFixed(3)) : 0;
   const h2hAdvantage = Math.max(-0.20, Math.min(0.20, netDiffWeighted * 0.08));
   const underRate = totalDecayedWeight > 0 ? Number((validUnderCount / totalDecayedWeight).toFixed(3)) : 0.5;
-  const avgCorners = validCount > 0 ? Number((totalCorners / validCount).toFixed(1)) : 9.0;
-  const avgReds = validCount > 0 ? Number((totalRedCards / validCount).toFixed(2)) : 0.1;
-  const clashIndex = totalDecayedWeight > 0 ? Number((totalClashScore / totalDecayedWeight).toFixed(3)) : 0;
+  const avgReds = validCount > 0 ? Number((totalRedCards / validCount).toFixed(2)) : 0.0;
+
+  // 严禁假 0 或假 9.0，仅当具备真实有效战术攻防样本时计算
+  const tacticalAvailable = tacticalValidCount >= 1;
+  const avgCorners = tacticalAvailable ? Number((totalTacticalCorners / tacticalValidCount).toFixed(1)) : null;
+  const clashIndex = (tacticalAvailable && tacticalDecayedWeight > 0)
+    ? Math.max(-1.0, Math.min(1.0, Number((totalClashScore / tacticalDecayedWeight).toFixed(3))))
+    : 0.0;
 
   return {
     weights,
     analytics: {
       sample_count: h2hList.length,
       valid_count: validCount,
+      tactical_valid_count: tacticalValidCount,
+      tactical_metrics_available: tacticalAvailable,
       total_decayed_weight: Number(totalDecayedWeight.toFixed(3)),
+      tactical_decayed_weight: Number(tacticalDecayedWeight.toFixed(3)),
       net_goal_differential_weighted: netDiffWeighted,
       historical_h2h_advantage_home: h2hAdvantage,
       historical_under_rate: underRate,
@@ -411,15 +524,37 @@ export function calculateRecentFormWeights(
       const finalWeight = Number((timeDecay * compWeight * venueWeight).toFixed(4));
 
       // 4. 解析进球明细 (全场、半场、下半场)
-      const ftHome = item.fulltime_score?.home ?? 0;
-      const ftAway = item.fulltime_score?.away ?? 0;
-      const htHome = item.halftime_score?.home ?? 0;
-      const htAway = item.halftime_score?.away ?? 0;
+      const ftHome = item.fulltime_score?.home;
+      const ftAway = item.fulltime_score?.away;
+      const htHome = item.halftime_score?.home;
+      const htAway = item.halftime_score?.away;
 
+      if (ftHome == null || ftAway == null) {
+        return Object.freeze({
+          match_id: String(item.match_id || ''),
+          match_date: dateStr,
+          days_ago: daysAgo,
+          time_decay_weight: 0,
+          venue_homomorphism_weight: 0,
+          competition_importance_weight: 0,
+          final_composite_weight: 0,
+          is_valid_time_window: false,
+          scored_full: 0,
+          conceded_full: 0,
+          scored_half: 0,
+          conceded_half: 0,
+          scored_second_half: 0,
+          conceded_second_half: 0,
+          is_clean_sheet: false,
+          is_failed_to_score: false,
+          handicap_result: 'UNKNOWN' as const,
+          goals_trend_result: 'UNKNOWN' as const
+        });
+      }
       const scoredFull = itemIsHome ? ftHome : ftAway;
       const concededFull = itemIsHome ? ftAway : ftHome;
-      const scoredHalf = itemIsHome ? htHome : htAway;
-      const concededHalf = itemIsHome ? htAway : htHome;
+      const scoredHalf = (itemIsHome ? htHome : htAway) ?? 0;
+      const concededHalf = (itemIsHome ? htAway : htHome) ?? 0;
 
       const scoredSecondHalf = Math.max(0, scoredFull - scoredHalf);
       const concededSecondHalf = Math.max(0, concededFull - concededHalf);
@@ -600,8 +735,8 @@ export function extractGoalDistributionDNA(
     let totalGoals = 0;
     intervals.forEach((iv: ParsedGoalInterval, idx: number) => {
       if (idx < 6) {
-        weights[idx] = iv.goals ?? 0;
-        totalGoals += (iv.goals ?? 0);
+        weights[idx] = iv.goals as number;
+        totalGoals += (iv.goals as number);
       }
     });
 
@@ -801,8 +936,13 @@ export function calculateMotivationAndUrgencyIndex(
       return { mui: 1.0, context: 'OVERALL_MISSING' };
     }
 
-    const rank = overall.position ?? 10;
-    const played = overall.matches_played ?? 20;
+    const rank = overall.position;
+    const played = overall.matches_played;
+
+    // 严禁假数据：若积分榜未提供具体名次或场次，绝不脑补假排名，忠实返回中性 1.0
+    if (rank === null || rank === undefined || played === null || played === undefined) {
+      return { mui: 1.0, context: 'METRICS_INCOMPLETE' };
+    }
 
     const isLateSeason = played >= 28;
     const isEarlySeason = played <= 5;

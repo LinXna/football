@@ -186,13 +186,13 @@ export function calculateLiveThreatTrinity(
   const eventScores = calculateDecayedEventScore(events, currentMinute, 15);
   const bounded = (value: number) => Math.max(0, Math.min(1, value));
   const solveTeam = (side: 'home' | 'away') => {
-    const energy = timeline.integral_15m[side] ?? 0;
+    const energy = timeline.integral_15m[side] as number;
     const eventScore = eventScores[side];
-    const xt = side === 'home' ? physical.xt_proxy.home_xt : physical.xt_proxy.away_xt;
-    const penetration = side === 'home' ? physical.penetration_rate.home_penetration : physical.penetration_rate.away_penetration;
-    const accuracy = side === 'home' ? physical.shot_efficiency.home_accuracy : physical.shot_efficiency.away_accuracy;
-    const corners = physical.corner_pressure.window_source === 'SNAPSHOT_DELTA' || physical.corner_pressure.window_source === 'EVENT_TIMELINE'
-      ? (side === 'home' ? physical.corner_pressure.home_corners_total : physical.corner_pressure.away_corners_total) : 0;
+    const xt = (side === 'home' ? physical.xt_proxy?.home_xt : physical.xt_proxy?.away_xt) ?? 0;
+    const penetration = (side === 'home' ? physical.penetration_rate?.home_penetration : physical.penetration_rate?.away_penetration) ?? 0;
+    const accuracy = (side === 'home' ? physical.shot_efficiency?.home_accuracy : physical.shot_efficiency?.away_accuracy) ?? 0;
+    const corners = (physical.corner_pressure?.window_source === 'SNAPSHOT_DELTA' || physical.corner_pressure?.window_source === 'EVENT_TIMELINE')
+      ? ((side === 'home' ? physical.corner_pressure.home_corners_total : physical.corner_pressure.away_corners_total) ?? 0) : 0;
     const momentumSupport = bounded(1 - Math.exp(-Math.max(0, energy) / 150));
     const eventSupport = bounded(1 - Math.exp(-eventScore / 2.2));
     const statsSupport = physical.stats_available
@@ -312,10 +312,10 @@ export function evaluateTacticalRegime(
   epi: EventPressureConversionFeatures,
   physical: RealTimePhysicalStatsFeatures
 ): TacticalRegimeFeatures {
-  const currentMinute = match.timing.minute ?? 0;
+  const currentMinute = match.timing.minute as number;
   const events = match.reference?.timeline_events ?? [];
-  const homeScore = match.score.home_score ?? 0;
-  const awayScore = match.score.away_score ?? 0;
+  const homeScore = match.score.home_score as number;
+  const awayScore = match.score.away_score as number;
   const scoreDiff = homeScore - awayScore;
 
   // 1. 查找最近进球事件
@@ -340,8 +340,8 @@ export function evaluateTacticalRegime(
   }
 
   // 2. 查找红牌情况与时间半衰期
-  const redCardHome = physical.red_card_penalty.home_attack_multiplier < 0.9;
-  const redCardAway = physical.red_card_penalty.away_attack_multiplier < 0.9;
+  const redCardHome = (physical.red_card_penalty?.home_attack_multiplier ?? 1.0) < 0.9;
+  const redCardAway = (physical.red_card_penalty?.away_attack_multiplier ?? 1.0) < 0.9;
   let redSide: 'home' | 'away' | 'both' | 'none' = 'none';
   if (redCardHome && redCardAway) redSide = 'both';
   else if (redCardHome) redSide = 'home';
@@ -441,7 +441,7 @@ export function evaluateGoalClimax(
   epi: EventPressureConversionFeatures,
   trinity: LiveThreatTrinityFeatures
 ): GoalClimaxFeatures {
-  const currentMinute = match.timing.minute ?? 0;
+  const currentMinute = match.timing.minute as number;
   const events = match.reference?.timeline_events ?? (match as any).timeline_events ?? [];
 
   // 1. 统计近 5 分钟极近事件密度
@@ -454,8 +454,8 @@ export function evaluateGoalClimax(
   const recentIncidentDensity = events5m.length;
 
   // 2. 动量二阶变化 / 斜率强度
-  const slope5m = timeline.slope_5m ?? 0;
-  const slope15m = timeline.slope_15m ?? 0;
+  const slope5m = timeline.slope_5m as number;
+  const slope15m = timeline.slope_15m as number;
   const momentumAcceleration = Number((slope5m - slope15m).toFixed(2));
 
   // 3. 连续多维势能积分求解
@@ -526,7 +526,7 @@ export function calculateSpatioTemporalFeatures(
   collector?: DeficitCollector,
   tracer?: Tracer
 ): SpatioTemporalEventFeatures {
-  const currentMinute = match.timing.minute ?? 0;
+  const currentMinute = match.timing.minute as number;
   const events = match.reference?.timeline_events ?? (match as any).timeline_events ?? [];
 
   // 1. 三位一体实时威胁校准，再由同一证据链生成 EPI。

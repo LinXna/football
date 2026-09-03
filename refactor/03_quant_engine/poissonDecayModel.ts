@@ -342,47 +342,20 @@ export function calculateInPlayPoissonFeatures(
   collector?: DeficitCollector,
   tracer?: Tracer
 ): InPlayPoissonFeatures {
-  if ((match.timing.stage === MatchStage.LIVE && match.timing.minute === null) ||
+  if ((match.timing.stage === MatchStage.LIVE && (match.timing.minute === null || match.timing.minute === undefined)) ||
     ((match.timing.stage === MatchStage.LIVE || match.timing.stage === MatchStage.FINISHED) &&
-      (match.score.home_score === null || match.score.away_score === null || !match.score.score_verified))) {
+      (match.score.home_score === null || match.score.home_score === undefined || match.score.away_score === null || match.score.away_score === undefined || !match.score.score_verified))) {
     
-    // 如果是未核验比分或分钟数缺失，直接降级为不可定价状态，不阻断流水线
-    const fallbackScoreHome = match.score.home_score ?? 0;
-    const fallbackScoreAway = match.score.away_score ?? 0;
-    
-    return {
-      elapsed_minute: match.timing.minute ?? 0,
-      remaining_minutes: 0,
-      is_stoppage_time_unpriceable: true,
-      time_decay_curve: PoissonDecayCurve.LINEAR_UNIFORM,
-      lambda_home_rest: 0.0,
-      lambda_away_rest: 0.0,
-      expected_goals_rest: 0.0,
-      lambda_source: 'FALLBACK',
-      top_final_scores: [{
-        home: fallbackScoreHome,
-        away: fallbackScoreAway,
-        probability: 1.0,
-        percentage_str: '100.0%'
-      }],
-      rest_score_matrix: {
-        prob_home_win_rest: 0.0,
-        prob_draw_rest: 1.0,
-        prob_away_win_rest: 0.0
-      },
-      projected_final_score: {
-        home: fallbackScoreHome,
-        away: fallbackScoreAway,
-        most_likely_score: `${fallbackScoreHome}-${fallbackScoreAway}`
-      }
-    };
+    // 强制阻断 (Hard Block): 没有核验的比分或时间，绝不可提供虚假的泊松预期
+    collector?.record('UNPRICEABLE_MATCH', Layer03OpId.POISSON_FORWARD_MODEL, 'RC-005', 'Core pricing data (minute or verified score) is missing. Cannot evaluate expected values.', undefined, match.canonical_id);
+    throw new Error('UNPRICEABLE_MATCH: Core pricing data is missing, blocking Poisson deduction to prevent fake EV.');
   }
-  const elapsedMinute = Math.min(90, Math.max(0, match.timing.minute ?? 0));
+  const elapsedMinute = Math.min(90, Math.max(0, match.timing.minute as number));
   const remainingMinutes = Math.max(0, 90 - elapsedMinute);
   const isFinished = match.timing.stage === MatchStage.FINISHED;
-  const isUnpriceableStoppageTime = !isFinished && match.timing.stage === MatchStage.LIVE && (match.timing.minute ?? 0) >= 90;
-  const currentHomeScore = match.score.home_score ?? 0;
-  const currentAwayScore = match.score.away_score ?? 0;
+  const isUnpriceableStoppageTime = !isFinished && match.timing.stage === MatchStage.LIVE && elapsedMinute >= 90;
+  const currentHomeScore = match.score.home_score as number;
+  const currentAwayScore = match.score.away_score as number;
   const scoreDiff = currentHomeScore - currentAwayScore;
 
   // 完赛直接返回固定概率

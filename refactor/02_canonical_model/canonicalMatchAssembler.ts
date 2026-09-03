@@ -403,19 +403,62 @@ export function assembleCanonicalMatch(
       goal_distribution: leisuMatch.goal_distribution ?? null,
     };
 
-    if (!leisuMatch.lineups || (!leisuMatch.lineups.home_formation && !leisuMatch.lineups.away_formation)) {
+    // 1. 阵容与首发真实有效性校验
+    const hasRealLineup = Boolean(
+      leisuMatch.lineups &&
+      (leisuMatch.lineups.home_formation || leisuMatch.lineups.away_formation) &&
+      (
+        (leisuMatch.lineups.home_starters && leisuMatch.lineups.home_starters.length > 0) ||
+        (leisuMatch.lineups.away_starters && leisuMatch.lineups.away_starters.length > 0) ||
+        leisuMatch.lineups.confirmed
+      )
+    );
+    if (!hasRealLineup) {
       missingReasons.push(MissingDataReason.NO_LINEUP_DATA);
     }
-    if (!leisuMatch.stats) {
+
+    // 2. 攻防技术统计真实有效性校验 (严禁全 0 假数据，必须有真实的客观技术统计事实)
+    const hasRealStats = Boolean(
+      leisuMatch.stats &&
+      (
+        leisuMatch.stats.dangerous_attacks !== null ||
+        leisuMatch.stats.attacks !== null ||
+        leisuMatch.stats.shots !== null ||
+        leisuMatch.stats.shots_on_target !== null ||
+        leisuMatch.stats.possession !== null
+      )
+    );
+    if (!hasRealStats) {
       missingReasons.push(MissingDataReason.NO_STATS_DATA);
     }
-    if (!leisuMatch.attack_momentum || !leisuMatch.attack_momentum.available) {
-      if (stage === MatchStage.LIVE) missingReasons.push(MissingDataReason.NO_MOMENTUM_TIMELINE);
+
+    // 3. 攻防时序动量波形真实有效性校验 (滚球必须具备非空有效点阵)
+    const hasRealMomentum = Boolean(
+      leisuMatch.attack_momentum &&
+      leisuMatch.attack_momentum.available &&
+      Array.isArray(leisuMatch.attack_momentum.data) &&
+      leisuMatch.attack_momentum.data.length > 0
+    );
+    if (!hasRealMomentum && stage === MatchStage.LIVE) {
+      missingReasons.push(MissingDataReason.NO_MOMENTUM_TIMELINE);
     }
-    if (!leisuMatch.league_standings || (!leisuMatch.league_standings.home_team && !leisuMatch.league_standings.away_team)) {
+
+    // 4. 联赛积分榜真实有效性校验
+    const hasRealStandings = Boolean(
+      leisuMatch.league_standings &&
+      leisuMatch.league_standings.has_data &&
+      (leisuMatch.league_standings.home_team || leisuMatch.league_standings.away_team)
+    );
+    if (!hasRealStandings) {
       missingReasons.push(MissingDataReason.NO_LEAGUE_STANDINGS);
     }
-    if (!leisuMatch.goal_distribution || !leisuMatch.goal_distribution.has_data) {
+
+    // 5. 进球时间分布真实有效性校验
+    const hasRealGoalDist = Boolean(
+      leisuMatch.goal_distribution &&
+      leisuMatch.goal_distribution.has_data
+    );
+    if (!hasRealGoalDist) {
       missingReasons.push(MissingDataReason.NO_GOAL_DISTRIBUTION);
     }
   }
@@ -431,21 +474,47 @@ export function assembleCanonicalMatch(
     missingReasons.push(MissingDataReason.NO_ODDS_MARKETS);
   }
 
-  // 5. 数据完整度评级判定 (Tier 划分)
+  // 5. 数据完整度评级判定 (Tier 划分 - 杜绝虚假默认值穿透，严格基于真实事实)
   let completenessTier: DataCompletenessTier;
   if (isMismatch) {
     completenessTier = DataCompletenessTier.TIER_INVALID;
   } else if (!leisuMatch || missingReasons.includes(MissingDataReason.NO_ODDS_MARKETS)) {
     completenessTier = DataCompletenessTier.TIER_3_SPARSE;
-  } else if (
-    reference?.lineups?.home_formation &&
-    reference?.stats &&
-    reference?.league_standings &&
-    (stage === MatchStage.PREMATCH || reference?.attack_momentum?.available)
-  ) {
-    completenessTier = DataCompletenessTier.TIER_1_FULL;
   } else {
-    completenessTier = DataCompletenessTier.TIER_2_BASIC;
+    // 严格判定 TIER 1 (全维度黄金赛事)：
+    // 必须满足零核心缺口 (missingReasons.length === 0)，涵盖真实攻防、真实阵容、真实积分与进球分布；
+    // 滚球赛事还必须通过画布比分核验且具备动量波形。缺少真实攻防统计的比赛只能定级为 TIER 2！
+    const hasRealStats = Boolean(
+      reference?.stats &&
+      (
+        reference.stats.dangerous_attacks !== null ||
+        reference.stats.attacks !== null ||
+        reference.stats.shots !== null ||
+        reference.stats.possession !== null
+      )
+    );
+    const hasRealMomentum = Boolean(
+      reference?.attack_momentum &&
+      reference.attack_momentum.available &&
+      Array.isArray(reference.attack_momentum.data) &&
+      reference.attack_momentum.data.length > 0
+    );
+
+    const isTier1Candidate =
+      hasValidMarkets &&
+      Boolean(reference?.lineups?.home_formation || reference?.lineups?.away_formation) &&
+      Boolean(reference?.league_standings?.has_data) &&
+      Boolean(reference?.goal_distribution?.has_data) &&
+      hasRealStats &&
+      (stage !== MatchStage.LIVE || (hasRealMomentum && score.score_verified));
+
+    if (isTier1Candidate && missingReasons.length === 0) {
+      completenessTier = DataCompletenessTier.TIER_1_FULL;
+    } else if (hasValidMarkets && (hasRealStats || Boolean(reference?.league_standings?.has_data) || Boolean(reference?.lineups))) {
+      completenessTier = DataCompletenessTier.TIER_2_BASIC;
+    } else {
+      completenessTier = DataCompletenessTier.TIER_3_SPARSE;
+    }
   }
 
   const matchSlug = `${ybtyMatch.league}_${ybtyMatch.home}_vs_${ybtyMatch.away}`;

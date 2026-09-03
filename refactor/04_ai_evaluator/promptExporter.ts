@@ -60,10 +60,18 @@ export function generateRefactoredPrompt(
     const awayDA = hasDA ? (match.reference?.stats?.dangerous_attacks?.away ?? '未知') : '数据盲区';
     const homeCorners = pStats.available_metrics.corners ? (match.reference?.stats?.corners?.home ?? '未知') : '数据盲区';
     const awayCorners = pStats.available_metrics.corners ? (match.reference?.stats?.corners?.away ?? '未知') : '数据盲区';
-    const homeXtStr = hasDA ? pStats.xt_proxy.home_xt.toFixed(2) : "数据缺失(N/A)";
-    const awayXtStr = hasDA ? pStats.xt_proxy.away_xt.toFixed(2) : "数据缺失(N/A)";
+    const homeXtStr = (hasDA && pStats.xt_proxy?.home_xt != null) ? pStats.xt_proxy.home_xt.toFixed(2) : "数据缺失(N/A)";
+    const awayXtStr = (hasDA && pStats.xt_proxy?.away_xt != null) ? pStats.xt_proxy.away_xt.toFixed(2) : "数据缺失(N/A)";
+
+    const h2hAnalytics = quantFeatures.context.h2h_analytics;
+    const h2hProfiling = (h2hAnalytics && h2hAnalytics.sample_count > 0)
+      ? (h2hAnalytics.tactical_metrics_available
+          ? `交锋样本: ${h2hAnalytics.valid_count}场(战术真实样本${h2hAnalytics.tactical_valid_count}场), 场均角球: ${h2hAnalytics.historical_avg_corners ?? '无'}, 球风相克: ${h2hAnalytics.tactical_stylistic_clash_index.toFixed(2)}`
+          : `交锋样本: ${h2hAnalytics.valid_count}场(历史深层攻防与角球缺失/失真, 仅基础比分有效), 球风克制置零`)
+      : "无交锋记录";
 
     const team_profiling = {
+      h2h_tactical_integrity: h2hProfiling,
       home: {
         recent_timeline: (homeAnalytics && homeAnalytics.sample_count > 0) ? `样本数: ${homeAnalytics.sample_count}, 场均得失球: ${homeAnalytics.weighted_scored_per_game.toFixed(2)} / ${homeAnalytics.weighted_conceded_per_game.toFixed(2)}` : "数据盲区 / 近期战绩样本不足 (Sample Count: 0)",
         tactical_playstyle: `危攻: ${homeDA}, 角球: ${homeCorners}, xT威胁代理: ${homeXtStr}`,

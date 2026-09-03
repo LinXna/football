@@ -1,5 +1,66 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
+- **任务编号 (Task)**: `SNAPSHOT-20260903-HARDEN-CORE-QUANT-ANTI-FAKE-DATA-GATES`
+- **任务目标 (Goal)**：全面根治 Layer 03 量化引擎中近期战绩、历史战绩、首发伤停、进球时间分布、积分榜排名五大核心维度的虚假数据、字段倒置与默认值陷阱：
+  1. 近期与历史战绩基于 `team_id` 与精准名称强锚定，彻底根治客队近期战绩与历史交锋进失球/净胜球倒置问题；移除 45 天假日期伪造；
+  2. 近态先验与泊松引擎隔离门禁：先验修正严格要求 `valid_count >= 1`，样本缺失时攻防因子中性保底 1.0，杜绝休赛期无战绩导致攻击力暴跌 30%；
+  3. 首发名单状态三态化 (`CONFIRMED` / `UNANNOUNCED` / `MISSING`)：未公布首发维持中性 LIS 并输出 `is_lineup_confirmed: false`，杜绝赛前未公布被误判为核心缺席；伤停引入主力属性/出场权重过滤；
+  4. 进球时间段贝叶斯狄利克雷平滑 (Bayesian Dirichlet Smoothing)：引入先验基准 $\alpha = 1.0$，小样本向 $1/6$ 收缩，杜绝 1 个球产生 100% 绝杀基因畸变；
+  5. 动态百分位积分榜战意 (Relative Percentile MUI)：废弃 20 队联赛硬编码，基于实际队伍数与轮次计算相对百分位（争冠欧战前 20%，降级后 15%，赛季末 75%），杯赛场景关闭联赛积分榜战意映射。
+- **改动文件 (Target Files)**:
+  - `refactor/03_quant_engine/types.ts`
+  - `refactor/03_quant_engine/contextEngine.ts`
+  - `refactor/03_quant_engine/prematchPriorEngine.ts`
+  - `refactor/04_ai_evaluator/promptExporter.ts`
+  - `refactor/samples/03_quant_engine/quant_features_sample.json`
+- **执行步骤 (Action Plan)**:
+  1. 更新 `types.ts` 中 `LineupImpactSummary`（加入 `lineup_status`、`is_lineup_confirmed`）、`LeagueStandingsContext`（加入百分位与杯赛旁路标识）以及 `GoalDistributionDNA`；
+  2. 重构 `contextEngine.ts`：
+     - 重写 `evaluateRecentMatches`：通过 `targetTeamId` 和正确的主客名判断 `itemIsHome`，时间戳缺失直接置无效；
+     - 重写 `calculateH2HDecayWeights`：通过主队 `team_id` 判断该场对决当前主队是主是客，准确计算 `netGoals` 符号；
+     - 重写 `calculateGoalDistributionDNA`：实施贝叶斯狄利克雷平滑 ($\alpha = 1.0$)；
+     - 重构 `calculateLineupImpactScores`：区分首发未公布状态，伤停过滤非主力/青年队；
+     - 重写 `evaluateLeagueStandingsAndMUI`：实现动态百分位与杯赛旁路判断；
+  3. 更新 `prematchPriorEngine.ts`：以 `valid_count >= 1` 为门禁，样本不足时攻防系数保底 1.0；
+  4. 更新 `promptExporter.ts` 与样本文档；
+  5. 运行自测脚本与 `lint_applet` / `compile_applet` 确保 100% 通过。
+- **状态 (Status)**: `IN_PROGRESS`
+
+## 二、历史活动快照 (Archived Snapshots)
+
+- **任务编号 (Task)**: `SNAPSHOT-20260903-H2H-TACTICAL-METRICS-INTEGRITY-GATE`
+- **任务目标 (Goal)**：全面根治历史交锋记录（H2H）深层攻防与角球等技术统计缺失时被错误当成“真实 0”或强行计算导致量化模型与 AI 预测带毒的严重缺陷。建立严苛的“全指标双向客观真实校验门禁 (Full-Metric Two-Way Tactical Integrity Gate)”，仅当主客双方均有客观真实的攻防记录（危险进攻、进攻、总射门、射正、控球率）且均有角球数据时，才判定为有效深层战术样本；若有效样本为 0 则深层指标严禁参与泊松计算或捏造假数据，并向 Layer 04 及 UI 显式暴露历史攻防数据盲区 (Blind-Spot)。
+- **改动文件 (Target Files)**:
+  - `refactor/03_quant_engine/types.ts` (在 H2H 契约中增补 `tactical_valid_count`、`tactical_metrics_available`，将 `historical_avg_corners` 允许为 `null`)
+  - `refactor/03_quant_engine/contextEngine.ts` (实施全指标双向客观真实校验门禁，严禁缺失指标被当成假 0 或单边数据失真计算)
+  - `refactor/03_quant_engine/prematchPriorEngine.ts` (在先验进球期望计算中增加战术数据可用性判断，无有效战术样本时强制规避 `stylisticClash` 偏置)
+  - `refactor/04_ai_evaluator/promptExporter.ts` (在导出给大模型的 Prompt 中清晰呈现历史交锋总场次 vs 具备完整攻防统计的有效场次，若无有效统计则显式输出【历史交锋深层攻防盲区】警示)
+  - `src/components/CanonicalMatchCenter.tsx` (前端展示历史交锋总数与深层攻防有效统计场次，单场显示门禁判定状态，杜绝假象)
+  - `refactor/samples/03_quant_engine/quant_features_sample.json` (同步更新样本文档契约)
+- **交付结果与验证**:
+  1. 8 重战术攻防门禁：时效性(<=730天)、双向非空stats对象、双向角球有效(非-1且总角球>=1)、双向危险进攻有效正数、双向常规进攻有效且>=危攻、双向射门有效且全场总射门>=3、双向射正有效且<=射门、双向控球率有效且守恒(95%~105%)。
+  2. 聚合引擎隔离计算：比分宏观推演（胜负差、小球率）使用有效比分样本；角球均值与球风相克严格使用战术有效样本。若战术样本为0，`historical_avg_corners` 输出 `null`，`tactical_stylistic_clash_index` 严格为 `0.0`。
+  3. 单元测试与端到端编译 100% 通过（`tsc --noEmit` & `vite build` 均成功通过）。
+- **状态 (Status)**: `DONE`
+
+## 二、历史活动快照 (Archived Snapshots)
+
+- **任务编号 (Task)**: `SNAPSHOT-20260903-FIX-MACHINE-QUANT-PANEL-TOFIXED-CRASH`
+- **任务目标 (Goal)**：彻底修复 `MachineQuantEvaluationPanel` 组件中由于攻防技术统计缺失 (`stats_available: false`) 导致 `xt_ratio`、`home_conversion`、`home_accuracy` 等可选统计指标为 `undefined` 时调用 `.toFixed` 引发的白屏崩溃异常；增加完备的非空保护与物理真实性展示。
+- **状态 (Status)**: `DONE`
+
+- **任务编号 (Task)**: `SNAPSHOT-20260903-DATA-INTEGRITY-TIER1-AND-ZERO-FAKE-DATA`
+- **任务目标 (Goal)**：彻底排查并根治“全数据保底策略与伪造假数据”重大缺陷，排查美洲足球俱乐部VS蒙特雷等赛事被错误定级为 TIER 1 (全维度) 的根本原因，在 Ingestion、Canonical Model、Quant Engine 全链路杜绝虚假默认值保底，实现严格的真实有效数据校验。
+- **改动文件 (Target Files)**:
+  - `refactor/01_data_ingestion/leisu/types.ts` (允许 `stats` 为 `null`，真实反映上游未提供攻防统计的物理事实)
+  - `refactor/01_data_ingestion/leisu/leisuInterfaceExtractor.ts` (根治将 `null` 强行补 0 伪造指标的假数据注入，若 9 大指标全无则 `stats` 输出 `null`)
+  - `refactor/02_canonical_model/canonicalMatchAssembler.ts` (分阶段重构数据完整度定级与缺口判断，严禁首发未确认、无有效统计赛事被误评为 TIER 1)
+  - `refactor/03_quant_engine/contextEngine.ts` (彻底清除硬编码保底，无排名与首发时输出中性真实值而非捏造积分与齐整首发)
+  - `refactor/03_quant_engine/momentumQuantEngine.ts` (严格判定技术统计真实有效性，拒绝被 0 假象蒙蔽)
+  - `refactor/03_quant_engine/index.ts` (区分滚球与赛前的数据质量评分模型，杜绝虚高数据置信度)
+  - `src/components/CanonicalMatchCenter.tsx` (前端安全渲染攻防统计，当无客观统计事实时显示真实警告而非虚假 0:0 攻防数据)
+- **状态 (Status)**: `DONE`
+
 - **任务编号 (Task)**: `SNAPSHOT-20260902-MANUAL-PROMPT-EXPORT`
 - **任务目标 (Goal)**：修复重构系统中缺失的手动导出 Prompt 功能。摒弃之前的纯命令行导出方式，将重构版 (Layer 01~04) 管线直接接入到 Web 端的“标准赛事对齐中心”页面中。用户可以在界面中一键导出（包含单场或批量选中）。
 - **改动文件 (Target Files)**:

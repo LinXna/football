@@ -455,7 +455,7 @@ export function calculateDeviggedMarketFeatures(
 
   // 3. 大小球盘 EV
   const totalMarket = match.markets?.full_total_main;
-  const currentTotal = (match.score.home_score ?? 0) + (match.score.away_score ?? 0);
+  const currentTotal = (match.score.home_score as number) + (match.score.away_score as number);
   let totalMain: TotalEVAssessment | undefined;
   if (totalMarket && totalMarket.line && totalMarket.over_odds && totalMarket.under_odds) {
     totalMain = calculateTotalGoalsEV(totalMarket.line, totalMarket.over_odds, totalMarket.under_odds, currentTotal, poisson);

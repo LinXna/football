@@ -34,8 +34,10 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
 
   // 格式化 BDI 显示
   const bdi = quant.battlefield_dominance_index;
-  const bdiText = bdi > 0 ? `+${bdi.toFixed(1)} (主优)` : bdi < 0 ? `${bdi.toFixed(1)} (客优)` : `0.0 (均衡)`;
-  const bdiColor = bdi > 10 ? "text-blue-400" : bdi < -10 ? "text-purple-400" : "text-slate-300";
+  const bdiText = typeof bdi === "number"
+    ? (bdi > 0 ? `+${bdi.toFixed(1)} (主优)` : bdi < 0 ? `${bdi.toFixed(1)} (客优)` : `0.0 (均衡)`)
+    : "0.0 (均衡)";
+  const bdiColor = typeof bdi === "number" && bdi > 10 ? "text-blue-400" : typeof bdi === "number" && bdi < -10 ? "text-purple-400" : "text-slate-300";
 
   // 格式化破门相变
   const getGoalPhaseBadge = (phase: GoalPhaseAlert) => {
@@ -149,10 +151,10 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
             </div>
           </div>
           <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400 justify-between">
-            <span className="text-blue-400">主: {quant.timeline.integral_15m.home.toFixed(0)}</span>
+            <span className="text-blue-400">主: {quant.timeline?.integral_15m?.home != null ? quant.timeline.integral_15m.home.toFixed(0) : "0"}</span>
             <span className="text-slate-600">vs</span>
-            <span className="text-purple-400">客: {quant.timeline.integral_15m.away.toFixed(0)}</span>
-            <span className="text-slate-500">净积分: {quant.timeline.integral_15m.net.toFixed(0)}</span>
+            <span className="text-purple-400">客: {quant.timeline?.integral_15m?.away != null ? quant.timeline.integral_15m.away.toFixed(0) : "0"}</span>
+            <span className="text-slate-500">净积分: {quant.timeline?.integral_15m?.net != null ? quant.timeline.integral_15m.net.toFixed(0) : "0"}</span>
           </div>
         </div>
 
@@ -172,8 +174,8 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
             <p className="text-[10px] text-slate-400 mt-0.5 leading-tight truncate">{goalPhase.desc}</p>
           </div>
           <div className="text-[10px] text-slate-500 flex justify-between font-mono">
-            <span>5m斜率: {quant.timeline.slope_5m.toFixed(2)}</span>
-            <span>15m斜率: {quant.timeline.slope_15m.toFixed(2)}</span>
+            <span>5m斜率: {quant.timeline?.slope_5m != null ? quant.timeline.slope_5m.toFixed(2) : "0.00"}</span>
+            <span>15m斜率: {quant.timeline?.slope_15m != null ? quant.timeline.slope_15m.toFixed(2) : "0.00"}</span>
           </div>
         </div>
 
@@ -185,7 +187,7 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
               庄家博弈姿态
             </span>
             <span className="font-mono text-slate-500">
-              {quant.devig.h2h_devig
+              {quant.devig?.h2h_devig?.raw_overround != null
                 ? `抽水 ${((quant.devig.h2h_devig.raw_overround - 1) * 100).toFixed(1)}%`
                 : "独赢缺口"}
             </span>
@@ -195,11 +197,11 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
               {posture.label}
             </span>
             <p className="text-[10px] text-slate-400 mt-0.5 truncate">
-              让球方差: {quant.devig.line_dispersion.spread_variance.toFixed(3)}
+              让球方差: {quant.devig?.line_dispersion?.spread_variance != null ? quant.devig.line_dispersion.spread_variance.toFixed(3) : "0.000"}
             </p>
           </div>
           <div className="text-[10px] text-slate-500 font-mono">
-            去抽水: {quant.devig.h2h_devig?.devig_method ?? "未开盘(N/A)"}
+            去抽水: {quant.devig?.h2h_devig?.devig_method ?? "未开盘(N/A)"}
           </div>
         </div>
       </div>
@@ -232,13 +234,13 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
               <div className="bg-slate-900 p-1.5 rounded border border-blue-900/40">
                 <div className="text-[10px] text-slate-400 truncate">主队 λ</div>
                 <div className="text-sm font-bold text-blue-400">
-                  {quant.poisson.lambda_home_rest.toFixed(2)}
+                  {quant.poisson?.lambda_home_rest != null ? quant.poisson.lambda_home_rest.toFixed(2) : "0.00"}
                 </div>
               </div>
               <div className="bg-slate-900 p-1.5 rounded border border-purple-900/40">
                 <div className="text-[10px] text-slate-400 truncate">客队 λ</div>
                 <div className="text-sm font-bold text-purple-400">
-                  {quant.poisson.lambda_away_rest.toFixed(2)}
+                  {quant.poisson?.lambda_away_rest != null ? quant.poisson.lambda_away_rest.toFixed(2) : "0.00"}
                 </div>
               </div>
             </div>
@@ -246,7 +248,7 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
             <div className="text-[11px] text-slate-400 flex justify-between pt-0.5 border-t border-slate-800/80">
               <span>剩余总期望:</span>
               <strong className="text-emerald-400 font-mono">
-                {quant.poisson.expected_goals_rest.toFixed(2)} 球
+                {quant.poisson?.expected_goals_rest != null ? quant.poisson.expected_goals_rest.toFixed(2) : "0.00"} 球
               </strong>
             </div>
           </div>
@@ -262,12 +264,12 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
               <div className="p-1.5 rounded bg-slate-900/90 border border-purple-900/50 flex items-center justify-between">
                 <span className="text-slate-400 text-[11px]">最高频完场比分:</span>
                 <strong className="text-sm text-purple-300 font-bold">
-                  {quant.poisson.projected_final_score.most_likely_score}
+                  {quant.poisson?.projected_final_score?.most_likely_score ?? "-"}
                 </strong>
               </div>
               <div className="flex justify-between text-[10px] text-slate-400 px-0.5">
-                <span>预期主球: {quant.poisson.projected_final_score.home.toFixed(2)}</span>
-                <span>预期客球: {quant.poisson.projected_final_score.away.toFixed(2)}</span>
+                <span>预期主球: {quant.poisson?.projected_final_score?.home != null ? quant.poisson.projected_final_score.home.toFixed(2) : "-"}</span>
+                <span>预期客球: {quant.poisson?.projected_final_score?.away != null ? quant.poisson.projected_final_score.away.toFixed(2) : "-"}</span>
               </div>
             </div>
           </div>
@@ -284,14 +286,14 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
                 <div className="flex justify-between text-[10px] mb-0.5">
                   <span className="text-blue-400">主胜</span>
                   <span className="text-slate-300 font-bold">
-                    {(quant.poisson.rest_score_matrix.prob_home_win_rest * 100).toFixed(1)}%
+                    {quant.poisson?.rest_score_matrix?.prob_home_win_rest != null ? `${(quant.poisson.rest_score_matrix.prob_home_win_rest * 100).toFixed(1)}%` : "0.0%"}
                   </span>
                 </div>
                 <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
                   <div
                     className="bg-blue-500 h-full"
                     style={{
-                      width: `${quant.poisson.rest_score_matrix.prob_home_win_rest * 100}%`,
+                      width: `${(quant.poisson?.rest_score_matrix?.prob_home_win_rest ?? 0) * 100}%`,
                     }}
                   />
                 </div>
@@ -301,14 +303,14 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
                 <div className="flex justify-between text-[10px] mb-0.5">
                   <span className="text-amber-400">平局</span>
                   <span className="text-slate-300 font-bold">
-                    {(quant.poisson.rest_score_matrix.prob_draw_rest * 100).toFixed(1)}%
+                    {quant.poisson?.rest_score_matrix?.prob_draw_rest != null ? `${(quant.poisson.rest_score_matrix.prob_draw_rest * 100).toFixed(1)}%` : "0.0%"}
                   </span>
                 </div>
                 <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
                   <div
                     className="bg-amber-500 h-full"
                     style={{
-                      width: `${quant.poisson.rest_score_matrix.prob_draw_rest * 100}%`,
+                      width: `${(quant.poisson?.rest_score_matrix?.prob_draw_rest ?? 0) * 100}%`,
                     }}
                   />
                 </div>
@@ -318,14 +320,14 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
                 <div className="flex justify-between text-[10px] mb-0.5">
                   <span className="text-purple-400">客胜</span>
                   <span className="text-slate-300 font-bold">
-                    {(quant.poisson.rest_score_matrix.prob_away_win_rest * 100).toFixed(1)}%
+                    {quant.poisson?.rest_score_matrix?.prob_away_win_rest != null ? `${(quant.poisson.rest_score_matrix.prob_away_win_rest * 100).toFixed(1)}%` : "0.0%"}
                   </span>
                 </div>
                 <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
                   <div
                     className="bg-purple-500 h-full"
                     style={{
-                      width: `${quant.poisson.rest_score_matrix.prob_away_win_rest * 100}%`,
+                      width: `${(quant.poisson?.rest_score_matrix?.prob_away_win_rest ?? 0) * 100}%`,
                     }}
                   />
                 </div>
@@ -347,7 +349,7 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
             </span>
           </div>
           <span className="text-[11px] text-slate-400 font-mono">
-            攻防威胁比: {quant.physical_stats.xt_proxy.xt_ratio.toFixed(2)}
+            攻防威胁比: {quant.physical_stats?.xt_proxy?.xt_ratio != null ? quant.physical_stats.xt_proxy.xt_ratio.toFixed(2) : "未具备(N/A)"}
           </span>
         </div>
 
@@ -355,7 +357,7 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
           <div className="bg-slate-950/70 p-2 rounded border border-slate-800 space-y-0.5">
             <div className="text-slate-400 text-[10px]">危攻转化效率 (DAR)</div>
             <div className="text-xs font-bold text-slate-200">
-              主: {quant.physical_stats.conversion_efficiency.home_conversion.toFixed(2)} / 客: {quant.physical_stats.conversion_efficiency.away_conversion.toFixed(2)}
+              主: {quant.physical_stats?.conversion_efficiency?.home_conversion != null ? quant.physical_stats.conversion_efficiency.home_conversion.toFixed(2) : "-"} / 客: {quant.physical_stats?.conversion_efficiency?.away_conversion != null ? quant.physical_stats.conversion_efficiency.away_conversion.toFixed(2) : "-"}
             </div>
             <div className="text-[10px] text-slate-500">每次危攻转化为射门的比例</div>
           </div>
@@ -363,7 +365,7 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
           <div className="bg-slate-950/70 p-2 rounded border border-slate-800 space-y-0.5">
             <div className="text-slate-400 text-[10px]">射门精准度 (SOT%)</div>
             <div className="text-xs font-bold text-slate-200">
-              主: {(quant.physical_stats.conversion_efficiency.home_accuracy * 100).toFixed(0)}% / 客: {(quant.physical_stats.conversion_efficiency.away_accuracy * 100).toFixed(0)}%
+              主: {quant.physical_stats?.conversion_efficiency?.home_accuracy != null ? `${(quant.physical_stats.conversion_efficiency.home_accuracy * 100).toFixed(0)}%` : "-"} / 客: {quant.physical_stats?.conversion_efficiency?.away_accuracy != null ? `${(quant.physical_stats.conversion_efficiency.away_accuracy * 100).toFixed(0)}%` : "-"}
             </div>
             <div className="text-[10px] text-slate-500">射正占总射门的比例</div>
           </div>
@@ -371,9 +373,9 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
           <div className="bg-slate-950/70 p-2 rounded border border-slate-800 space-y-0.5">
             <div className="text-slate-400 text-[10px]">战术异动监控</div>
             <div className="text-xs font-bold text-slate-200">
-              {quant.physical_stats.tactical_anomaly.home_barren_dominance
+              {quant.physical_stats?.tactical_anomaly?.home_barren_dominance
                 ? "⚠️ 主队浪射无实质威胁"
-                : quant.physical_stats.tactical_anomaly.away_barren_dominance
+                : quant.physical_stats?.tactical_anomaly?.away_barren_dominance
                 ? "⚠️ 客队浪射无实质威胁"
                 : "✓ 攻防传导结构正常"}
             </div>
