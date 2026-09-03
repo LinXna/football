@@ -1,22 +1,32 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260903-TRACE-GUAM-NORTHERN-MARIANA-PIPELINE`
-- **当前状态 (Status)**: `IN_PROGRESS`
+- **任务编号 (Task)**: `SNAPSHOT-20260903-LAYER03-MULTI-SCALE-EPI-FIX`
+- **当前状态 (Status)**: `DONE`
 - **任务目标 (Goal)**：
-  严格遵循实际系统链路与真实数据，对“关岛U20 VS 北马里亚纳群岛U20”从 Layer 00 到 Layer 04 导出 Prompt 的完整执行链路进行穿透式检查：
-  1. **Layer 00 & 01 (数据摄取与比分真实性)**：以 `refactor/fixtures/active_live_ybty.json` 和 `active_live_leisu.json` 为物理输入，审查 YBTY 盘口解析、雷速技术统计与时序、比分校验状态（score_verified）；
-  2. **Layer 02 (标准赛事契约与 AI Brief 构造)**：审查双轨对齐（赛事名、主客队、联赛别名）、`CanonicalMatch` 组装、`AiEvaluationBrief` 提取及缺失原因审计；
-  3. **Layer 03 (量化博弈引擎)**：审查 37 项量化特征计算、BDI 战场统治权指数、时空演化阶段、Forward 泊松衰减推演、Shin 去抽水与正 EV 计算；
-  4. **Layer 04 (Prompt 导出与对齐门禁)**：审查 `promptExporter.ts`（Payload 组装、Token 压缩、时钟 SSOT）、`alignmentGuard.ts`（反幻觉对齐门禁与量化警报联动）；
-  5. **实跑检验并输出具象审查报告**：编写并执行链路追踪检查脚本，捕获每个环节的实际数据、日志、异常与边界问题，给出无任何抽象套话的具象检查结果。
+  根治 Layer 03 攻防势能转化指数 (EPI) 中“15分钟固定滑动窗口在中场或比赛间隙时将全场时序事件（如 27' 进球）截断，导致错误软分类为虚假繁荣 BARREN_DOMINANCE”的窗口截断缺陷：
+  1. **结合危攻时序多尺度全域走势 (Multi-scale Momentum Timeline)**：
+     - 在 EPI 转化率计算中，引入全时序连续衰减事件融合机制：不仅保留近 15m 事件加权分，更计算全场时序连续衰减总分 `fullDecayedScore`；
+     - 当近 15m 处于进攻间歇期（如 30'-45' 仅有低频事件），但半场/全场时序有明确进球（如 27' 破门）或射正转化时，使用连续衰减的全时段事件支撑度平滑补偿转化率，并以指数衰减因子 `exp(-fullDecayedScore / 0.45)` 强力压制虚假繁荣的误判；
+  2. **修复底层衰减参数与三源威胁求解鲁棒性**：
+     - 修复 `calculateDecayedEventScore` 中硬编码 15.0 分钟而忽略 `halfLife` 参数的底层隐患；
+     - 修复 `calculateLiveThreatTrinity` 在技术统计缺省 (`stats_available = false`) 时将零值纳入对齐与冲突判定导致的威胁误折损，改为依据实际有效指标动态归一与加权；
+  3. **单元测试与回归验证**：
+     - 补充 15 分钟窗口边界与全场时序走势融合的测试用例（`tests-ts/jointLayer03Layer04.test.ts` 新增 Suite 5，共 71 个断言全部通过，编译与类型检查零错误）。
+- **交付物清单 (Deliverables)**:
+  - `refactor/03_quant_engine/eventMomentumFusion.ts`: 修复 `calculateDecayedEventScore` halfLife，多尺度融合 `fullDecayedScores`，平滑抑制假性 `BARREN_DOMINANCE`，健壮三源一致性校准；
+  - `tests-ts/jointLayer03Layer04.test.ts`: 针对 27' 进球在 45' 窗口截断场景与真实虚假繁荣场景编写严密对比断言（71/71 tests pass）；
+  - `refactor/HANDOVER_AND_PROGRESS.md`: 同步更新看板状态为 DONE。
+- **下一步待办 (Next Steps)**:
+  - 继续监控实战中各类极端时序事件（如 80'+ 补时阶段点球/绝杀）的多尺度 EPI 战术相变响应表现。
 - **改动文件 (Target Files)**:
+  - `refactor/03_quant_engine/eventMomentumFusion.ts`
+  - `tests-ts/jointLayer03Layer04.test.ts`
   - `refactor/HANDOVER_AND_PROGRESS.md`
 - **执行步骤 (Steps)**:
-  1. 在看板登记快照；
-  2. 查看 `active_live_ybty.json` 与 `active_live_leisu.json` 中“关岛U20 VS 北马里亚纳群岛U20”的原始数据字段；
-  3. 编写一个直接调用真实系统模块 (Layer 01 -> 02 -> 03 -> 04) 的全链路追踪检查脚本，实际运行并捕获每个节点产生的数据结构、量化结果与导出的 Prompt 内容；
-  4. 深入剖析每个环节是否存在契约不一致、数据截断、计算偏差、符号翻转、警报遗漏或 Prompt 丢失等问题；
-  5. 汇总真实审查结果并向用户汇报。
+  1. 更新看板；
+  2. 修改 `refactor/03_quant_engine/eventMomentumFusion.ts`；
+  3. 补充测试断言并执行 `npm run test:ts` 与 `compile_applet`；
+  4. 更新看板为 `DONE` 并向用户详细说明。
 
 ## 二、历史活动快照 (Archived Snapshots)
 

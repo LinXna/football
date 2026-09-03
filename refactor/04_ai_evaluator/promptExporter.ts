@@ -34,6 +34,27 @@ export function generateRefactoredPrompt(
       }
     }
 
+    // 提取关键时序事件 (进球、红黄牌、点球、换人等)，注入战术事件线
+    if (match.reference?.timeline_events && match.reference.timeline_events.length > 0) {
+      const keyEvents = match.reference.timeline_events.filter(e => 
+        !e.is_cancelled && (
+          e.canonical_type.includes('GOAL') ||
+          e.canonical_type.includes('CARD') ||
+          e.canonical_type.includes('PENALTY') ||
+          e.canonical_type.includes('VAR') ||
+          e.canonical_type.includes('SUB')
+        )
+      );
+
+      for (const evt of keyEvents) {
+        const timeStr = evt.display_time || (evt.minute ? `${evt.minute}'` : '时段未知');
+        const sideStr = evt.side === 'home' ? '主队' : (evt.side === 'away' ? '客队' : '中立');
+        const desc = evt.text ? ` - ${evt.text}` : '';
+        const player = evt.player_name ? ` (${evt.player_name})` : '';
+        tactical_phase_transitions.push(`[${timeStr}] [${sideStr}] ${evt.type_name}${player}${desc}`);
+      }
+    }
+
     const hasLineupData = !!match.reference?.lineups;
     const lineupImpact = quantFeatures.context.lineup_impact;
     const lineupStatus = lineupImpact?.lineup_status ?? (hasLineupData ? 'CONFIRMED' : 'NOT_ANNOUNCED');
@@ -190,7 +211,9 @@ export function generateRefactoredPrompt(
         ev_signals: effectiveEvSignals,
         risk_flags: quantFeatures.risk_flags,
         goal_alert: quantFeatures.goal_phase_alert,
-        confidence: quantFeatures.confidence_score
+        confidence: quantFeatures.confidence_score,
+        poisson: quantFeatures.poisson,
+        spatio_temporal_events: quantFeatures.spatio_temporal_events
       }
     });
   }

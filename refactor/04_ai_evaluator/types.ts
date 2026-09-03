@@ -1,5 +1,5 @@
 import { AiEvaluationBrief } from '../02_canonical_model/types.js';
-import { PositiveEVSignal, QuantAlert, DeviggedMarketFeatures } from '../03_quant_engine/types.js';
+import { PositiveEVSignal, QuantAlert, DeviggedMarketFeatures, InPlayPoissonFeatures, SpatioTemporalEventFeatures } from '../03_quant_engine/types.js';
 import { RecommendationGrade, TrapDetectionResult, TacticalRegimeEvaluation } from './enums.js';
 
 export interface OosHistoricalContext {
@@ -41,6 +41,8 @@ export interface EvaluatorQuantFeatures {
   risk_flags: readonly QuantAlert[];
   goal_alert: string;
   confidence: number;
+  poisson?: InPlayPoissonFeatures;
+  spatio_temporal_events?: SpatioTemporalEventFeatures;
 }
 
 export interface EvaluatorPayload {

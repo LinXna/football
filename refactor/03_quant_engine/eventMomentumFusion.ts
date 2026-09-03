@@ -150,7 +150,7 @@ export function calculateDecayedEventScore(
 
     const deltaT = Math.max(0, currentMinute - m);
     // 指数时间衰减权重 e^(-deltaT / halfLife)
-    const decayWeight = Math.exp(-deltaT / 15.0);
+    const decayWeight = Math.exp(-deltaT / halfLife);
     const baseWeight = getEventThreatWeight(ev);
     const effectiveWeight = baseWeight * decayWeight;
 
@@ -197,11 +197,17 @@ export function calculateLiveThreatTrinity(
     const eventSupport = bounded(1 - Math.exp(-eventScore / 2.2));
     const statsSupport = physical.stats_available
       ? bounded(1 - Math.exp(-Math.max(0, xt * 0.32 + penetration * 1.2 + accuracy * 1.5 + corners * 0.08))) : 0;
-    const minSupport = Math.min(momentumSupport, eventSupport, statsSupport);
-    const maxSupport = Math.max(momentumSupport, eventSupport, statsSupport);
+    const activeSupports = physical.stats_available
+      ? [momentumSupport, eventSupport, statsSupport]
+      : [momentumSupport, eventSupport];
+    const minSupport = Math.min(...activeSupports);
+    const maxSupport = Math.max(...activeSupports);
     const alignmentScore = bounded(1 - (maxSupport - minSupport));
-    const conflict = momentumSupport >= 0.62 && (eventSupport < 0.20 || statsSupport < 0.20);
-    const calibratedThreat = bounded((0.45 * momentumSupport + 0.30 * eventSupport + 0.25 * statsSupport) * (0.55 + 0.45 * alignmentScore) * (conflict ? 0.45 : 1));
+    const conflict = momentumSupport >= 0.62 && (eventSupport < 0.20 || (physical.stats_available && statsSupport < 0.20));
+    const baseThreat = physical.stats_available
+      ? (0.45 * momentumSupport + 0.30 * eventSupport + 0.25 * statsSupport)
+      : (0.60 * momentumSupport + 0.40 * eventSupport);
+    const calibratedThreat = bounded(baseThreat * (0.55 + 0.45 * alignmentScore) * (conflict ? 0.45 : 1));
     return {
       momentum_support: Number(momentumSupport.toFixed(3)),
       event_support: Number(eventSupport.toFixed(3)),
@@ -226,7 +232,7 @@ export function calculateLiveThreatTrinity(
 
 /**
  * 维度一：计算攻防势能转化指数 (EPI)
- * 采用近 15 分钟时间窗口与连续时间衰减联合评估
+ * 采用近 15 分钟时间窗口与全时序多尺度衰减走势联合评估，防止中场或比赛间隙时将全场时序事件截断导致假性虚假繁荣 (BARREN_DOMINANCE)
  */
 export function calculateEventPressureConversion(
   timeline: MomentumTimelineFeatures,
@@ -240,10 +246,13 @@ export function calculateEventPressureConversion(
     return m >= windowStart && m <= currentMinute && !e.is_cancelled;
   });
 
-  // 1. 统计近 15 分钟双方事件加权总分 (带时效半衰期)
-  const decayedScores = calculateDecayedEventScore(recentEvents, currentMinute, 15);
-  const homeEventScore = decayedScores.home;
-  const awayEventScore = decayedScores.away;
+  // 1. 统计近 15 分钟双方事件加权总分 (带时效半衰期) 与全时序连续衰减事件总分
+  const decayedScores15m = calculateDecayedEventScore(recentEvents, currentMinute, 15);
+  const fullDecayedScores = calculateDecayedEventScore(events, currentMinute, 15);
+  const homeEventScore = decayedScores15m.home;
+  const awayEventScore = decayedScores15m.away;
+  const homeFullEventScore = fullDecayedScores.home;
+  const awayFullEventScore = fullDecayedScores.away;
 
   // 2. 获取近 15 分钟危攻能量
   const homeEnergy = timeline.integral_15m ? timeline.integral_15m.home : 0;
@@ -257,14 +266,31 @@ export function calculateEventPressureConversion(
   const awayRatio = Number((awayEventScore / awayNormEnergy).toFixed(3));
 
   // 4. 连续隶属度战术类型软分类 (Continuous Membership Soft Classification)
-  const classify = (energy: number, score: number, ratio: number, integrity: number, conflict: boolean): EventPressureConversionType => {
+  // 结合全场时序事件走势 (fullDecayedScore)，避免 15m 截断导致前序进球被踢出而误判为 BARREN_DOMINANCE
+  const classify = (
+    energy: number,
+    score: number,
+    ratio: number,
+    integrity: number,
+    conflict: boolean,
+    fullDecayedScore: number
+  ): EventPressureConversionType => {
     // 连续 Sigmoid 激活函数 S(x, x0, k)
     const sig = (x: number, x0: number, k: number) => 1.0 / (1.0 + Math.exp(-(x - x0) / k));
 
-    const pLethal = sig(energy, 150, 25) * sig(ratio, 0.70, 0.12) * sig(integrity, 0.55, 0.12);
-    const pBarren = sig(energy, 150, 25) * (1.0 - sig(ratio, 0.40, 0.12)) * (conflict ? 1.35 : 1.0);
-    const pCounter = (1.0 - sig(energy, 130, 25)) * sig(score, 1.20, 0.35);
-    const pLow = (1.0 - sig(energy, 60, 18)) * (1.0 - sig(score, 0.60, 0.20));
+    // 结合全场时序事件支撑（如 27 分钟进球）：提供平滑的时序事件转化补偿与得分支撑
+    const effectiveRatio = Math.max(ratio, Math.min(1.0, fullDecayedScore / 1.5));
+    const effectiveScore = Math.max(score, fullDecayedScore * 0.8);
+
+    const pLethal = sig(energy, 150, 25) * sig(effectiveRatio, 0.70, 0.12) * sig(integrity, 0.55, 0.12);
+
+    // 虚假繁荣 (BARREN_DOMINANCE) 核心特征是“空有危攻/控球，但全场时序缺乏转化”
+    // 若全场时序已有实质事件且尚未完全湮灭（fullDecayedScore > 0），则按其显著度指数压制虚假繁荣的误判
+    const barrenSuppression = Math.exp(-fullDecayedScore / 0.45);
+    const pBarren = sig(energy, 150, 25) * (1.0 - sig(effectiveRatio, 0.40, 0.12)) * (conflict ? 1.35 : 1.0) * barrenSuppression;
+
+    const pCounter = (1.0 - sig(energy, 130, 25)) * sig(effectiveScore, 1.20, 0.35);
+    const pLow = (1.0 - sig(energy, 60, 18)) * (1.0 - sig(effectiveScore, 0.60, 0.20));
     const pBalanced = 0.20; // 基础均衡先验
 
     const scores = [
@@ -283,14 +309,14 @@ export function calculateEventPressureConversion(
     conversion_ratio: homeRatio,
     event_score_15m: Number(homeEventScore.toFixed(2)),
     energy_15m: homeEnergy,
-    classification: classify(homeEnergy, homeEventScore, homeRatio, trinity.home.calibrated_threat, trinity.home.has_conflict)
+    classification: classify(homeEnergy, homeEventScore, homeRatio, trinity.home.calibrated_threat, trinity.home.has_conflict, homeFullEventScore)
   };
 
   const awayTeam: TeamEPIFeatures = {
     conversion_ratio: awayRatio,
     event_score_15m: Number(awayEventScore.toFixed(2)),
     energy_15m: awayEnergy,
-    classification: classify(awayEnergy, awayEventScore, awayRatio, trinity.away.calibrated_threat, trinity.away.has_conflict)
+    classification: classify(awayEnergy, awayEventScore, awayRatio, trinity.away.calibrated_threat, trinity.away.has_conflict, awayFullEventScore)
   };
 
   return {

@@ -5,9 +5,18 @@ import { generateRefactoredPrompt } from '../refactor/04_ai_evaluator/promptExpo
 import { verifyStatutoryAlignment } from '../refactor/04_ai_evaluator/alignmentGuard.js';
 import { RecommendationGrade } from '../refactor/04_ai_evaluator/enums.js';
 import { QuantAlert } from '../refactor/03_quant_engine/enums.js';
-import { CanonicalMatch } from '../refactor/02_canonical_model/types.js';
-import { MatchStage } from '../refactor/02_canonical_model/enums.js';
+import { CanonicalMatch, CanonicalTimelineEvent } from '../refactor/02_canonical_model/types.js';
+import { MatchStage, CanonicalEventType, CanonicalIncidentCategory } from '../refactor/02_canonical_model/enums.js';
 import { AiEvaluationResult, EvaluatorPayload } from '../refactor/04_ai_evaluator/types.js';
+import {
+  calculateEventPressureConversion,
+  calculateLiveThreatTrinity
+} from '../refactor/03_quant_engine/eventMomentumFusion.js';
+import {
+  EventPressureConversionType,
+  MomentumTimelineFeatures,
+  RealTimePhysicalStatsFeatures
+} from '../refactor/03_quant_engine/types.js';
 
 describe('Joint Layer 03 and Layer 04 Integration & Hardening Tests', () => {
   describe('1. Quarter Handicap SSOT Parsing & Sign Inversion Prevention', () => {
@@ -94,7 +103,60 @@ describe('Joint Layer 03 and Layer 04 Integration & Hardening Tests', () => {
       const matchPayload = parsed[0];
       assert(matchPayload.quant_features.devig !== undefined);
       assert(matchPayload.quant_features.bdi !== undefined);
+      assert(matchPayload.quant_features.poisson !== undefined, 'quant_features.poisson must be forwarded to Layer 04 prompt');
+      assert(matchPayload.quant_features.spatio_temporal_events !== undefined, 'quant_features.spatio_temporal_events must be forwarded to Layer 04 prompt');
       assert(matchPayload.time_context.expected_remaining_minutes_including_stoppage > 0);
+    });
+
+    it('should inject narrative timeline events (goals, cards, substitutions) into tactical_phase_transitions', () => {
+      const match = createMockMatch();
+      match.reference.timeline_events = [
+        {
+          minute: 12,
+          base_minute: 12,
+          added_minute: null,
+          display_time: "12'",
+          type: 1,
+          type_name: '进球',
+          canonical_type: 'GOAL_REGULAR' as any,
+          category: 'SCORE' as any,
+          side: 'home',
+          text: 'Kane 禁区抽射破门',
+          is_penalty: false,
+          is_own_goal: false,
+          is_cancelled: false,
+          is_var_overturned: false,
+          is_on_pitch: true,
+          player_name: 'Kane'
+        },
+        {
+          minute: 35,
+          base_minute: 35,
+          added_minute: null,
+          display_time: "35'",
+          type: 3,
+          type_name: '黄牌',
+          canonical_type: 'YELLOW_CARD' as any,
+          category: 'DISCIPLINE' as any,
+          side: 'away',
+          text: 'Brandt 战术犯规',
+          is_penalty: false,
+          is_own_goal: false,
+          is_cancelled: false,
+          is_var_overturned: false,
+          is_on_pitch: true,
+          player_name: 'Brandt'
+        }
+      ];
+
+      const { finalPrompt } = generateRefactoredPrompt([match], 'live_eval');
+      const payloadStart = finalPrompt.indexOf('========== USER PAYLOAD (BATCH OF 1 MATCHES) ==========\n');
+      const payloadJson = finalPrompt.substring(payloadStart + '========== USER PAYLOAD (BATCH OF 1 MATCHES) ==========\n'.length);
+      const parsed = JSON.parse(payloadJson);
+      const matchPayload = parsed[0];
+
+      assert(matchPayload.tactical_phase_transitions.some((t: string) => t.includes("12'") && t.includes('进球') && t.includes('Kane')));
+      assert(matchPayload.tactical_phase_transitions.some((t: string) => t.includes("35'") && t.includes('黄牌') && t.includes('Brandt')));
     });
   });
 
@@ -231,6 +293,65 @@ describe('Joint Layer 03 and Layer 04 Integration & Hardening Tests', () => {
       const enforced = verifyStatutoryAlignment(mockResult, payload);
       assert.strictEqual(enforced.grade, RecommendationGrade.B_GRADE);
       assert(enforced.risk_warnings.some(w => w.includes('RED_CARD_TACTICAL_COLLAPSE')));
+    });
+  });
+
+  describe('5. Layer 03 EPI Multi-Scale Momentum Window Truncation Hardening', () => {
+    const mockTimeline: MomentumTimelineFeatures = {
+      window_size: 15,
+      current_minute: 45,
+      integral_15m: { home: 300, away: 40 },
+      integral_full_match: { home: 1050, away: 200 },
+      acceleration_5m: { home: 1.2, away: -0.5 },
+      series: []
+    };
+
+    const mockPhysical: RealTimePhysicalStatsFeatures = {
+      stats_available: false
+    };
+
+    it('should NOT falsely classify as BARREN_DOMINANCE at 45m when a 27m goal occurred', () => {
+      // 27 分钟进球在 45 分钟时位于 15m 窗口之外 (45 - 27 = 18 > 15)
+      const eventsWith27mGoal: CanonicalTimelineEvent[] = [
+        {
+          minute: 27,
+          category: CanonicalIncidentCategory.SCORE,
+          canonical_type: CanonicalEventType.GOAL_REGULAR,
+          side: 'home',
+          is_cancelled: false,
+          type_name: '进球'
+        }
+      ];
+
+      const trinity = calculateLiveThreatTrinity(mockTimeline, eventsWith27mGoal, mockPhysical, 45);
+      const epi = calculateEventPressureConversion(mockTimeline, eventsWith27mGoal, trinity, 45);
+
+      // 主队近 15m 事件分虽然为 0 (被 15m 切片切除)，但在全场时序事件走势平滑支持下，绝不能误判为 BARREN_DOMINANCE (虚假繁荣)
+      assert.notStrictEqual(
+        epi.home.classification,
+        EventPressureConversionType.BARREN_DOMINANCE,
+        '27m goal should shield team from false BARREN_DOMINANCE at 45m'
+      );
+      assert.strictEqual(
+        epi.home.classification,
+        EventPressureConversionType.BALANCED_CONTEST,
+        'Should fall back to balanced contest prior given historical conversion'
+      );
+    });
+
+    it('should correctly classify genuine BARREN_DOMINANCE when high energy has ZERO event conversion across full match', () => {
+      // 全场没有任何实质事件，纯粹“空有危攻/干打雷不下雨”
+      const eventsEmpty: CanonicalTimelineEvent[] = [];
+
+      const trinity = calculateLiveThreatTrinity(mockTimeline, eventsEmpty, mockPhysical, 45);
+      const epi = calculateEventPressureConversion(mockTimeline, eventsEmpty, trinity, 45);
+
+      // 在没有任何全场事件转化的前提下，高危攻应精准识别为虚假繁荣
+      assert.strictEqual(
+        epi.home.classification,
+        EventPressureConversionType.BARREN_DOMINANCE,
+        'Genuine zero-event dominance with high energy must trigger BARREN_DOMINANCE'
+      );
     });
   });
 });

@@ -2,7 +2,7 @@
   "canonical": {
     "canonical_id": "4547085",
     "match_slug": "亚足联U20亚洲杯2027资格赛_关岛U20_vs_北马里亚纳群岛U20",
-    "created_at": "2026-09-03T21:10:10.938Z",
+    "created_at": "2026-09-03T21:26:44.070Z",
     "completeness_tier": "TIER_2_BASIC",
     "missing_reasons": [
       "NO_LINEUP_DATA"
@@ -1521,7 +1521,7 @@
   },
   "quant": {
     "canonical_id": "4547085",
-    "calculated_at": "2026-09-03T21:10:10.956Z",
+    "calculated_at": "2026-09-03T21:26:44.086Z",
     "context": {
       "circuit_breaker": {
         "is_triggered": false,
