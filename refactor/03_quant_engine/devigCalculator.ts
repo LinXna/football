@@ -168,15 +168,16 @@ export function parseAsianHandicapLine(lineStr: string): number {
     return -val;
   }
 
-  // 2. 检查斜杠复合盘 (如 "0/0.5", "0.5/1", "-0/0.5")
-  if (pureText.includes('/')) {
-    const parts = pureText.split('/');
+  // 2. 检查斜杠复合盘 (如 "0/0.5", "0.5/1", "-0/0.5", "0/-0.5", "-0.5/-1")
+  if (clean.includes('/')) {
+    const parts = clean.split('/');
     if (parts.length === 2) {
-      const v1 = parseFloat(parts[0]);
-      const v2 = parseFloat(parts[1]);
-      if (!isNaN(v1) && !isNaN(v2)) {
-        const avg = (v1 + v2) / 2.0;
-        return isExplicitMinus ? -avg : avg;
+      const p1 = parseFloat(parts[0]);
+      const p2 = parseFloat(parts[1]);
+      if (!isNaN(p1) && !isNaN(p2)) {
+        const isNegative = isExplicitMinus || p1 < 0 || p2 < 0 || Object.is(p1, -0) || Object.is(p2, -0);
+        const avg = (Math.abs(p1) + Math.abs(p2)) / 2.0;
+        return isNegative ? -avg : avg;
       }
     }
   }
@@ -283,6 +284,12 @@ export function calculateAsianHandicapEV(
     preferredSide = 'away';
   }
 
+  const selectedOdds = preferredSide === 'home' ? homeOdds : awayOdds;
+  const selectedEV = preferredSide === 'home' ? homeEV : awayEV;
+  const kellyFraction = (preferredSide !== 'none' && selectedOdds > 1.0 && selectedEV > 0)
+    ? Number(Math.max(0.0, Math.min(0.05, selectedEV / (4.0 * (selectedOdds - 1.0)))).toFixed(4))
+    : 0.0;
+
   return Object.freeze({
     line: handicapLineStr,
     home_odds: homeOdds,
@@ -290,7 +297,8 @@ export function calculateAsianHandicapEV(
     home_ev: homeEV,
     away_ev: awayEV,
     preferred_side: preferredSide,
-    is_positive_ev: preferredSide !== 'none'
+    is_positive_ev: preferredSide !== 'none',
+    kelly_fraction: kellyFraction
   });
 }
 
@@ -369,6 +377,12 @@ export function calculateTotalGoalsEV(
     preferredSide = 'under';
   }
 
+  const selectedOdds = preferredSide === 'over' ? overOdds : underOdds;
+  const selectedEV = preferredSide === 'over' ? overEV : underEV;
+  const kellyFraction = (preferredSide !== 'none' && selectedOdds > 1.0 && selectedEV > 0)
+    ? Number(Math.max(0.0, Math.min(0.05, selectedEV / (4.0 * (selectedOdds - 1.0)))).toFixed(4))
+    : 0.0;
+
   return Object.freeze({
     line: totalLineStr,
     over_odds: overOdds,
@@ -376,7 +390,8 @@ export function calculateTotalGoalsEV(
     over_ev: overEV,
     under_ev: underEV,
     preferred_side: preferredSide,
-    is_positive_ev: preferredSide !== 'none'
+    is_positive_ev: preferredSide !== 'none',
+    kelly_fraction: kellyFraction
   });
 }
 
@@ -455,7 +470,7 @@ export function calculateDeviggedMarketFeatures(
 
   // 3. 大小球盘 EV
   const totalMarket = match.markets?.full_total_main;
-  const currentTotal = (match.score.home_score as number) + (match.score.away_score as number);
+  const currentTotal = (match.score.home_score ?? 0) + (match.score.away_score ?? 0);
   let totalMain: TotalEVAssessment | undefined;
   if (totalMarket && totalMarket.line && totalMarket.over_odds && totalMarket.under_odds) {
     totalMain = calculateTotalGoalsEV(totalMarket.line, totalMarket.over_odds, totalMarket.under_odds, currentTotal, poisson);

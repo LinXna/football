@@ -312,10 +312,10 @@ export function evaluateTacticalRegime(
   epi: EventPressureConversionFeatures,
   physical: RealTimePhysicalStatsFeatures
 ): TacticalRegimeFeatures {
-  const currentMinute = match.timing.minute as number;
+  const currentMinute = Math.max(0, (match.timing.minute ?? 0));
   const events = match.reference?.timeline_events ?? [];
-  const homeScore = match.score.home_score as number;
-  const awayScore = match.score.away_score as number;
+  const homeScore = match.score.home_score ?? 0;
+  const awayScore = match.score.away_score ?? 0;
   const scoreDiff = homeScore - awayScore;
 
   // 1. 查找最近进球事件
@@ -441,7 +441,7 @@ export function evaluateGoalClimax(
   epi: EventPressureConversionFeatures,
   trinity: LiveThreatTrinityFeatures
 ): GoalClimaxFeatures {
-  const currentMinute = match.timing.minute as number;
+  const currentMinute = Math.max(0, (match.timing.minute ?? 0));
   const events = match.reference?.timeline_events ?? (match as any).timeline_events ?? [];
 
   // 1. 统计近 5 分钟极近事件密度
@@ -526,7 +526,7 @@ export function calculateSpatioTemporalFeatures(
   collector?: DeficitCollector,
   tracer?: Tracer
 ): SpatioTemporalEventFeatures {
-  const currentMinute = match.timing.minute as number;
+  const currentMinute = Math.max(0, (match.timing.minute ?? 0));
   const events = match.reference?.timeline_events ?? (match as any).timeline_events ?? [];
 
   // 1. 三位一体实时威胁校准，再由同一证据链生成 EPI。

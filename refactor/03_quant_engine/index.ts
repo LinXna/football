@@ -231,7 +231,7 @@ export function calculateConfidenceAndAlerts(
     const side = devig.spread_main_ev.preferred_side;
     const ev = side === 'home' ? devig.spread_main_ev.home_ev : devig.spread_main_ev.away_ev;
     const odds = side === 'home' ? devig.spread_main_ev.home_odds : devig.spread_main_ev.away_odds;
-    const kelly = devig.spread_main_ev.kelly_fraction as number;
+    const kelly = devig.spread_main_ev.kelly_fraction ?? 0.0;
     positiveEVSignals.push(Object.freeze({
       market: 'ASIAN_HANDICAP_MAIN',
       line: devig.spread_main_ev.line,
@@ -247,7 +247,7 @@ export function calculateConfidenceAndAlerts(
     const side = devig.total_main_ev.preferred_side;
     const ev = side === 'over' ? devig.total_main_ev.over_ev : devig.total_main_ev.under_ev;
     const odds = side === 'over' ? devig.total_main_ev.over_odds : devig.total_main_ev.under_odds;
-    const kelly = devig.total_main_ev.kelly_fraction as number;
+    const kelly = devig.total_main_ev.kelly_fraction ?? 0.0;
     positiveEVSignals.push(Object.freeze({
       market: 'TOTAL_GOALS_MAIN',
       line: devig.total_main_ev.line,

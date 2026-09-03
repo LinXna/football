@@ -3,18 +3,17 @@ import { MatchStage } from '../02_canonical_model/enums.js';
 import { extractAiEvaluationBrief } from '../02_canonical_model/canonicalMatchAssembler.js';
 import { calculateQuantitativeFeatures } from '../03_quant_engine/index.js';
 import { buildSystemPrompt } from './promptBuilder.js';
+import { EvaluatorPayload, EvaluatorLineupMatrix, EvaluatorTeamProfiling } from './types.js';
 
 export function generateRefactoredPrompt(
   canonicalMatches: CanonicalMatch[], 
   mode: 'live_eval' | 'prematch_eval' | 'parlay_check' = 'live_eval'
 ): { finalPrompt: string; matchCount: number } {
-  const validPayloads: any[] = [];
+  const validPayloads: EvaluatorPayload[] = [];
   
   for (const match of canonicalMatches) {
     const quantFeatures = calculateQuantitativeFeatures(match);
     const aiBrief = extractAiEvaluationBrief(match);
-
-    
 
     const tactical_phase_transitions: string[] = [];
     if (match.timing?.stage === MatchStage.LIVE) {
@@ -36,22 +35,43 @@ export function generateRefactoredPrompt(
     }
 
     const hasLineupData = !!match.reference?.lineups;
+    const lineupImpact = quantFeatures.context.lineup_impact;
+    const lineupStatus = lineupImpact?.lineup_status ?? (hasLineupData ? 'CONFIRMED' : 'NOT_ANNOUNCED');
+    const isLineupConfirmed = lineupImpact?.is_lineup_confirmed ?? (hasLineupData && lineupStatus === 'CONFIRMED');
+
     const pStats = quantFeatures.physical_stats;
     const hasDA = !!pStats.available_metrics.dangerous_attacks;
     const homeAnalytics = quantFeatures.context.recent_form_analytics?.home;
     const awayAnalytics = quantFeatures.context.recent_form_analytics?.away;
-    const hasHistoricalForm = !!(homeAnalytics && homeAnalytics.sample_count > 0 && awayAnalytics && awayAnalytics.sample_count > 0);
+    const hasHistoricalForm = !!(homeAnalytics && homeAnalytics.valid_count > 0 && awayAnalytics && awayAnalytics.valid_count > 0);
 
-    const lineup_value_matrix = {
+    const resolveLineupStatusDesc = (side: 'home' | 'away') => {
+      if (!hasLineupData || lineupStatus === 'NOT_ANNOUNCED') {
+        return "首发未定，按 C 级风控处理 (Lineup Not Announced - C Grade Risk Control)";
+      }
+      const lis = side === 'home' ? lineupImpact.home_lis : lineupImpact.away_lis;
+      if (lineupStatus === 'PROJECTED') {
+        return lis < 0.75
+          ? `预测首发 (未获官方确认, 存在轮换可能, LIS: ${lis})`
+          : `预测首发 (主力框架预计在列, 未获官方最终确认, LIS: ${lis})`;
+      }
+      return lis < 0.75
+        ? `官方首发已确认 (战意/轮换影响，关键主力缺席，LIS: ${lis})`
+        : `官方首发已确认 (主力框架完整，LIS: ${lis})`;
+    };
+
+    const lineup_value_matrix: EvaluatorLineupMatrix = {
+      lineup_status: lineupStatus,
+      is_lineup_confirmed: isLineupConfirmed,
       home: { 
         total_value_eur: (!hasLineupData || quantFeatures.context.lineup_impact.home_market_value_num === 0) ? '未知' : `${quantFeatures.context.lineup_impact.home_market_value_num}万欧`, 
-        lis_score: !hasLineupData ? "N/A" : quantFeatures.context.lineup_impact.home_lis,
-        status: !hasLineupData ? "数据盲区 / 阵容明细不详 (Lineup Data Unavailable)" : (quantFeatures.context.lineup_impact.home_lis < 0.75 ? "战意不明/存在轮换可能 (缺失核心)" : "主力框架完整") 
+        lis_score: (!hasLineupData || lineupStatus === 'NOT_ANNOUNCED') ? 1.0 : quantFeatures.context.lineup_impact.home_lis,
+        status: resolveLineupStatusDesc('home')
       },
       away: { 
         total_value_eur: (!hasLineupData || quantFeatures.context.lineup_impact.away_market_value_num === 0) ? '未知' : `${quantFeatures.context.lineup_impact.away_market_value_num}万欧`, 
-        lis_score: !hasLineupData ? "N/A" : quantFeatures.context.lineup_impact.away_lis,
-        status: !hasLineupData ? "数据盲区 / 阵容明细不详 (Lineup Data Unavailable)" : (quantFeatures.context.lineup_impact.away_lis < 0.75 ? "战意不明/存在轮换可能 (缺失核心)" : "主力框架完整") 
+        lis_score: (!hasLineupData || lineupStatus === 'NOT_ANNOUNCED') ? 1.0 : quantFeatures.context.lineup_impact.away_lis,
+        status: resolveLineupStatusDesc('away')
       }
     };
 
@@ -70,24 +90,25 @@ export function generateRefactoredPrompt(
           : `交锋样本: ${h2hAnalytics.valid_count}场(历史深层攻防与角球缺失/失真, 仅基础比分有效), 球风克制置零`)
       : "无交锋记录";
 
-    const team_profiling = {
+    const team_profiling: EvaluatorTeamProfiling = {
       h2h_tactical_integrity: h2hProfiling,
       home: {
-        recent_timeline: (homeAnalytics && homeAnalytics.sample_count > 0) ? `样本数: ${homeAnalytics.sample_count}, 场均得失球: ${homeAnalytics.weighted_scored_per_game.toFixed(2)} / ${homeAnalytics.weighted_conceded_per_game.toFixed(2)}` : "数据盲区 / 近期战绩样本不足 (Sample Count: 0)",
+        recent_timeline: (homeAnalytics && homeAnalytics.valid_count > 0) ? `有效样本数: ${homeAnalytics.valid_count}场 (总${homeAnalytics.sample_count}场), 场均得失球: ${homeAnalytics.weighted_scored_per_game.toFixed(2)} / ${homeAnalytics.weighted_conceded_per_game.toFixed(2)}` : "数据盲区 / 近期有效战绩样本不足 (Valid Count: 0)",
         tactical_playstyle: `危攻: ${homeDA}, 角球: ${homeCorners}, xT威胁代理: ${homeXtStr}`,
-        market_performance: (homeAnalytics && homeAnalytics.sample_count > 0) ? `赢盘率(ATS): ${(homeAnalytics.handicap_win_rate * 100).toFixed(1)}%, 大球率: ${(homeAnalytics.over_goals_rate * 100).toFixed(1)}%` : "缺乏历史盘路数据"
+        market_performance: (homeAnalytics && homeAnalytics.valid_count > 0) ? `赢盘率(ATS): ${(homeAnalytics.handicap_win_rate * 100).toFixed(1)}%, 大球率: ${(homeAnalytics.over_goals_rate * 100).toFixed(1)}%` : "缺乏历史盘路数据"
       },
       away: {
-        recent_timeline: (awayAnalytics && awayAnalytics.sample_count > 0) ? `样本数: ${awayAnalytics.sample_count}, 场均得失球: ${awayAnalytics.weighted_scored_per_game.toFixed(2)} / ${awayAnalytics.weighted_conceded_per_game.toFixed(2)}` : "数据盲区 / 近期战绩样本不足 (Sample Count: 0)",
+        recent_timeline: (awayAnalytics && awayAnalytics.valid_count > 0) ? `有效样本数: ${awayAnalytics.valid_count}场 (总${awayAnalytics.sample_count}场), 场均得失球: ${awayAnalytics.weighted_scored_per_game.toFixed(2)} / ${awayAnalytics.weighted_conceded_per_game.toFixed(2)}` : "数据盲区 / 近期有效战绩样本不足 (Valid Count: 0)",
         tactical_playstyle: `危攻: ${awayDA}, 角球: ${awayCorners}, xT威胁代理: ${awayXtStr}`,
-        market_performance: (awayAnalytics && awayAnalytics.sample_count > 0) ? `赢盘率(ATS): ${(awayAnalytics.handicap_win_rate * 100).toFixed(1)}%, 大球率: ${(awayAnalytics.over_goals_rate * 100).toFixed(1)}%` : "缺乏历史盘路数据"
+        market_performance: (awayAnalytics && awayAnalytics.valid_count > 0) ? `赢盘率(ATS): ${(awayAnalytics.handicap_win_rate * 100).toFixed(1)}%, 大球率: ${(awayAnalytics.over_goals_rate * 100).toFixed(1)}%` : "缺乏历史盘路数据"
       }
     };
 
     // Devig Market Sanitization
-    const sanitizedDevig: any = { ...quantFeatures.devig };
+    const sanitizedDevig: Record<string, unknown> = { ...quantFeatures.devig };
     const hasAnyMarket = !!(match.markets?.full_h2h || match.markets?.full_spread_main || match.markets?.full_total_main);
     if (!match.markets?.full_h2h) {
+      sanitizedDevig.h2h_devig = "未开盘 (No Market)";
       sanitizedDevig.euro_1x2_devig = "未开盘 (No Market)";
     }
     if (!match.markets?.full_spread_main) {
@@ -97,10 +118,39 @@ export function generateRefactoredPrompt(
       sanitizedDevig.total_main_ev = "未开盘 (No Market)";
     }
 
+    // 韧性提取正 EV 信号：若经过 OOS 检验的候选为空，补充 devig 中原生由泊松推演得到的数学正 EV 信号供大模型研判
+    const effectiveEvSignals = [...quantFeatures.positive_ev_signals];
+    if (effectiveEvSignals.length === 0) {
+      const spreadEv = quantFeatures.devig.spread_main_ev;
+      if (spreadEv && spreadEv.is_positive_ev && spreadEv.preferred_side !== 'none') {
+        effectiveEvSignals.push({
+          market: 'ASIAN_HANDICAP_MAIN',
+          line: spreadEv.line,
+          side: spreadEv.preferred_side,
+          odds: spreadEv.preferred_side === 'home' ? spreadEv.home_odds : spreadEv.away_odds,
+          ev: spreadEv.preferred_side === 'home' ? spreadEv.home_ev : spreadEv.away_ev,
+          confidence: quantFeatures.confidence_score,
+          kelly_fraction: spreadEv.kelly_fraction ?? 0.0
+        });
+      }
+      const totalEv = quantFeatures.devig.total_main_ev;
+      if (totalEv && totalEv.is_positive_ev && totalEv.preferred_side !== 'none') {
+        effectiveEvSignals.push({
+          market: 'TOTAL_GOALS_MAIN',
+          line: totalEv.line,
+          side: totalEv.preferred_side,
+          odds: totalEv.preferred_side === 'over' ? totalEv.over_odds : totalEv.under_odds,
+          ev: totalEv.preferred_side === 'over' ? totalEv.over_ev : totalEv.under_ev,
+          confidence: quantFeatures.confidence_score,
+          kelly_fraction: totalEv.kelly_fraction ?? 0.0
+        });
+      }
+    }
+
     const blindSpots: string[] = [];
-    if (!hasLineupData) blindSpots.push("首发阵容不详");
+    if (!hasLineupData || lineupStatus === 'NOT_ANNOUNCED') blindSpots.push("首发阵容未公布(需C级风控)");
     if (!hasDA && match.timing.stage === MatchStage.LIVE) blindSpots.push("实时危攻射门缺失");
-    if (!hasHistoricalForm) blindSpots.push("历史战绩样本不足");
+    if (!hasHistoricalForm) blindSpots.push("历史有效战绩样本不足");
     if (!hasAnyMarket) blindSpots.push("核心盘口完全缺失");
 
     let data_blind_spot_warning: string | undefined = undefined;
@@ -111,7 +161,18 @@ export function generateRefactoredPrompt(
     const compressedAiBrief = { ...aiBrief, condensed_features: undefined };
     delete compressedAiBrief.condensed_features;
 
-    const expectedRemaining = Math.max(0, 90 - (match.timing?.minute ?? 0)) + (match.timing?.minute && match.timing.minute > 80 ? 6 : 0);
+    // 优先采用 Layer 03 泊松引擎的精确剩余比赛时间推算 (SSOT)
+    let expectedRemaining = 0;
+    if (match.timing?.stage === MatchStage.FINISHED) {
+      expectedRemaining = 0;
+    } else if (quantFeatures.poisson?.remaining_minutes != null && quantFeatures.poisson.remaining_minutes >= 0) {
+      expectedRemaining = quantFeatures.poisson.remaining_minutes;
+    } else {
+      const minute = match.timing?.minute ?? 0;
+      expectedRemaining = minute >= 90
+        ? Math.max(1, 96 - minute)
+        : Math.max(0, 90 - minute) + (minute > 80 ? 6 : 0);
+    }
 
     validPayloads.push({
       ai_brief: compressedAiBrief,
@@ -126,7 +187,7 @@ export function generateRefactoredPrompt(
       quant_features: {
         devig: sanitizedDevig,
         bdi: quantFeatures.battlefield_dominance_index,
-        ev_signals: quantFeatures.positive_ev_signals,
+        ev_signals: effectiveEvSignals,
         risk_flags: quantFeatures.risk_flags,
         goal_alert: quantFeatures.goal_phase_alert,
         confidence: quantFeatures.confidence_score

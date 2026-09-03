@@ -1,5 +1,5 @@
 import { AiEvaluationBrief } from '../02_canonical_model/types.js';
-import { QuantitativeFeatures, OosMarket } from '../03_quant_engine/types.js';
+import { PositiveEVSignal, QuantAlert, DeviggedMarketFeatures } from '../03_quant_engine/types.js';
 import { RecommendationGrade, TrapDetectionResult, TacticalRegimeEvaluation } from './enums.js';
 
 export interface OosHistoricalContext {
@@ -9,23 +9,51 @@ export interface OosHistoricalContext {
   insight_note: string;
 }
 
+export interface EvaluatorLineupTeamInfo {
+  total_value_eur: string;
+  lis_score: number;
+  status: string;
+}
+
+export interface EvaluatorLineupMatrix {
+  lineup_status: string;
+  is_lineup_confirmed: boolean;
+  home: EvaluatorLineupTeamInfo;
+  away: EvaluatorLineupTeamInfo;
+}
+
+export interface EvaluatorTeamProfile {
+  recent_timeline: string;
+  tactical_playstyle: string;
+  market_performance: string;
+}
+
+export interface EvaluatorTeamProfiling {
+  h2h_tactical_integrity: string;
+  home: EvaluatorTeamProfile;
+  away: EvaluatorTeamProfile;
+}
+
+export interface EvaluatorQuantFeatures {
+  devig: DeviggedMarketFeatures | Record<string, unknown>;
+  bdi: number;
+  ev_signals: readonly PositiveEVSignal[];
+  risk_flags: readonly QuantAlert[];
+  goal_alert: string;
+  confidence: number;
+}
+
 export interface EvaluatorPayload {
   ai_brief: Partial<AiEvaluationBrief>;
+  data_blind_spot_warning?: string;
   time_context: {
     statutory_minute: string;
     expected_remaining_minutes_including_stoppage: number;
   };
   tactical_phase_transitions: string[];
-  lineup_value_matrix: any;
-  team_profiling: any;
-  quant_features: {
-    devig: any;
-    bdi: number;
-    ev_signals: any[];
-    risk_flags: any[];
-    goal_alert: string;
-    confidence: number;
-  };
+  lineup_value_matrix: EvaluatorLineupMatrix;
+  team_profiling: EvaluatorTeamProfiling;
+  quant_features: EvaluatorQuantFeatures;
   oos_context?: OosHistoricalContext;
 }
 

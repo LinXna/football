@@ -390,6 +390,8 @@ export function assembleCanonicalMatch(
   if (leisuMatch) {
     reference = {
       leisu_match_id: leisuMatch.match_id,
+      home_team_id: leisuMatch.home_team_id ?? null,
+      away_team_id: leisuMatch.away_team_id ?? null,
       leisu_home_name: leisuMatch.home_team,
       leisu_away_name: leisuMatch.away_team,
       leisu_league_name: leisuMatch.competition,
@@ -625,7 +627,7 @@ export function extractAiEvaluationBrief(canonical: CanonicalMatch): AiEvaluatio
     }
   }
 
-  const dataDeficits = canonical.missing_reasons.map(r => String(r));
+  const dataDeficits = (canonical.missing_reasons ?? []).map(r => String(r));
 
   let kickoffTimeDisplay = canonical.timing.beijing_start_time;
   if (canonical.timing.start_time_source === 'YBTY_ESTIMATED') {

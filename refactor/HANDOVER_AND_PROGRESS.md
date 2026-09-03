@@ -1,10 +1,114 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
+- **任务编号 (Task)**: `SNAPSHOT-20260903-TRACE-GUAM-NORTHERN-MARIANA-PIPELINE`
+- **当前状态 (Status)**: `IN_PROGRESS`
+- **任务目标 (Goal)**：
+  严格遵循实际系统链路与真实数据，对“关岛U20 VS 北马里亚纳群岛U20”从 Layer 00 到 Layer 04 导出 Prompt 的完整执行链路进行穿透式检查：
+  1. **Layer 00 & 01 (数据摄取与比分真实性)**：以 `refactor/fixtures/active_live_ybty.json` 和 `active_live_leisu.json` 为物理输入，审查 YBTY 盘口解析、雷速技术统计与时序、比分校验状态（score_verified）；
+  2. **Layer 02 (标准赛事契约与 AI Brief 构造)**：审查双轨对齐（赛事名、主客队、联赛别名）、`CanonicalMatch` 组装、`AiEvaluationBrief` 提取及缺失原因审计；
+  3. **Layer 03 (量化博弈引擎)**：审查 37 项量化特征计算、BDI 战场统治权指数、时空演化阶段、Forward 泊松衰减推演、Shin 去抽水与正 EV 计算；
+  4. **Layer 04 (Prompt 导出与对齐门禁)**：审查 `promptExporter.ts`（Payload 组装、Token 压缩、时钟 SSOT）、`alignmentGuard.ts`（反幻觉对齐门禁与量化警报联动）；
+  5. **实跑检验并输出具象审查报告**：编写并执行链路追踪检查脚本，捕获每个环节的实际数据、日志、异常与边界问题，给出无任何抽象套话的具象检查结果。
+- **改动文件 (Target Files)**:
+  - `refactor/HANDOVER_AND_PROGRESS.md`
+- **执行步骤 (Steps)**:
+  1. 在看板登记快照；
+  2. 查看 `active_live_ybty.json` 与 `active_live_leisu.json` 中“关岛U20 VS 北马里亚纳群岛U20”的原始数据字段；
+  3. 编写一个直接调用真实系统模块 (Layer 01 -> 02 -> 03 -> 04) 的全链路追踪检查脚本，实际运行并捕获每个节点产生的数据结构、量化结果与导出的 Prompt 内容；
+  4. 深入剖析每个环节是否存在契约不一致、数据截断、计算偏差、符号翻转、警报遗漏或 Prompt 丢失等问题；
+  5. 汇总真实审查结果并向用户汇报。
+
+## 二、历史活动快照 (Archived Snapshots)
+
+- **任务编号 (Task)**: `SNAPSHOT-20260903-JOINT-AUDIT-LAYER03-04-INTERACTION`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  对 Layer 03 (量化博弈引擎 `03_quant_engine`) 与 Layer 04 (AI 评估与推荐引擎 `04_ai_evaluator`) 进行联合全链路审查与协同缺陷根治：
+  1. **盘口解析 SSOT 统一与符号反转根治**：
+     - 修复 `refactor/03_quant_engine/devigCalculator.ts` 的 `parseAsianHandicapLine` 与 `refactor/03_quant_engine/poissonDecayModel.ts` 的 `parseHandicapOrTotalLine` 在双负号复合四分之一盘（如 `-0.5/-1`）下负负得正翻转为正盘、以及 `0/-0.5` 符号丢失的缺陷；
+     - 统一抽取或对齐盘口浮点解析逻辑，确保 03 与 04 遵循单一事实来源 (SSOT)；
+  2. **正 EV 信号（`positive_ev_signals`）与机器候选跨层透传补强**：
+     - 解决 03 在无 OOS 校准档案时 `machineCandidateSignals` 置空导致 04 收到 `ev_signals: []` 的信息断层；
+     - 在 04 `promptExporter.ts` 中实现韧性提取：当机器候选为空但 `devig` 存在经数学检验的正 EV 信号时，完整提取模型正期望盘口与 Kelly 仓位透传给大模型；
+  3. **04 对齐门禁与 03 量化风控警报 (`QuantAlert`) 双向联动**：
+     - 在 04 `alignmentGuard.ts` 中拦截 `TRAP_HIGH_ODDS_WARNING`（庄家诱盘）下的违规 A 级，强制降级并锁置信度；
+     - 拦截 `BARREN_DOMINANCE_WARNING`（虚假繁荣假控球）下的 A 级与错误统治态势判定；
+     - 拦截 `RED_CARD_TACTICAL_COLLAPSE`（红牌崩盘）下反向推荐受罚方让球的幻觉；
+  4. **规范化 04 `promptExporter.ts` 欧赔字段名与比赛剩余时间 SSOT**：
+     - 统一欧赔字段名为 `h2h_devig`（兼顾 `euro_1x2_devig`），杜绝开盘与未开盘状态字段名分裂；
+     - 剩余比赛时间优先取 03 `poisson.remaining_minutes` 精确结果，消除多层级估算偏差；
+  5. **防御性修复 `canonicalMatchAssembler.ts` 缺失原因数组空指针风险**。
+- **改动文件 (Target Files)**:
+  - `refactor/03_quant_engine/devigCalculator.ts`
+  - `refactor/03_quant_engine/poissonDecayModel.ts`
+  - `refactor/04_ai_evaluator/alignmentGuard.ts`
+  - `refactor/04_ai_evaluator/promptExporter.ts`
+  - `refactor/02_canonical_model/canonicalMatchAssembler.ts`
+  - `tests-ts/jointLayer03Layer04.test.ts`
+  - `refactor/HANDOVER_AND_PROGRESS.md`
+- **交付结果与验证 (Deliverables & Verification)**:
+  1. **盘口解析符号彻底根治**: `devigCalculator.ts` 和 `poissonDecayModel.ts` 采用 `isExplicitMinus || p1 < 0 || p2 < 0 || Object.is(p1, -0) || Object.is(p2, -0)` 与绝对值统筹算法，通过单元测试覆盖了 `-0.5/-1` (-0.75)、`0/-0.5` (-0.25)、`2/2.5` (+2.25) 等所有边界变体；
+  2. **正 EV 信号韧性透传**: 当 03 机器候选因 OOS 样本门槛为空时，04 `promptExporter.ts` 自动由 `devig` 提取让球和大小球数学正 EV 与 Kelly 比例传递给大模型；
+  3. **量化警报与 AI 后置门禁双保险闭环**: 04 `alignmentGuard.ts` 严格联动 03 `QuantAlert`（诱盘、假繁荣假控球、红牌崩溃），剥夺违规 A 级资格并纠正态势判定；
+  4. **全套自动化测试通过**: `jointLayer03Layer04.test.ts` 5 个集成测试全部通过，工程全量 68 项自动化测试 100% 绿灯，`lint_applet` (tsc --noEmit) 和 `compile_applet` 均 0 错误构建成功。
+- **下一步计划 (Next Steps)**:
+  - 等待用户指令，准备推进 Layer 05 (推荐台账与赛后回测结算引擎 `05_recommendation_ledger`) 的重构或系统端到端联调。
+
+## 二、历史活动快照 (Archived Snapshots)
+
+- **任务编号 (Task)**: `SNAPSHOT-20260903-AUDIT-AND-HARDEN-LAYER04-DEFECTS`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  彻查 Layer 04 (AI 评估与推荐引擎 `04_ai_evaluator`) 的缺陷、类型隐患与保底漏洞，进行深度系统加固：
+  1. **修复 `aiCaller.ts` 中 `responseSchema` 结构畸变**：补充外层缺失的 `blind_spot_analysis` 属性定义与括号嵌套，使 Schema 结构完全符合官方 OpenAPI/Gemini 规范及 `AiEvaluationResult` 接口契约；
+  2. **消除 `types.ts` 中的 `any` 泛滥**：为 `EvaluatorPayload` 的 `lineup_value_matrix`、`team_profiling`、`quant_features` 及 `data_blind_spot_warning` 建立严谨的强类型接口，消灭全部 `any` 与 `@ts-ignore`；
+  3. **加固 `alignmentGuard.ts` 的盘口对齐与反幻觉防护**：
+     - 支持欧赔/独赢盘（`EURO_1X2`）与半场盘口（`ASIAN_HANDICAP_HALF`, `TOTAL_GOALS_HALF`）的合法性校验；
+     - 修复 `parseHandicapToFloat` 在 `0/-0.5` 等双值四分之一盘口下负号丢失、方向反转的缺陷；
+     - 增加数据盲盒（`data_blind_spot_warning`）及比分未核验（`score_verification.is_verified === false`）时的后置硬性拦截：绝对禁止输出 `A_GRADE`，置信度上限强制封顶 85 分；杯赛/友谊赛首发未确认时最高维持 `C_GRADE`；
+  4. **完善 `promptExporter.ts` 的类型约束与时间估算**：消除 `any[]` 临时定义，优化补时阶段的剩余比赛时间计算；
+  5. **编写针对 `04_ai_evaluator` 的全覆盖单元测试** 并运行全量测试验证。
+- **改动文件 (Target Files)**:
+  - `refactor/04_ai_evaluator/types.ts`
+  - `refactor/04_ai_evaluator/aiCaller.ts`
+  - `refactor/04_ai_evaluator/alignmentGuard.ts`
+  - `refactor/04_ai_evaluator/promptExporter.ts`
+  - `tests-ts/aiEvaluatorAlignment.test.ts`
+  - `refactor/HANDOVER_AND_PROGRESS.md`
+- **交付结果与验证 (Deliverables & Verification)**:
+  1. **Schema 与类型强规范**: 纠正了 Gemini `responseSchema` 的属性嵌套，为 `EvaluatorPayload` 定义了严格的强类型，彻底消灭了 Layer 04 中所有的 `any` 与不安全类型；
+  2. **对齐门禁与反幻觉硬拦截**: `parseHandicapToFloat` 解决了盘口正负号反转风险；新增了 `EURO_1X2` 独赢对齐校验；在对齐门禁中落地了比分未核验、数据盲盒、杯赛未公布首发的后置硬拦截规则，确保系统级风控不受大模型幻觉突破；
+  3. **自动化测试与编译**: 新增针对 Layer 04 的 7 项针对性单元测试，工程累计 63 项测试全量通过；`compile_applet` 和 `lint_applet` 100% 成功无报错。
+- **下一步计划 (Next Steps)**:
+  - 对 Layer 03 与 Layer 04 联合交互链路进行深度联合审计与缺陷加固。
+
+## 二、历史活动快照 (Archived Snapshots)
+
+- **任务编号 (Task)**: `SNAPSHOT-20260903-AUDIT-AND-HARDEN-LAYER03-VULNERABILITIES`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  对 Layer 03 量化引擎进行彻查，消灭残存的隐式类型强转、未定义保底以及边界空值缺陷：
+  1. 修复 `devigCalculator.ts` 中缺失 `kelly_fraction` 计算，导致在 `index.ts` 中通过 `as number` 将 `undefined` 强转伪造为数值的隐患。在让球与大小球 EV 计算器中依据四分之一凯利（Quarter-Kelly）数学公式原生计算出真实的仓位分数 `kelly_fraction`；
+  2. 修复 `devigCalculator.ts` 中 `currentTotal` 计算时直接使用 `as number` 强转导致在比分未定义时扩散 `NaN` 的缺陷，改用 `(match.score.home_score ?? 0) + (match.score.away_score ?? 0)`；
+  3. 修复 `eventMomentumFusion.ts` 中 `currentMinute` 与 `scoreDiff` 在异常或边界情况下的潜在 `NaN` 风险；
+  4. 消除 `index.ts` 中提取 `kelly_fraction` 时的不安全类型断言。
+- **改动文件 (Target Files)**:
+  - `refactor/03_quant_engine/devigCalculator.ts`
+  - `refactor/03_quant_engine/eventMomentumFusion.ts`
+  - `refactor/03_quant_engine/index.ts`
+  - `refactor/HANDOVER_AND_PROGRESS.md`
+- **交付结果与验证 (Deliverables & Verification)**:
+  1. **四分之一凯利（Quarter-Kelly）真实推导**: 在让球与大小球正 EV 计算中，闭式求解真实的四分之一凯利分数 $f^* = \max(0, \min(0.05, \frac{EV}{4 \times (\text{odds} - 1)}))$，彻底杜绝 `undefined as number` 的强转作弊与 `NaN` 扩散；
+  2. **比分安全保护与防 `NaN`**: 在 `calculateDeviggedMarketFeatures`、`evaluateTacticalRegime`、`evaluateGoalClimax` 中对比分与进行时间全面实施空值安全聚合，杜绝计算链路中出现 `NaN`；
+  3. **测试与质量核验**: 全量 56 项测试全部通过，TypeScript 编译与代码检查 100% 成功无报错。
+
+## 二、历史活动快照 (Archived Snapshots)
+
 - **任务编号 (Task)**: `SNAPSHOT-20260903-HARDEN-CORE-QUANT-ANTI-FAKE-DATA-GATES`
 - **任务目标 (Goal)**：全面根治 Layer 03 量化引擎中近期战绩、历史战绩、首发伤停、进球时间分布、积分榜排名五大核心维度的虚假数据、字段倒置与默认值陷阱：
   1. 近期与历史战绩基于 `team_id` 与精准名称强锚定，彻底根治客队近期战绩与历史交锋进失球/净胜球倒置问题；移除 45 天假日期伪造；
   2. 近态先验与泊松引擎隔离门禁：先验修正严格要求 `valid_count >= 1`，样本缺失时攻防因子中性保底 1.0，杜绝休赛期无战绩导致攻击力暴跌 30%；
-  3. 首发名单状态三态化 (`CONFIRMED` / `UNANNOUNCED` / `MISSING`)：未公布首发维持中性 LIS 并输出 `is_lineup_confirmed: false`，杜绝赛前未公布被误判为核心缺席；伤停引入主力属性/出场权重过滤；
+  3. 首发名单状态三态化 (`CONFIRMED` / `PROJECTED` / `NOT_ANNOUNCED`)：未公布首发维持中性 LIS 并输出 `is_lineup_confirmed: false`，杜绝赛前未公布被误判为核心缺席；伤停引入主力属性/出场权重过滤；
   4. 进球时间段贝叶斯狄利克雷平滑 (Bayesian Dirichlet Smoothing)：引入先验基准 $\alpha = 1.0$，小样本向 $1/6$ 收缩，杜绝 1 个球产生 100% 绝杀基因畸变；
   5. 动态百分位积分榜战意 (Relative Percentile MUI)：废弃 20 队联赛硬编码，基于实际队伍数与轮次计算相对百分位（争冠欧战前 20%，降级后 15%，赛季末 75%），杯赛场景关闭联赛积分榜战意映射。
 - **改动文件 (Target Files)**:
@@ -13,18 +117,16 @@
   - `refactor/03_quant_engine/prematchPriorEngine.ts`
   - `refactor/04_ai_evaluator/promptExporter.ts`
   - `refactor/samples/03_quant_engine/quant_features_sample.json`
-- **执行步骤 (Action Plan)**:
-  1. 更新 `types.ts` 中 `LineupImpactSummary`（加入 `lineup_status`、`is_lineup_confirmed`）、`LeagueStandingsContext`（加入百分位与杯赛旁路标识）以及 `GoalDistributionDNA`；
-  2. 重构 `contextEngine.ts`：
-     - 重写 `evaluateRecentMatches`：通过 `targetTeamId` 和正确的主客名判断 `itemIsHome`，时间戳缺失直接置无效；
-     - 重写 `calculateH2HDecayWeights`：通过主队 `team_id` 判断该场对决当前主队是主是客，准确计算 `netGoals` 符号；
-     - 重写 `calculateGoalDistributionDNA`：实施贝叶斯狄利克雷平滑 ($\alpha = 1.0$)；
-     - 重构 `calculateLineupImpactScores`：区分首发未公布状态，伤停过滤非主力/青年队；
-     - 重写 `evaluateLeagueStandingsAndMUI`：实现动态百分位与杯赛旁路判断；
-  3. 更新 `prematchPriorEngine.ts`：以 `valid_count >= 1` 为门禁，样本不足时攻防系数保底 1.0；
-  4. 更新 `promptExporter.ts` 与样本文档；
-  5. 运行自测脚本与 `lint_applet` / `compile_applet` 确保 100% 通过。
-- **状态 (Status)**: `IN_PROGRESS`
+  - `tests-ts/quantHardeningAntiFakeData.test.ts`
+- **交付结果与验证 (Deliverables & Verification)**:
+  1. **方案 1 (ID 锚定与反倒置)**: 彻底消除客队近期战绩与历史对赛中主客场进球倒置的 Bug，以 `team_id` 物理优先匹配，准确推导净胜球与球风克制。
+  2. **方案 2 (零假日期)**: 废除时间缺失时赋予 45 天等伪造默认值的逻辑，缺失或不合法时间直接标记 `is_valid: false` 排除出时效权重。
+  3. **方案 3 (零样本平滑)**: `prematchPriorEngine.ts` 严格以 `valid_count >= 1` 为前置门禁，无样本时攻防因子返回 1.0，杜绝将中立队伍判为极弱队 (0.70)。
+  4. **方案 4 (首发三态化)**: 完整实现 `CONFIRMED` (官方首发)、`PROJECTED` (预测首发)、`NOT_ANNOUNCED` (未公布) 三态状态机；未公布时输出 `is_lineup_confirmed: false` 且不误罚替补。
+  5. **方案 5 (贝叶斯狄利克雷平滑)**: 进球分布计算采用 $\alpha=1.0, K=6$ 的狄利克雷共轭平滑，小样本平滑收缩至均衡均值，杜绝 1 个球产生 100% 绝杀 DNA 幻觉。
+  6. **方案 6 (动态百分位 MUI 与杯赛隔离)**: 废弃 20 队硬编码，基于 `rank / total_teams` 与 `played_rounds / total_rounds` 动态感知保级/争冠战意；杯赛自动旁路联赛积分榜战意映射。
+  7. **测试与质量核验**: 新增 `tests-ts/quantHardeningAntiFakeData.test.ts` 覆盖 6 大加固方案并 100% 通过；全量 56 项测试与 `lint_applet` (TypeScript 强类型检查) 均成功无报错。
+- **状态 (Status)**: `DONE`
 
 ## 二、历史活动快照 (Archived Snapshots)
 

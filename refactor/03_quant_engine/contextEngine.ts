@@ -36,7 +36,9 @@ import {
   Layer03FeatureId,
   IsoVenueStandingRecord,
   GoalDistributionDNAFeatures,
-  TacticalFormationFeatures
+  TacticalFormationFeatures,
+  LineupStatus,
+  LineupImpactFeatures
 } from './types.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
@@ -255,6 +257,9 @@ export function calculateH2HDecayWeights(
   const decayConstant = Math.LN2 / halfLifeDays;
   const MAX_VALID_DAYS = 730;
 
+  const currentHomeId = match.reference?.home_team_id ?? match.reference?.league_standings?.home_team?.team_id ?? null;
+  const currentAwayId = match.reference?.away_team_id ?? match.reference?.league_standings?.away_team?.team_id ?? null;
+
   let totalDecayedWeight = 0;
   let weightedNetGoals = 0;
   let validUnderCount = 0;
@@ -270,19 +275,25 @@ export function calculateH2HDecayWeights(
   const weights: HistoricalMatchWeight[] = h2hList.map((h2h) => {
     let matchTime = 0;
     let dateStr = '';
-    if (typeof h2h.match_time === 'number') {
+    if (typeof h2h.match_time === 'number' && h2h.match_time > 0) {
       matchTime = h2h.match_time > 1e11 ? h2h.match_time : h2h.match_time * 1000;
       dateStr = new Date(matchTime).toISOString().slice(0, 10);
     } else if (h2h.match_time) {
-      matchTime = new Date(String(h2h.match_time)).getTime();
-      dateStr = String(h2h.match_time);
+      const parsed = new Date(String(h2h.match_time)).getTime();
+      if (!isNaN(parsed) && parsed > 0) {
+        matchTime = parsed;
+        dateStr = String(h2h.match_time).slice(0, 10);
+      }
     }
-    const daysAgo = matchTime > 0
+
+    // 方案 2 严禁假默认值：若时间缺失或无效，严禁赋予 365 天等假值，直接置为无效
+    const hasValidTime = matchTime > 0;
+    const daysAgo = hasValidTime
       ? Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24)))
-      : 365;
+      : -1;
 
     let decayWeight = 0.0;
-    const isValid = daysAgo <= MAX_VALID_DAYS;
+    const isValid = hasValidTime && daysAgo >= 0 && daysAgo <= MAX_VALID_DAYS;
     if (isValid) {
       decayWeight = Math.exp(-decayConstant * daysAgo);
     }
@@ -295,6 +306,18 @@ export function calculateH2HDecayWeights(
       compImp = h2h.competition_id === match.reference.competition_id ? 1.0 : 0.75;
     }
 
+    // 方案 1 历史对赛改造：双重锚定校验当前主队在该历史对决中是主场出战还是客场出战
+    let isCurrentHomePlayingHome = true;
+    if (currentHomeId != null && h2h.home_team_id != null && h2h.home_team_id === currentHomeId) {
+      isCurrentHomePlayingHome = true;
+    } else if (currentHomeId != null && h2h.away_team_id != null && h2h.away_team_id === currentHomeId) {
+      isCurrentHomePlayingHome = false;
+    } else if (currentAwayId != null && h2h.away_team_id != null && h2h.away_team_id === currentAwayId) {
+      isCurrentHomePlayingHome = true;
+    } else if (currentAwayId != null && h2h.home_team_id != null && h2h.home_team_id === currentAwayId) {
+      isCurrentHomePlayingHome = false;
+    }
+
     const homeScores = h2h.home_scores || [];
     const awayScores = h2h.away_scores || [];
     const homeGoals = typeof homeScores[0] === 'number' ? homeScores[0] : 0;
@@ -305,6 +328,11 @@ export function calculateH2HDecayWeights(
     const redAway = typeof awayScores[2] === 'number' ? awayScores[2] : 0;
     const cornerHome = typeof homeScores[4] === 'number' ? homeScores[4] : -1;
     const cornerAway = typeof awayScores[4] === 'number' ? awayScores[4] : -1;
+
+    // 当前主队视角的历史净胜球：若是当前主队主场为 (homeGoals - awayGoals)；若是客场为 (awayGoals - homeGoals)
+    const netGoalsForCurrentHome = isCurrentHomePlayingHome
+      ? (homeGoals - awayGoals)
+      : (awayGoals - homeGoals);
 
     // 解析让球初盘与即时盘
     let ahOpenLine: number | null = null;
@@ -327,7 +355,7 @@ export function calculateH2HDecayWeights(
     // 执行深层战术全指标双向真实门禁检验
     const tacticalCheck = isValid
       ? checkH2HTacticalIntegrity(h2h.home_stats, h2h.away_stats, cornerHome, cornerAway, daysAgo)
-      : { isValid: false, reason: 'EXCEEDS_MAX_VALID_DAYS_730' };
+      : { isValid: false, reason: hasValidTime ? 'EXCEEDS_MAX_VALID_DAYS_730' : 'MISSING_MATCH_TIME' };
 
     const isTacticalValid = tacticalCheck.isValid;
     let daRatio: number | null = null;
@@ -336,7 +364,7 @@ export function calculateH2HDecayWeights(
     if (isValid) {
       const effWeight = decayWeight * compImp;
       totalDecayedWeight += effWeight;
-      weightedNetGoals += (homeGoals - awayGoals) * effWeight;
+      weightedNetGoals += netGoalsForCurrentHome * effWeight;
       validCount++;
 
       if (homeGoals + awayGoals <= 2) {
@@ -359,10 +387,15 @@ export function calculateH2HDecayWeights(
         const shotsH = homeStats.shots as number;
         const shotsA = awayStats.shots as number;
 
-        daRatio = Number((daH / (daH + daA)).toFixed(3));
-        shotsRatio = Number((shotsH / (shotsH + shotsA)).toFixed(3));
+        // 对齐当前主队统治视角：主场出战取 daH/daTot，客场出战取 daA/daTot
+        daRatio = isCurrentHomePlayingHome
+          ? Number((daH / (daH + daA)).toFixed(3))
+          : Number((daA / (daH + daA)).toFixed(3));
+        shotsRatio = isCurrentHomePlayingHome
+          ? Number((shotsH / (shotsH + shotsA)).toFixed(3))
+          : Number((shotsA / (shotsH + shotsA)).toFixed(3));
 
-        // 球风压制得分: (危攻比 - 0.5) * 1.2 + (射门比 - 0.5) * 0.8
+        // 当前主队球风压制得分: (危攻比 - 0.5) * 1.2 + (射门比 - 0.5) * 0.8
         totalClashScore += ((daRatio - 0.5) * 1.2 + (shotsRatio - 0.5) * 0.8) * effWeight;
       }
     }
@@ -440,6 +473,8 @@ export function calculateRecentFormWeights(
   const evaluateRecentMatches = (
     matches: LeisuRawRecentMatch[],
     targetTeamName: string,
+    targetLeisuName: string | undefined,
+    targetTeamId: number | null,
     isTargetHome: boolean
   ): { weights: RecentFormContextWeight[]; analytics: RecentFormDetailedAnalytics } => {
     if (matches.length === 0) {
@@ -483,19 +518,24 @@ export function calculateRecentFormWeights(
       // 1. 时间过滤与指数衰减 (60天半衰期, >180天强制截断为0)
       let matchTime = 0;
       let dateStr = '';
-      if (typeof item.match_time === 'number') {
+      if (typeof item.match_time === 'number' && item.match_time > 0) {
         matchTime = item.match_time > 1e11 ? item.match_time : item.match_time * 1000;
         dateStr = new Date(matchTime).toISOString().slice(0, 10);
       } else if (item.match_date) {
-        matchTime = new Date(String(item.match_date)).getTime();
-        dateStr = String(item.match_date).slice(0, 10);
+        const parsed = new Date(String(item.match_date)).getTime();
+        if (!isNaN(parsed) && parsed > 0) {
+          matchTime = parsed;
+          dateStr = String(item.match_date).slice(0, 10);
+        }
       }
 
-      const daysAgo = matchTime > 0
+      // 方案 2 严禁假默认值：若时间缺失或无效，严禁赋予 45 天等假值，直接置为无效
+      const hasValidTime = matchTime > 0;
+      const daysAgo = hasValidTime
         ? Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24)))
-        : 45;
+        : -1;
 
-      const isValidTime = daysAgo <= 180;
+      const isValidTime = hasValidTime && daysAgo >= 0 && daysAgo <= 180;
       let timeDecay = 0.0;
       if (isValidTime) {
         if (daysAgo <= 30) {
@@ -516,10 +556,26 @@ export function calculateRecentFormWeights(
         compWeight = 0.60; // 杯赛权重
       }
 
-      // 3. 主客场同构判定
-      const itemIsHome = item.home_team_name === targetTeamName || (match.reference && item.home_team_name === match.reference.leisu_home_name);
-      const isMatched = isTargetHome ? itemIsHome : !itemIsHome;
-      const venueWeight = isMatched ? 1.0 : 0.65;
+      // 3. 方案 1 近期战绩改造：优先使用 team_id 判定是否为主队出战，彻底切断客队判定借用主队雷速名的错误
+      let itemIsHome = true;
+      if (targetTeamId != null && item.home_team_id != null && item.home_team_id === targetTeamId) {
+        itemIsHome = true;
+      } else if (targetTeamId != null && item.away_team_id != null && item.away_team_id === targetTeamId) {
+        itemIsHome = false;
+      } else {
+        const isHomeName = item.home_team_name === targetTeamName || (Boolean(targetLeisuName) && item.home_team_name === targetLeisuName);
+        const isAwayName = item.away_team_name === targetTeamName || (Boolean(targetLeisuName) && item.away_team_name === targetLeisuName);
+        if (isHomeName && !isAwayName) {
+          itemIsHome = true;
+        } else if (!isHomeName && isAwayName) {
+          itemIsHome = false;
+        } else {
+          itemIsHome = isHomeName;
+        }
+      }
+
+      const isVenueMatched = isTargetHome ? itemIsHome : !itemIsHome;
+      const venueWeight = isVenueMatched ? 1.0 : 0.65;
 
       const finalWeight = Number((timeDecay * compWeight * venueWeight).toFixed(4));
 
@@ -642,8 +698,23 @@ export function calculateRecentFormWeights(
     };
   };
 
-  const homeResult = evaluateRecentMatches(homeRecent, match.home_team_name, true);
-  const awayResult = evaluateRecentMatches(awayRecent, match.away_team_name, false);
+  const homeTargetId = match.reference?.home_team_id ?? match.reference?.league_standings?.home_team?.team_id ?? null;
+  const awayTargetId = match.reference?.away_team_id ?? match.reference?.league_standings?.away_team?.team_id ?? null;
+
+  const homeResult = evaluateRecentMatches(
+    homeRecent,
+    match.home_team_name,
+    match.reference?.leisu_home_name,
+    homeTargetId,
+    true
+  );
+  const awayResult = evaluateRecentMatches(
+    awayRecent,
+    match.away_team_name,
+    match.reference?.leisu_away_name,
+    awayTargetId,
+    false
+  );
 
   return {
     home: homeResult.weights,
@@ -731,19 +802,24 @@ export function extractGoalDistributionDNA(
       return { weights: [0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667], late: 0.1667, early: 0.3333 };
     }
 
-    const weights = new Array(6).fill(0.1667);
+    // 方案 5：狄利克雷-多项式贝叶斯共轭平滑 (Dirichlet-Multinomial Bayesian Conjugate Smoothing)
+    // 假设无信息先验 Alpha_i = 1.0 (K = 6, 均匀先验和为 6.0)
+    // 后验估计: P(interval_i) = (goals_i + 1.0) / (totalGoals + 6.0)
+    const rawGoals = new Array(6).fill(0);
     let totalGoals = 0;
     intervals.forEach((iv: ParsedGoalInterval, idx: number) => {
-      if (idx < 6) {
-        weights[idx] = iv.goals as number;
-        totalGoals += (iv.goals as number);
+      if (idx < 6 && typeof iv.goals === 'number') {
+        rawGoals[idx] = iv.goals;
+        totalGoals += iv.goals;
       }
     });
 
-    if (totalGoals > 0) {
-      for (let i = 0; i < 6; i++) {
-        weights[i] = Number((weights[i] / totalGoals).toFixed(4));
-      }
+    const ALPHA = 1.0;
+    const K = 6;
+    const denom = totalGoals + K * ALPHA;
+    const weights = new Array(6);
+    for (let i = 0; i < 6; i++) {
+      weights[i] = Number(((rawGoals[i] + ALPHA) / denom).toFixed(4));
     }
 
     const late = weights[5] ?? 0.1667;
@@ -812,31 +888,42 @@ export function extractTacticalFormationFeatures(
 
 /**
  * 计算阵容首发与主力伤停战力折损率 (Lineup Impact Score, LIS)
+ * 方案 4：阵容首发三态化门禁 (CONFIRMED / PROJECTED / NOT_ANNOUNCED)
  */
 export function calculateLineupImpactScores(
   match: CanonicalMatch
-): {
-  home_lis: number;
-  away_lis: number;
-  home_missing_core_players: string[];
-  away_missing_core_players: string[];
-  home_striker_missing: boolean;
-  away_striker_missing: boolean;
-  home_defender_missing: boolean;
-  away_defender_missing: boolean;
-  home_market_value_num: number;
-  away_market_value_num: number;
-  home_best_player_active: boolean;
-  away_best_player_active: boolean;
-} {
+): LineupImpactFeatures {
   const lineup = match.reference?.lineups;
   const homeMv = parseMarketValueToNumber(lineup?.home_market_value);
   const awayMv = parseMarketValueToNumber(lineup?.away_market_value);
 
-  if (!lineup) {
+  const homeStarters = lineup?.home_starters || [];
+  const awayStarters = lineup?.away_starters || [];
+  const hasStarters = homeStarters.length > 0 || awayStarters.length > 0;
+
+  let lineupStatus: LineupStatus = 'NOT_ANNOUNCED';
+  let isLineupConfirmed = false;
+
+  if (lineup && hasStarters) {
+    if (lineup.confirmed === true) {
+      lineupStatus = 'CONFIRMED';
+      isLineupConfirmed = true;
+    } else {
+      lineupStatus = 'PROJECTED';
+      isLineupConfirmed = false;
+    }
+  } else {
+    lineupStatus = 'NOT_ANNOUNCED';
+    isLineupConfirmed = false;
+  }
+
+  // 若赛前未公布首发（starters 为空），LIS 维持基准 1.0，禁止误判为核心缺席扣分
+  if (lineupStatus === 'NOT_ANNOUNCED') {
     return {
       home_lis: 1.0,
       away_lis: 1.0,
+      lineup_status: 'NOT_ANNOUNCED',
+      is_lineup_confirmed: false,
       home_missing_core_players: [],
       away_missing_core_players: [],
       home_striker_missing: false,
@@ -890,10 +977,8 @@ export function calculateLineupImpactScores(
     };
   };
 
-  const homeStarters = lineup.home_starters || [];
-  const awayStarters = lineup.away_starters || [];
-  const homeInjuries = lineup.home_injuries || [];
-  const awayInjuries = lineup.away_injuries || [];
+  const homeInjuries = lineup?.home_injuries || [];
+  const awayInjuries = lineup?.away_injuries || [];
 
   const homeRes = evaluateAbsences(homeInjuries, homeStarters);
   const awayRes = evaluateAbsences(awayInjuries, awayStarters);
@@ -901,6 +986,8 @@ export function calculateLineupImpactScores(
   return {
     home_lis: homeRes.lis,
     away_lis: awayRes.lis,
+    lineup_status: lineupStatus,
+    is_lineup_confirmed: isLineupConfirmed,
     home_missing_core_players: homeRes.missing,
     away_missing_core_players: awayRes.missing,
     home_striker_missing: homeRes.strikerMissing,
@@ -916,10 +1003,40 @@ export function calculateLineupImpactScores(
 
 /**
  * 计算联赛积分榜战意生命周期因子 (Motivation & Urgency Index, MUI)
+ * 方案 6：中小联赛与杯赛动态战意百分位 (Dynamic Percentile MUI)
  */
 export function calculateMotivationAndUrgencyIndex(
   match: CanonicalMatch
 ): { home_mui: number; away_mui: number; home_context: string; away_context: string } {
+  // 杯赛、友谊赛、欧冠淘汰赛场景下，强制关闭联赛积分榜战意映射，避免跨赛事战意误植
+  const leagueName = String(match.league_name || match.reference?.leisu_league_name || '').toLowerCase();
+  const isCupOrTournament =
+    leagueName.includes('杯') ||
+    leagueName.includes('cup') ||
+    leagueName.includes('trophy') ||
+    leagueName.includes('fa ') ||
+    leagueName.includes('copa') ||
+    leagueName.includes('coppa') ||
+    leagueName.includes('coupe') ||
+    leagueName.includes('pokal') ||
+    leagueName.includes('友谊') ||
+    leagueName.includes('friendly') ||
+    leagueName.includes('锦标赛') ||
+    leagueName.includes('淘汰赛') ||
+    leagueName.includes('资格赛') ||
+    leagueName.includes('附加赛') ||
+    leagueName.includes('playoff') ||
+    leagueName.includes('play-off');
+
+  if (isCupOrTournament) {
+    return {
+      home_mui: 1.0,
+      away_mui: 1.0,
+      home_context: 'CUP_OR_TOURNAMENT_NEUTRAL',
+      away_context: 'CUP_OR_TOURNAMENT_NEUTRAL'
+    };
+  }
+
   const standings = match.reference?.league_standings;
   if (!standings || !standings.home_team || !standings.away_team) {
     return {
@@ -929,6 +1046,44 @@ export function calculateMotivationAndUrgencyIndex(
       away_context: 'NO_STANDINGS_DATA'
     };
   }
+
+  // 估算或提取联赛总参赛队伍数与总轮次，支持中小联赛 (如10队/12队/16队/20队)
+  const homeRank = standings.home_team.overall?.position;
+  const awayRank = standings.away_team.overall?.position;
+  const maxObservedRank = Math.max(homeRank || 0, awayRank || 0);
+
+  const LEAGUE_TOTAL_TEAMS_MAP: Record<string, number> = {
+    '英超': 20, 'premier league': 20,
+    '西甲': 20, 'la liga': 20,
+    '意甲': 20, 'serie a': 20,
+    '法甲': 18, 'ligue 1': 18,
+    '德甲': 18, 'bundesliga': 18,
+    '荷甲': 18, 'eredivisie': 18,
+    '葡超': 18, 'primeira liga': 18,
+    '日职': 20, 'j1 league': 20, '日职联': 20,
+    '日职乙': 20, 'j2 league': 20,
+    '韩k联': 12, 'k league 1': 12, '韩k1': 12,
+    '中超': 16, 'csl': 16,
+    '瑞士超': 12,
+    '奥甲': 12, 'austrian bundesliga': 12,
+    '苏超': 12, 'scottish premiership': 12,
+    '比甲': 16, 'belgian pro league': 16,
+    '俄超': 16,
+    '土超': 19,
+    '美职联': 29, 'mls': 29,
+    '巴甲': 20, 'brasileiro': 20,
+    '澳超': 12, 'a-league': 12
+  };
+
+  let totalTeams = 20;
+  for (const [key, cnt] of Object.entries(LEAGUE_TOTAL_TEAMS_MAP)) {
+    if (leagueName.includes(key)) {
+      totalTeams = cnt;
+      break;
+    }
+  }
+  totalTeams = Math.max(totalTeams, maxObservedRank > 0 ? maxObservedRank : 20);
+  const totalRounds = Math.max(10, (totalTeams - 1) * 2);
 
   const evaluateTeam = (teamStanding: ParsedTeamStanding): { mui: number; context: string } => {
     const overall = teamStanding.overall;
@@ -944,21 +1099,25 @@ export function calculateMotivationAndUrgencyIndex(
       return { mui: 1.0, context: 'METRICS_INCOMPLETE' };
     }
 
-    const isLateSeason = played >= 28;
-    const isEarlySeason = played <= 5;
+    // 方案 6：动态百分位计算 (争冠/欧战区 <= 0.20, 降级危险区 >= 0.80, 赛季末收官 >= 0.75)
+    const rankPercentile = rank / totalTeams;
+    const seasonProgress = played / totalRounds;
+
+    const isLateSeason = seasonProgress >= 0.75;
+    const isEarlySeason = seasonProgress <= 0.20 || played <= 5;
 
     let baseMui = 1.0;
     let context = 'MID_TABLE_NORMAL';
 
-    if (rank <= 4) {
+    if (rankPercentile <= 0.20) {
       baseMui = isLateSeason ? 1.25 : 1.10;
-      context = 'TITLE_OR_UCL_RACE';
-    } else if (rank >= 17) {
+      context = isLateSeason ? 'TITLE_OR_UCL_RACE_LATE_SEASON' : 'TITLE_OR_UCL_RACE';
+    } else if (rankPercentile >= 0.80) {
       baseMui = isLateSeason ? 1.35 : 1.15;
-      context = 'RELEGATION_BATTLE';
-    } else if (rank > 7 && rank < 14) {
+      context = isLateSeason ? 'RELEGATION_BATTLE_LATE_SEASON' : 'RELEGATION_BATTLE';
+    } else if (rankPercentile > 0.35 && rankPercentile < 0.70) {
       baseMui = isLateSeason ? 0.75 : 0.95;
-      context = 'MID_TABLE_SECURE';
+      context = isLateSeason ? 'MID_TABLE_SECURE_LATE_SEASON' : 'MID_TABLE_SECURE';
     }
 
     if (isEarlySeason) {
@@ -1042,6 +1201,8 @@ export function extractCleanedContextFeatures(
     lineup_impact: Object.freeze({
       home_lis: lineupImpact.home_lis,
       away_lis: lineupImpact.away_lis,
+      lineup_status: lineupImpact.lineup_status,
+      is_lineup_confirmed: lineupImpact.is_lineup_confirmed,
       home_missing_core_players: lineupImpact.home_missing_core_players,
       away_missing_core_players: lineupImpact.away_missing_core_players,
       home_striker_missing: lineupImpact.home_striker_missing,

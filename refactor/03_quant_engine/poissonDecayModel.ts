@@ -69,14 +69,14 @@ function parseHandicapOrTotalLine(lineStr: string): number {
   if (!lineStr || typeof lineStr !== 'string') return 0.0;
   const clean = lineStr.trim();
   if (clean.includes('/')) {
-    const isNegative = clean.startsWith('-');
-    const stripped = clean.replace(/^[+-]/, '');
-    const parts = stripped.split('/');
+    const isExplicitMinus = clean.startsWith('-');
+    const parts = clean.split('/');
     if (parts.length === 2) {
-      const v1 = parseFloat(parts[0]);
-      const v2 = parseFloat(parts[1]);
-      if (!isNaN(v1) && !isNaN(v2)) {
-        const avg = (v1 + v2) / 2.0;
+      const p1 = parseFloat(parts[0]);
+      const p2 = parseFloat(parts[1]);
+      if (!isNaN(p1) && !isNaN(p2)) {
+        const isNegative = isExplicitMinus || p1 < 0 || p2 < 0 || Object.is(p1, -0) || Object.is(p2, -0);
+        const avg = (Math.abs(p1) + Math.abs(p2)) / 2.0;
         return isNegative ? -avg : avg;
       }
     }

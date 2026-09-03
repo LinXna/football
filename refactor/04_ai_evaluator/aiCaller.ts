@@ -19,11 +19,20 @@ export class AiEvaluatorService {
     return {
       type: Type.OBJECT,
       properties: {
+        blind_spot_analysis: {
+          type: Type.OBJECT,
+          properties: {
             "1_global_motivation": { type: Type.STRING },
             "2_asian_handicap_reality": { type: Type.STRING },
             "3_total_goals_reality": { type: Type.STRING },
-            tactical_regime_evaluation: { type: Type.STRING, enum: ['GENUINE_DOMINANCE', 'BARREN_DOMINANCE', 'RECIPROCAL_CHAOS', 'TACTICAL_STALEMATE'] },
-            trap_detection_result: { type: Type.STRING, enum: ['SAFE_VALUE', 'POTENTIAL_TRAP', 'CONFIRMED_TRAP', 'UNCERTAIN'] }
+            tactical_regime_evaluation: { 
+              type: Type.STRING, 
+              enum: ['GENUINE_DOMINANCE', 'BARREN_DOMINANCE', 'RECIPROCAL_CHAOS', 'TACTICAL_STALEMATE'] 
+            },
+            trap_detection_result: { 
+              type: Type.STRING, 
+              enum: ['SAFE_VALUE', 'POTENTIAL_TRAP', 'CONFIRMED_TRAP', 'UNCERTAIN'] 
+            }
           },
           required: ['1_global_motivation', '2_asian_handicap_reality', '3_total_goals_reality', 'tactical_regime_evaluation', 'trap_detection_result']
         },
@@ -49,7 +58,6 @@ export class AiEvaluatorService {
             },
             required: ['market', 'selected_line', 'current_odds', 'minimum_acceptable_odds', 'direction', 'basis']
           }
-        }
         }
       },
       required: ['blind_spot_analysis', 'internal_logical_audit', 'grade', 'confidence_score', 'qualitative_summary', 'risk_warnings', 'recommended_legs']
@@ -85,7 +93,7 @@ export class AiEvaluatorService {
         const rawResult = JSON.parse(response.text);
         
         const result: AiEvaluationResult = {
-          match_id: payload.ai_brief.match_id,
+          match_id: payload.ai_brief.match_id ?? 'unknown_match',
           evaluation_time: new Date().toISOString(),
           ...rawResult
         };
@@ -93,13 +101,14 @@ export class AiEvaluatorService {
         // Apply alignment guard
         return verifyStatutoryAlignment(result, payload);
 
-      } catch (error: any) {
+      } catch (error: unknown) {
         attempt++;
-        console.warn(`[AiEvaluatorService] AI Evaluation failed on attempt ${attempt}: ${error.message}`);
+        const errMessage = error instanceof Error ? error.message : String(error);
+        console.warn(`[AiEvaluatorService] AI Evaluation failed on attempt ${attempt}: ${errMessage}`);
         
         if (attempt >= maxRetries) {
           console.error(`[AiEvaluatorService] Exhausted retries. Returning graceful fallback REJECTED.`);
-          return this.createFallbackResult(payload, error.message);
+          return this.createFallbackResult(payload, errMessage);
         }
         
         // Exponential backoff
@@ -112,7 +121,7 @@ export class AiEvaluatorService {
 
   private createFallbackResult(payload: EvaluatorPayload, errorMsg: string): AiEvaluationResult {
     return {
-      match_id: payload.ai_brief.match_id,
+      match_id: payload.ai_brief.match_id ?? 'unknown_match',
       evaluation_time: new Date().toISOString(),
       blind_spot_analysis: {
         "1_global_motivation": 'FALLBACK',

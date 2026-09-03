@@ -182,6 +182,25 @@ export interface TacticalFormationFeatures {
   formation_tactical_description: string;
 }
 
+export type LineupStatus = 'CONFIRMED' | 'PROJECTED' | 'NOT_ANNOUNCED';
+
+export interface LineupImpactFeatures {
+  home_lis: number;
+  away_lis: number;
+  lineup_status: LineupStatus;
+  is_lineup_confirmed: boolean;
+  home_missing_core_players: string[];
+  away_missing_core_players: string[];
+  home_striker_missing: boolean;
+  away_striker_missing: boolean;
+  home_defender_missing: boolean;
+  away_defender_missing: boolean;
+  home_market_value_num: number;
+  away_market_value_num: number;
+  home_best_player_active: boolean;
+  away_best_player_active: boolean;
+}
+
 export interface CleanedContextFeatures {
   circuit_breaker: L0CircuitBreakerResult;
   h2h_weights: HistoricalMatchWeight[];
@@ -200,20 +219,7 @@ export interface CleanedContextFeatures {
   };
   goal_distribution_dna: GoalDistributionDNAFeatures;
   tactical_formation: TacticalFormationFeatures;
-  lineup_impact: {
-    home_lis: number;
-    away_lis: number;
-    home_missing_core_players: string[];
-    away_missing_core_players: string[];
-    home_striker_missing: boolean;
-    away_striker_missing: boolean;
-    home_defender_missing: boolean;
-    away_defender_missing: boolean;
-    home_market_value_num: number;
-    away_market_value_num: number;
-    home_best_player_active: boolean;
-    away_best_player_active: boolean;
-  };
+  lineup_impact: LineupImpactFeatures;
   motivation_urgency: {
     home_mui: number;
     away_mui: number;

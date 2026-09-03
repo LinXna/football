@@ -1,0 +1,2415 @@
+{
+  "canonical": {
+    "canonical_id": "4547085",
+    "match_slug": "亚足联U20亚洲杯2027资格赛_关岛U20_vs_北马里亚纳群岛U20",
+    "created_at": "2026-09-03T21:10:10.938Z",
+    "completeness_tier": "TIER_2_BASIC",
+    "missing_reasons": [
+      "NO_LINEUP_DATA"
+    ],
+    "alignment": {
+      "status": "MATCHED_AUTO",
+      "confidence_score": 97,
+      "home_team_match": {
+        "ybty_name": "关岛U20",
+        "leisu_name": "关岛U20",
+        "is_alias_exact_hit": false,
+        "raw_text_similarity": 1
+      },
+      "away_team_match": {
+        "ybty_name": "北马里亚纳群岛U20",
+        "leisu_name": "北马里亚纳群岛U20",
+        "is_alias_exact_hit": false,
+        "raw_text_similarity": 1
+      },
+      "league_match": {
+        "ybty_league": "亚足联U20亚洲杯2027资格赛",
+        "leisu_league": "U20亚洲杯",
+        "status": "MATCHED_FUZZY",
+        "similarity": 0.85,
+        "is_alias_exact_hit": false
+      },
+      "league_match_score": 0.85,
+      "is_swapped_suspected": false,
+      "alignment_reason": "自动高置信度匹配成功 (综合置信分: 97)"
+    },
+    "league_name": "亚足联U20亚洲杯2027资格赛",
+    "home_team_name": "关岛U20",
+    "away_team_name": "北马里亚纳群岛U20",
+    "timing": {
+      "stage": "LIVE",
+      "beijing_start_time": "2026-09-03 13:00:00",
+      "start_time_source": "LEISU_SUPPLEMENTED",
+      "minute": 45,
+      "is_half_time": true,
+      "is_extra_time": false,
+      "is_overtime_or_penalty": false,
+      "ybty_display_clock": "中场休息"
+    },
+    "score": {
+      "home_score": 1,
+      "away_score": 0,
+      "home_half_score": 1,
+      "away_half_score": 0,
+      "score_verified": true,
+      "score_source": "LEISU_INTERFACE",
+      "is_mismatch_detected": false,
+      "mismatch_details": null,
+      "var_overturned_goals_count": 0
+    },
+    "markets": {
+      "full_h2h": null,
+      "full_spread_main": {
+        "line_index": 0,
+        "home_selection": "-1/1.5",
+        "home_odds": 1.82,
+        "away_selection": "+1/1.5",
+        "away_odds": 2
+      },
+      "full_spread_subs": [
+        {
+          "line_index": 1,
+          "home_selection": "-1.5",
+          "home_odds": 2.13,
+          "away_selection": "+1.5",
+          "away_odds": 1.7
+        }
+      ],
+      "full_total_main": {
+        "line_index": 0,
+        "line": "3",
+        "over_odds": 2.02,
+        "under_odds": 1.78
+      },
+      "full_total_subs": [
+        {
+          "line_index": 1,
+          "line": "3/3.5",
+          "over_odds": 2.12,
+          "under_odds": 1.69
+        }
+      ],
+      "half_h2h": null,
+      "half_spread_main": null,
+      "half_total_main": null
+    },
+    "reference": {
+      "leisu_match_id": "4547085",
+      "home_team_id": 72411,
+      "away_team_id": 72417,
+      "leisu_home_name": "关岛U20",
+      "leisu_away_name": "北马里亚纳群岛U20",
+      "leisu_league_name": "U20亚洲杯",
+      "stats": {
+        "corners": {
+          "home": 2,
+          "away": 0
+        },
+        "yellow_cards": {
+          "home": 1,
+          "away": 0
+        },
+        "red_cards": {
+          "home": 0,
+          "away": 0
+        },
+        "attacks": {
+          "home": 55,
+          "away": 49
+        },
+        "dangerous_attacks": {
+          "home": 46,
+          "away": 19
+        },
+        "possession": {
+          "home": 60,
+          "away": 40
+        },
+        "shots_on_target": {
+          "home": 5,
+          "away": 0
+        },
+        "shots_off_target": {
+          "home": 4,
+          "away": 1
+        },
+        "shots": {
+          "home": 9,
+          "away": 1
+        }
+      },
+      "attack_momentum": {
+        "available": true,
+        "segment_count": 2,
+        "nominal_segment_minutes": 45,
+        "data": [
+          [
+            -45,
+            -80,
+            28,
+            18,
+            0,
+            -28,
+            -86,
+            52,
+            10,
+            0,
+            60,
+            12,
+            -6,
+            100,
+            0,
+            0,
+            100,
+            32,
+            -50,
+            -56,
+            -40,
+            66,
+            0,
+            40,
+            -8,
+            50,
+            16,
+            -16,
+            70,
+            16,
+            62,
+            -30,
+            -20,
+            14,
+            74,
+            100,
+            56,
+            36,
+            -100,
+            -100,
+            54,
+            36,
+            20,
+            32,
+            16,
+            100
+          ],
+          [
+            0
+          ]
+        ]
+      },
+      "timeline_events": [
+        {
+          "minute": null,
+          "base_minute": null,
+          "added_minute": null,
+          "display_time": "",
+          "type": 0,
+          "type_name": "系统提示/准备",
+          "canonical_type": "VAR_REVIEW",
+          "category": "MATCH_CONTROL",
+          "side": "neutral",
+          "text": "大家好，欢迎收看本场比赛直播，球员们正在热身，比赛即将开始",
+          "is_penalty": false,
+          "is_own_goal": false,
+          "is_cancelled": false,
+          "is_var_overturned": false,
+          "is_on_pitch": true
+        },
+        {
+          "minute": null,
+          "base_minute": null,
+          "added_minute": null,
+          "display_time": "",
+          "type": 0,
+          "type_name": "系统提示/准备",
+          "canonical_type": "VAR_REVIEW",
+          "category": "MATCH_CONTROL",
+          "side": "neutral",
+          "text": "本场比赛场地情况：不佳",
+          "is_penalty": false,
+          "is_own_goal": false,
+          "is_cancelled": false,
+          "is_var_overturned": false,
+          "is_on_pitch": true
+        },
+        {
+          "minute": null,
+          "base_minute": null,
+          "added_minute": null,
+          "display_time": "",
+          "type": 0,
+          "type_name": "系统提示/准备",
+          "canonical_type": "VAR_REVIEW",
+          "category": "MATCH_CONTROL",
+          "side": "neutral",
+          "text": "本场比赛天气情况：局部有云",
+          "is_penalty": false,
+          "is_own_goal": false,
+          "is_cancelled": false,
+          "is_var_overturned": false,
+          "is_on_pitch": true
+        },
+        {
+          "minute": null,
+          "base_minute": null,
+          "added_minute": null,
+          "display_time": "",
+          "type": 10,
+          "type_name": "开球",
+          "canonical_type": "KICK_OFF",
+          "category": "MATCH_CONTROL",
+          "side": "neutral",
+          "text": "随着主裁判一声哨响，上半场比赛开始",
+          "is_penalty": false,
+          "is_own_goal": false,
+          "is_cancelled": false,
+          "is_var_overturned": false,
+          "is_on_pitch": true
+        },
+        {
+          "minute": 5,
+          "base_minute": 5,
+          "added_minute": null,
+          "display_time": "5'",
+          "type": 2,
+          "type_name": "角球",
+          "canonical_type": "CORNER",
+          "category": "TACTICAL",
+          "side": "home",
+          "text": "5' - 5分钟，关岛U20获得本场第1个角球",
+          "is_penalty": false,
+          "is_own_goal": false,
+          "is_cancelled": false,
+          "is_var_overturned": false,
+          "is_on_pitch": true
+        },
+        {
+          "minute": 23,
+          "base_minute": 23,
+          "added_minute": null,
+          "display_time": "23'",
+          "type": 3,
+          "type_name": "黄牌",
+          "canonical_type": "YELLOW_CARD",
+          "category": "DISCIPLINE",
+          "side": "home",
+          "text": "23' - 第1张黄牌，裁判出示了本场比赛的第一张黄牌，给了(关岛U20)",
+          "is_penalty": false,
+          "is_own_goal": false,
+          "is_cancelled": false,
+          "is_var_overturned": false,
+          "is_on_pitch": true
+        },
+        {
+          "minute": 27,
+          "base_minute": 27,
+          "added_minute": null,
+          "display_time": "27'",
+          "type": 1,
+          "type_name": "进球",
+          "canonical_type": "GOAL_REGULAR",
+          "category": "SCORE",
+          "side": "home",
+          "text": "27' - 第1个进球！球进啦！关岛U20取得本场比赛领先！",
+          "is_penalty": false,
+          "is_own_goal": false,
+          "is_cancelled": false,
+          "is_var_overturned": false,
+          "is_on_pitch": true
+        },
+        {
+          "minute": 30,
+          "base_minute": 30,
+          "added_minute": null,
+          "display_time": "30'",
+          "type": 2,
+          "type_name": "角球",
+          "canonical_type": "CORNER",
+          "category": "TACTICAL",
+          "side": "home",
+          "text": "30' - 第2个角球 - (关岛U20)",
+          "is_penalty": false,
+          "is_own_goal": false,
+          "is_cancelled": false,
+          "is_var_overturned": false,
+          "is_on_pitch": true
+        },
+        {
+          "minute": 45,
+          "base_minute": 45,
+          "added_minute": null,
+          "display_time": "45'",
+          "type": 11,
+          "type_name": "半场结束",
+          "canonical_type": "HALF_TIME_WHISTLE",
+          "category": "MATCH_CONTROL",
+          "side": "neutral",
+          "text": "45' - 随着裁判一声哨响，上半场结束，目前比分1-0",
+          "is_penalty": false,
+          "is_own_goal": false,
+          "is_cancelled": false,
+          "is_var_overturned": false,
+          "is_on_pitch": true
+        }
+      ],
+      "lineups": {
+        "confirmed": false,
+        "venue": {
+          "name": "蒙古足球中心",
+          "city": "乌兰巴托",
+          "country": null,
+          "capacity": 5000
+        },
+        "home_formation": null,
+        "away_formation": null,
+        "home_manager": null,
+        "away_manager": null,
+        "home_starters": [],
+        "away_starters": [],
+        "home_substitutes": [],
+        "away_substitutes": [],
+        "home_injuries": [],
+        "away_injuries": [],
+        "home_market_value": null,
+        "away_market_value": null,
+        "home_average_age": "0岁",
+        "away_average_age": "0岁"
+      },
+      "tactical_context": {
+        "head_to_head_count": 2,
+        "home_recent_matches_count": 10,
+        "away_recent_matches_count": 11,
+        "h2h_raw": [
+          {
+            "match_id": 4180010,
+            "season_id": null,
+            "competition_id": 34,
+            "status_id": 8,
+            "match_time": 1722758400,
+            "neutral": null,
+            "home_team_id": 72417,
+            "away_team_id": 72411,
+            "home_scores": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              3
+            ],
+            "away_scores": [
+              2,
+              2,
+              0,
+              0,
+              0,
+              0,
+              2
+            ],
+            "opening_odds": [
+              "",
+              "",
+              "",
+              ""
+            ],
+            "current_odds": [
+              "",
+              "",
+              "",
+              ""
+            ],
+            "home_stats": {},
+            "away_stats": {}
+          },
+          {
+            "match_id": 4175888,
+            "season_id": null,
+            "competition_id": 34,
+            "status_id": 8,
+            "match_time": 1722672000,
+            "neutral": null,
+            "home_team_id": 72417,
+            "away_team_id": 72411,
+            "home_scores": [
+              2,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "away_scores": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "opening_odds": [
+              "",
+              "",
+              "",
+              ""
+            ],
+            "current_odds": [
+              "",
+              "",
+              "",
+              ""
+            ],
+            "home_stats": {},
+            "away_stats": {}
+          }
+        ],
+        "home_recent_matches": [
+          {
+            "match_id": 4212332,
+            "league_id": 3445,
+            "league_name": "U20亚洲杯",
+            "match_time": 1727427600,
+            "match_date": "2024-09-27T09:00:00.000Z",
+            "home_team_id": 17464,
+            "home_team_name": "叙利亚U20",
+            "away_team_id": 72411,
+            "away_team_name": "关岛U20",
+            "halftime_score": {
+              "home": 5,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 10,
+              "away": 1
+            },
+            "result": "输",
+            "goals": 11,
+            "handicap_trend": {
+              "result": "输",
+              "class": "loss"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4212359,
+            "league_id": 3445,
+            "league_name": "U20亚洲杯",
+            "match_time": 1727265600,
+            "match_date": "2024-09-25T12:00:00.000Z",
+            "home_team_id": 18449,
+            "home_team_name": "越南U20",
+            "away_team_id": 72411,
+            "away_team_name": "关岛U20",
+            "halftime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 3,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "小",
+              "class": "small"
+            }
+          },
+          {
+            "match_id": 4212317,
+            "league_id": 3445,
+            "league_name": "U20亚洲杯",
+            "match_time": 1727082000,
+            "match_date": "2024-09-23T09:00:00.000Z",
+            "home_team_id": 72411,
+            "home_team_name": "关岛U20",
+            "away_team_id": 13205,
+            "away_team_name": "孟加拉国U20",
+            "halftime_score": {
+              "home": 0,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 2
+            },
+            "result": "和",
+            "goals": 4,
+            "handicap_trend": {
+              "result": "赢",
+              "class": "win"
+            },
+            "goals_trend": {
+              "result": "大",
+              "class": "big"
+            }
+          },
+          {
+            "match_id": 4212287,
+            "league_id": 3445,
+            "league_name": "U20亚洲杯",
+            "match_time": 1726909200,
+            "match_date": "2024-09-21T09:00:00.000Z",
+            "home_team_id": 72411,
+            "home_team_name": "关岛U20",
+            "away_team_id": 72416,
+            "away_team_name": "不丹U20",
+            "halftime_score": {
+              "home": 1,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 1,
+              "away": 1
+            },
+            "result": "和",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 4180010,
+            "league_id": 34,
+            "league_name": "国际友谊",
+            "match_time": 1722758400,
+            "match_date": "2024-08-04T08:00:00.000Z",
+            "home_team_id": 72417,
+            "home_team_name": "北马里亚纳群岛U20",
+            "away_team_id": 72411,
+            "away_team_name": "关岛U20",
+            "halftime_score": {
+              "home": 0,
+              "away": 2
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 2
+            },
+            "result": "赢",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 4175888,
+            "league_id": 34,
+            "league_name": "国际友谊",
+            "match_time": 1722672000,
+            "match_date": "2024-08-03T08:00:00.000Z",
+            "home_team_id": 72417,
+            "home_team_name": "北马里亚纳群岛U20",
+            "away_team_id": 72411,
+            "away_team_name": "关岛U20",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 3816083,
+            "league_id": 3445,
+            "league_name": "U20亚洲杯",
+            "match_time": 1663329600,
+            "match_date": "2022-09-16T12:00:00.000Z",
+            "home_team_id": 61381,
+            "home_team_name": "也门U20",
+            "away_team_id": 72411,
+            "away_team_name": "关岛U20",
+            "halftime_score": {
+              "home": 4,
+              "away": 1
+            },
+            "fulltime_score": {
+              "home": 10,
+              "away": 1
+            },
+            "result": "输",
+            "goals": 11,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 3815771,
+            "league_id": 3445,
+            "league_name": "U20亚洲杯",
+            "match_time": 1663146000,
+            "match_date": "2022-09-14T09:00:00.000Z",
+            "home_team_id": 14111,
+            "home_team_name": "日本U20",
+            "away_team_id": 72411,
+            "away_team_name": "关岛U20",
+            "halftime_score": {
+              "home": 5,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 9,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 9,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 3815803,
+            "league_id": 3445,
+            "league_name": "U20亚洲杯",
+            "match_time": 1662973200,
+            "match_date": "2022-09-12T09:00:00.000Z",
+            "home_team_id": 72411,
+            "home_team_name": "关岛U20",
+            "away_team_id": 19524,
+            "away_team_name": "巴勒斯坦U20",
+            "halftime_score": {
+              "home": 0,
+              "away": 4
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 5
+            },
+            "result": "输",
+            "goals": 5,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 3815740,
+            "league_id": 3445,
+            "league_name": "U20亚洲杯",
+            "match_time": 1662811200,
+            "match_date": "2022-09-10T12:00:00.000Z",
+            "home_team_id": 72411,
+            "home_team_name": "关岛U20",
+            "away_team_id": 26057,
+            "away_team_name": "老挝U20",
+            "halftime_score": {
+              "home": 0,
+              "away": 2
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 3
+            },
+            "result": "输",
+            "goals": 3,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          }
+        ],
+        "away_recent_matches": [
+          {
+            "match_id": 4547083,
+            "league_id": 3445,
+            "league_name": "U20亚洲杯",
+            "match_time": 1788152400,
+            "match_date": "2026-08-31T05:00:00.000Z",
+            "home_team_id": 72417,
+            "home_team_name": "北马里亚纳群岛U20",
+            "away_team_id": 72418,
+            "away_team_name": "蒙古U20",
+            "halftime_score": {
+              "home": 0,
+              "away": 2
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 7
+            },
+            "result": "输",
+            "goals": 7,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 4212316,
+            "league_id": 3445,
+            "league_name": "U20亚洲杯",
+            "match_time": 1727447400,
+            "match_date": "2024-09-27T14:30:00.000Z",
+            "home_team_id": 32981,
+            "home_team_name": "黎巴嫩U20",
+            "away_team_id": 72417,
+            "away_team_name": "北马里亚纳群岛U20",
+            "halftime_score": {
+              "home": 4,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 8,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 8,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 4212349,
+            "league_id": 3445,
+            "league_name": "U20亚洲杯",
+            "match_time": 1727274600,
+            "match_date": "2024-09-25T14:30:00.000Z",
+            "home_team_id": 12882,
+            "home_team_name": "韩国U20",
+            "away_team_id": 72417,
+            "away_team_name": "北马里亚纳群岛U20",
+            "halftime_score": {
+              "home": 5,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 10,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 10,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 4212327,
+            "league_id": 3445,
+            "league_name": "U20亚洲杯",
+            "match_time": 1727101800,
+            "match_date": "2024-09-23T14:30:00.000Z",
+            "home_team_id": 72417,
+            "home_team_name": "北马里亚纳群岛U20",
+            "away_team_id": 20653,
+            "away_team_name": "阿联酋U20",
+            "halftime_score": {
+              "home": 0,
+              "away": 7
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 13
+            },
+            "result": "输",
+            "goals": 13,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 4212313,
+            "league_id": 3445,
+            "league_name": "U20亚洲杯",
+            "match_time": 1726939800,
+            "match_date": "2024-09-21T17:30:00.000Z",
+            "home_team_id": 72417,
+            "home_team_name": "北马里亚纳群岛U20",
+            "away_team_id": 27358,
+            "away_team_name": "科威特U20",
+            "halftime_score": {
+              "home": 0,
+              "away": 4
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 6
+            },
+            "result": "输",
+            "goals": 6,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 4180010,
+            "league_id": 34,
+            "league_name": "国际友谊",
+            "match_time": 1722758400,
+            "match_date": "2024-08-04T08:00:00.000Z",
+            "home_team_id": 72417,
+            "home_team_name": "北马里亚纳群岛U20",
+            "away_team_id": 72411,
+            "away_team_name": "关岛U20",
+            "halftime_score": {
+              "home": 0,
+              "away": 2
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 2
+            },
+            "result": "输",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 4175888,
+            "league_id": 34,
+            "league_name": "国际友谊",
+            "match_time": 1722672000,
+            "match_date": "2024-08-03T08:00:00.000Z",
+            "home_team_id": 72417,
+            "home_team_name": "北马里亚纳群岛U20",
+            "away_team_id": 72411,
+            "away_team_name": "关岛U20",
+            "halftime_score": {
+              "home": 1,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 2,
+              "away": 0
+            },
+            "result": "赢",
+            "goals": 2,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 3816086,
+            "league_id": 3445,
+            "league_name": "U20亚洲杯",
+            "match_time": 1663335000,
+            "match_date": "2022-09-16T13:30:00.000Z",
+            "home_team_id": 72412,
+            "home_team_name": "中国台北U20",
+            "away_team_id": 72417,
+            "away_team_name": "北马里亚纳群岛U20",
+            "halftime_score": {
+              "home": 5,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 9,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 9,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 3815804,
+            "league_id": 3445,
+            "league_name": "U20亚洲杯",
+            "match_time": 1663178400,
+            "match_date": "2022-09-14T18:00:00.000Z",
+            "home_team_id": 10620,
+            "home_team_name": "约旦U20",
+            "away_team_id": 72417,
+            "away_team_name": "北马里亚纳群岛U20",
+            "halftime_score": {
+              "home": 10,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 16,
+              "away": 0
+            },
+            "result": "输",
+            "goals": 16,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 3815795,
+            "league_id": 3445,
+            "league_name": "U20亚洲杯",
+            "match_time": 1662989400,
+            "match_date": "2022-09-12T13:30:00.000Z",
+            "home_team_id": 72417,
+            "home_team_name": "北马里亚纳群岛U20",
+            "away_team_id": 17464,
+            "away_team_name": "叙利亚U20",
+            "halftime_score": {
+              "home": 0,
+              "away": 6
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 10
+            },
+            "result": "输",
+            "goals": 10,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          },
+          {
+            "match_id": 3815797,
+            "league_id": 3445,
+            "league_name": "U20亚洲杯",
+            "match_time": 1662832800,
+            "match_date": "2022-09-10T18:00:00.000Z",
+            "home_team_id": 72417,
+            "home_team_name": "北马里亚纳群岛U20",
+            "away_team_id": 72414,
+            "away_team_name": "土库曼斯坦U20",
+            "halftime_score": {
+              "home": 0,
+              "away": 0
+            },
+            "fulltime_score": {
+              "home": 0,
+              "away": 7
+            },
+            "result": "输",
+            "goals": 7,
+            "handicap_trend": {
+              "result": "-",
+              "class": "-"
+            },
+            "goals_trend": {
+              "result": "-",
+              "class": "-"
+            }
+          }
+        ]
+      },
+      "odds_matrix": {
+        "company_name": null,
+        "initial": {
+          "asian_handicap": null,
+          "match_winner": null,
+          "total_goals": null,
+          "corners": null
+        },
+        "pregame": {
+          "asian_handicap": null,
+          "match_winner": null,
+          "total_goals": null,
+          "corners": null
+        },
+        "live": {
+          "asian_handicap": null,
+          "match_winner": null,
+          "total_goals": null,
+          "corners": null
+        }
+      },
+      "league_standings": {
+        "has_data": true,
+        "home_team": {
+          "team_id": 72411,
+          "team_name": "关岛U20",
+          "competition_id": 3445,
+          "competition_name": "U20亚洲杯",
+          "season": "2026-2027",
+          "overall": {
+            "title": "总",
+            "position": 2,
+            "matches_played": 0,
+            "won": 0,
+            "draw": 0,
+            "loss": 0,
+            "goals_scored": 0,
+            "goals_conceded": 0,
+            "goal_difference": 0,
+            "points": 0,
+            "win_rate": null
+          },
+          "home": {
+            "title": "主",
+            "position": 2,
+            "matches_played": 0,
+            "won": 0,
+            "draw": 0,
+            "loss": 0,
+            "goals_scored": 0,
+            "goals_conceded": 0,
+            "goal_difference": 0,
+            "points": 0,
+            "win_rate": null
+          },
+          "away": {
+            "title": "客",
+            "position": 2,
+            "matches_played": 0,
+            "won": 0,
+            "draw": 0,
+            "loss": 0,
+            "goals_scored": 0,
+            "goals_conceded": 0,
+            "goal_difference": 0,
+            "points": 0,
+            "win_rate": null
+          }
+        },
+        "away_team": {
+          "team_id": 72417,
+          "team_name": "北马里亚纳群岛U20",
+          "competition_id": 3445,
+          "competition_name": "U20亚洲杯",
+          "season": "2026-2027",
+          "overall": {
+            "title": "总",
+            "position": 4,
+            "matches_played": 1,
+            "won": 0,
+            "draw": 0,
+            "loss": 1,
+            "goals_scored": 0,
+            "goals_conceded": 7,
+            "goal_difference": -7,
+            "points": 0,
+            "win_rate": "0%"
+          },
+          "home": {
+            "title": "主",
+            "position": 4,
+            "matches_played": 1,
+            "won": 0,
+            "draw": 0,
+            "loss": 1,
+            "goals_scored": 0,
+            "goals_conceded": 7,
+            "goal_difference": -7,
+            "points": 0,
+            "win_rate": "0%"
+          },
+          "away": {
+            "title": "客",
+            "position": 4,
+            "matches_played": 0,
+            "won": 0,
+            "draw": 0,
+            "loss": 0,
+            "goals_scored": 0,
+            "goals_conceded": 0,
+            "goal_difference": 0,
+            "points": 0,
+            "win_rate": null
+          }
+        }
+      },
+      "goal_distribution": {
+        "has_data": true,
+        "home_team": {
+          "all": {
+            "matches_count": 0,
+            "scored_intervals": [],
+            "first_scored_intervals": []
+          },
+          "home": {
+            "matches_count": 0,
+            "scored_intervals": [],
+            "first_scored_intervals": []
+          },
+          "away": {
+            "matches_count": 0,
+            "scored_intervals": [],
+            "first_scored_intervals": []
+          }
+        },
+        "away_team": {
+          "all": {
+            "matches_count": 1,
+            "scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ],
+            "first_scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ]
+          },
+          "home": {
+            "matches_count": 1,
+            "scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ],
+            "first_scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ]
+          },
+          "away": {
+            "matches_count": 0,
+            "scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ],
+            "first_scored_intervals": [
+              {
+                "start_minute": 1,
+                "end_minute": 15,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 16,
+                "end_minute": 30,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 31,
+                "end_minute": 45,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 46,
+                "end_minute": 60,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 61,
+                "end_minute": 75,
+                "goals": 0,
+                "percentage": 0
+              },
+              {
+                "start_minute": 76,
+                "end_minute": 90,
+                "goals": 0,
+                "percentage": 0
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "brief": {
+    "match_id": "4547085",
+    "league": "亚足联U20亚洲杯2027资格赛",
+    "kickoff_time": "2026-09-03 13:00:00 (雷速补充)",
+    "status_summary": "LIVE 45' (1-0)",
+    "teams": {
+      "home": "关岛U20",
+      "away": "北马里亚纳群岛U20"
+    },
+    "score_verification": {
+      "is_verified": true,
+      "current_score": "1 - 0"
+    },
+    "core_markets": {
+      "ah_main": {
+        "handicap": "-1/1.5",
+        "home_odds": 1.82,
+        "away_odds": 2
+      },
+      "ou_main": {
+        "handicap": "3",
+        "over_odds": 2.02,
+        "under_odds": 1.78
+      },
+      "euro_1x2": null,
+      "ah_half": null,
+      "ou_half": null
+    },
+    "condensed_features": {
+      "possession": {
+        "home": 60,
+        "away": 40
+      },
+      "shots_on_target": {
+        "home": 5,
+        "away": 0
+      },
+      "dangerous_attacks": {
+        "home": 46,
+        "away": 19
+      },
+      "corners": {
+        "home": 2,
+        "away": 0
+      },
+      "recent_momentum_5min": {
+        "home": 34,
+        "away": 0
+      },
+      "recent_momentum_15min": {
+        "home": 36,
+        "away": 15
+      },
+      "formations": null,
+      "h2h_summary": "共2场历史交锋记录",
+      "league_rank": {
+        "home": 2,
+        "away": 4
+      }
+    },
+    "data_deficits": [
+      "NO_LINEUP_DATA"
+    ]
+  },
+  "quant": {
+    "canonical_id": "4547085",
+    "calculated_at": "2026-09-03T21:10:10.956Z",
+    "context": {
+      "circuit_breaker": {
+        "is_triggered": false,
+        "reasons": [],
+        "details": []
+      },
+      "h2h_weights": [
+        {
+          "match_id": "4180010",
+          "date": "2024-08-04",
+          "days_ago": 760,
+          "decay_weight": 0,
+          "is_valid": false,
+          "competition_importance": 1,
+          "home_goals": 0,
+          "away_goals": 2,
+          "half_home_goals": 0,
+          "half_away_goals": 2,
+          "red_cards_home": 0,
+          "red_cards_away": 0,
+          "corners_home": 0,
+          "corners_away": 0,
+          "handicap_opening_line": null,
+          "handicap_current_line": null,
+          "dangerous_attack_ratio": null,
+          "shots_ratio": null,
+          "is_tactical_valid": false,
+          "tactical_invalidation_reason": "EXCEEDS_MAX_VALID_DAYS_730"
+        },
+        {
+          "match_id": "4175888",
+          "date": "2024-08-03",
+          "days_ago": 761,
+          "decay_weight": 0,
+          "is_valid": false,
+          "competition_importance": 1,
+          "home_goals": 2,
+          "away_goals": 0,
+          "half_home_goals": 1,
+          "half_away_goals": 0,
+          "red_cards_home": 0,
+          "red_cards_away": 0,
+          "corners_home": 0,
+          "corners_away": 0,
+          "handicap_opening_line": null,
+          "handicap_current_line": null,
+          "dangerous_attack_ratio": null,
+          "shots_ratio": null,
+          "is_tactical_valid": false,
+          "tactical_invalidation_reason": "EXCEEDS_MAX_VALID_DAYS_730"
+        }
+      ],
+      "h2h_analytics": {
+        "sample_count": 2,
+        "valid_count": 0,
+        "tactical_valid_count": 0,
+        "tactical_metrics_available": false,
+        "total_decayed_weight": 0,
+        "tactical_decayed_weight": 0,
+        "net_goal_differential_weighted": 0,
+        "historical_h2h_advantage_home": 0,
+        "historical_under_rate": 0.5,
+        "historical_avg_corners": null,
+        "historical_avg_red_cards": 0,
+        "tactical_stylistic_clash_index": 0
+      },
+      "recent_form_weights": {
+        "home": [
+          {
+            "match_id": "4212332",
+            "match_date": "2024-09-27",
+            "days_ago": 706,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 0.65,
+            "competition_importance_weight": 1,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 1,
+            "conceded_full": 10,
+            "scored_half": 0,
+            "conceded_half": 5,
+            "scored_second_half": 1,
+            "conceded_second_half": 5,
+            "is_clean_sheet": false,
+            "is_failed_to_score": false,
+            "handicap_result": "LOSS",
+            "goals_trend_result": "BIG"
+          },
+          {
+            "match_id": "4212359",
+            "match_date": "2024-09-25",
+            "days_ago": 708,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 0.65,
+            "competition_importance_weight": 1,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 0,
+            "conceded_full": 3,
+            "scored_half": 0,
+            "conceded_half": 2,
+            "scored_second_half": 0,
+            "conceded_second_half": 1,
+            "is_clean_sheet": false,
+            "is_failed_to_score": true,
+            "handicap_result": "WIN",
+            "goals_trend_result": "SMALL"
+          },
+          {
+            "match_id": "4212317",
+            "match_date": "2024-09-23",
+            "days_ago": 710,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 1,
+            "competition_importance_weight": 1,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 2,
+            "conceded_full": 2,
+            "scored_half": 0,
+            "conceded_half": 1,
+            "scored_second_half": 2,
+            "conceded_second_half": 1,
+            "is_clean_sheet": false,
+            "is_failed_to_score": false,
+            "handicap_result": "WIN",
+            "goals_trend_result": "BIG"
+          },
+          {
+            "match_id": "4212287",
+            "match_date": "2024-09-21",
+            "days_ago": 712,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 1,
+            "competition_importance_weight": 1,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 1,
+            "conceded_full": 1,
+            "scored_half": 1,
+            "conceded_half": 1,
+            "scored_second_half": 0,
+            "conceded_second_half": 0,
+            "is_clean_sheet": false,
+            "is_failed_to_score": false,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          },
+          {
+            "match_id": "4180010",
+            "match_date": "2024-08-04",
+            "days_ago": 760,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 0.65,
+            "competition_importance_weight": 0,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 2,
+            "conceded_full": 0,
+            "scored_half": 2,
+            "conceded_half": 0,
+            "scored_second_half": 0,
+            "conceded_second_half": 0,
+            "is_clean_sheet": true,
+            "is_failed_to_score": false,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          },
+          {
+            "match_id": "4175888",
+            "match_date": "2024-08-03",
+            "days_ago": 761,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 0.65,
+            "competition_importance_weight": 0,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 0,
+            "conceded_full": 2,
+            "scored_half": 0,
+            "conceded_half": 1,
+            "scored_second_half": 0,
+            "conceded_second_half": 1,
+            "is_clean_sheet": false,
+            "is_failed_to_score": true,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          },
+          {
+            "match_id": "3816083",
+            "match_date": "2022-09-16",
+            "days_ago": 1448,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 0.65,
+            "competition_importance_weight": 1,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 1,
+            "conceded_full": 10,
+            "scored_half": 1,
+            "conceded_half": 4,
+            "scored_second_half": 0,
+            "conceded_second_half": 6,
+            "is_clean_sheet": false,
+            "is_failed_to_score": false,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          },
+          {
+            "match_id": "3815771",
+            "match_date": "2022-09-14",
+            "days_ago": 1450,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 0.65,
+            "competition_importance_weight": 1,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 0,
+            "conceded_full": 9,
+            "scored_half": 0,
+            "conceded_half": 5,
+            "scored_second_half": 0,
+            "conceded_second_half": 4,
+            "is_clean_sheet": false,
+            "is_failed_to_score": true,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          },
+          {
+            "match_id": "3815803",
+            "match_date": "2022-09-12",
+            "days_ago": 1452,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 1,
+            "competition_importance_weight": 1,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 0,
+            "conceded_full": 5,
+            "scored_half": 0,
+            "conceded_half": 4,
+            "scored_second_half": 0,
+            "conceded_second_half": 1,
+            "is_clean_sheet": false,
+            "is_failed_to_score": true,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          },
+          {
+            "match_id": "3815740",
+            "match_date": "2022-09-10",
+            "days_ago": 1454,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 1,
+            "competition_importance_weight": 1,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 0,
+            "conceded_full": 3,
+            "scored_half": 0,
+            "conceded_half": 2,
+            "scored_second_half": 0,
+            "conceded_second_half": 1,
+            "is_clean_sheet": false,
+            "is_failed_to_score": true,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          }
+        ],
+        "away": [
+          {
+            "match_id": "4547083",
+            "match_date": "2026-08-31",
+            "days_ago": 3,
+            "time_decay_weight": 1,
+            "venue_homomorphism_weight": 0.65,
+            "competition_importance_weight": 1,
+            "final_composite_weight": 0.65,
+            "is_valid_time_window": true,
+            "scored_full": 0,
+            "conceded_full": 7,
+            "scored_half": 0,
+            "conceded_half": 2,
+            "scored_second_half": 0,
+            "conceded_second_half": 5,
+            "is_clean_sheet": false,
+            "is_failed_to_score": true,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          },
+          {
+            "match_id": "4212316",
+            "match_date": "2024-09-27",
+            "days_ago": 706,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 1,
+            "competition_importance_weight": 1,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 0,
+            "conceded_full": 8,
+            "scored_half": 0,
+            "conceded_half": 4,
+            "scored_second_half": 0,
+            "conceded_second_half": 4,
+            "is_clean_sheet": false,
+            "is_failed_to_score": true,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          },
+          {
+            "match_id": "4212349",
+            "match_date": "2024-09-25",
+            "days_ago": 708,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 1,
+            "competition_importance_weight": 1,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 0,
+            "conceded_full": 10,
+            "scored_half": 0,
+            "conceded_half": 5,
+            "scored_second_half": 0,
+            "conceded_second_half": 5,
+            "is_clean_sheet": false,
+            "is_failed_to_score": true,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          },
+          {
+            "match_id": "4212327",
+            "match_date": "2024-09-23",
+            "days_ago": 710,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 0.65,
+            "competition_importance_weight": 1,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 0,
+            "conceded_full": 13,
+            "scored_half": 0,
+            "conceded_half": 7,
+            "scored_second_half": 0,
+            "conceded_second_half": 6,
+            "is_clean_sheet": false,
+            "is_failed_to_score": true,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          },
+          {
+            "match_id": "4212313",
+            "match_date": "2024-09-21",
+            "days_ago": 712,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 0.65,
+            "competition_importance_weight": 1,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 0,
+            "conceded_full": 6,
+            "scored_half": 0,
+            "conceded_half": 4,
+            "scored_second_half": 0,
+            "conceded_second_half": 2,
+            "is_clean_sheet": false,
+            "is_failed_to_score": true,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          },
+          {
+            "match_id": "4180010",
+            "match_date": "2024-08-04",
+            "days_ago": 760,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 0.65,
+            "competition_importance_weight": 0,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 0,
+            "conceded_full": 2,
+            "scored_half": 0,
+            "conceded_half": 2,
+            "scored_second_half": 0,
+            "conceded_second_half": 0,
+            "is_clean_sheet": false,
+            "is_failed_to_score": true,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          },
+          {
+            "match_id": "4175888",
+            "match_date": "2024-08-03",
+            "days_ago": 761,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 0.65,
+            "competition_importance_weight": 0,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 2,
+            "conceded_full": 0,
+            "scored_half": 1,
+            "conceded_half": 0,
+            "scored_second_half": 1,
+            "conceded_second_half": 0,
+            "is_clean_sheet": true,
+            "is_failed_to_score": false,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          },
+          {
+            "match_id": "3816086",
+            "match_date": "2022-09-16",
+            "days_ago": 1448,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 1,
+            "competition_importance_weight": 1,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 0,
+            "conceded_full": 9,
+            "scored_half": 0,
+            "conceded_half": 5,
+            "scored_second_half": 0,
+            "conceded_second_half": 4,
+            "is_clean_sheet": false,
+            "is_failed_to_score": true,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          },
+          {
+            "match_id": "3815804",
+            "match_date": "2022-09-14",
+            "days_ago": 1450,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 1,
+            "competition_importance_weight": 1,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 0,
+            "conceded_full": 16,
+            "scored_half": 0,
+            "conceded_half": 10,
+            "scored_second_half": 0,
+            "conceded_second_half": 6,
+            "is_clean_sheet": false,
+            "is_failed_to_score": true,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          },
+          {
+            "match_id": "3815795",
+            "match_date": "2022-09-12",
+            "days_ago": 1452,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 0.65,
+            "competition_importance_weight": 1,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 0,
+            "conceded_full": 10,
+            "scored_half": 0,
+            "conceded_half": 6,
+            "scored_second_half": 0,
+            "conceded_second_half": 4,
+            "is_clean_sheet": false,
+            "is_failed_to_score": true,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          },
+          {
+            "match_id": "3815797",
+            "match_date": "2022-09-10",
+            "days_ago": 1454,
+            "time_decay_weight": 0,
+            "venue_homomorphism_weight": 0.65,
+            "competition_importance_weight": 1,
+            "final_composite_weight": 0,
+            "is_valid_time_window": false,
+            "scored_full": 0,
+            "conceded_full": 7,
+            "scored_half": 0,
+            "conceded_half": 0,
+            "scored_second_half": 0,
+            "conceded_second_half": 7,
+            "is_clean_sheet": false,
+            "is_failed_to_score": true,
+            "handicap_result": "UNKNOWN",
+            "goals_trend_result": "UNKNOWN"
+          }
+        ]
+      },
+      "recent_form_analytics": {
+        "home": {
+          "sample_count": 10,
+          "valid_count": 0,
+          "weighted_scored_per_game": 0,
+          "weighted_conceded_per_game": 0,
+          "first_half_scored_avg": 0,
+          "first_half_conceded_avg": 0,
+          "second_half_scored_avg": 0,
+          "second_half_conceded_avg": 0,
+          "slow_starter_index": 0,
+          "second_half_surge_rate": 0,
+          "clean_sheet_rate": 0,
+          "failed_to_score_rate": 0,
+          "handicap_win_rate": 0,
+          "over_goals_rate": 0
+        },
+        "away": {
+          "sample_count": 11,
+          "valid_count": 1,
+          "weighted_scored_per_game": 0,
+          "weighted_conceded_per_game": 7,
+          "first_half_scored_avg": 0,
+          "first_half_conceded_avg": 2,
+          "second_half_scored_avg": 0,
+          "second_half_conceded_avg": 5,
+          "slow_starter_index": 0,
+          "second_half_surge_rate": 0,
+          "clean_sheet_rate": 0,
+          "failed_to_score_rate": 1,
+          "handicap_win_rate": 0,
+          "over_goals_rate": 0
+        }
+      },
+      "iso_venue_standings": {
+        "home_at_home": null,
+        "away_at_away": null
+      },
+      "goal_distribution_dna": {
+        "has_data": true,
+        "home_scored_weights": [
+          0.1667,
+          0.1667,
+          0.1667,
+          0.1667,
+          0.1667,
+          0.1667
+        ],
+        "away_scored_weights": [
+          0.1667,
+          0.1667,
+          0.1667,
+          0.1667,
+          0.1667,
+          0.1667
+        ],
+        "home_late_game_dna": 0.1667,
+        "away_late_game_dna": 0.1667,
+        "home_early_game_dna": 0.3333,
+        "away_early_game_dna": 0.3334
+      },
+      "tactical_formation": {
+        "home_formation": "UNKNOWN",
+        "away_formation": "UNKNOWN",
+        "formation_matched": false,
+        "wing_space_vulnerability_home": 0.3,
+        "wing_space_vulnerability_away": 0.3,
+        "midfield_congestion_index": 0.5,
+        "formation_tactical_description": "双方阵型处于常规对称攻防"
+      },
+      "lineup_impact": {
+        "home_lis": 1,
+        "away_lis": 1,
+        "lineup_status": "NOT_ANNOUNCED",
+        "is_lineup_confirmed": false,
+        "home_missing_core_players": [],
+        "away_missing_core_players": [],
+        "home_striker_missing": false,
+        "away_striker_missing": false,
+        "home_defender_missing": false,
+        "away_defender_missing": false,
+        "home_market_value_num": 0,
+        "away_market_value_num": 0,
+        "home_best_player_active": true,
+        "away_best_player_active": true
+      },
+      "motivation_urgency": {
+        "home_mui": 1,
+        "away_mui": 1,
+        "home_stage_context": "CUP_OR_TOURNAMENT_NEUTRAL",
+        "away_stage_context": "CUP_OR_TOURNAMENT_NEUTRAL"
+      },
+      "goal_timing_validity": {
+        "sample_count": 0,
+        "is_valid_sample": false,
+        "requires_bayesian_shrinkage": true
+      }
+    },
+    "prematch_prior": {
+      "lambda_home_theory": 1.513,
+      "lambda_away_theory": 0.866,
+      "squad_strength_differential": 0,
+      "form_momentum_differential": 0.3,
+      "prior_fair_home_win_prob": 0.5306,
+      "prior_fair_draw_prob": 0.2479,
+      "prior_fair_away_win_prob": 0.2214,
+      "theory_total_goals_expected": 2.379
+    },
+    "market_calibration": {
+      "lambda_base_home": 1.513,
+      "lambda_base_away": 0.866,
+      "divergence_delta": 0,
+      "market_stance": "MARKET_DATA_MISSING",
+      "market_confidence_penalty": 0,
+      "implied_market_home_win_prob": 0.5306,
+      "implied_market_draw_prob": 0.2479,
+      "implied_market_away_win_prob": 0.2214
+    },
+    "timeline": {
+      "total_points": 47,
+      "current_instant_momentum": 0,
+      "slope_5m": 2.8,
+      "slope_10m": 9.539,
+      "slope_15m": 0.5,
+      "integral_5m": {
+        "home": 168,
+        "away": 0,
+        "net": 168
+      },
+      "integral_15m": {
+        "home": 538,
+        "away": 220,
+        "net": 318
+      },
+      "integral_full_match": {
+        "home": 1270,
+        "away": 665,
+        "net": 605
+      },
+      "dominance_side": "home",
+      "inflection_count_recent_15m": 3,
+      "is_sustained_siege": false,
+      "is_counter_attack_surge": false
+    },
+    "physical_stats": {
+      "stats_available": true,
+      "stats_basis": "CUMULATIVE_QUALITY_BASELINE",
+      "available_metrics": {
+        "dangerous_attacks": true,
+        "attacks": true,
+        "shots": true,
+        "shots_on_target": true,
+        "shots_off_target": true,
+        "corners": true,
+        "possession": true,
+        "yellow_cards": true,
+        "red_cards": true
+      },
+      "xt_proxy": {
+        "home_xt": 2.32,
+        "away_xt": 0.325,
+        "xt_ratio": 0.877
+      },
+      "possession_effectiveness": {
+        "home_pe": 0.754,
+        "away_pe": 0.463
+      },
+      "penetration_rate": {
+        "home_penetration": 0.836,
+        "away_penetration": 0.388
+      },
+      "shot_efficiency": {
+        "home_accuracy": 0.556,
+        "away_accuracy": 0,
+        "home_woodwork_count": 0,
+        "away_woodwork_count": 0
+      },
+      "corner_pressure": {
+        "home_corners_total": 2,
+        "away_corners_total": 0,
+        "is_corner_cascade": false,
+        "window_source": "CUMULATIVE_BASELINE"
+      },
+      "counter_threat_index": {
+        "home_counter_threat": 0.785,
+        "away_counter_threat": 0
+      },
+      "discipline_pressure": {
+        "home_yellows": 1,
+        "away_yellows": 0,
+        "home_defenders_on_yellow": 1,
+        "away_defenders_on_yellow": 0
+      },
+      "conversion_efficiency": {
+        "home_conversion": 0.196,
+        "away_conversion": 0.053,
+        "home_accuracy": 0.556,
+        "away_accuracy": 0
+      },
+      "pressure_index": 0.415,
+      "tactical_anomaly": {
+        "home_barren_dominance": false,
+        "away_barren_dominance": false,
+        "home_lethal_counter": false,
+        "away_lethal_counter": false
+      },
+      "red_card_penalty": {
+        "home_attack_multiplier": 1,
+        "home_defense_leak_multiplier": 1,
+        "away_attack_multiplier": 1,
+        "away_defense_leak_multiplier": 1
+      }
+    },
+    "poisson": {
+      "elapsed_minute": 45,
+      "remaining_minutes": 45,
+      "is_stoppage_time_unpriceable": false,
+      "time_decay_curve": "LINEAR_UNIFORM",
+      "lambda_home_rest": 0.73,
+      "lambda_away_rest": 0.502,
+      "expected_goals_rest": 1.232,
+      "lambda_source": "LEAGUE_DNA",
+      "top_final_scores": [
+        {
+          "home": 1,
+          "away": 0,
+          "probability": 0.2864,
+          "percentage_str": "28.6%"
+        },
+        {
+          "home": 2,
+          "away": 0,
+          "probability": 0.2183,
+          "percentage_str": "21.8%"
+        },
+        {
+          "home": 1,
+          "away": 1,
+          "probability": 0.1518,
+          "percentage_str": "15.2%"
+        },
+        {
+          "home": 2,
+          "away": 1,
+          "probability": 0.1016,
+          "percentage_str": "10.2%"
+        },
+        {
+          "home": 3,
+          "away": 0,
+          "probability": 0.0777,
+          "percentage_str": "7.8%"
+        }
+      ],
+      "rest_score_matrix": {
+        "prob_home_win_rest": 0.3725,
+        "prob_draw_rest": 0.3981,
+        "prob_away_win_rest": 0.2294
+      },
+      "projected_final_score": {
+        "home": 1.73,
+        "away": 0.5,
+        "most_likely_score": "1-0"
+      }
+    },
+    "devig": {
+      "spread_main_ev": {
+        "line": "-1/1.5",
+        "home_odds": 1.82,
+        "away_odds": 2,
+        "home_ev": -0.665,
+        "away_ev": 0.6447,
+        "preferred_side": "away",
+        "is_positive_ev": true,
+        "kelly_fraction": 0.05
+      },
+      "spread_secondary_ev": [
+        {
+          "line": "-1.5",
+          "home_odds": 2.13,
+          "away_odds": 1.7,
+          "home_ev": -0.76,
+          "away_ev": 0.5084,
+          "preferred_side": "away",
+          "is_positive_ev": true,
+          "kelly_fraction": 0.05
+        }
+      ],
+      "total_main_ev": {
+        "line": "3",
+        "over_odds": 2.02,
+        "under_odds": 1.78,
+        "over_ev": -0.521,
+        "under_ev": 0.3803,
+        "preferred_side": "under",
+        "is_positive_ev": true,
+        "kelly_fraction": 0.05
+      },
+      "total_secondary_ev": [
+        {
+          "line": "3/3.5",
+          "over_odds": 2.12,
+          "under_odds": 1.69,
+          "over_ev": -0.619,
+          "under_ev": 0.3981,
+          "preferred_side": "under",
+          "is_positive_ev": true,
+          "kelly_fraction": 0.05
+        }
+      ],
+      "line_dispersion": {
+        "spread_variance": 0,
+        "total_variance": 0
+      },
+      "bookmaker_posture": "BALANCED_NEUTRAL"
+    },
+    "spatio_temporal_events": {
+      "live_threat_trinity": {
+        "home": {
+          "momentum_support": 0.972,
+          "event_support": 0.453,
+          "stats_support": 0.924,
+          "alignment_score": 0.48,
+          "calibrated_threat": 0.616,
+          "has_conflict": false
+        },
+        "away": {
+          "momentum_support": 0.769,
+          "event_support": 0,
+          "stats_support": 0.434,
+          "alignment_score": 0.231,
+          "calibrated_threat": 0.134,
+          "has_conflict": true
+        },
+        "dominant_side": "home",
+        "has_material_conflict": true,
+        "rationale": [
+          "高危攻动量未获近窗事件或统计质量基线共同确认，已执行威胁折损。"
+        ]
+      },
+      "epi": {
+        "home": {
+          "conversion_ratio": 0.022,
+          "event_score_15m": 0.24,
+          "energy_15m": 538,
+          "classification": "BARREN_DOMINANCE"
+        },
+        "away": {
+          "conversion_ratio": 0,
+          "event_score_15m": 0,
+          "energy_15m": 220,
+          "classification": "BARREN_DOMINANCE"
+        },
+        "potency_differential": 0.022
+      },
+      "regime": {
+        "current_regime": "NEUTRAL_EQUILIBRIUM",
+        "last_goal_elapsed_minutes": 18,
+        "last_goal_scorer": "home",
+        "red_card_active_side": "none",
+        "tactical_description": "双方势均力敌，处于常规攻防转换期",
+        "regime_multiplier_home": 0.999,
+        "regime_multiplier_away": 1
+      },
+      "goal_climax": {
+        "climax_score": 34.9,
+        "climax_level": "MODERATE_BUILDUP",
+        "attacking_side": "home",
+        "momentum_acceleration_5m": 2.3,
+        "recent_incident_density_5m": 1,
+        "post_goal_cooldown_active": false,
+        "is_imminent_threat": false
+      }
+    },
+    "match_state": {
+      "home_intensity": 0.615,
+      "away_intensity": 0.134,
+      "dominance_index": 48.14,
+      "imminent_goal": false,
+      "post_goal_cooldown_active": false,
+      "has_evidence_conflict": true,
+      "source_lineage_discount": 1
+    },
+    "battlefield_dominance_index": 48.14,
+    "goal_phase_alert": "NONE",
+    "positive_ev_signals": [],
+    "risk_flags": [],
+    "confidence_score": 58,
+    "confidence_breakdown": {
+      "data_quality_score": 100,
+      "model_stability_score": 58,
+      "edge_confidence_score": 0
+    }
+  },
+  "promptResult": {
+    "finalPrompt": "========== SYSTEM INSTRUCTION ==========\nYou are a world-class Quantitative Football Analyst and Risk Manager.\nYour role is to evaluate a match using provided contextual data, quantitative features, and optional historical Out-of-Sample (OOS) context.\n\n=== LIVE EVALUATION FOCUS ===\n1. Tactical Phase Transitions: Read the 'match_narrative' (Interval DA & Momentum). Do NOT rely on cumulative stats alone. Look for recent shifts in momentum slope and DA increments.\n2. Barren Dominance: Differentiate genuine scoring threat from fake possession (useless crosses).\n3. Score Effects & Settlement Reality (CRITICAL): Assess how the scoreline impacts motivation (e.g., a team up 3:0 may drop into a low block).\n   **WARNING**: Asian Handicaps apply ONLY to the remainder of the match. You MUST evaluate live AH as if the current score is 0:0.\n   **WARNING**: TOTAL GOALS (Over/Under) are ALWAYS settled on the FULL MATCH score. Do NOT reset to 0:0 for Totals.\n\n=== LOGICAL AUDIT & GRADING RUBRIC ===\nAfter analyzing the blind spots, you MUST write an 'internal_logical_audit' summarizing how the blind spots support your final decision. You must strictly adhere to the following Grading Rubric:\n- A_GRADE: EV is substantial, OOS context (if any) supports high win rate, no 'CONFIRMED_TRAP', and dominance is 'GENUINE_DOMINANCE'.\n- B_GRADE: Solid EV, but minor flaws exist, or dominance is 'RECIPROCAL_CHAOS' with scoring potential.\n- C_GRADE: For Cup (杯赛), Friendlies (友谊赛), or huge strength gap matches where formal lineups and motivation are unconfirmed. These MUST NOT be assigned A or B grade.\n- WATCH / RESEARCH: Game state is interesting but lacks actionable value right now.\n- REJECTED: 'CONFIRMED_TRAP' triggered, missing critical score verification, or hallucinated odds detected.\n\n=== HARD CONSTRAINTS (MUST OBEY) ===\n1. Cup Match Catch-22 Resolution: If the match is a Cup/Friendly, you MUST check the 'lineup_value_matrix' or 'prior_context'. If it indicates rotation or low motivation, cap at C_GRADE. If it explicitly states '主力尽出' (Main Squad Confirmed) and high urgency based on value, you MAY unlock A_GRADE and B_GRADE.\n2. In-Play Settlement Rule (滚球盘口结算原则): For LIVE matches, Asian Handicaps are settled on the 'rest of the match' (score resets to 0:0). TOTAL GOALS (Over/Under) are ALWAYS settled on the FULL MATCH score. Do not confuse the two.\n3. No Double-Counting Stoppage Time: The 'expected_remaining_minutes' ALREADY includes injury time derived from mathematical models. Do NOT manually add stoppage time.\n4. Data Blind-Spot Penalty (数据盲盒铁律): If the payload includes a 'data_blind_spot_warning', you MUST strictly obey its instruction. You MUST NOT hallucinate player value or lineup strength. You MUST include '[高波动/盲盒风险]' in your 'risk_warnings'. You MUST cap 'confidence_score' at a maximum of 85, and you are STRICTLY FORBIDDEN from assigning an A_GRADE.\n\n=== MARKET SCANNING & MAO ENFORCEMENT ===\nYou are provided comprehensive expected value calculations in 'quant_features.devig' (including spread_main_ev, spread_secondary_ev, total_main_ev, total_secondary_ev). Do NOT anchor to just the main line. You must:\n1. Determine the expected match flow (Goal Difference or Total Goals).\n2. Scan ALL available main and secondary lines in 'quant_features.devig'.\n3. Select the single most valuable line (Highest Risk-Adjusted EV) as your 'selected_line'.\n4. Output the 'minimum_acceptable_odds' (MAO) for this line to protect against price slippage.\n\nYou must return a valid JSON ARRAY of objects, matching the following structure EXACTLY for EACH match in the provided payload array:\n{\n  \"blind_spot_analysis\": {\n    \"1_global_motivation\": \"string (Analyze how current total score impacts true motivation for both sides)\",\n    \"2_asian_handicap_reality\": \"string (For AH: Assuming 0:0 reset, does the team have motivation to cover the handicap?)\",\n    \"3_total_goals_reality\": \"string (For O/U: Based on full match score, will they exceed/fall short of the total line?)\",\n    \"tactical_regime_evaluation\": \"GENUINE_DOMINANCE\" | \"BARREN_DOMINANCE\" | \"RECIPROCAL_CHAOS\" | \"TACTICAL_STALEMATE\",\n    \"trap_detection_result\": \"SAFE_VALUE\" | \"POTENTIAL_TRAP\" | \"CONFIRMED_TRAP\" | \"UNCERTAIN\"\n  },\n  \"internal_logical_audit\": \"string\",\n  \"grade\": \"A_GRADE\" | \"B_GRADE\" | \"C_GRADE\" | \"WATCH\" | \"RESEARCH\" | \"REJECTED\",\n  \"confidence_score\": 0-100,\n  \"qualitative_summary\": \"string\",\n  \"risk_warnings\": [\"string\"],\n  \"recommended_legs\": [\n    {\n      \"market\": \"ASIAN_HANDICAP_MAIN\" | \"TOTAL_GOALS_MAIN\" | \"EURO_1X2\",\n      \"selected_line\": \"string\",\n      \"current_odds\": 0,\n      \"minimum_acceptable_odds\": 0,\n      \"direction\": \"HOME\" | \"AWAY\" | \"OVER\" | \"UNDER\" | \"DRAW\" | \"NONE\",\n      \"basis\": \"string\"\n    }\n  ]\n}\nDO NOT wrap the JSON in Markdown formatting blocks. Output RAW JSON ARRAY ONLY. Return an array containing one object per evaluated match.\n========== USER PAYLOAD (BATCH OF 1 MATCHES) ==========\n[\n  {\n    \"ai_brief\": {\n      \"match_id\": \"4547085\",\n      \"league\": \"亚足联U20亚洲杯2027资格赛\",\n      \"kickoff_time\": \"2026-09-03 13:00:00 (雷速补充)\",\n      \"status_summary\": \"LIVE 45' (1-0)\",\n      \"teams\": {\n        \"home\": \"关岛U20\",\n        \"away\": \"北马里亚纳群岛U20\"\n      },\n      \"score_verification\": {\n        \"is_verified\": true,\n        \"current_score\": \"1 - 0\"\n      },\n      \"core_markets\": {\n        \"ah_main\": {\n          \"handicap\": \"-1/1.5\",\n          \"home_odds\": 1.82,\n          \"away_odds\": 2\n        },\n        \"ou_main\": {\n          \"handicap\": \"3\",\n          \"over_odds\": 2.02,\n          \"under_odds\": 1.78\n        },\n        \"euro_1x2\": null,\n        \"ah_half\": null,\n        \"ou_half\": null\n      },\n      \"data_deficits\": [\n        \"NO_LINEUP_DATA\"\n      ]\n    },\n    \"data_blind_spot_warning\": \"【系统最高级别警告】本场比赛存在严重的客观数据盲区: [首发阵容未公布(需C级风控)、历史有效战绩样本不足]。AI 绝对禁止依此凭空捏造实力差距或控场优势。必须将 100% 评估权重转移至已有真实数据 (如可用盘口资金动量)，必须标注 [高波动/盲盒风险]，且最高置信度上限强制锁定在 85 以下，绝对禁止给出 A_GRADE 评级。\",\n    \"time_context\": {\n      \"statutory_minute\": \"45'\",\n      \"expected_remaining_minutes_including_stoppage\": 45\n    },\n    \"tactical_phase_transitions\": [\n      \"[16'-45'] 战术相变 (根据当前动量：5分钟短斜率 2.8，15分钟净积分 318.0，当前统治方: 主队)\"\n    ],\n    \"lineup_value_matrix\": {\n      \"lineup_status\": \"NOT_ANNOUNCED\",\n      \"is_lineup_confirmed\": false,\n      \"home\": {\n        \"total_value_eur\": \"未知\",\n        \"lis_score\": 1,\n        \"status\": \"首发未定，按 C 级风控处理 (Lineup Not Announced - C Grade Risk Control)\"\n      },\n      \"away\": {\n        \"total_value_eur\": \"未知\",\n        \"lis_score\": 1,\n        \"status\": \"首发未定，按 C 级风控处理 (Lineup Not Announced - C Grade Risk Control)\"\n      }\n    },\n    \"team_profiling\": {\n      \"h2h_tactical_integrity\": \"交锋样本: 0场(历史深层攻防与角球缺失/失真, 仅基础比分有效), 球风克制置零\",\n      \"home\": {\n        \"recent_timeline\": \"数据盲区 / 近期有效战绩样本不足 (Valid Count: 0)\",\n        \"tactical_playstyle\": \"危攻: 46, 角球: 2, xT威胁代理: 2.32\",\n        \"market_performance\": \"缺乏历史盘路数据\"\n      },\n      \"away\": {\n        \"recent_timeline\": \"有效样本数: 1场 (总11场), 场均得失球: 0.00 / 7.00\",\n        \"tactical_playstyle\": \"危攻: 19, 角球: 0, xT威胁代理: 0.33\",\n        \"market_performance\": \"赢盘率(ATS): 0.0%, 大球率: 0.0%\"\n      }\n    },\n    \"quant_features\": {\n      \"devig\": {\n        \"h2h_devig\": \"未开盘 (No Market)\",\n        \"spread_main_ev\": {\n          \"line\": \"-1/1.5\",\n          \"home_odds\": 1.82,\n          \"away_odds\": 2,\n          \"home_ev\": -0.665,\n          \"away_ev\": 0.6447,\n          \"preferred_side\": \"away\",\n          \"is_positive_ev\": true,\n          \"kelly_fraction\": 0.05\n        },\n        \"spread_secondary_ev\": [\n          {\n            \"line\": \"-1.5\",\n            \"home_odds\": 2.13,\n            \"away_odds\": 1.7,\n            \"home_ev\": -0.76,\n            \"away_ev\": 0.5084,\n            \"preferred_side\": \"away\",\n            \"is_positive_ev\": true,\n            \"kelly_fraction\": 0.05\n          }\n        ],\n        \"total_main_ev\": {\n          \"line\": \"3\",\n          \"over_odds\": 2.02,\n          \"under_odds\": 1.78,\n          \"over_ev\": -0.521,\n          \"under_ev\": 0.3803,\n          \"preferred_side\": \"under\",\n          \"is_positive_ev\": true,\n          \"kelly_fraction\": 0.05\n        },\n        \"total_secondary_ev\": [\n          {\n            \"line\": \"3/3.5\",\n            \"over_odds\": 2.12,\n            \"under_odds\": 1.69,\n            \"over_ev\": -0.619,\n            \"under_ev\": 0.3981,\n            \"preferred_side\": \"under\",\n            \"is_positive_ev\": true,\n            \"kelly_fraction\": 0.05\n          }\n        ],\n        \"line_dispersion\": {\n          \"spread_variance\": 0,\n          \"total_variance\": 0\n        },\n        \"bookmaker_posture\": \"BALANCED_NEUTRAL\",\n        \"euro_1x2_devig\": \"未开盘 (No Market)\"\n      },\n      \"bdi\": 48.14,\n      \"ev_signals\": [\n        {\n          \"market\": \"ASIAN_HANDICAP_MAIN\",\n          \"line\": \"-1/1.5\",\n          \"side\": \"away\",\n          \"odds\": 2,\n          \"ev\": 0.6447,\n          \"confidence\": 58,\n          \"kelly_fraction\": 0.05\n        },\n        {\n          \"market\": \"TOTAL_GOALS_MAIN\",\n          \"line\": \"3\",\n          \"side\": \"under\",\n          \"odds\": 1.78,\n          \"ev\": 0.3803,\n          \"confidence\": 58,\n          \"kelly_fraction\": 0.05\n        }\n      ],\n      \"risk_flags\": [],\n      \"goal_alert\": \"NONE\",\n      \"confidence\": 58\n    }\n  }\n]",
+    "matchCount": 1
+  }
+}

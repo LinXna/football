@@ -101,11 +101,12 @@ export function synthesizePrematchPrior(
   const awayFormAnalytics = context.recent_form_analytics.away;
 
   // 近期攻防效率加成 (基准均值 1.30 球)
-  const homeAttackForm = homeFormAnalytics.sample_count > 0 ? Math.max(0.70, Math.min(1.35, homeFormAnalytics.weighted_scored_per_game / 1.30)) : 1.0;
-  const homeDefenseForm = homeFormAnalytics.sample_count > 0 ? Math.max(0.70, Math.min(1.35, 1.30 / Math.max(0.40, homeFormAnalytics.weighted_conceded_per_game))) : 1.0;
+  // 方案 3：零样本/弱样本统计平滑 (以通过时效与赛事过滤的 valid_count 为准，若无有效样本严禁触发 0.70 恶意扣分，返回中性 1.0)
+  const homeAttackForm = homeFormAnalytics.valid_count >= 1 ? Math.max(0.70, Math.min(1.35, homeFormAnalytics.weighted_scored_per_game / 1.30)) : 1.0;
+  const homeDefenseForm = homeFormAnalytics.valid_count >= 1 ? Math.max(0.70, Math.min(1.35, 1.30 / Math.max(0.40, homeFormAnalytics.weighted_conceded_per_game))) : 1.0;
 
-  const awayAttackForm = awayFormAnalytics.sample_count > 0 ? Math.max(0.70, Math.min(1.35, awayFormAnalytics.weighted_scored_per_game / 1.30)) : 1.0;
-  const awayDefenseForm = awayFormAnalytics.sample_count > 0 ? Math.max(0.70, Math.min(1.35, 1.30 / Math.max(0.40, awayFormAnalytics.weighted_conceded_per_game))) : 1.0;
+  const awayAttackForm = awayFormAnalytics.valid_count >= 1 ? Math.max(0.70, Math.min(1.35, awayFormAnalytics.weighted_scored_per_game / 1.30)) : 1.0;
+  const awayDefenseForm = awayFormAnalytics.valid_count >= 1 ? Math.max(0.70, Math.min(1.35, 1.30 / Math.max(0.40, awayFormAnalytics.weighted_conceded_per_game))) : 1.0;
 
   // 综合近态修正
   const formFactorH = (homeAttackForm * 0.6 + homeDefenseForm * 0.4);

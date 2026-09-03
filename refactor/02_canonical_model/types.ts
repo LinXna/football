@@ -151,6 +151,8 @@ export interface CanonicalTimingState {
  */
 export interface CanonicalLeisuReference {
   leisu_match_id: string;
+  home_team_id?: number | null;
+  away_team_id?: number | null;
   leisu_home_name: string;
   leisu_away_name: string;
   leisu_league_name: string;
