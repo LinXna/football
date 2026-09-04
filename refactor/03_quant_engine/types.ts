@@ -430,7 +430,11 @@ export interface QuantCalibrationProfile {
   lambda_log_adjustment: number;
 }
 
-export type OosMarket = 'ASIAN_HANDICAP_MAIN' | 'TOTAL_GOALS_MAIN';
+export type OosMarket =
+  | 'ASIAN_HANDICAP_MAIN'
+  | 'ASIAN_HANDICAP_SECONDARY'
+  | 'TOTAL_GOALS_MAIN'
+  | 'TOTAL_GOALS_SECONDARY';
 
 /** 单条已结算、绝不参与同批模型拟合的 OOS 观测。 */
 export interface OosCalibrationSample {
@@ -562,6 +566,7 @@ export interface QuantitativeFeatures {
   battlefield_dominance_index: number;
   goal_phase_alert: GoalPhaseAlert;
   raw_positive_ev_signals: PositiveEVSignal[];
+  validated_oos_signals: PositiveEVSignal[];
   positive_ev_signals: PositiveEVSignal[];
   risk_flags: QuantAlert[];
   confidence_score: number;

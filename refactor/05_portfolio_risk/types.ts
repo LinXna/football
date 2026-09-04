@@ -3,6 +3,8 @@ import { AiEvaluationResult, RecommendedLeg } from '../04_ai_evaluator/types.js'
 export type BettingStage = 'LIVE' | 'PREMATCH';
 
 export interface FormalRecommendation {
+  record_type: 'formal_ai_recommendation';
+  formal_recommendation: true;
   record_id: string; // uuid or composite hash
   record_type: 'formal_ai_recommendation';
   formal_recommendation: true;
@@ -17,9 +19,11 @@ export interface FormalRecommendation {
   condition_snapshot: {
     match_minute: string; // e.g. "LIVE 75'" or "PREMATCH"
     current_score: string; // e.g. "1 - 0" or "0 - 0"
-    bdi: number;
-    goal_phase_alert: string;
-    machine_candidate_count: number;
+    bdi?: number;
+    goal_phase_alert?: string;
+    machine_candidate_count?: number;
+    score_verified: boolean;
+    source: 'YBTY';
   };
   
   ai_assessment: {

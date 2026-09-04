@@ -35,12 +35,9 @@ import { ParsedLeisuMatch, ParsedLeisuTimelineEvent } from "../01_data_ingestion
  * 格式化时间戳/ISO字符串/相对时间为标准北京时间字符串 (YYYY-MM-DD HH:mm:ss 或 YYYY-MM-DD HH:mm)
  * 严格转换为 UTC+8 北京时间，杜绝裸露的 'T'、'Z' 或原始 UTC 零时区时间
  */
-export function formatToBeijingTime(rawTime: string | number | null | undefined): string {
+export function formatToBeijingTime(rawTime: string | number | null | undefined): string | null {
   if (!rawTime) {
-    const now = new Date();
-    const beijingMs = now.getTime() + (8 * 3600 * 1000);
-    const bj = new Date(beijingMs);
-    return bj.toISOString().replace("T", " ").substring(0, 19);
+    return null;
   }
 
   // 1. 如果是 ISO 字符串 (例如 2026-08-12T18:00:00.000Z) 或含 T/Z 字符串，必须按 UTC+8 转为北京时间
@@ -69,7 +66,8 @@ export function formatToBeijingTime(rawTime: string | number | null | undefined)
     return beijingDate.toISOString().replace("T", " ").substring(0, 19);
   }
 
-  return String(rawTime).replace("T", " ").replace(/Z/g, "").trim();
+  const normalized = String(rawTime).replace("T", " ").replace(/Z/g, "").trim();
+  return normalized || null;
 }
 
 /**
@@ -266,7 +264,7 @@ export function assembleCanonicalMatch(
   // 1. 确定进行阶段与时点
   const stage = ybtyMatch.is_live ? MatchStage.LIVE : MatchStage.PREMATCH;
 
-  let beijingStartTime: string;
+  let beijingStartTime: string | null = null;
   let startTimeSource: "YBTY_EXACT" | "YBTY_ESTIMATED" | "LEISU_SUPPLEMENTED";
 
   if (ybtyMatch.commence_time && ybtyMatch.commence_time.trim()) {
@@ -287,15 +285,18 @@ export function assembleCanonicalMatch(
       beijingStartTime = formatToBeijingTime(leisuMatch.commence_time);
       startTimeSource = "LEISU_SUPPLEMENTED";
     } else {
-      beijingStartTime = formatToBeijingTime(ybtyMatch.captured_at);
+      beijingStartTime = null;
       startTimeSource = "YBTY_ESTIMATED";
     }
   } else if (leisuMatch && leisuMatch.commence_time) {
     beijingStartTime = formatToBeijingTime(leisuMatch.commence_time);
     startTimeSource = "LEISU_SUPPLEMENTED";
   } else {
-    beijingStartTime = formatToBeijingTime(ybtyMatch.captured_at || null);
+    beijingStartTime = null;
     startTimeSource = "YBTY_ESTIMATED";
+  }
+  if (beijingStartTime === null) {
+    missingReasons.push(MissingDataReason.MISSING_START_TIME);
   }
 
   const isHalfTime =
@@ -339,20 +340,25 @@ export function assembleCanonicalMatch(
   );
 
   // 3. 双源比分交叉校验
-  let homeScore = ybtyMatch.home_score ?? 0;
-  let awayScore = ybtyMatch.away_score ?? 0;
+  const homeScore = ybtyMatch.home_score ?? null;
+  const awayScore = ybtyMatch.away_score ?? null;
+  if (homeScore === null || awayScore === null) {
+    missingReasons.push(MissingDataReason.MISSING_SCORE);
+  }
   let isMismatch = false;
   let mismatchDetails: string | null = null;
   let scoreVerified = false;
   let scoreSource: "LEISU_CANVAS" | "LEISU_INTERFACE" | "YBTY_DIRECT" | "UNVERIFIED" = "UNVERIFIED";
 
   if (leisuMatch) {
-    const leisuHomeScore = leisuMatch.score ? leisuMatch.score.home : 0;
-    const leisuAwayScore = leisuMatch.score ? leisuMatch.score.away : 0;
+    const leisuHomeScore = leisuMatch.score?.home ?? null;
+    const leisuAwayScore = leisuMatch.score?.away ?? null;
 
     // 滚球状态下严格对比两端比分
     if (stage === MatchStage.LIVE) {
-      if (homeScore !== leisuHomeScore || awayScore !== leisuAwayScore) {
+      if (homeScore === null || awayScore === null || leisuHomeScore === null || leisuAwayScore === null) {
+        missingReasons.push(MissingDataReason.MISSING_SCORE);
+      } else if (homeScore !== leisuHomeScore || awayScore !== leisuAwayScore) {
         isMismatch = true;
         mismatchDetails = `比分冲突: YBTY(${homeScore}-${awayScore}) vs 雷速(${leisuHomeScore}-${leisuAwayScore})`;
         missingReasons.push(MissingDataReason.SCORE_MISMATCH);
@@ -364,12 +370,12 @@ export function assembleCanonicalMatch(
         }
       }
     } else {
-      scoreVerified = true;
-      scoreSource = "YBTY_DIRECT";
+      scoreVerified = homeScore !== null && awayScore !== null;
+      scoreSource = scoreVerified ? "YBTY_DIRECT" : "UNVERIFIED";
     }
   } else {
     missingReasons.push(MissingDataReason.NO_LEISU_MATCH);
-    scoreVerified = !ybtyMatch.is_live;
+    scoreVerified = !ybtyMatch.is_live && homeScore !== null && awayScore !== null;
     scoreSource = ybtyMatch.is_live ? "UNVERIFIED" : "YBTY_DIRECT";
   }
 
@@ -468,9 +474,9 @@ export function assembleCanonicalMatch(
 
   // 校验是否存在有效盘口
   const hasValidMarkets = ybtyMatch.markets && (
-    ybtyMatch.markets.full_spread_main !== null ||
-    ybtyMatch.markets.full_total_main !== null ||
-    ybtyMatch.markets.full_h2h !== null
+    ybtyMatch.markets.full_spread_main != null ||
+    ybtyMatch.markets.full_total_main != null ||
+    ybtyMatch.markets.full_h2h != null
   );
 
   if (!hasValidMarkets) {
@@ -479,7 +485,12 @@ export function assembleCanonicalMatch(
 
   // 5. 数据完整度评级判定 (Tier 划分 - 杜绝虚假默认值穿透，严格基于真实事实)
   let completenessTier: DataCompletenessTier;
-  if (isMismatch) {
+  const hasCoreFactDefect =
+    missingReasons.includes(MissingDataReason.MISSING_SCORE) ||
+    missingReasons.includes(MissingDataReason.MISSING_START_TIME) ||
+    missingReasons.includes(MissingDataReason.NO_LEISU_MATCH) ||
+    missingReasons.includes(MissingDataReason.NO_ODDS_MARKETS);
+  if (isMismatch || hasCoreFactDefect) {
     completenessTier = DataCompletenessTier.TIER_INVALID;
   } else if (!leisuMatch || missingReasons.includes(MissingDataReason.NO_ODDS_MARKETS)) {
     completenessTier = DataCompletenessTier.TIER_3_SPARSE;
@@ -521,7 +532,10 @@ export function assembleCanonicalMatch(
   }
 
   const matchSlug = `${ybtyMatch.league}_${ybtyMatch.home}_vs_${ybtyMatch.away}`;
-  const canonicalId = leisuMatch?.match_id ? String(leisuMatch.match_id) : matchSlug;
+  const canonicalId = leisuMatch?.match_id ? String(leisuMatch.match_id) : "";
+  if (!canonicalId) {
+    missingReasons.push(MissingDataReason.NO_LEISU_MATCH);
+  }
 
   return {
     canonical_id: canonicalId,
@@ -630,7 +644,7 @@ export function extractAiEvaluationBrief(canonical: CanonicalMatch): AiEvaluatio
 
   const dataDeficits = (canonical.missing_reasons ?? []).map(r => String(r));
 
-  let kickoffTimeDisplay = canonical.timing.beijing_start_time;
+  let kickoffTimeDisplay = canonical.timing.beijing_start_time ?? "缺失";
   if (canonical.timing.start_time_source === 'YBTY_ESTIMATED') {
     kickoffTimeDisplay += ' (推算时间)';
   } else if (canonical.timing.start_time_source === 'LEISU_SUPPLEMENTED') {
@@ -642,7 +656,7 @@ export function extractAiEvaluationBrief(canonical: CanonicalMatch): AiEvaluatio
     league: canonical.league_name,
     kickoff_time: kickoffTimeDisplay,
     status_summary: canonical.timing.stage === MatchStage.LIVE
-      ? (canonical.timing.is_half_time ? `HALF-TIME 中场休息 (${canonical.score.home_score}-${canonical.score.away_score})` : `LIVE ${canonical.timing.minute ?? 0}' (${canonical.score.home_score}-${canonical.score.away_score})`)
+      ? (canonical.timing.is_half_time ? `HALF-TIME 中场休息 (${canonical.score.home_score ?? "?"}-${canonical.score.away_score ?? "?"})` : `LIVE ${canonical.timing.minute ?? "?"}' (${canonical.score.home_score ?? "?"}-${canonical.score.away_score ?? "?"})`)
       : "PREMATCH",
     teams: {
       home: canonical.home_team_name,
@@ -650,7 +664,7 @@ export function extractAiEvaluationBrief(canonical: CanonicalMatch): AiEvaluatio
     },
     score_verification: {
       is_verified: canonical.score.score_verified,
-      current_score: `${canonical.score.home_score} - ${canonical.score.away_score}`,
+      current_score: `${canonical.score.home_score ?? "?"} - ${canonical.score.away_score ?? "?"}`,
     },
     core_markets: {
       ah_main: ahMain,
@@ -675,4 +689,3 @@ export function extractAiEvaluationBrief(canonical: CanonicalMatch): AiEvaluatio
     data_deficits: dataDeficits,
   };
 }
-

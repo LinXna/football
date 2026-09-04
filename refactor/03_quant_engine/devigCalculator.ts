@@ -478,16 +478,19 @@ export function calculateDeviggedMarketFeatures(
 
   // 3. 大小球盘 EV
   const totalMarket = match.markets?.full_total_main;
-  const currentTotal = (match.score.home_score ?? 0) + (match.score.away_score ?? 0);
+  const currentTotal =
+    match.score.home_score !== null && match.score.away_score !== null
+      ? match.score.home_score + match.score.away_score
+      : null;
   let totalMain: TotalEVAssessment | undefined;
-  if (totalMarket && totalMarket.line && totalMarket.over_odds && totalMarket.under_odds) {
+  if (totalMarket && currentTotal !== null && totalMarket.line && totalMarket.over_odds && totalMarket.under_odds) {
     totalMain = calculateTotalGoalsEV(totalMarket.line, totalMarket.over_odds, totalMarket.under_odds, currentTotal, poisson);
   }
 
   const totalSecondaryEV: TotalEVAssessment[] = [];
   if (match.markets?.full_total_subs) {
     for (const sub of match.markets.full_total_subs) {
-      if (sub.line && sub.over_odds && sub.under_odds) {
+      if (currentTotal !== null && sub.line && sub.over_odds && sub.under_odds) {
         totalSecondaryEV.push(calculateTotalGoalsEV(sub.line, sub.over_odds, sub.under_odds, currentTotal, poisson));
       }
     }

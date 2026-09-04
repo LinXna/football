@@ -73,7 +73,9 @@ export function calculateBattlefieldDominanceIndex(
 
 function toOosMarket(signal: PositiveEVSignal | undefined): OosMarket | undefined {
   if (signal?.market === 'ASIAN_HANDICAP_MAIN') return 'ASIAN_HANDICAP_MAIN';
+  if (signal?.market === 'ASIAN_HANDICAP_SECONDARY') return 'ASIAN_HANDICAP_SECONDARY';
   if (signal?.market === 'TOTAL_GOALS_MAIN') return 'TOTAL_GOALS_MAIN';
+  if (signal?.market === 'TOTAL_GOALS_SECONDARY') return 'TOTAL_GOALS_SECONDARY';
   return undefined;
 }
 
@@ -266,36 +268,38 @@ export function calculateConfidenceAndAlerts(
     score -= 2;
   }
 
-  // 提取让球与大小球的正 EV 信号
-  if (devig.spread_main_ev && devig.spread_main_ev.is_positive_ev && devig.spread_main_ev.preferred_side !== 'none') {
-    const side = devig.spread_main_ev.preferred_side;
-    const ev = side === 'home' ? devig.spread_main_ev.home_ev : devig.spread_main_ev.away_ev;
-    const odds = side === 'home' ? devig.spread_main_ev.home_odds : devig.spread_main_ev.away_odds;
-    const kelly = devig.spread_main_ev.kelly_fraction ?? 0.0;
+  const spreadAssessments = [
+    ...(devig.spread_main_ev ? [{ market: 'ASIAN_HANDICAP_MAIN', assessment: devig.spread_main_ev }] : []),
+    ...devig.spread_secondary_ev.map((assessment) => ({ market: 'ASIAN_HANDICAP_SECONDARY', assessment }))
+  ];
+  const totalAssessments = [
+    ...(devig.total_main_ev ? [{ market: 'TOTAL_GOALS_MAIN', assessment: devig.total_main_ev }] : []),
+    ...devig.total_secondary_ev.map((assessment) => ({ market: 'TOTAL_GOALS_SECONDARY', assessment }))
+  ];
+  for (const { market, assessment } of spreadAssessments) {
+    if (!assessment.is_positive_ev || assessment.preferred_side === 'none') continue;
+    const side = assessment.preferred_side;
     positiveEVSignals.push(Object.freeze({
-      market: 'ASIAN_HANDICAP_MAIN',
-      line: devig.spread_main_ev.line,
-      side: side,
-      odds: odds,
-      ev: ev,
+      market,
+      line: assessment.line,
+      side,
+      odds: side === 'home' ? assessment.home_odds : assessment.away_odds,
+      ev: side === 'home' ? assessment.home_ev : assessment.away_ev,
       confidence: Math.max(50, score),
-      kelly_fraction: kelly
+      kelly_fraction: assessment.kelly_fraction ?? 0.0
     }));
   }
-
-  if (devig.total_main_ev && devig.total_main_ev.is_positive_ev && devig.total_main_ev.preferred_side !== 'none') {
-    const side = devig.total_main_ev.preferred_side;
-    const ev = side === 'over' ? devig.total_main_ev.over_ev : devig.total_main_ev.under_ev;
-    const odds = side === 'over' ? devig.total_main_ev.over_odds : devig.total_main_ev.under_odds;
-    const kelly = devig.total_main_ev.kelly_fraction ?? 0.0;
+  for (const { market, assessment } of totalAssessments) {
+    if (!assessment.is_positive_ev || assessment.preferred_side === 'none') continue;
+    const side = assessment.preferred_side;
     positiveEVSignals.push(Object.freeze({
-      market: 'TOTAL_GOALS_MAIN',
-      line: devig.total_main_ev.line,
-      side: side,
-      odds: odds,
-      ev: ev,
+      market,
+      line: assessment.line,
+      side,
+      odds: side === 'over' ? assessment.over_odds : assessment.under_odds,
+      ev: side === 'over' ? assessment.over_ev : assessment.under_ev,
       confidence: Math.max(50, score),
-      kelly_fraction: kelly
+      kelly_fraction: assessment.kelly_fraction ?? 0.0
     }));
   }
 
@@ -380,7 +384,8 @@ export function calculateQuantitativeFeatures(
     marketCalibration,
     undefined,
     collector,
-    tracer
+    tracer,
+    options?.max_poisson_goals
   );
 
   // 4. M5: 多源微观去抽水与四分之一盘复合 EV 仲裁
@@ -405,7 +410,7 @@ export function calculateQuantitativeFeatures(
   const totalCalibrationProfile = resolveProfile('TOTAL_GOALS_MAIN');
   const totalCalibrationIsValidated = isValidatedOosProfile(totalCalibrationProfile);
   const poissonFeatures = totalCalibrationIsValidated
-    ? calculateInPlayPoissonFeatures(match, contextFeatures, matchState, marketCalibration, totalCalibrationProfile, collector, tracer)
+    ? calculateInPlayPoissonFeatures(match, contextFeatures, matchState, marketCalibration, totalCalibrationProfile, collector, tracer, options?.max_poisson_goals)
     : rawPoissonFeatures;
   const calibratedTotalDevigFeatures = totalCalibrationIsValidated
     ? calculateDeviggedMarketFeatures(match, poissonFeatures, collector, tracer)
@@ -478,6 +483,7 @@ export function calculateQuantitativeFeatures(
     )));
   const screeningIntegrityScore = Math.min(adjustedConfidence, dataQualityScore, modelStabilityScore);
   const rawPositiveEvSignals = buildRawPositiveEvSignals(devigFeatures, adjustedConfidence);
+  const validatedOosSignals = validatedSignalProfiles.map(({ signal }) => signal);
   const machineCandidateSignals =
     !poissonFeatures.is_stoppage_time_unpriceable &&
     (match.timing.stage !== MatchStage.LIVE || physicalStatsFeatures.stats_available) &&
@@ -517,6 +523,7 @@ export function calculateQuantitativeFeatures(
     battlefield_dominance_index: bdi,
     goal_phase_alert: goalPhase,
     raw_positive_ev_signals: rawPositiveEvSignals,
+    validated_oos_signals: validatedOosSignals,
     positive_ev_signals: machineCandidateSignals,
     risk_flags: finalRiskFlags,
     confidence_score: Math.min(screeningIntegrityScore, adjustedConfidence),

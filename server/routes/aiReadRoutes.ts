@@ -273,7 +273,7 @@ export function registerAiManualImportRoutes(app: express.Express, deps: { parse
       const sourceMatches = [...canonicalSourceMatches, ...legacySourceMatches];
 
       const normalizeName = (value: unknown) => String(value || '').toLowerCase().replace(/[\s._\-()（）]/g, '');
-      if (Array.isArray(parsed.matches)) parsed.matches = parsed.matches.map((match: any) => {
+      if (Array.isArray(parsed.matches)) parsed.matches = parsed.matches.map((match: any, matchIdx: number) => {
         const assessments = Array.isArray(match.market_assessments) ? match.market_assessments : [];
         const existing = new Map(assessments.map((item: any) => [String(item.category || ''), item]));
         const matchId = matchPrimaryId(match);

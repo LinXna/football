@@ -48,13 +48,7 @@ export class LedgerPersistence {
     approvedLegs: RecommendedLeg[],
     stage: BettingStage
   ): FormalRecommendation[] {
-    if (
-      approvedLegs.length === 0 ||
-      (evaluation.grade !== RecommendationGrade.A_GRADE && evaluation.grade !== RecommendationGrade.B_GRADE) ||
-      evaluation.confidence_score < 70
-    ) {
-      return [];
-    }
+    this.assertFormalRecommendationEligibility(payload, evaluation, approvedLegs);
 
     const acceptedLegs = approvedLegs.filter((leg) =>
       evaluation.recommended_legs.some((recommendedLeg) =>
@@ -100,9 +94,8 @@ export class LedgerPersistence {
         condition_snapshot: {
           match_minute: payload.ai_brief.status_summary,
           current_score: payload.ai_brief.score_verification.current_score,
-          bdi: payload.quant_features.bdi || 0,
-          goal_phase_alert: payload.quant_features.goal_phase_alert || 'NONE',
-          machine_candidate_count: payload.quant_features.machine_candidate_count || 0
+          score_verified: payload.ai_brief.score_verification.is_verified,
+          source: 'YBTY'
         },
         ai_assessment: {
           grade: evaluation.grade,
@@ -131,5 +124,32 @@ export class LedgerPersistence {
     }
     
     return newRecords;
+  }
+
+  private static assertFormalRecommendationEligibility(
+    payload: EvaluatorPayload,
+    evaluation: AiEvaluationResult,
+    approvedLegs: readonly RecommendedLeg[]
+  ): void {
+    if (approvedLegs.length === 0) {
+      throw new Error('Formal recommendation ledger requires at least one approved leg.');
+    }
+    if (evaluation.grade !== RecommendationGrade.A_GRADE &&
+        evaluation.grade !== RecommendationGrade.B_GRADE) {
+      throw new Error(`Only A_GRADE or B_GRADE evaluations may enter the formal ledger: ${evaluation.grade}`);
+    }
+    if (evaluation.confidence_score < 70 || evaluation.confidence_score > 100) {
+      throw new Error('Formal recommendation confidence must be between 70 and 100.');
+    }
+    if (!payload.ai_brief.match_id || !payload.ai_brief.kickoff_time ||
+        !payload.ai_brief.teams?.home || !payload.ai_brief.teams?.away) {
+      throw new Error('Formal recommendation requires match identity, kickoff time, and YBTY team names.');
+    }
+    if (!payload.ai_brief.score_verification.is_verified) {
+      throw new Error('Formal recommendation requires a verified score state.');
+    }
+    if (evaluation.match_id !== payload.ai_brief.match_id) {
+      throw new Error('Formal recommendation identity does not match the evaluated payload.');
+    }
   }
 }

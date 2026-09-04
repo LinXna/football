@@ -3,7 +3,7 @@ import * as path from 'path';
 import { applyPortfolioRiskFilters } from '../05_portfolio_risk/riskFilter.js';
 import { LedgerPersistence } from '../05_portfolio_risk/ledgerPersistence.js';
 import { RecommendationGrade } from '../04_ai_evaluator/enums.js';
-import { FormalRecommendation, BettingStage } from '../05_portfolio_risk/types.js';
+import { FormalRecommendation } from '../05_portfolio_risk/types.js';
 import { AiEvaluationResult } from '../04_ai_evaluator/types.js';
 
 console.log("=== TESTING PORTFOLIO RISK FILTERS ===");
@@ -19,7 +19,7 @@ const existingLedger: FormalRecommendation[] = [
     match_id: 'match_1',
     kickoff_time: '',
     teams: { home: 'A', away: 'B' },
-    condition_snapshot: { match_minute: "LIVE 10'", current_score: "0-0", bdi: 0, goal_phase_alert: '', machine_candidate_count: 0 },
+    condition_snapshot: { match_minute: "LIVE 10'", current_score: "0-0", score_verified: true, source: 'YBTY' },
     ai_assessment: { grade: RecommendationGrade.B_GRADE, confidence_score: 80, blind_spot_analysis: {} as any, internal_logical_audit: '', qualitative_summary: '' },
     leg: { market: 'ASIAN_HANDICAP_MAIN', selected_line: '-0.5', current_odds: 1.9, minimum_acceptable_odds: 1.8, direction: 'HOME', basis: '' }
   }
@@ -28,6 +28,7 @@ const existingLedger: FormalRecommendation[] = [
 // Test 1: B_GRADE Exposure Limit (Max 1)
 const incomingBGrade: AiEvaluationResult = {
   match_id: 'match_1', // Same match
+  match: 'A vs B',
   evaluation_time: '',
   grade: RecommendationGrade.B_GRADE,
   confidence_score: 80,
@@ -50,6 +51,7 @@ if (!res1.is_approved && res1.approved_legs.length === 0) {
 // Test 2: Deep Spread Block (Line >= 2.0 requires A_GRADE)
 const incomingDeepSpread: AiEvaluationResult = {
   match_id: 'match_2',
+  match: 'A vs B',
   evaluation_time: '',
   grade: RecommendationGrade.B_GRADE, // Only B_GRADE
   confidence_score: 80,
@@ -92,7 +94,7 @@ console.log("[OK] Eligible B_GRADE recommendation remains approved.");
 
 const persistencePayload = {
   ai_brief: {
-    match_id: 'persistence-test',
+    match_id: 'match_1',
     kickoff_time: '2026-09-04T16:00:00Z',
     teams: { home: 'A', away: 'B' },
     status_summary: "PREMATCH",
@@ -114,14 +116,16 @@ const persistencePayload = {
     machine_candidate_count: 1
   }
 } as any;
-const rejectedPersistence = LedgerPersistence.appendApprovedLegs(
-  persistencePayload,
-  { ...incomingBGrade, grade: RecommendationGrade.REJECTED },
-  incomingBGrade.recommended_legs,
-  'PREMATCH'
-);
-if (rejectedPersistence.length !== 0) {
+try {
+  LedgerPersistence.appendApprovedLegs(
+    persistencePayload,
+    { ...incomingBGrade, grade: RecommendationGrade.REJECTED },
+    incomingBGrade.recommended_legs,
+    'PREMATCH'
+  );
   throw new Error('[FAIL] Rejected AI evaluation must never be persisted to the formal ledger.');
+} catch (error) {
+  if (!(error instanceof Error) || !error.message.includes('Only A_GRADE or B_GRADE')) throw error;
 }
 console.log("[OK] Rejected AI evaluation was blocked before ledger persistence.");
 

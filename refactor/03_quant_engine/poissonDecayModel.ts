@@ -361,7 +361,8 @@ export function calculateInPlayPoissonFeatures(
   calibration?: MarketCalibrationResult,
   oosCalibration?: QuantCalibrationProfile,
   collector?: DeficitCollector,
-  tracer?: Tracer
+  tracer?: Tracer,
+  maxPoissonGoals?: number
 ): InPlayPoissonFeatures {
   if ((match.timing.stage === MatchStage.LIVE && (match.timing.minute === null || match.timing.minute === undefined)) ||
     ((match.timing.stage === MatchStage.LIVE || match.timing.stage === MatchStage.FINISHED) &&
@@ -483,7 +484,10 @@ export function calculateInPlayPoissonFeatures(
   const expectedGoalsRest = Number((lambdaHomeRest + lambdaAwayRest).toFixed(3));
 
   // 6. 求解双变量泊松网格，动态覆盖可忽略的高进球尾部
-  const poissonSupport = Math.max(
+  const configuredSupport = maxPoissonGoals === undefined
+    ? undefined
+    : Math.max(1, Math.floor(maxPoissonGoals));
+  const poissonSupport = configuredSupport ?? Math.max(
     poissonSupportUpperBound(lambdaHomeRest),
     poissonSupportUpperBound(lambdaAwayRest)
   );

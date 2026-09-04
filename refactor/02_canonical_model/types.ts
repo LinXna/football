@@ -119,8 +119,8 @@ export interface CanonicalTimelineEvent {
  * 标准赛事比分状态（双源校验）
  */
 export interface CanonicalScoreState {
-  home_score: number;
-  away_score: number;
+  home_score: number | null;
+  away_score: number | null;
   home_half_score: number | null;
   away_half_score: number | null;
   score_verified: boolean;        // 是否通过可靠校验（YBTY一致且雷速比分画布通过）
@@ -135,7 +135,7 @@ export interface CanonicalScoreState {
  */
 export interface CanonicalTimingState {
   stage: MatchStage;
-  beijing_start_time: string;     // YYYY-MM-DD HH:mm:ss
+  beijing_start_time: string | null; // YYYY-MM-DD HH:mm:ss
   start_time_source: "YBTY_EXACT" | "YBTY_ESTIMATED" | "LEISU_SUPPLEMENTED";
   minute: number | null;          // 滚球进行分钟 (严格由 YBTY 即时盘口时钟 ybty_display_clock 解析，中场锁定 45，赛前为 null；雷速不提供滚球时钟)
   base_minute?: number | null;    // 基准半场分钟 (如 45, 90)

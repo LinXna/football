@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Schema } from '@google/genai';
-import { EvaluatorPayload, AiEvaluationResult } from './types.js';
+import { EvaluatorPayload, AiEvaluationResult, RecommendedLeg, BlindSpotChecklist } from './types.js';
 import { RecommendationGrade, TacticalRegimeEvaluation, TrapDetectionResult } from './enums.js';
 import { buildSystemPrompt, buildUserPrompt } from './promptBuilder.js';
 import { verifyStatutoryAlignment } from './alignmentGuard.js';
@@ -19,6 +19,8 @@ export class AiEvaluatorService {
     return {
       type: Type.OBJECT,
       properties: {
+        match_id: { type: Type.STRING },
+        match: { type: Type.STRING },
         blind_spot_analysis: {
           type: Type.OBJECT,
           properties: {
@@ -60,7 +62,7 @@ export class AiEvaluatorService {
           }
         }
       },
-      required: ['blind_spot_analysis', 'internal_logical_audit', 'grade', 'confidence_score', 'qualitative_summary', 'risk_warnings', 'recommended_legs']
+      required: ['match_id', 'match', 'blind_spot_analysis', 'internal_logical_audit', 'grade', 'confidence_score', 'qualitative_summary', 'risk_warnings', 'recommended_legs']
     };
   }
 
@@ -68,8 +70,12 @@ export class AiEvaluatorService {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  public async evaluateMatch(payload: EvaluatorPayload, maxRetries = 3): Promise<AiEvaluationResult> {
-    const systemPrompt = buildSystemPrompt();
+  public async evaluateMatch(
+    payload: EvaluatorPayload,
+    maxRetries = 3,
+    mode: 'live_eval' | 'prematch_eval' | 'parlay_check' = 'live_eval'
+  ): Promise<AiEvaluationResult> {
+    const systemPrompt = buildSystemPrompt(mode);
     const userPrompt = buildUserPrompt(payload);
 
     let attempt = 0;
@@ -90,13 +96,8 @@ export class AiEvaluatorService {
           throw new Error('Empty response from AI Evaluator');
         }
 
-        const rawResult = JSON.parse(response.text);
-        
-        const result: AiEvaluationResult = {
-          match_id: payload.ai_brief.match_id ?? 'unknown_match',
-          evaluation_time: new Date().toISOString(),
-          ...rawResult
-        };
+        const rawResult: unknown = JSON.parse(response.text);
+        const result = validateAiResponse(rawResult, payload);
 
         // Apply alignment guard
         return verifyStatutoryAlignment(result, payload);
@@ -122,6 +123,7 @@ export class AiEvaluatorService {
   private createFallbackResult(payload: EvaluatorPayload, errorMsg: string): AiEvaluationResult {
     return {
       match_id: payload.ai_brief.match_id ?? 'unknown_match',
+      match: `${payload.ai_brief.teams?.home ?? 'UNKNOWN'} vs ${payload.ai_brief.teams?.away ?? 'UNKNOWN'}`,
       evaluation_time: new Date().toISOString(),
       blind_spot_analysis: {
         "1_global_motivation": 'FALLBACK',
@@ -138,4 +140,87 @@ export class AiEvaluatorService {
       recommended_legs: []
     };
   }
+}
+
+function validateAiResponse(raw: unknown, payload: EvaluatorPayload): AiEvaluationResult {
+  if (!isRecord(raw) || raw.match_id !== payload.ai_brief.match_id) {
+    throw new Error('AI response match_id does not match the evaluated payload.');
+  }
+  const expectedMatch = `${payload.ai_brief.teams?.home ?? ''} vs ${payload.ai_brief.teams?.away ?? ''}`;
+  if (raw.match !== expectedMatch || !isRecord(raw.blind_spot_analysis)) {
+    throw new Error('AI response identity or blind-spot structure is invalid.');
+  }
+  const blind = raw.blind_spot_analysis;
+  const grades = Object.values(RecommendationGrade);
+  const regimes = Object.values(TacticalRegimeEvaluation);
+  const traps = Object.values(TrapDetectionResult);
+  if (!isString(blind['1_global_motivation']) ||
+      !isString(blind['2_asian_handicap_reality']) ||
+      !isString(blind['3_total_goals_reality']) ||
+      !regimes.includes(blind.tactical_regime_evaluation as TacticalRegimeEvaluation) ||
+      !traps.includes(blind.trap_detection_result as TrapDetectionResult) ||
+      !grades.includes(raw.grade as RecommendationGrade) ||
+      !Number.isInteger(raw.confidence_score) ||
+      raw.confidence_score < 0 || raw.confidence_score > 100 ||
+      !isString(raw.internal_logical_audit) ||
+      !isString(raw.qualitative_summary) ||
+      !isStringArray(raw.risk_warnings) ||
+      !Array.isArray(raw.recommended_legs)) {
+    throw new Error('AI response failed runtime schema validation.');
+  }
+  const recommendedLegs = raw.recommended_legs.map(parseRecommendedLeg);
+  return {
+    match_id: raw.match_id,
+    match: raw.match,
+    evaluation_time: new Date().toISOString(),
+    blind_spot_analysis: blind as unknown as BlindSpotChecklist,
+    internal_logical_audit: raw.internal_logical_audit,
+    grade: raw.grade as RecommendationGrade,
+    confidence_score: raw.confidence_score,
+    qualitative_summary: raw.qualitative_summary,
+    risk_warnings: raw.risk_warnings,
+    recommended_legs: recommendedLegs
+  };
+}
+
+function parseRecommendedLeg(value: unknown): RecommendedLeg {
+  const allowedMarkets = ['ASIAN_HANDICAP_MAIN', 'TOTAL_GOALS_MAIN', 'EURO_1X2'];
+  const allowedDirections = ['HOME', 'AWAY', 'OVER', 'UNDER', 'DRAW', 'NONE'];
+  if (!isRecord(value) ||
+      !isString(value.market) ||
+      !allowedMarkets.includes(value.market) ||
+      !isString(value.selected_line) ||
+      !isFiniteNumber(value.current_odds) ||
+      !isFiniteNumber(value.minimum_acceptable_odds) ||
+      !isString(value.direction) ||
+      !allowedDirections.includes(value.direction) ||
+      !isString(value.basis) ||
+      value.current_odds <= 1 ||
+      value.minimum_acceptable_odds <= 1) {
+    throw new Error('AI response contains an invalid recommended leg.');
+  }
+  return {
+    market: value.market,
+    selected_line: value.selected_line,
+    current_odds: value.current_odds,
+    minimum_acceptable_odds: value.minimum_acceptable_odds,
+    direction: value.direction as RecommendedLeg['direction'],
+    basis: value.basis
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(isString);
 }

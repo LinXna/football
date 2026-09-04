@@ -56,6 +56,8 @@ export enum MissingDataReason {
   NO_GOAL_DISTRIBUTION = "NO_GOAL_DISTRIBUTION",         // 缺少时段进球分布数据
   NO_ODDS_MARKETS = "NO_ODDS_MARKETS",                   // YBTY 缺少有效交易盘口
   MISSING_LIVE_MINUTE = "MISSING_LIVE_MINUTE",           // 滚球状态下 YBTY 缺少有效进行中时钟/分钟数
+  MISSING_START_TIME = "MISSING_START_TIME",             // 缺少可确认的开赛时间
+  MISSING_SCORE = "MISSING_SCORE",                       // 缺少完整比分事实
 }
 
 /**
@@ -102,4 +104,3 @@ export enum CanonicalEventType {
   MATCH_INTERRUPTED = "MATCH_INTERRUPTED",     // 比赛中断/暂停
   MATCH_ABANDONED = "MATCH_ABANDONED",         // 比赛腰斩/取消
 }
-

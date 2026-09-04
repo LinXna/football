@@ -40,6 +40,30 @@ export interface EvaluatorQuantFeatures {
   market_divergence_insights?: string;
 }
 
+export interface EvaluatorAsianHandicapMarket {
+  handicap?: string;
+  home_selection?: string;
+  away_selection?: string;
+  home_odds: number;
+  away_odds: number;
+}
+
+export interface EvaluatorTotalGoalsMarket {
+  handicap?: string;
+  line?: string;
+  over_odds: number;
+  under_odds: number;
+}
+
+export interface EvaluatorEuroMarket {
+  home_win?: number;
+  draw?: number;
+  away_win?: number;
+  home_odds?: number;
+  draw_odds?: number;
+  away_odds?: number;
+}
+
 export interface LivePhysicalContext {
   expected_remaining_minutes_including_stoppage: number;
   real_time_stats: string;
@@ -51,13 +75,13 @@ export interface LivePhysicalContext {
 export interface EvaluatorPayload {
   ai_brief: Omit<Partial<AiEvaluationBrief>, 'core_markets'> & {
     core_markets?: {
-      ah_main?: any;
-      ah_secondary?: any[];
-      ou_main?: any;
-      ou_secondary?: any[];
-      euro_1x2?: any;
-      ah_half?: any;
-      ou_half?: any;
+      ah_main?: EvaluatorAsianHandicapMarket | null;
+      ah_secondary?: readonly unknown[];
+      ou_main?: EvaluatorTotalGoalsMarket | null;
+      ou_secondary?: readonly unknown[];
+      euro_1x2?: EvaluatorEuroMarket | null;
+      ah_half?: EvaluatorAsianHandicapMarket | null;
+      ou_half?: EvaluatorTotalGoalsMarket | null;
     }
   };
   data_blind_spot_warning?: string;
@@ -87,6 +111,7 @@ export interface BlindSpotChecklist {
 
 export interface AiEvaluationResult {
   match_id: string;
+  match: string;
   evaluation_time: string;
   
   blind_spot_analysis: BlindSpotChecklist;

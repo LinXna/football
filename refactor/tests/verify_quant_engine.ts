@@ -630,6 +630,16 @@ async function runQuantEngineTests() {
     assert(validatedMainProfileQuant.positive_ev_signals.every((signal) =>
       signal.market === 'ASIAN_HANDICAP_MAIN' || signal.market === 'TOTAL_GOALS_MAIN'
     ), 'A validated main-market profile must not unlock secondary-line machine candidates');
+    assert(quantResult.raw_positive_ev_signals.length >= quantResult.positive_ev_signals.length, 'Raw EV layer must contain machine candidates');
+    assert(quantResult.validated_oos_signals.length === 0, 'No OOS archive must produce no validated OOS signals');
+    assert(
+      quantResult.raw_positive_ev_signals.some((signal) => signal.market === 'ASIAN_HANDICAP_MAIN' || signal.market === 'TOTAL_GOALS_MAIN'),
+      'Raw EV layer must preserve main-market signals'
+    );
+    assert(
+      quantResult.devig.line_dispersion.spread_variance >= 0 && quantResult.devig.line_dispersion.total_variance >= 0,
+      'Line dispersion variances must be finite non-negative values'
+    );
     assert(quantResult.battlefield_dominance_index === quantResult.match_state.dominance_index, 'BDI must consume the unified match state only');
 
     const prematchQuant = calculateQuantitativeFeatures({
