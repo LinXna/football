@@ -1,5 +1,83 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
+- **任务编号 (Task)**: `SNAPSHOT-20260904-LAYER03-MISSING-EVENT-MINUTE`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  修复 Layer 03 将事件缺失分钟当作第 0 分钟，避免其污染衰减积分、近窗事件密度、进球冷却和红牌响应。
+- **改动文件 (Target Files)**：
+  - `refactor/03_quant_engine/eventMomentumFusion.ts`
+  - `refactor/tests/verify_quant_engine.ts`
+  - `refactor/HANDOVER_AND_PROGRESS.md`
+- **执行步骤 (Action Plan)**：
+  1. 对缺失分钟事件建立回归输入，确认其不参与时间窗口和衰减计算；
+  2. 将所有事件分钟消费点改为显式跳过未知分钟；
+  3. 运行 Layer 03 验证、类型检查和差异检查后归档。
+- **交付物与验证 (Deliverables & Verification)**：
+  - 事件分钟改为显式可空值；所有衰减、近窗、进球冷却和红牌响应路径跳过未知分钟事件。
+  - 新增缺失分钟事件不进入衰减积分的回归断言。
+  - `npx tsx refactor/tests/verify_quant_engine.ts` 通过 8/8；`git diff --check` 通过。
+  - `npx tsc --noEmit` 仍被既有 `server/routes/aiReadRoutes.ts:294-295` 的 `matchIdx` 未定义错误阻断。
+- **下一步待办 (Next Steps)**：
+  - 继续处理标准红牌事件类型覆盖和主系统旧 Prompt/决策链隔离。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260904-LAYER03-MISSING-STATS-SEMANTICS`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  修复 Layer 03 将缺失红牌/角球统计静默当作真实 0，以及无论角球数量如何都输出 `is_corner_cascade=false` 的数据语义错误。
+- **改动文件 (Target Files)**：
+  - `refactor/03_quant_engine/momentumQuantEngine.ts`
+  - `refactor/tests/verify_quant_engine.ts`
+  - `refactor/HANDOVER_AND_PROGRESS.md`
+- **执行步骤 (Action Plan)**：
+  1. 构造缺失和有效角球统计场景，确认当前输出偏差；
+  2. 让红牌缺失保持中性但由 `available_metrics.red_cards` 表示不可用，角球级联仅在角球成对有效时计算；
+  3. 运行 Layer 03 验证、类型检查和差异检查，完成后归档。
+- **交付物与验证 (Deliverables & Verification)**：
+  - 缺失红牌统计不再通过 `?? 0` 伪造红牌为零；缺失角球不再输出 `is_corner_cascade=false`。
+  - 新增缺失/有效角球与红牌回归断言。
+  - `npx tsx refactor/tests/verify_quant_engine.ts` 通过 8/8；`git diff --check` 通过。
+  - `npx tsc --noEmit` 仍被既有 `server/routes/aiReadRoutes.ts:294-295` 的 `matchIdx` 未定义错误阻断。
+- **下一步待办 (Next Steps)**：
+  - 继续审计事件缺失分钟、红牌事件类型和主系统旧 Prompt 链路。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260904-LAYER06-PARLAY-ODDS-FIELD`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  修复 Layer 06 串关结算读取不存在的 `leg.current_odds` 字段，导致包含赢半腿的串关结果变为 `LOSE` 或 `NaN`。
+- **改动文件 (Target Files)**：
+  - `refactor/06_settlement_audit/parlayEngine.ts`
+  - `refactor/tests/verify_settlement_engine.ts`
+  - `refactor/HANDOVER_AND_PROGRESS.md`
+- **执行步骤 (Action Plan)**：
+  1. 以 15/18 失败验证确认串关赔率字段错接；
+  2. 使用权威 `ParlayLegResult.odds` 计算 WIN/WIN_HALF；
+  3. 运行 Layer 06 验证并记录类型检查的独立基线错误。
+- **交付物与验证 (Deliverables & Verification)**：
+  - 串关结算统一读取 `ParlayLegResult.odds`，WIN/WIN_HALF 不再产生 `NaN`。
+  - `npx tsx refactor/tests/verify_settlement_engine.ts` 通过 18/18。
+  - `git diff --check` 通过。
+- **下一步待办 (Next Steps)**：
+  - 继续审计验证脚本是否在断言失败时返回非零退出码。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260904-LAYER05-DEEP-SPREAD-FIELD`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  修复 Layer 05 深盘风控读取不存在的 `leg.selected_line` 字段，导致 B 级亚洲让球深盘被错误解析为 0 并放行。
+- **改动文件 (Target Files)**：
+  - `refactor/05_portfolio_risk/riskFilter.ts`
+  - `refactor/tests/verify_portfolio_risk.ts`
+  - `refactor/HANDOVER_AND_PROGRESS.md`
+- **执行步骤 (Action Plan)**：
+  1. 以现有失败验证确认字段错接；
+  2. 使用权威 `leg.line` 解析深盘并补充回归断言；
+  3. 运行 Layer 05 验证、类型检查和差异检查，完成后归档快照。
+- **交付物与验证 (Deliverables & Verification)**：
+  - Layer 05 深盘判断和日志统一读取权威 `leg.line`，B 级 `-2.5` 让球现在被正确拦截。
+  - `npx tsx refactor/tests/verify_portfolio_risk.ts` 通过，重复暴露与深盘拦截均通过。
+  - `git diff --check` 通过；`npx tsc --noEmit` 仍被既有 `server/routes/aiReadRoutes.ts:294-295` 的 `matchIdx` 未定义错误阻断。
+- **下一步待办 (Next Steps)**：
+  - 完成本原子任务后，继续处理已确认的 Layer 06 串关赔率字段错接和验证脚本未失败退出问题。
+
 - **任务编号 (Task)**: `SNAPSHOT-20260904-LAYER03-DYNAMIC-POISSON-SUPPORT`
 - **当前状态 (Status)**: `DONE`
 - **任务目标 (Goal)**：

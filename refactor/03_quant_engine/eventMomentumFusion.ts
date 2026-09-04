@@ -50,8 +50,8 @@ function getEventSide(event: CanonicalTimelineEvent): 'home' | 'away' | 'neutral
 /**
  * 辅助函数：安全提取事件分钟数
  */
-function getEventMinute(event: CanonicalTimelineEvent): number {
-  return event.minute ?? 0;
+function getEventMinute(event: CanonicalTimelineEvent): number | null {
+  return event.minute;
 }
 
 /**
@@ -137,6 +137,7 @@ export function calculateDecayedEventScore(
   for (const ev of events) {
     if (ev.is_cancelled || ev.is_var_overturned) continue;
     const m = getEventMinute(ev);
+    if (m === null) continue;
     if (m > currentMinute) continue;
 
     const deltaT = Math.max(0, currentMinute - m);
@@ -234,7 +235,7 @@ export function calculateEventPressureConversion(
   const windowStart = Math.max(0, currentMinute - 15);
   const recentEvents = events.filter(e => {
     const m = getEventMinute(e);
-    return m >= windowStart && m <= currentMinute && !e.is_cancelled;
+    return m !== null && m >= windowStart && m <= currentMinute && !e.is_cancelled;
   });
 
   // 1. 统计近 15 分钟双方事件加权总分 (带时效半衰期) 与全时序连续衰减事件总分
@@ -348,7 +349,8 @@ export function evaluateTacticalRegime(
 
   if (goalEvents.length > 0) {
     const lastGoal = goalEvents[goalEvents.length - 1];
-    lastGoalMinute = getEventMinute(lastGoal);
+    const minute = getEventMinute(lastGoal);
+    if (minute !== null) lastGoalMinute = minute;
     const side = getEventSide(lastGoal);
     if (side === 'home' || side === 'away') {
       lastGoalScorer = side;
@@ -371,7 +373,8 @@ export function evaluateTacticalRegime(
   });
   let redMinute: number | undefined = undefined;
   if (redEvents.length > 0) {
-    redMinute = getEventMinute(redEvents[redEvents.length - 1]);
+    const minute = getEventMinute(redEvents[redEvents.length - 1]);
+    if (minute !== null) redMinute = minute;
   }
 
   // 3. 连续战术相变激活势能求解 (Continuous Activation Field)
@@ -463,7 +466,7 @@ export function evaluateGoalClimax(
   const window5m = Math.max(0, currentMinute - 5);
   const events5m = events.filter((e: CanonicalTimelineEvent) => {
     const m = getEventMinute(e);
-    return m >= window5m && m <= currentMinute && !e.is_cancelled;
+    return m !== null && m >= window5m && m <= currentMinute && !e.is_cancelled;
   });
 
   const recentIncidentDensity = events5m.length;
@@ -493,7 +496,7 @@ export function evaluateGoalClimax(
   for (const event of events) {
     if (!event.is_cancelled && isGoalEvent(event)) {
       const eventMinute = getEventMinute(event);
-      if (lastGoalMinute === undefined || eventMinute > lastGoalMinute) {
+      if (eventMinute !== null && (lastGoalMinute === undefined || eventMinute > lastGoalMinute)) {
         lastGoalMinute = eventMinute;
       }
     }

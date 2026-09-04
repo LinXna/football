@@ -347,8 +347,8 @@ export function extractRealTimePhysicalStats(
   const awayLethal = (awayPossession !== undefined && awayOn !== undefined && awayCounterThreat !== undefined) ? ((awayPossession <= 40) && (awayOn >= 2 || awayCounterThreat >= 1.5)) : undefined;
 
   // 9. 连续红牌减员战力崩盘模型
-  const evaluateRedPenalty = (redCount: number) => {
-    if (redCount <= 0) {
+  const evaluateRedPenalty = (redCount: number | undefined) => {
+    if (redCount === undefined || redCount <= 0) {
       return { attack: 1.0, leak: 1.0 };
     }
     const attack = Number(Math.exp(-0.43 * redCount).toFixed(3));
@@ -356,10 +356,12 @@ export function extractRealTimePhysicalStats(
     return { attack, leak };
   };
 
-  const homeRedPen = evaluateRedPenalty(homeRed ?? 0);
-  const awayRedPen = evaluateRedPenalty(awayRed ?? 0);
+  const homeRedPen = evaluateRedPenalty(homeRed ?? undefined);
+  const awayRedPen = evaluateRedPenalty(awayRed ?? undefined);
 
-  const isCornerCascade = ((homeCorners ?? 0) >= 5 || (awayCorners ?? 0) >= 5);
+  const isCornerCascade = availableMetrics.corners
+    ? ((homeCorners ?? 0) >= 5 || (awayCorners ?? 0) >= 5)
+    : undefined;
 
   const result: RealTimePhysicalStatsFeatures = Object.freeze({
     stats_available: statsAvailable,
@@ -387,7 +389,7 @@ export function extractRealTimePhysicalStats(
     corner_pressure: Object.freeze({
       home_corners_total: homeCorners,
       away_corners_total: awayCorners,
-      is_corner_cascade: false,
+      is_corner_cascade: isCornerCascade,
       window_source: statsAvailable ? 'CUMULATIVE_BASELINE' : 'UNAVAILABLE'
     }),
     counter_threat_index: Object.freeze({

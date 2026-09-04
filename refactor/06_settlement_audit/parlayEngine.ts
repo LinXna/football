@@ -43,10 +43,10 @@ export function evaluateParlaySettlement(legs: ParlayLegResult[]): ParlaySettlem
       effectiveMultiplier = 0;
     } else if (o === 'WIN') {
       completedCount++;
-      effectiveMultiplier *= leg.current_odds;
+      effectiveMultiplier *= leg.odds;
     } else if (o === 'WIN_HALF') {
       completedCount++;
-      const halfWinOdds = 1 + (leg.current_odds - 1) / 2;
+      const halfWinOdds = 1 + (leg.odds - 1) / 2;
       effectiveMultiplier *= halfWinOdds;
     } else if (o === 'PUSH') {
       completedCount++;

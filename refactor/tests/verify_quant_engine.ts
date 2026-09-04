@@ -42,6 +42,7 @@ import {
   TacticalRegimeType,
   GoalClimaxLevel
 } from '../03_quant_engine/index.js';
+import { calculateDecayedEventScore } from '../03_quant_engine/eventMomentumFusion.js';
 import { CanonicalMatch } from '../02_canonical_model/types.js';
 import { MatchStage } from '../02_canonical_model/enums.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
@@ -319,6 +320,11 @@ async function runQuantEngineTests() {
     assert(trinityBarren.home.calibrated_threat < trinityLethal.home.calibrated_threat, 'Uncorroborated momentum must be damped');
     const epiBarren = calculateEventPressureConversion(mockTimelineLethal, mockEventsBarren, trinityBarren, 70);
     assert(epiBarren.home.classification === EventPressureConversionType.BARREN_DOMINANCE, 'Home should be classified as BARREN_DOMINANCE when no events');
+    const decayedWithUnknownMinute = calculateDecayedEventScore([
+      { minute: null, type: 1, side: 'home', is_cancelled: false },
+      { minute: 70, type: 1, side: 'away', is_cancelled: false }
+    ] as any, 70);
+    assert(decayedWithUnknownMinute.home === 0 && decayedWithUnknownMinute.away > 0, 'Events without a minute must not be treated as minute zero');
 
     // (3) 破门临界态探测 (二阶加速度与尾端事件爆发)
     const mockClimaxMatch = {
@@ -440,6 +446,32 @@ async function runQuantEngineTests() {
       ))
     );
     assert(stoppagePoisson.is_stoppage_time_unpriceable, 'A live 90+ clock must be marked unpriceable rather than treated as a finished match');
+    const incompletePhysicalMatch = {
+      ...calibrationMatch,
+      reference: {
+        ...calibrationMatch.reference,
+        stats: {
+          ...calibrationMatch.reference?.stats,
+          corners: { home: null, away: null },
+          red_cards: { home: null, away: null }
+        }
+      }
+    } as CanonicalMatch;
+    const incompletePhysical = extractRealTimePhysicalStats(incompletePhysicalMatch);
+    assert(incompletePhysical.corner_pressure.is_corner_cascade === undefined, 'Missing corners must not become a false corner-cascade fact');
+    assert(incompletePhysical.red_card_penalty.home_attack_multiplier === 1, 'Missing red-card stats must remain neutral rather than fabricate a penalty');
+    const cornerCascadeMatch = {
+      ...incompletePhysicalMatch,
+      reference: {
+        ...incompletePhysicalMatch.reference,
+        stats: {
+          ...incompletePhysicalMatch.reference?.stats,
+          corners: { home: 5, away: 4 },
+          red_cards: { home: 0, away: 0 }
+        }
+      }
+    } as CanonicalMatch;
+    assert(extractRealTimePhysicalStats(cornerCascadeMatch).corner_pressure.is_corner_cascade === true, 'Five or more valid corners must trigger corner cascade');
     console.log('   ✅ OOS 校准档案测试 PASS');
   }
 
