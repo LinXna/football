@@ -233,9 +233,9 @@ export function calculateAsianHandicapEV(
   let homeEV = 0.0;
   let awayEV = 0.0;
 
-  for (let h = 0; h <= 7; h++) {
-    for (let a = 0; a <= 7; a++) {
-      const pCell = matrix[h]?.[a] ?? 0;
+  for (let h = 0; h < matrix.length; h++) {
+    for (let a = 0; a < matrix[h].length; a++) {
+      const pCell = matrix[h][a];
       if (pCell <= 0) continue;
 
       const d = h - a; // 剩余主队净胜球

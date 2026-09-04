@@ -17,7 +17,7 @@
  */
 
 import { CanonicalMatch } from '../02_canonical_model/types.js';
-import { MatchStage } from '../02_canonical_model/enums.js';
+import { MatchAlignmentStatus, MatchStage } from '../02_canonical_model/enums.js';
 import {
   QuantitativeFeatures,
   QuantEngineOptions,
@@ -286,6 +286,20 @@ export function calculateQuantitativeFeatures(
     undefined,
     match.canonical_id
   );
+
+  const alignmentStatus = match.alignment.status;
+  if (alignmentStatus !== MatchAlignmentStatus.MATCHED_BY_ALIAS &&
+      alignmentStatus !== MatchAlignmentStatus.MATCHED_AUTO) {
+    collector?.record(
+      'MATCH_ALIGNMENT_FAILED',
+      Layer03OpId.ORCHESTRATE_QUANT,
+      'RC-001',
+      `Layer 03 requires confirmed entity alignment; received ${alignmentStatus}.`,
+      undefined,
+      match.canonical_id
+    );
+    throw new Error(`MATCH_ALIGNMENT_FAILED: Match ${match.canonical_id} has unconfirmed alignment status ${alignmentStatus}.`);
+  }
 
   // 0. 核心定价要素前置强阻断检查 (Hard Block)
   if ((match.timing.stage === MatchStage.LIVE && (match.timing.minute === null || match.timing.minute === undefined)) ||

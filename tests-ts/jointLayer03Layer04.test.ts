@@ -52,7 +52,7 @@ describe('Joint Layer 03 and Layer 04 Integration & Hardening Tests', () => {
         missing_reasons: [],
         source_lineage: { ybty_id: 'y1', leisu_id: 'l1', match_time: '2026-09-03 20:00:00' },
         alignment: {
-          status: 'EXACT_MATCH' as any,
+          status: 'MATCHED_BY_ALIAS' as any,
           confidence_score: 100,
           home_team_match: { ybty_name: 'Bayern Munich', leisu_name: 'Bayern Munich', is_alias_exact_hit: true, raw_text_similarity: 1.0 },
           away_team_match: { ybty_name: 'Dortmund', leisu_name: 'Dortmund', is_alias_exact_hit: true, raw_text_similarity: 1.0 },

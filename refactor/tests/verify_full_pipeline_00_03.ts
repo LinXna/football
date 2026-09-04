@@ -151,8 +151,14 @@ async function runFullPipelineIntegrationTests() {
   let liveResearchCount = 0;
   let liveRejectedCount = 0;
   let livePositiveEvCount = 0;
+  let liveAlignmentBlockedCount = 0;
 
   for (const canonical of canonicalLiveList) {
+    if (canonical.alignment.status !== MatchAlignmentStatus.MATCHED_BY_ALIAS &&
+        canonical.alignment.status !== MatchAlignmentStatus.MATCHED_AUTO) {
+      liveAlignmentBlockedCount++;
+      continue;
+    }
     const quant = calculateQuantitativeFeatures(canonical);
     liveQuantResults.push({ canonical, quant });
 
@@ -198,6 +204,7 @@ async function runFullPipelineIntegrationTests() {
       RESEARCH: liveResearchCount,
       REJECTED: liveRejectedCount,
     },
+    alignment_blocked: liveAlignmentBlockedCount,
     positive_ev_matches: livePositiveEvCount,
   };
 
@@ -246,8 +253,14 @@ async function runFullPipelineIntegrationTests() {
   let prematchResearchCount = 0;
   let prematchRejectedCount = 0;
   let prematchPositiveEvCount = 0;
+  let prematchAlignmentBlockedCount = 0;
 
   for (const canonical of canonicalPrematchList) {
+    if (canonical.alignment.status !== MatchAlignmentStatus.MATCHED_BY_ALIAS &&
+        canonical.alignment.status !== MatchAlignmentStatus.MATCHED_AUTO) {
+      prematchAlignmentBlockedCount++;
+      continue;
+    }
     const quant = calculateQuantitativeFeatures(canonical);
     prematchQuantResults.push({ canonical, quant });
 
@@ -290,6 +303,7 @@ async function runFullPipelineIntegrationTests() {
       RESEARCH: prematchResearchCount,
       REJECTED: prematchRejectedCount,
     },
+    alignment_blocked: prematchAlignmentBlockedCount,
     positive_ev_matches: prematchPositiveEvCount,
   };
 
@@ -389,8 +403,26 @@ async function runFullPipelineIntegrationTests() {
   assert(scoreMismatchHandled, "Score mismatch must trigger L0 Fatal Kill or Unpriceable block");
   console.log(`✓ Score Mismatch successfully triggered L0 Fatal Kill.`);
 
-  // 3.3 四分之一盘口数学概率守恒与无抽水测试 (Quarter Handicap Math Conservation)
-  console.log("\n[Defense 3.3] Testing Quarter Handicap Probability Conservation & Devig...");
+  // 3.3 未确认赛事对齐不得进入 Layer 03 量化
+  console.log("\n[Defense 3.3] Testing Unconfirmed Alignment Gate...");
+  const unconfirmedCanonical = {
+    ...canonicalLiveList[0],
+    alignment: {
+      ...canonicalLiveList[0].alignment,
+      status: MatchAlignmentStatus.NEEDS_MANUAL_SELECTION,
+    },
+  };
+  let unconfirmedAlignmentBlocked = false;
+  try {
+    calculateQuantitativeFeatures(unconfirmedCanonical);
+  } catch (err: unknown) {
+    unconfirmedAlignmentBlocked = err instanceof Error && err.message.includes('MATCH_ALIGNMENT_FAILED');
+  }
+  assert(unconfirmedAlignmentBlocked, "Unconfirmed alignment must be blocked before Layer 03 quantification");
+  console.log(`✓ Unconfirmed alignment successfully blocked before quantification.`);
+
+  // 3.4 四分之一盘口数学概率守恒与无抽水测试 (Quarter Handicap Math Conservation)
+  console.log("\n[Defense 3.4] Testing Quarter Handicap Probability Conservation & Devig...");
   const shinResult = devigShin([1.95, 1.95]);
   assert(Array.isArray(shinResult.fair_probs), "Fair probs must be array");
   assert(shinResult.fair_probs.length === 2, "Fair probs length must be 2");
@@ -415,6 +447,7 @@ async function runFullPipelineIntegrationTests() {
   summaryReport.edge_case_defenses = {
     swapped_home_away_blocked: true,
     score_mismatch_l0_interception: true,
+    unconfirmed_alignment_blocked: true,
     quarter_handicap_math_conserved: true,
   };
 

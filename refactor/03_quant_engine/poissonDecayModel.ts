@@ -62,6 +62,10 @@ function getLeagueBaseGoals(leagueName: string): number {
   return 2.70;
 }
 
+function poissonSupportUpperBound(lambda: number): number {
+  return Math.max(12, Math.ceil(lambda + 10 * Math.sqrt(lambda + 1)));
+}
+
 /**
  * 从盘口字符串解析数值（如 "-0.5", "2.5", "2/2.5"）
  */
@@ -458,8 +462,12 @@ export function calculateInPlayPoissonFeatures(
   lambdaAwayRest = Math.max(0.01, Math.min(3.50, Number(lambdaAwayRest.toFixed(3))));
   const expectedGoalsRest = Number((lambdaHomeRest + lambdaAwayRest).toFixed(3));
 
-  // 6. 求解双变量泊松网格 (0~7 球)
-  const poissonResult = calculateBivariatePoissonGrid(lambdaHomeRest, lambdaAwayRest, 7);
+  // 6. 求解双变量泊松网格，动态覆盖可忽略的高进球尾部
+  const poissonSupport = Math.max(
+    poissonSupportUpperBound(lambdaHomeRest),
+    poissonSupportUpperBound(lambdaAwayRest)
+  );
+  const poissonResult = calculateBivariatePoissonGrid(lambdaHomeRest, lambdaAwayRest, poissonSupport);
   const poissonGrid = poissonResult.grid;
 
   // 7. 投影全场最终比分与 Top 3~5 概率分布
@@ -468,8 +476,8 @@ export function calculateInPlayPoissonFeatures(
 
   const allScoresList: ScoreProbabilityItem[] = [];
 
-  for (let h = 0; h <= 7; h++) {
-    for (let a = 0; a <= 7; a++) {
+  for (let h = 0; h < poissonGrid.length; h++) {
+    for (let a = 0; a < poissonGrid[h].length; a++) {
       const prob = poissonGrid[h][a];
       const finalH = currentHomeScore + h;
       const finalA = currentAwayScore + a;

@@ -17,6 +17,7 @@ import { CanonicalMatch } from '../02_canonical_model/types.js';
 import { MatchStage } from '../02_canonical_model/enums.js';
 import {
   LeisuRawRecentMatch,
+  LeisuRawH2HStats,
   ParsedStandingRecord,
   ParsedTeamStanding,
   ParsedTeamGoalDistribution,
@@ -145,8 +146,8 @@ export function checkL0CircuitBreaker(
  * 必须主客双方均有客观真实的攻防记录，均有角球数据，才能判定为有效深层战术对抗样本
  */
 export function checkH2HTacticalIntegrity(
-  homeStats: any,
-  awayStats: any,
+  homeStats: LeisuRawH2HStats | null | undefined,
+  awayStats: LeisuRawH2HStats | null | undefined,
   cornerHome: number | undefined | null,
   cornerAway: number | undefined | null,
   daysAgo: number
@@ -203,16 +204,7 @@ export function checkH2HTacticalIntegrity(
     return { isValid: false, reason: 'TOTAL_SHOTS_LESS_THAN_3' };
   }
 
-  // 7. 双向射正必须客观合理 (<= 总射门)
-  const sogH = homeStats.shots_on_goal;
-  const sogA = awayStats.shots_on_goal;
-  if (sogH != null && sogA != null) {
-    if (sogH < 0 || sogA < 0 || sogH > shotsH || sogA > shotsA) {
-      return { isValid: false, reason: 'ILLOGICAL_SHOTS_ON_GOAL' };
-    }
-  }
-
-  // 8. 双向控球率必须客观真实存在且符合守恒定律 (95% ~ 105%)
+  // 7. 双向控球率必须客观真实存在且符合守恒定律 (95% ~ 105%)
   const possH = homeStats.ball_possession;
   const possA = awayStats.ball_possession;
   if (possH == null || possA == null || typeof possH !== 'number' || typeof possA !== 'number') {
@@ -292,19 +284,19 @@ export function calculateH2HDecayWeights(
       ? Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24)))
       : -1;
 
+    const homeScores = h2h.home_scores || [];
+    const awayScores = h2h.away_scores || [];
+    const hasValidScore =
+      Number.isInteger(homeScores[0]) && homeScores[0] >= 0 &&
+      Number.isInteger(awayScores[0]) && awayScores[0] >= 0;
+
     let decayWeight = 0.0;
-    const isValid = hasValidTime && daysAgo >= 0 && daysAgo <= MAX_VALID_DAYS;
+    const isValid = hasValidTime && daysAgo >= 0 && daysAgo <= MAX_VALID_DAYS && hasValidScore;
     if (isValid) {
       decayWeight = Math.exp(-decayConstant * daysAgo);
     }
 
-    // 赛事级别加权 (同名赛事 1.0, 杯赛/其他 0.75)
-    let compImp = 1.0;
-    // @ts-ignore
-    if (h2h.competition_id && match.reference?.competition_id) {
-      // @ts-ignore
-      compImp = h2h.competition_id === match.reference.competition_id ? 1.0 : 0.75;
-    }
+    const compImp = 1.0;
 
     // 方案 1 历史对赛改造：双重锚定校验当前主队在该历史对决中是主场出战还是客场出战
     let isCurrentHomePlayingHome = true;
@@ -318,8 +310,6 @@ export function calculateH2HDecayWeights(
       isCurrentHomePlayingHome = false;
     }
 
-    const homeScores = h2h.home_scores || [];
-    const awayScores = h2h.away_scores || [];
     const homeGoals = typeof homeScores[0] === 'number' ? homeScores[0] : 0;
     const awayGoals = typeof awayScores[0] === 'number' ? awayScores[0] : 0;
     const halfHomeGoals = typeof homeScores[1] === 'number' ? homeScores[1] : 0;
@@ -353,9 +343,16 @@ export function calculateH2HDecayWeights(
     }
 
     // 执行深层战术全指标双向真实门禁检验
+    const invalidReason = !hasValidTime
+      ? 'MISSING_MATCH_TIME'
+      : daysAgo > MAX_VALID_DAYS
+        ? 'EXCEEDS_MAX_VALID_DAYS_730'
+        : !hasValidScore
+          ? 'MISSING_MATCH_SCORE'
+          : 'INVALID_H2H_SAMPLE';
     const tacticalCheck = isValid
       ? checkH2HTacticalIntegrity(h2h.home_stats, h2h.away_stats, cornerHome, cornerAway, daysAgo)
-      : { isValid: false, reason: hasValidTime ? 'EXCEEDS_MAX_VALID_DAYS_730' : 'MISSING_MATCH_TIME' };
+      : { isValid: false, reason: invalidReason };
 
     const isTacticalValid = tacticalCheck.isValid;
     let daRatio: number | null = null;

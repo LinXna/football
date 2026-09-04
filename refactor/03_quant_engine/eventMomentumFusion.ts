@@ -44,18 +44,14 @@ import { Tracer } from '../00_common/Tracer.js';
  * 辅助函数：安全提取事件归属方
  */
 function getEventSide(event: CanonicalTimelineEvent): 'home' | 'away' | 'neutral' {
-  if (event.side) return event.side;
-  if ((event as any).team_side) return (event as any).team_side;
-  return 'neutral';
+  return event.side;
 }
 
 /**
  * 辅助函数：安全提取事件分钟数
  */
 function getEventMinute(event: CanonicalTimelineEvent): number {
-  if (typeof event.minute === 'number') return event.minute;
-  if (typeof (event as any).time === 'number') return (event as any).time;
-  return 0;
+  return event.minute ?? 0;
 }
 
 /**
@@ -69,8 +65,7 @@ function getEventThreatWeight(event: CanonicalTimelineEvent): number {
     event.category === CanonicalIncidentCategory.SCORE ||
     event.canonical_type === CanonicalEventType.GOAL_REGULAR ||
     event.canonical_type === CanonicalEventType.GOAL_PENALTY ||
-    (event as any).type === 'GOAL' ||
-    (event as any).type === 1
+    event.type === 1
   ) {
     return 3.0;
   }
@@ -78,8 +73,7 @@ function getEventThreatWeight(event: CanonicalTimelineEvent): number {
   // 2. 点球类
   if (
     event.canonical_type === CanonicalEventType.PENALTY_MISSED ||
-    event.is_penalty ||
-    (event as any).type === 'PENALTY'
+    event.is_penalty
   ) {
     return 2.5;
   }
@@ -88,16 +82,14 @@ function getEventThreatWeight(event: CanonicalTimelineEvent): number {
   if (
     event.canonical_type === CanonicalEventType.RED_CARD_DIRECT ||
     event.canonical_type === CanonicalEventType.RED_CARD_SECOND_YELLOW ||
-    (event as any).type === 'RED_CARD' ||
-    (event as any).type === 4
+    event.type === 4
   ) {
     return 2.0;
   }
 
   if (
     event.canonical_type === CanonicalEventType.YELLOW_CARD ||
-    (event as any).type === 'YELLOW_CARD' ||
-    (event as any).type === 3
+    event.type === 3
   ) {
     return event.is_on_pitch !== false ? 0.6 : 0.0;
   }
@@ -105,14 +97,14 @@ function getEventThreatWeight(event: CanonicalTimelineEvent): number {
   // 4. 战术角球与射正
   if (
     event.canonical_type === CanonicalEventType.CORNER ||
-    (event as any).type === 'CORNER'
+    event.type === 2
   ) {
     return 0.65;
   }
 
   if (
     event.canonical_type === CanonicalEventType.SHOT_ON_TARGET ||
-    (event as any).type === 'SHOT_ON_TARGET'
+    event.type === 21
   ) {
     return 1.4;
   }
@@ -120,8 +112,7 @@ function getEventThreatWeight(event: CanonicalTimelineEvent): number {
   if (
     event.canonical_type === CanonicalEventType.SUBSTITUTION ||
     event.canonical_type === CanonicalEventType.INJURY_SUB ||
-    (event as any).type === 'SUB' ||
-    (event as any).type === 9
+    event.type === 9
   ) {
     return 0.3;
   }
@@ -347,10 +338,9 @@ export function evaluateTacticalRegime(
   // 1. 查找最近进球事件
   const goalEvents = events.filter((e: CanonicalTimelineEvent) => {
     const isGoal = e.category === CanonicalIncidentCategory.SCORE || 
-                   e.canonical_type === CanonicalEventType.GOAL_REGULAR || 
-                   e.canonical_type === CanonicalEventType.GOAL_PENALTY ||
-                   (e as any).type === 'GOAL' ||
-                   (e as any).type === 1;
+                   e.canonical_type === CanonicalEventType.GOAL_REGULAR ||
+             e.canonical_type === CanonicalEventType.GOAL_PENALTY ||
+             e.type === 1;
     return isGoal && !e.is_cancelled;
   });
   let lastGoalMinute: number | undefined = undefined;
@@ -376,8 +366,7 @@ export function evaluateTacticalRegime(
   const redEvents = events.filter((e: CanonicalTimelineEvent) => {
     const isRed = e.canonical_type === CanonicalEventType.RED_CARD_DIRECT ||
                   e.canonical_type === CanonicalEventType.RED_CARD_SECOND_YELLOW ||
-                  (e as any).type === 'RED_CARD' ||
-                  (e as any).type === 4;
+                  e.type === 4;
     return isRed && !e.is_cancelled;
   });
   let redMinute: number | undefined = undefined;
@@ -468,7 +457,7 @@ export function evaluateGoalClimax(
   trinity: LiveThreatTrinityFeatures
 ): GoalClimaxFeatures {
   const currentMinute = Math.max(0, (match.timing.minute ?? 0));
-  const events = match.reference?.timeline_events ?? (match as any).timeline_events ?? [];
+  const events = match.reference?.timeline_events ?? [];
 
   // 1. 统计近 5 分钟极近事件密度
   const window5m = Math.max(0, currentMinute - 5);
@@ -501,7 +490,7 @@ export function evaluateGoalClimax(
 
   // 综合平滑连续破门临界分值
   let lastGoalMinute: number | undefined;
-  for (const event of events as CanonicalTimelineEvent[]) {
+  for (const event of events) {
     if (!event.is_cancelled && isGoalEvent(event)) {
       const eventMinute = getEventMinute(event);
       if (lastGoalMinute === undefined || eventMinute > lastGoalMinute) {
@@ -553,7 +542,7 @@ export function calculateSpatioTemporalFeatures(
   tracer?: Tracer
 ): SpatioTemporalEventFeatures {
   const currentMinute = Math.max(0, (match.timing.minute ?? 0));
-  const events = match.reference?.timeline_events ?? (match as any).timeline_events ?? [];
+  const events = match.reference?.timeline_events ?? [];
 
   // 1. 三位一体实时威胁校准，再由同一证据链生成 EPI。
   const liveThreatTrinity = calculateLiveThreatTrinity(timeline, events, physical, currentMinute);

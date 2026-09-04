@@ -120,9 +120,9 @@ async function runQuantEngineTests() {
           home_recent_matches_count: 0,
           away_recent_matches_count: 0,
           h2h_raw: [
-            { match_id: 1, home_team_name: 'Team A', away_team_name: 'Team B', match_time: '2026-08-01 20:00:00' } as any, // ~29天前
-            { match_id: 2, home_team_name: 'Team B', away_team_name: 'Team A', match_time: '2025-08-30 20:00:00' } as any, // 365天前
-            { match_id: 3, home_team_name: 'Team A', away_team_name: 'Team B', match_time: '2023-01-01 20:00:00' } as any  // >730天前
+            { match_id: 1, home_team_name: 'Team A', away_team_name: 'Team B', match_time: '2026-08-01 20:00:00', home_scores: [2, 1], away_scores: [1, 0] } as any, // ~29天前
+            { match_id: 2, home_team_name: 'Team B', away_team_name: 'Team A', match_time: '2025-08-30 20:00:00', home_scores: [1, 0], away_scores: [2, 0] } as any, // 365天前
+            { match_id: 3, home_team_name: 'Team A', away_team_name: 'Team B', match_time: '2023-01-01 20:00:00', home_scores: [0, 0], away_scores: [0, 0] } as any  // >730天前
           ],
           home_recent_matches: [],
           away_recent_matches: []
@@ -140,6 +140,24 @@ async function runQuantEngineTests() {
     assert(decayWeights[1].decay_weight >= 0.45 && decayWeights[1].decay_weight <= 0.55, '365-day match weight should be ~0.50');
     assert(decayWeights[2].decay_weight === 0.0, 'Over 730-day match weight must be strictly 0.0');
     assert(decayResult.analytics.valid_count === 2, 'Valid count should be 2');
+
+    const missingScoreMatch: CanonicalMatch = {
+      ...mockH2HMatch,
+      reference: {
+        ...mockH2HMatch.reference!,
+        tactical_context: {
+          ...mockH2HMatch.reference!.tactical_context!,
+          h2h_raw: [{ ...mockH2HMatch.reference!.tactical_context!.h2h_raw[0], home_scores: null, away_scores: null }]
+        }
+      }
+    };
+    const missingScoreResult = calculateH2HDecayWeights(
+      missingScoreMatch,
+      365,
+      new Date('2026-08-30T12:00:00Z').getTime()
+    );
+    assert(missingScoreResult.weights[0].is_valid === false, 'H2H without complete scores must be invalid');
+    assert(missingScoreResult.analytics.valid_count === 0, 'H2H without complete scores must not increase valid count');
 
     // (2) L0 熔断测试
     const fatalMatch: CanonicalMatch = {
@@ -197,6 +215,10 @@ async function runQuantEngineTests() {
     assert(grid.prob_home_win_rest > grid.prob_away_win_rest, 'Home win prob should exceed away with higher lambda');
     const probSum = grid.prob_home_win_rest + grid.prob_draw_rest + grid.prob_away_win_rest;
     assert(Math.abs(probSum - 1.0) < 0.01, `Normalized probability sum should be 1.0, got ${probSum}`);
+
+    const truncatedHighLambda = calculateBivariatePoissonGrid(3.5, 3.5, 7);
+    const expandedHighLambda = calculateBivariatePoissonGrid(3.5, 3.5, 16);
+    assert(expandedHighLambda.prob_draw_rest < truncatedHighLambda.prob_draw_rest - 0.005, 'High-lambda Poisson probabilities must change when the 0-7 tail is restored');
     console.log('   ✅ M4 泊松推演与绝境搏命测试 PASS');
   }
 
@@ -264,9 +286,9 @@ async function runQuantEngineTests() {
     } as any;
 
     const mockEventsLethal = [
-      { minute: 60, type: 'GOAL' as any, team_side: 'home' as any, is_cancelled: false },
-      { minute: 64, type: 'CORNER' as any, team_side: 'home' as any, is_cancelled: false },
-      { minute: 68, type: 'PENALTY' as any, team_side: 'home' as any, is_cancelled: false }
+      { minute: 60, type: 1, side: 'home', is_cancelled: false },
+      { minute: 64, type: 2, side: 'home', is_cancelled: false },
+      { minute: 68, type: 16, side: 'home', is_penalty: true, is_cancelled: false }
     ] as any;
 
     const mockPhysicalLethal = {
@@ -301,11 +323,11 @@ async function runQuantEngineTests() {
     // (3) 破门临界态探测 (二阶加速度与尾端事件爆发)
     const mockClimaxMatch = {
       timing: { minute: 78 },
-      timeline_events: [
-        { minute: 75, type: 'CORNER' as any, team_side: 'home' as any, is_cancelled: false },
-        { minute: 76, type: 'YELLOW_CARD' as any, team_side: 'away' as any, is_on_pitch: true, is_cancelled: false },
-        { minute: 77, type: 'CORNER' as any, team_side: 'home' as any, is_cancelled: false }
-      ]
+      reference: { timeline_events: [
+        { minute: 75, type: 2, side: 'home', is_cancelled: false },
+        { minute: 76, type: 3, side: 'away', is_on_pitch: true, is_cancelled: false },
+        { minute: 77, type: 2, side: 'home', is_cancelled: false }
+      ] }
     } as any;
 
     const climaxRes = evaluateGoalClimax(mockClimaxMatch, mockTimelineLethal, epiLethal, trinityLethal);
@@ -316,10 +338,10 @@ async function runQuantEngineTests() {
     // (4) 进球后的短时重置：刚发生的进球不得被继续解释为下一球临界压力。
     const mockPostGoalMatch = {
       timing: { minute: 65 },
-      timeline_events: [
-        { minute: 63, type: 'GOAL' as any, team_side: 'home' as any, is_cancelled: false },
-        { minute: 64, type: 'CORNER' as any, team_side: 'home' as any, is_cancelled: false }
-      ]
+      reference: { timeline_events: [
+        { minute: 63, type: 1, side: 'home', is_cancelled: false },
+        { minute: 64, type: 2, side: 'home', is_cancelled: false }
+      ] }
     } as any;
     const postGoalClimax = evaluateGoalClimax(mockPostGoalMatch, mockTimelineLethal, epiLethal, trinityLethal);
     assert(postGoalClimax.post_goal_cooldown_active, 'Goal inside the cooldown window must activate a regime reset');

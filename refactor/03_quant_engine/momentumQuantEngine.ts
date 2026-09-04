@@ -14,6 +14,7 @@
  */
 
 import { CanonicalMatch } from '../02_canonical_model/types.js';
+import { CanonicalEventType } from '../02_canonical_model/enums.js';
 import {
   MomentumTimelineFeatures,
   RealTimePhysicalStatsFeatures,
@@ -255,7 +256,7 @@ export function extractRealTimePhysicalStats(
       .map(([metric]) => metric);
     collector?.record('LIVE_STATS_UNAVAILABLE', Layer03OpId.MOMENTUM_ANALYSIS, 'RC-002', `Live technical statistics are incomplete (${missingMetrics.join(', ')}); zero is not a match fact.`, undefined, match.canonical_id);
   }
-  const events = match.reference?.timeline_events ?? (match as any).timeline_events ?? [];
+  const events = match.reference?.timeline_events ?? [];
 
   const homeDA = stats?.dangerous_attacks?.home;
   const awayDA = stats?.dangerous_attacks?.away;
@@ -286,12 +287,12 @@ export function extractRealTimePhysicalStats(
 
   for (const ev of events) {
     if (ev.is_cancelled) continue;
-    const side = ev.side || (ev as any).team_side;
-    const type = ev.type || (ev as any).canonical_type;
+    const side = ev.side;
+    const type = ev.type;
     const text = String(ev.text || '');
 
-    // 越位 (Type 15 或 文本包含越位)
-    if (type === 15 || text.includes('越位') || text.includes('Offside')) {
+    // 越位 (标准事件代码 5 或标准事件类型)
+    if (type === 5 || ev.canonical_type === CanonicalEventType.OFFSIDE || text.includes('越位') || text.includes('Offside')) {
       if (side === 'home') homeOffsides++;
       else if (side === 'away') awayOffsides++;
     }
