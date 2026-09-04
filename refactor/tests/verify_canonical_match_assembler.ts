@@ -170,8 +170,30 @@ function runTests() {
     console.log("✅ Score mismatch fuse properly triggered TIER_INVALID!");
   }
 
-  // 6. 测试极简 AI Slim Brief 提炼
-  console.log("\n[Test 6] Testing AI Slim Brief Extraction...");
+  // 6. 缺失核心事实不得被默认值掩盖
+  console.log("\n[Test 6] Testing Core Fact Defect Fuse...");
+  const missingScoreCanonical = assembleCanonicalMatch(
+    { ...genericLiveMatch, home_score: null, away_score: null },
+    matchedLeisu,
+    decision!
+  );
+  assert(missingScoreCanonical.score.home_score === null && missingScoreCanonical.score.away_score === null, "Missing score must remain null");
+  assert(missingScoreCanonical.missing_reasons.includes(MissingDataReason.MISSING_SCORE), "Deficit must contain MISSING_SCORE");
+  assert(missingScoreCanonical.completeness_tier === DataCompletenessTier.TIER_INVALID, "Missing score must be TIER_INVALID");
+
+  const missingTimeCanonical = assembleCanonicalMatch(
+    { ...genericLiveMatch, commence_time: null, captured_at: undefined, countdown: null },
+    null,
+    decision!
+  );
+  assert(missingTimeCanonical.timing.beijing_start_time === null, "Missing start time must remain null");
+  assert(missingTimeCanonical.missing_reasons.includes(MissingDataReason.MISSING_START_TIME), "Deficit must contain MISSING_START_TIME");
+  assert(missingTimeCanonical.missing_reasons.includes(MissingDataReason.NO_LEISU_MATCH), "Deficit must contain NO_LEISU_MATCH");
+  assert(missingTimeCanonical.completeness_tier === DataCompletenessTier.TIER_INVALID, "Missing start time or Leisu ID must be TIER_INVALID");
+  console.log("✅ Missing score, start time, and Leisu identity are preserved and fused before Layer 03!");
+
+  // 7. 测试极简 AI Slim Brief 提炼
+  console.log("\n[Test 7] Testing AI Slim Brief Extraction...");
   const canonicalLive0 = assembleCanonicalMatch(genericLiveMatch, matchedLeisu, decision!);
   const aiBrief = extractAiEvaluationBrief(canonicalLive0);
   assert(aiBrief.match_id === canonicalLive0.canonical_id, "Match ID must match");
@@ -182,8 +204,8 @@ function runTests() {
   console.log(`AI Brief JSON length: ${briefJsonStr.length} chars (ultra-lightweight payload!)`);
   console.log("Sample AI Brief Content:", JSON.stringify(aiBrief, null, 2));
 
-  // 7. 测试关键事件高保真语义解析 (CanonicalTimelineEvent & VAR Overturned)
-  console.log("\n[Test 7] Testing Enhanced CanonicalTimelineEvent Parsing...");
+  // 8. 测试关键事件高保真语义解析 (CanonicalTimelineEvent & VAR Overturned)
+  console.log("\n[Test 8] Testing Enhanced CanonicalTimelineEvent Parsing...");
   const mockRawEvents = [
     { type: 1, minute: 23, text: "梅西 (点球罚进)", side: "home" },
     { type: 1, minute: 45, text: "45+2' 范戴克 (进球被判无效 - 越位在先)", side: "away" },

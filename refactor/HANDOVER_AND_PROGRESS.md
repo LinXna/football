@@ -1,25 +1,135 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260904-LAYER03-DYNAMIC-POISSON-SUPPORT`
+- **任务编号 (Task)**: `SNAPSHOT-20260905-TYPESCRIPT-BASELINE`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：消除验收阶段确认的 4 个全仓 TypeScript 基线错误，不改变业务行为。
+- **改动文件 (Target Files)**：
+  - `server/routes/aiReadRoutes.ts`
+  - `src/components/CanonicalMatchCenter.tsx`
+  - `refactor/HANDOVER_AND_PROGRESS.md`
+- **执行步骤 (Steps)**：
+  1. 将 AI 读取结果映射中的未定义 `matchIdx` 改为 map 当前索引。
+  2. 补齐 React `useCallback` 导入。
+  3. 运行全仓类型检查、既有测试和 diff 检查。
+- **交付与验证**：
+  - `server/routes/aiReadRoutes.ts`：`parsed.matches.map` 现在显式接收 `matchIdx`，修复选中比赛索引回落引用未定义问题。
+  - `src/components/CanonicalMatchCenter.tsx`：补齐 `useCallback` React 导入。
+  - `npx tsc --noEmit`：通过，0 errors。
+  - `npm run test:ts`：71/71 通过，0 failed。
+  - `git diff --check`：通过。
+- **结论**：全仓 TypeScript 基线阻断已清除；00-04 业务验收与全仓静态检查均达到绿色。
+
+### 上一活动快照
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-ACCEPTANCE-00-04`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：对 00-04 重构链路执行正式标准验收，分别验证基础设施、摄取、规范模型、量化、AI 运行时契约及跨层证据链，并记录既有全仓阻断。
+- **改动文件 (Target Files)**：
+  - `refactor/HANDOVER_AND_PROGRESS.md`
+  - 不修改业务代码，仅执行现有验收命令。
+- **执行步骤 (Steps)**：
+  1. 运行 Layer 00、01、02、03、04、05、06 定向验证。
+  2. 运行 00-03 集成、03-04 联合和现有 TypeScript 测试套件。
+  3. 运行全仓类型检查与 diff 检查，区分既有基线问题和本次整改问题。
+  4. 生成逐层通过/阻断矩阵并归档。
+- **验收矩阵 (Acceptance Matrix)**：
+  - Layer 00：PASS — `verify_common_infrastructure.ts`。
+  - Layer 01：PASS — YBTY live/prematch 与 Leisu extractor 验证。
+  - Layer 02：PASS — CanonicalMatch 组装、比分/时间/雷速身份熔断验证。
+  - Layer 03：PASS — `verify_quant_engine.ts` 8/8；00-03 双轨集成通过。
+  - Layer 04：PASS — AI evaluator、alignment、03-04 联合防御通过；联合测试 21/21。
+  - Formal ledger / Layer 05：PASS — portfolio risk、正式身份和非正式结果拦截通过。
+  - Layer 06 contract：PASS — historical backtest ingestion 9/9。
+  - Existing TypeScript suite：PASS — `npm run test:ts` 71/71，0 failed。
+  - Full TypeScript compile：BASELINE BLOCKED — 仅既有 `server/routes/aiReadRoutes.ts:294-295` 的 `matchIdx` 和 `src/components/CanonicalMatchCenter.tsx:276,298` 的 `useCallback`；本次 00-04 修改未新增错误。
+  - Formatting：PASS — `git diff --check`。
+- **正式结论**：00-04 重构链路的业务验收通过；全仓静态编译仍受 2 个既有文件中的 4 个基线错误阻断，不纳入本次整改回归缺陷。
+- **下一步**：如需达到全仓绿色，单独创建基线修复原子任务，不与本次 00-04 正式链路整改混合。
+
+### 上一活动快照
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-FORMAL-RECOMMENDATION-EVIDENCE`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：将通过 04 对齐和 05 风控的 AI 结果明确标记为 `formal_ai_recommendation`，并在台账中保留 YBTY 队名、时间、盘口、赔率、滚球分钟/比分和比分校验状态；machine candidate 与非正式 AI 结果不得写入正式台账。
+- **改动文件 (Target Files)**：
+  - `refactor/05_portfolio_risk/types.ts`
+  - `refactor/05_portfolio_risk/ledgerPersistence.ts`
+  - `refactor/05_portfolio_risk/riskFilter.ts`
+  - `refactor/tests/verify_portfolio_risk.ts`
+  - `refactor/HANDOVER_AND_PROGRESS.md`
+- **执行步骤 (Steps)**：
+  1. 扩展正式推荐记录契约，加入正式身份和来源证据快照。
+  2. 在台账写入前强制检查 A/B 级、置信度、身份、时间和比分校验。
+  3. 保持已有去重和组合风控，确保只有 approved legs 能入账。
+  4. 运行 05 层与历史台账契约测试，再更新快照。
+- **交付与验证**：
+  - `FormalRecommendation` 明确写入 `record_type: formal_ai_recommendation` 和 `formal_recommendation: true`。
+  - 台账记录保留 YBTY 原始队名、开赛时间、盘口、当前赔率、滚球状态/比分、比分校验状态和来源标记。
+  - 台账写入前强制拒绝 C/WATCH/RESEARCH、置信度低于 70、身份不一致、缺失关键身份或未校验比分。
+  - `npx tsx refactor/tests/verify_portfolio_risk.ts` 通过，包含非正式 AI 结果不得入账断言。
+  - `npx tsx refactor/tests/verify_historical_backtest_ingestion.ts`：9/9 通过。
+  - `npx tsc --noEmit` 仍仅报告既有 `matchIdx` 与 `useCallback` 错误；`git diff --check` 通过。
+- **结论**：正式推荐身份与 05 层台账证据链已接通；下一步执行 00-04 正式标准验收。
+
+### 上一活动快照
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER04-RUNTIME-CONTRACT`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：收紧 Layer 04 AI 输入输出运行时契约，阻止畸形 JSON、身份错配、非法推荐腿和未透传评估模式进入正式评估链路。
+- **改动文件 (Target Files)**：
+  - `refactor/04_ai_evaluator/types.ts`
+  - `refactor/04_ai_evaluator/aiCaller.ts`
+  - `refactor/04_ai_evaluator/alignmentGuard.ts`
+  - `refactor/04_ai_evaluator/promptBuilder.ts`
+  - `refactor/tests/*`（仅直接回归）
+- **执行步骤 (Steps)**：
+  1. 将核心盘口输入从 `any` 收紧为显式结构，并保持 YBTY 原始盘口字段兼容。
+  2. 为 AI JSON 响应增加身份、等级、置信度、推荐腿和赔率边界运行时校验。
+  3. 透传 `live_eval`、`prematch_eval`、`parlay_check` 模式。
+  4. 让空推荐和拒绝结果继续经过统一对齐/硬门禁规范化。
+  5. 运行 Layer 04 与联合测试、类型检查并归档结果。
+- **当前进展**：
+  - AI response schema 已要求 `match_id` 和 `match`，`evaluateMatch` 已透传评估模式。
+  - 已新增 JSON 运行时校验，拒绝身份错配、非法枚举、置信度越界、赔率无效和非法推荐市场。
+  - 核心盘口类型已删除 `any`；保留主盘原始 YBTY 字段兼容。
+  - alignment guard 不再跳过拒绝/空推荐结果，并对 A/B 级空腿熔断。
+- **交付与验证**：
+  - `npx tsx --test tests-ts/aiEvaluatorAlignment.test.ts tests-ts/jointLayer03Layer04.test.ts`：15/15 通过。
+  - `npx tsx refactor/tests/verify_full_pipeline_00_03.ts`：00-03 双轨与防御场景全部通过。
+  - `npx tsc --noEmit`：本次 04 改动未新增类型错误，仍仅报告既有 `matchIdx` 与 `useCallback` 错误。
+  - `git diff --check`：通过。
+  - 运行时校验已覆盖 JSON 身份、枚举、置信度、推荐市场/方向和赔率边界；AI 模式已透传；空 A/B 级推荐被熔断。
+- **结论**：Layer 04 运行时契约整改完成；下一原子任务为正式推荐身份与 05 层台账证据链。
+
+### 上一活动快照
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER03-MARKET-VALUE-LAYERING`
 - **当前状态 (Status)**: `DONE`
 - **任务目标 (Goal)**：
-  修复 Layer 03 主泊松推演固定 0~7 球支持集造成的高 λ 尾部概率截断，确保概率矩阵、胜平负和 Top 比分使用同一动态支持边界。
+  让 Layer 03 的 YBTY 主盘与副盘进入同一可审计价值链，并明确区分 raw EV、validated OOS EV 与 machine candidate；同时消除计算层对缺失比分的默认 0:0 依赖。
 - **改动文件 (Target Files)**：
+  - `refactor/03_quant_engine/types.ts`
   - `refactor/03_quant_engine/index.ts`
-  - `refactor/03_quant_engine/poissonDecayModel.ts`
-  - `refactor/03_quant_engine/contextEngine.ts`
+  - `refactor/03_quant_engine/devigCalculator.ts`
+  - `refactor/03_quant_engine/oosCalibrationEngine.ts`
   - `refactor/tests/verify_quant_engine.ts`
+  - `refactor/tests/verify_full_pipeline_00_03.ts`
   - `refactor/HANDOVER_AND_PROGRESS.md`
 - **执行步骤 (Action Plan)**：
-  1. 审计高 λ 场景的泊松尾部质量与支持边界；
-  2. 让主泊松推演使用动态支持上界并统一遍历边界；
-  3. 补充高 λ 概率回归测试并运行 Layer 03 与 00~03 验证。
+  1. 先补失败断言，证明主盘/副盘信号和三层价值语义当前不完整；
+  2. 在不改变已确认结算公式的前提下，让主盘与副盘统一生成带市场身份的 raw EV；
+  3. 让 OOS 验证按市场保留 validated 层，并让 machine candidate 只消费 validated 信号；
+  4. 计算盘口离散度并使 `max_poisson_goals` 进入实际调用；
+  5. 执行 03 定向、00-03 集成、类型检查并更新本快照。
 - **交付物与验证 (Deliverables & Verification)**：
-  1. Layer 03 主泊松推演使用基于 λ 的动态支持上界，概率矩阵、胜平负聚合和 Top 比分统一遍历实际网格。
-  2. 新增高 λ 回归：`lambda_home=3.5`、`lambda_away=3.5` 时，扩展支持集相对 0~7 截断结果产生可验证的分布修正。
-  3. `npx tsx refactor/tests/verify_quant_engine.ts` 通过 8/8；`npx tsx refactor/tests/verify_full_pipeline_00_03.ts` 通过；`npm run test:ts` 通过 71/71；`npx tsc --noEmit` 与 `git diff --check` 通过。
+  1. 主盘与所有 YBTY 副盘统一生成 raw positive EV signals，并以 `ASIAN_HANDICAP_SECONDARY` / `TOTAL_GOALS_SECONDARY` 保留市场身份。
+  2. `QuantitativeFeatures` 新增 `raw_positive_ev_signals` 与 `validated_oos_signals`；`positive_ev_signals` 继续只表示通过候选门禁的 machine candidates。
+  3. 盘口离散度从主/副盘真实盘口数值计算，不再固定为 `0.0`；缺失比分时大小球 EV 不再补当前总进球 0。
+  4. `QuantEngineOptions.max_poisson_goals` 已透传到动态泊松网格上界。
+  5. `npx tsx refactor/tests/verify_quant_engine.ts` 通过 8/8；`npx tsx refactor/tests/verify_full_pipeline_00_03.ts` 通过；`git diff --check` 通过。
+  6. `npx tsc --noEmit` 仍只报告既有 `matchIdx` 与 `useCallback` 错误，未发现本次 03 层修改新增的类型错误。
 - **下一步待办 (Next Steps)**：
-  - 用 LYX 最新快照继续审计 Layer 03 的阶段语义、盘口档位覆盖、统计缺失传播和原始 EV/机器候选展示口径。
+  - 开始 Layer 04 AI 运行时契约整改。
 - **改动文件清单 (Target Files)**：
   - `refactor/03_quant_engine/index.ts`
   - `refactor/tests/verify_full_pipeline_00_03.ts`

@@ -40,10 +40,6 @@ export function parseHandicapToFloat(line: string | number): number | null {
  * Also enforces strict system-level risk overrides (Data Blind-Spot, Unverified Score).
  */
 export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: EvaluatorPayload): AiEvaluationResult {
-  if (result.grade === RecommendationGrade.REJECTED || result.recommended_legs.length === 0) {
-    return result; 
-  }
-
   const statutoryMarkets = payload.ai_brief.core_markets || {};
   let hasHallucination = false;
   let hallucinationReason = '';
@@ -60,7 +56,7 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
 
     if (leg.market === 'ASIAN_HANDICAP_MAIN' && statutoryMarkets.ah_main) {
       const sm = statutoryMarkets.ah_main;
-      const statLine = parseHandicapToFloat(sm.handicap);
+      const statLine = parseHandicapToFloat(sm.handicap ?? sm.home_selection ?? '');
       
       if (statLine !== null && aiLine !== null && Math.abs(aiLine - statLine) < 0.001) {
         if (
@@ -72,7 +68,7 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
       }
     } else if (leg.market === 'TOTAL_GOALS_MAIN' && statutoryMarkets.ou_main) {
       const sm = statutoryMarkets.ou_main;
-      const statLine = parseHandicapToFloat(sm.handicap);
+      const statLine = parseHandicapToFloat(sm.handicap ?? sm.line ?? '');
       
       if (statLine !== null && aiLine !== null && Math.abs(aiLine - statLine) < 0.001) {
         if (
@@ -85,15 +81,15 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
     } else if (leg.market === 'EURO_1X2' && statutoryMarkets.euro_1x2) {
       const sm = statutoryMarkets.euro_1x2;
       if (
-        (leg.direction === 'HOME' && Math.abs(leg.current_odds - sm.home_win) < 0.02) ||
-        (leg.direction === 'DRAW' && Math.abs(leg.current_odds - sm.draw) < 0.02) ||
-        (leg.direction === 'AWAY' && Math.abs(leg.current_odds - sm.away_win) < 0.02)
+        (leg.direction === 'HOME' && Math.abs(leg.current_odds - (sm.home_win ?? sm.home_odds ?? Number.NaN)) < 0.02) ||
+        (leg.direction === 'DRAW' && Math.abs(leg.current_odds - (sm.draw ?? sm.draw_odds ?? Number.NaN)) < 0.02) ||
+        (leg.direction === 'AWAY' && Math.abs(leg.current_odds - (sm.away_win ?? sm.away_odds ?? Number.NaN)) < 0.02)
       ) {
         isValid = true;
       }
     } else if (leg.market === 'ASIAN_HANDICAP_HALF' && statutoryMarkets.ah_half) {
       const sm = statutoryMarkets.ah_half;
-      const statLine = parseHandicapToFloat(sm.handicap);
+      const statLine = parseHandicapToFloat(sm.handicap ?? sm.home_selection ?? '');
       
       if (statLine !== null && aiLine !== null && Math.abs(aiLine - statLine) < 0.001) {
         if (
@@ -105,7 +101,7 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
       }
     } else if (leg.market === 'TOTAL_GOALS_HALF' && statutoryMarkets.ou_half) {
       const sm = statutoryMarkets.ou_half;
-      const statLine = parseHandicapToFloat(sm.handicap);
+      const statLine = parseHandicapToFloat(sm.handicap ?? sm.line ?? '');
       
       if (statLine !== null && aiLine !== null && Math.abs(aiLine - statLine) < 0.001) {
         if (
@@ -139,8 +135,15 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
 
   // --- HARD RISK OVERRIDES (系统硬性风控后置门禁) ---
   let enforcedGrade = result.grade;
-  let enforcedConfidence = result.confidence_score;
+  let enforcedConfidence = Math.max(0, Math.min(100, result.confidence_score));
   const additionalWarnings: string[] = [];
+
+  if (result.recommended_legs.length === 0 &&
+      (enforcedGrade === RecommendationGrade.A_GRADE || enforcedGrade === RecommendationGrade.B_GRADE)) {
+    enforcedGrade = RecommendationGrade.REJECTED;
+    enforcedConfidence = 0;
+    additionalWarnings.push('SYSTEM HARD GATE: actionable grade requires at least one statutory recommended leg');
+  }
 
   // 1. 比分未经校验时：绝对不得给 A 级推荐
   const isScoreVerified = payload.ai_brief.score_verification?.is_verified ?? true;
@@ -217,7 +220,7 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
     risk_warnings: [
       ...result.risk_warnings,
       ...additionalWarnings
-    ]
+    ],
+    recommended_legs: enforcedGrade === RecommendationGrade.REJECTED ? [] : result.recommended_legs
   };
 }
-

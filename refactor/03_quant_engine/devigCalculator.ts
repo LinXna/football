@@ -32,6 +32,12 @@ import { poissonPMF, calculateBivariatePoissonGrid } from './poissonDecayModel.j
 
 type PoissonExpectation = Pick<InPlayPoissonFeatures, 'lambda_home_rest' | 'lambda_away_rest' | 'expected_goals_rest'>;
 
+function calculateLineVariance(values: readonly number[]): number {
+  if (values.length < 2) return 0;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  return Number((values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length).toFixed(6));
+}
+
 function requireFiniteNonNegative(value: number, field: string): number {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${field} must be a finite non-negative Poisson expectation.`);
@@ -470,16 +476,19 @@ export function calculateDeviggedMarketFeatures(
 
   // 3. 大小球盘 EV
   const totalMarket = match.markets?.full_total_main;
-  const currentTotal = (match.score.home_score ?? 0) + (match.score.away_score ?? 0);
+  const currentTotal =
+    match.score.home_score !== null && match.score.away_score !== null
+      ? match.score.home_score + match.score.away_score
+      : null;
   let totalMain: TotalEVAssessment | undefined;
-  if (totalMarket && totalMarket.line && totalMarket.over_odds && totalMarket.under_odds) {
+  if (totalMarket && currentTotal !== null && totalMarket.line && totalMarket.over_odds && totalMarket.under_odds) {
     totalMain = calculateTotalGoalsEV(totalMarket.line, totalMarket.over_odds, totalMarket.under_odds, currentTotal, poisson);
   }
 
   const totalSecondaryEV: TotalEVAssessment[] = [];
   if (match.markets?.full_total_subs) {
     for (const sub of match.markets.full_total_subs) {
-      if (sub.line && sub.over_odds && sub.under_odds) {
+      if (currentTotal !== null && sub.line && sub.over_odds && sub.under_odds) {
         totalSecondaryEV.push(calculateTotalGoalsEV(sub.line, sub.over_odds, sub.under_odds, currentTotal, poisson));
       }
     }
@@ -509,8 +518,14 @@ export function calculateDeviggedMarketFeatures(
     total_main_ev: totalMain,
     total_secondary_ev: totalSecondaryEV,
     line_dispersion: {
-      spread_variance: 0.0,
-      total_variance: 0.0
+      spread_variance: calculateLineVariance([
+        ...(spreadMain ? [parseAsianHandicapLine(spreadMain.line)] : []),
+        ...spreadSecondaryEV.map((assessment) => parseAsianHandicapLine(assessment.line))
+      ]),
+      total_variance: calculateLineVariance([
+        ...(totalMain ? [parseAsianHandicapLine(totalMain.line)] : []),
+        ...totalSecondaryEV.map((assessment) => parseAsianHandicapLine(assessment.line))
+      ])
     },
     bookmaker_posture: posture
   });
