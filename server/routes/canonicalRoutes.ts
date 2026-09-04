@@ -44,7 +44,7 @@ const REFACTOR_STORAGE = {
 /**
  * 辅助函数：装配指定模式下的所有 Canonical 比赛
  */
-function assembleMatchesForMode(mode: "live" | "prematch"): {
+export function assembleMatchesForMode(mode: "live" | "prematch"): {
   canonicalMatches: CanonicalMatch[];
   aiBriefs: AiEvaluationBrief[];
   leisuCandidates: Array<{

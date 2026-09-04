@@ -1,0 +1,60 @@
+--- refactor/04_ai_evaluator/types.ts
++++ refactor/04_ai_evaluator/types.ts
+@@ -21,12 +21,17 @@
+ }
+ 
+ export interface EvaluatorTeamProfile {
+-  recent_timeline: string;
+-  tactical_playstyle: string;
+-  market_performance: string;
++  recent_form_summary: string;
++  market_performance_ats: string;
+ }
+ 
+ export interface EvaluatorTeamProfiling {
+-  h2h_tactical_integrity: string;
+-  home: EvaluatorTeamProfile;
+-  away: EvaluatorTeamProfile;
++  h2h_tactical_integrity?: string;
++  home?: EvaluatorTeamProfile;
++  away?: EvaluatorTeamProfile;
+ }
+ 
+ export interface EvaluatorQuantFeatures {
+-  devig: DeviggedMarketFeatures | Record<string, unknown>;
+-  bdi: number;
+-  ev_signals: readonly PositiveEVSignal[];
+-  risk_flags: readonly QuantAlert[];
+-  goal_alert: string;
+-  confidence: number;
+-  poisson?: InPlayPoissonFeatures;
+-  spatio_temporal_events?: SpatioTemporalEventFeatures;
++  mathematical_ev_signals: readonly PositiveEVSignal[];
++  poisson_expected_goals?: string;
++  market_divergence_insights?: string;
+ }
+ 
++export interface LivePhysicalContext {
++  expected_remaining_minutes_including_stoppage: number;
++  real_time_stats: string;
++  match_timeline_events: string[];
++  attack_momentum_time_series: string[];
++}
++
+ export interface EvaluatorPayload {
+   ai_brief: Partial<AiEvaluationBrief>;
+   data_blind_spot_warning?: string;
+-  time_context: {
+-    statutory_minute: string;
+-    expected_remaining_minutes_including_stoppage: number;
+-  };
+-  tactical_phase_transitions: string[];
+-  lineup_value_matrix: EvaluatorLineupMatrix;
+-  team_profiling: EvaluatorTeamProfiling;
+-  quant_features: EvaluatorQuantFeatures;
++  live_physical_context?: LivePhysicalContext;
++  historical_team_profiling?: EvaluatorTeamProfiling;
++  lineup_value_matrix?: EvaluatorLineupMatrix | string;
++  quant_features?: EvaluatorQuantFeatures;
+   oos_context?: OosHistoricalContext;
+ }

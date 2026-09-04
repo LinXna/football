@@ -164,6 +164,7 @@ export interface CanonicalLeisuReference {
   odds_matrix: ParsedLeisuOddsMatrix | null;
   league_standings: ParsedLeagueStandings | null;
   goal_distribution: ParsedGoalDistribution | null;
+  environment: import('../01_data_ingestion/leisu/types.js').ParsedLeisuEnvironment | null;
 }
 
 /**

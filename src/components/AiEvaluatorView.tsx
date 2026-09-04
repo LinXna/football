@@ -2434,7 +2434,12 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
         ) : (
           <div className="space-y-2">
             {evaluationHistory.map((snapshot) => {
-              const snapshotMatches = Array.isArray(snapshot.result?.matches) ? snapshot.result.matches : [snapshot.result];
+              const rawMatches = Array.isArray(snapshot.result?.matches)
+                ? snapshot.result.matches
+                : Array.isArray(snapshot.result)
+                  ? snapshot.result
+                  : [snapshot.result];
+              const snapshotMatches = rawMatches.filter(Boolean).flatMap((x: any) => Array.isArray(x) ? x : [x]);
               const expanded = expandedHistoryId === snapshot.id;
               return (
                 <div key={snapshot.id} className="overflow-hidden rounded-lg border border-slate-800 bg-slate-950/70">
@@ -2447,41 +2452,99 @@ export const AiEvaluatorView: React.FC<Props> = ({ selectedMatch, allMatches, li
                   </button>
                   {expanded && (
                     <div className="space-y-3 border-t border-slate-800 p-3">
-                      {snapshotMatches.map((matchResult: AIAnalysisResponse, index: number) => (
-                        <div key={`${matchResult?.match || index}`} className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 text-xs">
-                          <div className="flex items-center justify-between gap-2">
-                            <strong className="text-slate-100">{matchResult?.match || `${matchResult?.ybty_home || ''} vs ${matchResult?.ybty_away || ''}`}</strong>
-                            <span className="text-sky-300">{matchResult?.grade || '--'}级</span>
-                          </div>
-                          <p className="mt-2 whitespace-pre-wrap text-slate-300">{matchResult?.summary || '无摘要'}</p>
-                          {matchResult?.recommendation && (
-                            <div className="mt-2 text-emerald-300">主选：{matchResult.recommendation.market} {matchResult.recommendation.line} @{matchResult.recommendation.odds}</div>
-                          )}
-                          {Array.isArray(matchResult?.market_assessments) && matchResult.market_assessments.length > 0 && (
-                            <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-                              {matchResult.market_assessments.map((assessment, assessmentIndex) => (
-                                <div key={`${assessment.category}-${assessmentIndex}`} className="rounded border border-slate-700 bg-slate-950 p-2">
-                                  <div className="font-semibold text-slate-200">{assessment.category}</div>
-                                  <div className="mt-1 text-emerald-300">{assessment.direction || '--'} {assessment.line ?? ''} {assessment.odds ? `@${assessment.odds}` : ''}</div>
-                                  <div className="mt-1 text-slate-500 flex flex-wrap items-center gap-1.5">
-                                    <span>概率 {assessment.probability ?? '--'}%</span>
-                                    {assessment.implied_probability ? <span className="text-slate-600 font-mono text-[10px]">(机构: {assessment.implied_probability}%)</span> : null}
-                                    <span>· {assessment.grade} · {assessment.status}</span>
-                                    {assessment.value_edge !== null && assessment.value_edge !== undefined && (
-                                      <span className={`font-mono text-[10px] font-bold px-1 rounded ${
-                                        Number(assessment.value_edge) >= 8 ? 'text-emerald-400 bg-emerald-950/80' : Number(assessment.value_edge) > 0 ? 'text-sky-400 bg-sky-950/80' : 'text-rose-400 bg-rose-950/80'
-                                      }`}>
-                                        {Number(assessment.value_edge) > 0 ? '+' : ''}{assessment.value_edge}% EV
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="mt-1 text-slate-400">{assessment.reason}</div>
-                                </div>
-                              ))}
+                      {snapshotMatches.map((matchResult: any, index: number) => {
+                        const matchTitle = matchResult?.match || (matchResult?.ybty_home ? `${matchResult.ybty_home} vs ${matchResult.ybty_away}` : `赛事评估 #${index + 1}`);
+                        const gradeText = matchResult?.grade_raw || (matchResult?.grade ? `${matchResult.grade}级` : '--');
+                        const summaryText = matchResult?.qualitative_summary || matchResult?.summary || '';
+                        return (
+                          <div key={`${matchTitle}-${index}`} className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 text-xs space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <strong className="text-slate-100 font-bold">{matchTitle}</strong>
+                              <span className="text-sky-300 font-semibold px-2 py-0.5 rounded bg-sky-950 border border-sky-800/80">{gradeText}</span>
                             </div>
-                          )}
-                        </div>
-                      ))}
+
+                            {summaryText && (
+                              <p className="whitespace-pre-wrap text-slate-300 leading-relaxed">{summaryText}</p>
+                            )}
+
+                            {matchResult?.blind_spot_analysis && (
+                              <div className="p-2.5 rounded bg-slate-950/80 border border-slate-800 text-[11px] space-y-1.5">
+                                <div className="flex flex-wrap items-center gap-2 font-medium">
+                                  <span className="text-amber-400">战术态势: {matchResult.blind_spot_analysis.tactical_regime_evaluation || '待评估'}</span>
+                                  <span className="text-slate-600">|</span>
+                                  <span className="text-sky-400">诱盘检测: {matchResult.blind_spot_analysis.trap_detection_result || '待评估'}</span>
+                                  {matchResult.confidence_score !== undefined && (
+                                    <>
+                                      <span className="text-slate-600">|</span>
+                                      <span className="text-indigo-300 font-mono font-bold">置信度: {matchResult.confidence_score}/100</span>
+                                    </>
+                                  )}
+                                </div>
+                                {matchResult.blind_spot_analysis['1_global_motivation'] && (
+                                  <div className="text-slate-400"><strong className="text-slate-300">战意动因: </strong>{matchResult.blind_spot_analysis['1_global_motivation']}</div>
+                                )}
+                                {matchResult.blind_spot_analysis['2_asian_handicap_reality'] && (
+                                  <div className="text-slate-400"><strong className="text-slate-300">让球盘实质: </strong>{matchResult.blind_spot_analysis['2_asian_handicap_reality']}</div>
+                                )}
+                                {matchResult.blind_spot_analysis['3_total_goals_reality'] && (
+                                  <div className="text-slate-400"><strong className="text-slate-300">大小球实质: </strong>{matchResult.blind_spot_analysis['3_total_goals_reality']}</div>
+                                )}
+                              </div>
+                            )}
+
+                            {matchResult?.internal_logical_audit && (
+                              <div className="p-2.5 rounded bg-indigo-950/40 border border-indigo-900/60 text-[11px] text-indigo-200 leading-relaxed">
+                                <strong className="text-indigo-300">内部逻辑审计: </strong>
+                                {matchResult.internal_logical_audit}
+                              </div>
+                            )}
+
+                            {Array.isArray(matchResult?.risk_warnings) && matchResult.risk_warnings.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                {matchResult.risk_warnings.map((w: string, wi: number) => (
+                                  <span key={wi} className="text-[10px] font-semibold px-2 py-0.5 rounded bg-rose-950/70 border border-rose-800/70 text-rose-300">
+                                    {w}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            {matchResult?.recommendation ? (
+                              <div className="text-emerald-300 font-medium">
+                                主选：{matchResult.recommendation.market} {matchResult.recommendation.line} @{matchResult.recommendation.odds}
+                              </div>
+                            ) : (
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-950/40 border border-amber-800/50 text-amber-300 text-xs font-semibold">
+                                <span>🛡️ 风控门禁生效：本场为观望评级（C_GRADE），禁止出单，未计入正式推荐台账</span>
+                              </div>
+                            )}
+
+                            {Array.isArray(matchResult?.market_assessments) && matchResult.market_assessments.length > 0 && (
+                              <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                                {matchResult.market_assessments.map((assessment: any, assessmentIndex: number) => (
+                                  <div key={`${assessment.category}-${assessmentIndex}`} className="rounded border border-slate-700 bg-slate-950 p-2">
+                                    <div className="font-semibold text-slate-200">{assessment.category}</div>
+                                    <div className="mt-1 text-emerald-300">{assessment.direction || '--'} {assessment.line ?? ''} {assessment.odds ? `@${assessment.odds}` : ''}</div>
+                                    <div className="mt-1 text-slate-500 flex flex-wrap items-center gap-1.5">
+                                      <span>概率 {assessment.probability ?? '--'}%</span>
+                                      {assessment.implied_probability ? <span className="text-slate-600 font-mono text-[10px]">(机构: {assessment.implied_probability}%)</span> : null}
+                                      <span>· {assessment.grade} · {assessment.status}</span>
+                                      {assessment.value_edge !== null && assessment.value_edge !== undefined && (
+                                        <span className={`font-mono text-[10px] font-bold px-1 rounded ${
+                                          Number(assessment.value_edge) >= 8 ? 'text-emerald-400 bg-emerald-950/80' : Number(assessment.value_edge) > 0 ? 'text-sky-400 bg-sky-950/80' : 'text-rose-400 bg-rose-950/80'
+                                        }`}>
+                                          {Number(assessment.value_edge) > 0 ? '+' : ''}{assessment.value_edge}% EV
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="mt-1 text-slate-400">{assessment.reason}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

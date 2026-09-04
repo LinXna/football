@@ -64,7 +64,7 @@ export function generateRefactoredPrompt(
     const hasDA = !!pStats.available_metrics.dangerous_attacks;
     const homeAnalytics = quantFeatures.context.recent_form_analytics?.home;
     const awayAnalytics = quantFeatures.context.recent_form_analytics?.away;
-    const hasHistoricalForm = !!(homeAnalytics && homeAnalytics.valid_count > 0 && awayAnalytics && awayAnalytics.valid_count > 0);
+    const hasHistoricalForm = !!(homeAnalytics && homeAnalytics.sample_count > 0 && awayAnalytics && awayAnalytics.sample_count > 0);
 
     const resolveLineupStatusDesc = (side: 'home' | 'away') => {
       if (!hasLineupData || lineupStatus === 'NOT_ANNOUNCED') {
@@ -101,8 +101,24 @@ export function generateRefactoredPrompt(
     const awayDA = hasDA ? (match.reference?.stats?.dangerous_attacks?.away ?? '未知') : '数据盲区';
     const homeCorners = pStats.available_metrics.corners ? (match.reference?.stats?.corners?.home ?? '未知') : '数据盲区';
     const awayCorners = pStats.available_metrics.corners ? (match.reference?.stats?.corners?.away ?? '未知') : '数据盲区';
+    
+    // Add shots and possession
+    const homeShotsOnTarget = match.reference?.stats?.shots_on_target?.home ?? '未知';
+    const awayShotsOnTarget = match.reference?.stats?.shots_on_target?.away ?? '未知';
+    const homeShotsOffTarget = match.reference?.stats?.shots_off_target?.home ?? '未知';
+    const awayShotsOffTarget = match.reference?.stats?.shots_off_target?.away ?? '未知';
+    const homePossession = match.reference?.stats?.possession?.home ?? '未知';
+    const awayPossession = match.reference?.stats?.possession?.away ?? '未知';
+
     const homeXtStr = (hasDA && pStats.xt_proxy?.home_xt != null) ? pStats.xt_proxy.home_xt.toFixed(2) : "数据缺失(N/A)";
     const awayXtStr = (hasDA && pStats.xt_proxy?.away_xt != null) ? pStats.xt_proxy.away_xt.toFixed(2) : "数据缺失(N/A)";
+    
+    // Extract weather
+    const environment = match.reference?.environment;
+    let environmentStr = "缺失";
+    if (environment) {
+        environmentStr = `天气: ${environment.weather ?? '未知'}, 气温: ${environment.temperature ?? '未知'}, 风速: ${environment.wind ?? '未知'}, 湿度: ${environment.humidity ?? '未知'}`;
+    }
 
     const h2hAnalytics = quantFeatures.context.h2h_analytics;
     const h2hProfiling = (h2hAnalytics && h2hAnalytics.sample_count > 0)
@@ -114,32 +130,16 @@ export function generateRefactoredPrompt(
     const team_profiling: EvaluatorTeamProfiling = {
       h2h_tactical_integrity: h2hProfiling,
       home: {
-        recent_timeline: (homeAnalytics && homeAnalytics.valid_count > 0) ? `有效样本数: ${homeAnalytics.valid_count}场 (总${homeAnalytics.sample_count}场), 场均得失球: ${homeAnalytics.weighted_scored_per_game.toFixed(2)} / ${homeAnalytics.weighted_conceded_per_game.toFixed(2)}` : "数据盲区 / 近期有效战绩样本不足 (Valid Count: 0)",
-        tactical_playstyle: `危攻: ${homeDA}, 角球: ${homeCorners}, xT威胁代理: ${homeXtStr}`,
-        market_performance: (homeAnalytics && homeAnalytics.valid_count > 0) ? `赢盘率(ATS): ${(homeAnalytics.handicap_win_rate * 100).toFixed(1)}%, 大球率: ${(homeAnalytics.over_goals_rate * 100).toFixed(1)}%` : "缺乏历史盘路数据"
+        recent_form_summary: (homeAnalytics && homeAnalytics.valid_count > 0) ? `有效样本数: ${homeAnalytics.valid_count}场 (总${homeAnalytics.sample_count}场), 场均得失球: ${homeAnalytics.weighted_scored_per_game.toFixed(2)} / ${homeAnalytics.weighted_conceded_per_game.toFixed(2)}` : "数据盲区 / 近期有效战绩样本不足 (Valid Count: 0)",
+        market_performance_ats: (homeAnalytics && homeAnalytics.valid_count > 0) ? `赢盘率(ATS): ${(homeAnalytics.handicap_win_rate * 100).toFixed(1)}%, 大球率: ${(homeAnalytics.over_goals_rate * 100).toFixed(1)}%` : "缺乏历史盘路数据"
       },
       away: {
-        recent_timeline: (awayAnalytics && awayAnalytics.valid_count > 0) ? `有效样本数: ${awayAnalytics.valid_count}场 (总${awayAnalytics.sample_count}场), 场均得失球: ${awayAnalytics.weighted_scored_per_game.toFixed(2)} / ${awayAnalytics.weighted_conceded_per_game.toFixed(2)}` : "数据盲区 / 近期有效战绩样本不足 (Valid Count: 0)",
-        tactical_playstyle: `危攻: ${awayDA}, 角球: ${awayCorners}, xT威胁代理: ${awayXtStr}`,
-        market_performance: (awayAnalytics && awayAnalytics.valid_count > 0) ? `赢盘率(ATS): ${(awayAnalytics.handicap_win_rate * 100).toFixed(1)}%, 大球率: ${(awayAnalytics.over_goals_rate * 100).toFixed(1)}%` : "缺乏历史盘路数据"
+        recent_form_summary: (awayAnalytics && awayAnalytics.valid_count > 0) ? `有效样本数: ${awayAnalytics.valid_count}场 (总${awayAnalytics.sample_count}场), 场均得失球: ${awayAnalytics.weighted_scored_per_game.toFixed(2)} / ${awayAnalytics.weighted_conceded_per_game.toFixed(2)}` : "数据盲区 / 近期有效战绩样本不足 (Valid Count: 0)",
+        market_performance_ats: (awayAnalytics && awayAnalytics.valid_count > 0) ? `赢盘率(ATS): ${(awayAnalytics.handicap_win_rate * 100).toFixed(1)}%, 大球率: ${(awayAnalytics.over_goals_rate * 100).toFixed(1)}%` : "缺乏历史盘路数据"
       }
     };
 
-    // Devig Market Sanitization
-    const sanitizedDevig: Record<string, unknown> = { ...quantFeatures.devig };
-    const hasAnyMarket = !!(match.markets?.full_h2h || match.markets?.full_spread_main || match.markets?.full_total_main);
-    if (!match.markets?.full_h2h) {
-      sanitizedDevig.h2h_devig = "未开盘 (No Market)";
-      sanitizedDevig.euro_1x2_devig = "未开盘 (No Market)";
-    }
-    if (!match.markets?.full_spread_main) {
-      sanitizedDevig.spread_main_ev = "未开盘 (No Market)";
-    }
-    if (!match.markets?.full_total_main) {
-      sanitizedDevig.total_main_ev = "未开盘 (No Market)";
-    }
-
-    // 韧性提取正 EV 信号：若经过 OOS 检验的候选为空，补充 devig 中原生由泊松推演得到的数学正 EV 信号供大模型研判
+    // 韧性提取正 EV 信号
     const effectiveEvSignals = [...quantFeatures.positive_ev_signals];
     if (effectiveEvSignals.length === 0) {
       const spreadEv = quantFeatures.devig.spread_main_ev;
@@ -171,6 +171,7 @@ export function generateRefactoredPrompt(
     const blindSpots: string[] = [];
     if (!hasLineupData || lineupStatus === 'NOT_ANNOUNCED') blindSpots.push("首发阵容未公布(需C级风控)");
     if (!hasDA && match.timing.stage === MatchStage.LIVE) blindSpots.push("实时危攻射门缺失");
+    const hasAnyMarket = !!(match.markets?.full_h2h || match.markets?.full_spread_main || match.markets?.full_total_main);
     if (!hasHistoricalForm) blindSpots.push("历史有效战绩样本不足");
     if (!hasAnyMarket) blindSpots.push("核心盘口完全缺失");
 
@@ -179,10 +180,19 @@ export function generateRefactoredPrompt(
       data_blind_spot_warning = `【系统最高级别警告】本场比赛存在严重的客观数据盲区: [${blindSpots.join('、')}]。AI 绝对禁止依此凭空捏造实力差距或控场优势。必须将 100% 评估权重转移至已有真实数据 (如可用盘口资金动量)，必须标注 [高波动/盲盒风险]，且最高置信度上限强制锁定在 85 以下，绝对禁止给出 A_GRADE 评级。`;
     }
 
-    const compressedAiBrief = { ...aiBrief, condensed_features: undefined };
+    const compressedAiBrief = { 
+      ...aiBrief, 
+      core_markets: {
+        ah_main: match.markets?.full_spread_main,
+        ah_secondary: quantFeatures.devig.spread_secondary_ev,
+        ou_main: match.markets?.full_total_main,
+        ou_secondary: quantFeatures.devig.total_secondary_ev,
+        euro_1x2: match.markets?.full_h2h
+      },
+      condensed_features: undefined 
+    };
     delete compressedAiBrief.condensed_features;
 
-    // 优先采用 Layer 03 泊松引擎的精确剩余比赛时间推算 (SSOT)
     let expectedRemaining = 0;
     if (match.timing?.stage === MatchStage.FINISHED) {
       expectedRemaining = 0;
@@ -198,22 +208,19 @@ export function generateRefactoredPrompt(
     validPayloads.push({
       ai_brief: compressedAiBrief,
       data_blind_spot_warning,
-      time_context: {
-        statutory_minute: match.timing?.minute ? `${match.timing.minute}'` : '0',
-        expected_remaining_minutes_including_stoppage: expectedRemaining
-      },
-      tactical_phase_transitions,
-      lineup_value_matrix,
-      team_profiling,
+      live_physical_context: match.timing?.stage === MatchStage.LIVE ? {
+        expected_remaining_minutes_including_stoppage: expectedRemaining,
+        real_time_stats: `控球: ${homePossession}%-${awayPossession}% | 射门(正/偏): ${homeShotsOnTarget}(${homeShotsOffTarget})-${awayShotsOnTarget}(${awayShotsOffTarget}) | 危攻: ${homeDA}-${awayDA} | 角球: ${homeCorners}-${awayCorners} | xT威胁: ${homeXtStr}-${awayXtStr}`,
+        environment: environmentStr,
+        match_timeline_events: tactical_phase_transitions.filter(t => t.includes(']') && !t.includes('战术相变') && !t.includes('比赛初段') && !t.includes('持续围攻')),
+        attack_momentum_time_series: tactical_phase_transitions.filter(t => t.includes('战术相变') || t.includes('比赛初段') || t.includes('持续围攻'))
+      } : undefined,
+      historical_team_profiling: team_profiling,
+      lineup_value_matrix: (!hasLineupData || lineupStatus === 'NOT_ANNOUNCED') ? "NO_LINEUP" : lineup_value_matrix,
       quant_features: {
-        devig: sanitizedDevig,
-        bdi: quantFeatures.battlefield_dominance_index,
-        ev_signals: effectiveEvSignals,
-        risk_flags: quantFeatures.risk_flags,
-        goal_alert: quantFeatures.goal_phase_alert,
-        confidence: quantFeatures.confidence_score,
-        poisson: quantFeatures.poisson,
-        spatio_temporal_events: quantFeatures.spatio_temporal_events
+        mathematical_ev_signals: effectiveEvSignals,
+        poisson_expected_goals: quantFeatures.poisson ? `Home Rest: ${quantFeatures.poisson.lambda_home_rest?.toFixed(2)}, Away Rest: ${quantFeatures.poisson.lambda_away_rest?.toFixed(2)}` : undefined,
+        market_divergence_insights: quantFeatures.devig.bookmaker_posture
       }
     });
   }
