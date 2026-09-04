@@ -33,6 +33,14 @@ export function evaluateParlaySettlement(legs: ParlayLegResult[]): ParlaySettlem
 
   for (const leg of legs) {
     const o = leg.settlement.outcome;
+    if (!Number.isFinite(leg.odds) || leg.odds <= 1) {
+      return {
+        outcome: 'INVALID',
+        net_profit_unit: 0,
+        payout_multiplier: 0,
+        explanation: `Invalid odds for leg ${leg.leg_index}.`,
+      };
+    }
     if (o === 'LOSE') {
       hasFailedLeg = true;
       effectiveMultiplier = 0;
@@ -43,10 +51,10 @@ export function evaluateParlaySettlement(legs: ParlayLegResult[]): ParlaySettlem
       effectiveMultiplier = 0;
     } else if (o === 'WIN') {
       completedCount++;
-      effectiveMultiplier *= leg.current_odds;
+      effectiveMultiplier *= leg.odds;
     } else if (o === 'WIN_HALF') {
       completedCount++;
-      const halfWinOdds = 1 + (leg.current_odds - 1) / 2;
+      const halfWinOdds = 1 + (leg.odds - 1) / 2;
       effectiveMultiplier *= halfWinOdds;
     } else if (o === 'PUSH') {
       completedCount++;

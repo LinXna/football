@@ -43,6 +43,14 @@ function poissonSupportUpperBound(lambda: number): number {
   return Math.max(12, Math.ceil(lambda + 10 * Math.sqrt(lambda + 1)));
 }
 
+function calculateLineVariance(lines: readonly string[]): number {
+  const values = lines.map((line) => parseAsianHandicapLine(line));
+  if (values.length < 2) return 0.0;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+  return Number(variance.toFixed(6));
+}
+
 /**
  * 比例剥水模型 (Multiplicative / Proportional De-vig)
  * Fair_P_i = (1 / Odds_i) / sum(1 / Odds_j)
@@ -502,6 +510,15 @@ export function calculateDeviggedMarketFeatures(
     match.canonical_id
   );
 
+  const spreadLines = [
+    ...(spreadMain ? [spreadMain.line] : []),
+    ...spreadSecondaryEV.map((assessment) => assessment.line)
+  ];
+  const totalLines = [
+    ...(totalMain ? [totalMain.line] : []),
+    ...totalSecondaryEV.map((assessment) => assessment.line)
+  ];
+
   return Object.freeze({
     h2h_devig: h2hDevig,
     spread_main_ev: spreadMain,
@@ -509,8 +526,8 @@ export function calculateDeviggedMarketFeatures(
     total_main_ev: totalMain,
     total_secondary_ev: totalSecondaryEV,
     line_dispersion: {
-      spread_variance: 0.0,
-      total_variance: 0.0
+      spread_variance: calculateLineVariance(spreadLines),
+      total_variance: calculateLineVariance(totalLines)
     },
     bookmaker_posture: posture
   });

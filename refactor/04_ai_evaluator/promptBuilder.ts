@@ -44,7 +44,7 @@ After analyzing the blind spots, you MUST write an 'internal_logical_audit' summ
 7. Zero-Shot False EV Guard (识别伪 EV 与小样本失真): If an underdog has 0 shots on target, low possession (<40%), and is under constant siege, any apparent mathematical +EV on the underdog is often a statistical artifact caused by uninformative prior models. You MUST NOT blindly trust positive EV for an underdog with zero attacking capability.
 
 === MARKET SCANNING & MAO ENFORCEMENT ===
-You are provided comprehensive expected value calculations in 'quant_features.mathematical_ev_signals' and 'ai_brief.core_markets'. Do NOT anchor to just the main line. You must:
+You are provided raw mathematical EV calculations in 'quant_features.raw_mathematical_ev_signals', machine-candidate signals in 'quant_features.machine_candidate_signals', and all market lines in 'ai_brief.core_markets'. Raw EV is not OOS-validated and is never a recommendation by itself. Do NOT anchor to just the main line. You must:
 1. Determine the expected match flow (Goal Difference or Total Goals).
 2. Scan ALL available main and secondary lines.
 3. Select the single most valuable line (Highest Risk-Adjusted EV) as your 'selected_line'.

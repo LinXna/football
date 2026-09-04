@@ -124,6 +124,7 @@ export function buildOosCalibrationArchive(samples: readonly OosCalibrationSampl
   }
   return Object.freeze({
     schema_version: 1,
+    archive_provenance: 'OOS_ARCHIVE_BUILDER_V1',
     generated_at: options.generated_at,
     model_version: options.model_version,
     training_window_start_at: options.training_window_start_at,
@@ -131,7 +132,7 @@ export function buildOosCalibrationArchive(samples: readonly OosCalibrationSampl
     prediction_window_start_at: options.prediction_window_start_at,
     prediction_window_end_at: options.prediction_window_end_at,
     training_cutoff_at: options.training_window_end_at,
-    global_profile: globalProfile,
+    global_profiles: Object.freeze([...globalProfiles.values()]),
     profiles: Object.freeze(profiles)
   });
 }
@@ -154,7 +155,8 @@ export function selectOosCalibrationProfile(
   match: CanonicalMatch,
   market: OosMarket
 ): QuantCalibrationProfile | undefined {
-  if (archive === undefined || archive.schema_version !== 1) return undefined;
+  if (archive === undefined || archive.schema_version !== 1 ||
+      archive.archive_provenance !== 'OOS_ARCHIVE_BUILDER_V1') return undefined;
 
   // 严格在准入时强制校验赛事时间戳是否落入 OOS 档案的预测窗口内
   const matchTimestamp = Date.parse(match.created_at);
@@ -186,8 +188,8 @@ export function selectOosCalibrationProfile(
   const bucketCandidate = candidates.find((profile) => profile.team_key === undefined);
   if (teamCandidate !== undefined) return teamCandidate;
   if (bucketCandidate !== undefined) return bucketCandidate;
-  const globalCandidate = archive.profiles.find((profile) =>
-    profile.status === 'VALIDATED' && profile.league_key === 'GLOBAL' && profile.market === market
+  const globalCandidate = archive.global_profiles.find((profile) =>
+    profile.status === 'VALIDATED' && profile.market === market
   );
   return globalCandidate;
 }

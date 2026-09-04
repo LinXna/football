@@ -1,25 +1,27 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260904-LAYER03-DYNAMIC-POISSON-SUPPORT`
+- **任务编号 (Task)**: `SNAPSHOT-20260904-FINAL-CROSS-LAYER-REGRESSION`
 - **当前状态 (Status)**: `DONE`
 - **任务目标 (Goal)**：
-  修复 Layer 03 主泊松推演固定 0~7 球支持集造成的高 λ 尾部概率截断，确保概率矩阵、胜平负和 Top 比分使用同一动态支持边界。
+  执行 Layer 03–06 最终跨层回归与范围审计，确认累计修改可交付且保护目录无变化。
 - **改动文件 (Target Files)**：
-  - `refactor/03_quant_engine/index.ts`
-  - `refactor/03_quant_engine/poissonDecayModel.ts`
-  - `refactor/03_quant_engine/contextEngine.ts`
   - `refactor/tests/verify_quant_engine.ts`
+  - `refactor/tests/verify_full_pipeline_00_03.ts`
+  - `refactor/tests/verify_ai_evaluator.ts`
+  - `refactor/tests/verify_portfolio_risk.ts`
+  - `refactor/tests/verify_historical_backtest_ingestion.ts`
+  - `refactor/tests/verify_settlement_engine.ts`
   - `refactor/HANDOVER_AND_PROGRESS.md`
 - **执行步骤 (Action Plan)**：
-  1. 审计高 λ 场景的泊松尾部质量与支持边界；
-  2. 让主泊松推演使用动态支持上界并统一遍历边界；
-  3. 补充高 λ 概率回归测试并运行 Layer 03 与 00~03 验证。
-- **交付物与验证 (Deliverables & Verification)**：
-  1. Layer 03 主泊松推演使用基于 λ 的动态支持上界，概率矩阵、胜平负聚合和 Top 比分统一遍历实际网格。
-  2. 新增高 λ 回归：`lambda_home=3.5`、`lambda_away=3.5` 时，扩展支持集相对 0~7 截断结果产生可验证的分布修正。
-  3. `npx tsx refactor/tests/verify_quant_engine.ts` 通过 8/8；`npx tsx refactor/tests/verify_full_pipeline_00_03.ts` 通过；`npm run test:ts` 通过 71/71；`npx tsc --noEmit` 与 `git diff --check` 通过。
+  1. 运行 Layer 03–06 定向验证；
+  2. 检查 diff、保护目录与 sources 边界；
+  3. 更新最终交接状态。
+**交付物与验证 (Deliverables & Verification)**：
+  1. 已完成：Layer 03、00–03 全链路、Layer 04、Layer 05、Layer 06 ingestion/settlement 全部通过。
+  2. 已完成：`git diff --check` 通过，保护目录无差异。
+  3. 已确认：测试刷新了既有 refactor sample 输出，未产生范围外修改。
 - **下一步待办 (Next Steps)**：
-  - 用 LYX 最新快照继续审计 Layer 03 的阶段语义、盘口档位覆盖、统计缺失传播和原始 EV/机器候选展示口径。
+  - 当前：本轮审计与回归已完成；后续仅按需提交或发布。
 - **改动文件清单 (Target Files)**：
   - `refactor/03_quant_engine/index.ts`
   - `refactor/tests/verify_full_pipeline_00_03.ts`
