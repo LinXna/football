@@ -34,7 +34,8 @@ export interface EvaluatorTeamProfiling {
 }
 
 export interface EvaluatorQuantFeatures {
-  mathematical_ev_signals: readonly PositiveEVSignal[];
+  raw_mathematical_ev_signals: readonly PositiveEVSignal[];
+  machine_candidate_signals: readonly PositiveEVSignal[];
   poisson_expected_goals?: string;
   market_divergence_insights?: string;
 }

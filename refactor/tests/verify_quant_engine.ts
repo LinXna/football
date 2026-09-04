@@ -33,6 +33,7 @@ import {
   extractRealTimePhysicalStats,
   calculateLiveThreatTrinity,
   calculateEventPressureConversion,
+  calculateDeviggedMarketFeatures,
   evaluateTacticalRegime,
   evaluateGoalClimax,
   buildOosCalibrationArchive,
@@ -40,7 +41,8 @@ import {
   extractSpatioTemporalEventFeatures,
   EventPressureConversionType,
   TacticalRegimeType,
-  GoalClimaxLevel
+  GoalClimaxLevel,
+  QuantAlert
 } from '../03_quant_engine/index.js';
 import { calculateDecayedEventScore } from '../03_quant_engine/eventMomentumFusion.js';
 import { CanonicalMatch } from '../02_canonical_model/types.js';
@@ -270,6 +272,29 @@ async function runQuantEngineTests() {
     assert(ouEV.line === '2/2.5', 'O/U line mismatch');
     assert(typeof ouEV.over_ev === 'number', 'Over EV must be number');
     assert(typeof ouEV.under_ev === 'number', 'Under EV must be number');
+
+    const marketMatch = {
+      canonical_id: 'dispersion_test',
+      score: { home_score: 0, away_score: 0 },
+      markets: {
+        full_h2h: null,
+        full_spread_main: { line_index: 0, home_selection: '-0/0.5', home_odds: 2.00, away_selection: '+0/0.5', away_odds: 1.80 },
+        full_spread_subs: [
+          { line_index: 1, home_selection: '0', home_odds: 1.90, away_selection: '0', away_odds: 1.90 },
+          { line_index: 2, home_selection: '-0.5', home_odds: 2.20, away_selection: '+0.5', away_odds: 1.65 }
+        ],
+        full_total_main: { line_index: 0, line: '2', over_odds: 1.90, under_odds: 1.90 },
+        full_total_subs: [
+          { line_index: 1, line: '2/2.5', over_odds: 2.00, under_odds: 1.80 },
+          { line_index: 2, line: '1.5/2', over_odds: 1.80, under_odds: 2.00 }
+        ]
+      }
+    } as CanonicalMatch;
+    const marketFeatures = calculateDeviggedMarketFeatures(marketMatch, mockPoisson);
+    assert(marketFeatures.spread_secondary_ev.length === 2, 'All spread sub-lines must be evaluated');
+    assert(marketFeatures.total_secondary_ev.length === 2, 'All total sub-lines must be evaluated');
+    assert(marketFeatures.line_dispersion.spread_variance > 0, 'Spread line dispersion must not remain a fixed zero');
+    assert(marketFeatures.line_dispersion.total_variance > 0, 'Total line dispersion must not remain a fixed zero');
     console.log('   ✅ M5 Shin 去抽水、中文盘口与闭式复合 EV 测试 PASS');
   }
 
@@ -378,6 +403,23 @@ async function runQuantEngineTests() {
       predicted_lambda: 1.0,
       observed_goals: 2
     }));
+    const prematchHandicapSamples = Array.from({ length: 240 }, (_, index) => ({
+      sample_id: `prematch-ah-${index}`,
+      model_version: 'layer03-v1',
+      prediction_at: '2026-09-01T00:00:00.000Z',
+      league_key: 'Premier League',
+      home_team_key: 'Team E',
+      away_team_key: 'Team F',
+      stage: 'PREMATCH' as const,
+      minute: null,
+      score_state: '0-0',
+      red_card_state: '0-0',
+      market: 'ASIAN_HANDICAP_MAIN' as const,
+      model_probability: 0.55,
+      outcome: index % 2 === 0 ? 1 : 0,
+      predicted_lambda: 1.0,
+      observed_goals: 2
+    }));
     const oosArchiveOptions = {
       generated_at: '2026-09-02T00:00:00.000Z',
       model_version: 'layer03-v1',
@@ -386,8 +428,22 @@ async function runQuantEngineTests() {
       prediction_window_start_at: '2026-08-02T00:00:00.000Z',
       prediction_window_end_at: '2026-09-01T23:59:59.000Z'
     };
-    const archive = buildOosCalibrationArchive(oosSamples, oosArchiveOptions);
-    assert(archive.global_profile.status === 'VALIDATED', '240 settled samples must validate the global archive');
+    const archive = buildOosCalibrationArchive([...oosSamples, ...prematchHandicapSamples], oosArchiveOptions);
+    const reloadedArchive = JSON.parse(JSON.stringify(archive)) as OosCalibrationArchive;
+    assert(reloadedArchive.archive_provenance === 'OOS_ARCHIVE_BUILDER_V1',
+      'OOS archive provenance must survive JSON serialization and reload');
+    assert(archive.global_profiles.length === 2, 'Each OOS market must have its own global profile');
+    const totalGlobalProfile = archive.global_profiles.find((profile) => profile.market === 'TOTAL_GOALS_MAIN');
+    assert(totalGlobalProfile?.status === 'VALIDATED', '240 settled samples must validate the total-goals global profile');
+    assert(archive.profiles.some((profile) =>
+      profile.market === 'TOTAL_GOALS_MAIN' && profile.minute_band === 'LIVE_60_90'
+    ), 'Live total-goals profiles must remain in the live time bucket');
+    assert(archive.profiles.some((profile) =>
+      profile.market === 'ASIAN_HANDICAP_MAIN' && profile.minute_band === 'PREMATCH'
+    ), 'Prematch handicap profiles must remain in the prematch bucket');
+    assert(!archive.profiles.some((profile) =>
+      profile.market === 'ASIAN_HANDICAP_MAIN' && profile.minute_band === 'LIVE_60_90'
+    ), 'Prematch handicap samples must not leak into live profile buckets');
     const teamAProfile = archive.profiles.find((profile) => profile.team_key === 'Team A');
     assert(teamAProfile !== undefined, 'Team-specific OOS profile must be generated');
     assert(teamAProfile!.status === 'INSUFFICIENT_EVIDENCE', 'A 120-sample team bucket must not borrow fictitious evidence to validate itself');
@@ -407,6 +463,26 @@ async function runQuantEngineTests() {
     assert(selected?.team_key === undefined && selected?.league_key === 'Premier League', 'Only the validated non-team bucket may be selected when team evidence is insufficient');
     const noMatch = selectOosCalibrationProfile(archive, { ...calibrationMatch, league_name: 'Other League' }, 'TOTAL_GOALS_MAIN');
     assert(noMatch?.league_key === 'GLOBAL', 'Unmatched context may only fall back to the validated global profile');
+    const handicapFallback = selectOosCalibrationProfile(archive, calibrationMatch, 'ASIAN_HANDICAP_MAIN');
+    assert(handicapFallback?.league_key === 'GLOBAL' && handicapFallback.market === 'ASIAN_HANDICAP_MAIN',
+      'A market fallback must select only that market global profile');
+    const invalidGlobalFallback = selectOosCalibrationProfile({
+      ...archive,
+      archive_provenance: 'OOS_ARCHIVE_BUILDER_V1',
+      global_profiles: archive.global_profiles.map((profile) =>
+        profile.market === 'ASIAN_HANDICAP_MAIN' ? { ...profile, status: 'INSUFFICIENT_EVIDENCE' } : profile
+      )
+    }, calibrationMatch, 'ASIAN_HANDICAP_MAIN');
+    assert(invalidGlobalFallback === undefined, 'An insufficient global profile must not unlock calibration');
+    const forgedArchive = { ...reloadedArchive, archive_provenance: undefined } as unknown as OosCalibrationArchive;
+    assert(selectOosCalibrationProfile(forgedArchive, calibrationMatch, 'TOTAL_GOALS_MAIN') === undefined,
+      'An archive without builder provenance must not unlock profile selection');
+    const unsupportedVersionArchive = { ...reloadedArchive, schema_version: 2 } as unknown as OosCalibrationArchive;
+    assert(selectOosCalibrationProfile(unsupportedVersionArchive, calibrationMatch, 'TOTAL_GOALS_MAIN') === undefined,
+      'An unsupported OOS archive schema version must not unlock profile selection');
+    const missingVersionArchive = { ...reloadedArchive, schema_version: undefined } as unknown as OosCalibrationArchive;
+    assert(selectOosCalibrationProfile(missingVersionArchive, calibrationMatch, 'TOTAL_GOALS_MAIN') === undefined,
+      'An OOS archive without a schema version must not unlock profile selection');
     const basePoisson = calculateInPlayPoissonFeatures(
       calibrationMatch,
       extractCleanedContextFeatures(calibrationMatch),
@@ -428,6 +504,30 @@ async function runQuantEngineTests() {
       selected
     );
     assert(adjustedPoisson.expected_goals_rest > basePoisson.expected_goals_rest, 'Validated OOS lambda adjustment must change the Poisson output');
+    const baselineQuant = calculateQuantitativeFeatures(calibrationMatch);
+    const totalCalibratedQuant = calculateQuantitativeFeatures(calibrationMatch, {
+      calibration_profile: {
+        ...selected!,
+        lambda_log_adjustment: 0.4
+      }
+    });
+    assert(
+      totalCalibratedQuant.devig.spread_main_ev?.home_ev === baselineQuant.devig.spread_main_ev?.home_ev &&
+        totalCalibratedQuant.devig.spread_main_ev?.away_ev === baselineQuant.devig.spread_main_ev?.away_ev,
+      'TOTAL_GOALS_MAIN lambda calibration must not change Asian-handicap EV'
+    );
+    assert(
+      totalCalibratedQuant.devig.total_main_ev?.over_ev !== baselineQuant.devig.total_main_ev?.over_ev ||
+        totalCalibratedQuant.devig.total_main_ev?.under_ev !== baselineQuant.devig.total_main_ev?.under_ev,
+      'TOTAL_GOALS_MAIN lambda calibration must change totals EV when the calibrated lambda changes'
+    );
+    const handicapCalibratedQuant = calculateQuantitativeFeatures(calibrationMatch, {
+      calibration_profile: handicapFallback
+    });
+    assert(
+      handicapCalibratedQuant.poisson.expected_goals_rest === baselineQuant.poisson.expected_goals_rest,
+      'ASIAN_HANDICAP_MAIN calibration must not change Poisson lambda'
+    );
     let leakageBlocked = false;
     try {
       buildOosCalibrationArchive([{ ...oosSamples[0], sample_id: 'future-oos', prediction_at: '2026-09-02T00:00:00.000Z' }], oosArchiveOptions);
@@ -505,7 +605,79 @@ async function runQuantEngineTests() {
     assert(quantResult.physical_stats.corner_pressure.window_source === 'CUMULATIVE_BASELINE', 'Live technical corners must remain cumulative baseline, never a recent-window claim');
     assert(quantResult.confidence_breakdown.edge_confidence_score === 0, 'Unvalidated OOS calibration must not create tradable edge confidence');
     assert(quantResult.positive_ev_signals.length === 0, 'Raw devig EV without validated OOS evidence must not become a machine trade candidate');
+    assert(quantResult.raw_positive_ev_signals.length >= 2, 'Raw positive EV must retain calculated main and secondary market signals');
+    assert(quantResult.devig.spread_secondary_ev.length === 2, 'Real YBTY spread sub-lines must remain represented in Layer 03');
+    assert(quantResult.devig.total_secondary_ev.length === 2, 'Real YBTY total sub-lines must remain represented in Layer 03');
+    assert(quantResult.devig.line_dispersion.spread_variance > 0, 'Real spread line dispersion must be measurable');
+    assert(quantResult.devig.line_dispersion.total_variance > 0, 'Real total line dispersion must be measurable');
+    const validatedMainProfileQuant = calculateQuantitativeFeatures(targetMatch!, {
+      calibration_profile: {
+        status: 'VALIDATED',
+        league_key: 'GLOBAL',
+        minute_band: 'ALL',
+        score_state: 'ALL',
+        red_card_state: 'ALL',
+        market: 'TOTAL_GOALS_MAIN',
+        sample_size: 240,
+        effective_sample_size: 240,
+        oos_brier_score: 0.2,
+        lambda_log_adjustment: 0.1
+      }
+    });
+    assert(validatedMainProfileQuant.raw_positive_ev_signals.some((signal) =>
+      signal.market === 'ASIAN_HANDICAP_SUB' || signal.market === 'TOTAL_GOALS_SUB'
+    ), 'Secondary raw EV must remain observable when a main-market profile is validated');
+    assert(validatedMainProfileQuant.positive_ev_signals.every((signal) =>
+      signal.market === 'ASIAN_HANDICAP_MAIN' || signal.market === 'TOTAL_GOALS_MAIN'
+    ), 'A validated main-market profile must not unlock secondary-line machine candidates');
     assert(quantResult.battlefield_dominance_index === quantResult.match_state.dominance_index, 'BDI must consume the unified match state only');
+
+    const prematchQuant = calculateQuantitativeFeatures({
+      ...targetMatch!,
+      timing: {
+        ...targetMatch!.timing,
+        stage: MatchStage.PREMATCH,
+        minute: null,
+        ybty_display_clock: '即将开赛'
+      },
+      score: {
+        ...targetMatch!.score,
+        home_score: 0,
+        away_score: 0,
+        score_verified: true,
+        score_source: 'YBTY_DIRECT'
+      }
+    }, undefined, collector, tracer);
+    assert(prematchQuant.poisson.elapsed_minute === 0, 'Prematch Poisson must use an explicit zero elapsed minute');
+    assert(prematchQuant.poisson.remaining_minutes === 90, 'Prematch Poisson must represent the full match horizon');
+    assert(prematchQuant.poisson.projected_final_score.home >= 0 && prematchQuant.poisson.projected_final_score.away >= 0, 'Prematch projection must remain finite and non-negative');
+    assert(!prematchQuant.risk_flags.includes(QuantAlert.TECHNICAL_METRICS_DEFICIT), 'Prematch must not inherit the LIVE technical metrics deficit warning');
+
+    const liveWithoutStats = calculateQuantitativeFeatures({
+      ...targetMatch!,
+      reference: {
+        ...targetMatch!.reference!,
+        stats: null,
+        attack_momentum: null
+      },
+      timing: {
+        ...targetMatch!.timing,
+        stage: MatchStage.LIVE,
+        minute: 62
+      },
+      score: {
+        ...targetMatch!.score,
+        home_score: 0,
+        away_score: 1,
+        score_verified: true,
+        score_source: 'LEISU_INTERFACE'
+      }
+    }, undefined, collector, tracer);
+    assert(liveWithoutStats.physical_stats.stats_available === false, 'LIVE missing technical statistics must remain unavailable');
+    assert(liveWithoutStats.physical_stats.xt_proxy.home_xt === undefined, 'Missing LIVE statistics must not become a fabricated zero xT');
+    assert(liveWithoutStats.risk_flags.includes(QuantAlert.TECHNICAL_METRICS_DEFICIT), 'LIVE missing technical statistics must trigger the technical deficit warning');
+    assert(liveWithoutStats.confidence_score <= 55, 'LIVE missing technical statistics must cap confidence');
+    assert(liveWithoutStats.positive_ev_signals.length === 0, 'LIVE missing technical statistics must not produce machine candidates');
 
     console.log(`   📊 [量化推演战报]:`);
     console.log(`      - 法定进行时间: ${quantResult.poisson.elapsed_minute}' (剩余: ${quantResult.poisson.remaining_minutes}')`);

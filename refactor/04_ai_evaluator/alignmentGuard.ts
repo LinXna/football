@@ -35,6 +35,20 @@ export function parseHandicapToFloat(line: string | number): number | null {
   return null;
 }
 
+function hasMachineCandidate(leg: AiEvaluationResult['recommended_legs'][number], payload: EvaluatorPayload): boolean {
+  const candidates = payload.quant_features?.machine_candidate_signals ?? [];
+  const candidateSide = leg.direction.toLowerCase();
+  return candidates.some((candidate) => {
+    const candidateLine = parseHandicapToFloat(candidate.line);
+    const legLine = parseHandicapToFloat(leg.selected_line);
+    return candidate.market === leg.market &&
+      candidate.side.toLowerCase() === candidateSide &&
+      ((candidateLine === null && legLine === null) ||
+        (candidateLine !== null && legLine !== null && Math.abs(candidateLine - legLine) < 0.001)) &&
+      Math.abs(candidate.odds - leg.current_odds) < 0.02;
+  });
+}
+
 /**
  * Alignment Guard: Prevents AI hallucination of betting markets and odds.
  * Also enforces strict system-level risk overrides (Data Blind-Spot, Unverified Score).
@@ -51,6 +65,12 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
   for (const leg of result.recommended_legs) {
     let isValid = false;
     const aiLine = parseHandicapToFloat(leg.selected_line);
+
+    if (!hasMachineCandidate(leg, payload)) {
+      hasHallucination = true;
+      hallucinationReason = `AI leg lacks a matching Layer 03 machine candidate: Market=${leg.market}, Dir=${leg.direction}, Line=${leg.selected_line}, Odds=${leg.current_odds}.`;
+      break;
+    }
 
     if (aiLine === null && leg.market !== 'EURO_1X2') {
       hasHallucination = true;
@@ -210,14 +230,23 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
     additionalWarnings.push("SYSTEM QUANT WARNING: 存在红牌战术失衡 (RED_CARD_TACTICAL_COLLAPSE)，严防防线崩溃风险");
   }
 
+  const actionableGrade = enforcedGrade === RecommendationGrade.A_GRADE ||
+    enforcedGrade === RecommendationGrade.B_GRADE;
+  const recommendedLegs = actionableGrade && enforcedConfidence >= 70
+    ? result.recommended_legs
+    : [];
+
   return {
     ...result,
     grade: enforcedGrade,
     confidence_score: enforcedConfidence,
     risk_warnings: [
       ...result.risk_warnings,
-      ...additionalWarnings
-    ]
+      ...additionalWarnings,
+      ...(!actionableGrade || enforcedConfidence < 70
+        ? ['SYSTEM HARD GATE: 非 A/B 级或置信度低于 70，正式推荐腿已清空']
+        : [])
+    ],
+    recommended_legs: recommendedLegs
   };
 }
-

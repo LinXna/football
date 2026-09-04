@@ -2114,8 +2114,8 @@
       }
     ],
     "line_dispersion": {
-      "spread_variance": 0,
-      "total_variance": 0
+      "spread_variance": 0.041667,
+      "total_variance": 0.041667
     },
     "bookmaker_posture": "BALANCED_NEUTRAL"
   },
@@ -2188,6 +2188,62 @@
   },
   "battlefield_dominance_index": -16.14,
   "goal_phase_alert": "IMMINENT_GOAL",
+  "raw_positive_ev_signals": [
+    {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "line": "-0/0.5",
+      "side": "away",
+      "odds": 1.71,
+      "ev": 0.3327,
+      "confidence": 93,
+      "kelly_fraction": 0.05
+    },
+    {
+      "market": "ASIAN_HANDICAP_SUB",
+      "line": "0",
+      "side": "away",
+      "odds": 2.38,
+      "ev": 0.2237,
+      "confidence": 93,
+      "kelly_fraction": 0.0405
+    },
+    {
+      "market": "ASIAN_HANDICAP_SUB",
+      "line": "-0.5",
+      "side": "away",
+      "odds": 1.47,
+      "ev": 0.3631,
+      "confidence": 93,
+      "kelly_fraction": 0.05
+    },
+    {
+      "market": "TOTAL_GOALS_MAIN",
+      "line": "2",
+      "side": "under",
+      "odds": 1.95,
+      "ev": 0.6098,
+      "confidence": 93,
+      "kelly_fraction": 0.05
+    },
+    {
+      "market": "TOTAL_GOALS_SUB",
+      "line": "2/2.5",
+      "side": "under",
+      "odds": 1.57,
+      "ev": 0.4171,
+      "confidence": 93,
+      "kelly_fraction": 0.05
+    },
+    {
+      "market": "TOTAL_GOALS_SUB",
+      "line": "1.5/2",
+      "side": "under",
+      "odds": 2.42,
+      "ev": 0.811,
+      "confidence": 93,
+      "kelly_fraction": 0.05
+    }
+  ],
   "positive_ev_signals": [],
   "risk_flags": [
     "LETHAL_COUNTER_WARNING",

@@ -3,9 +3,20 @@ import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { FormalRecommendation, BettingStage } from './types.js';
 import { EvaluatorPayload, AiEvaluationResult, RecommendedLeg } from '../04_ai_evaluator/types.js';
+import { RecommendationGrade } from '../04_ai_evaluator/enums.js';
 
 const LIVE_LEDGER_PATH = path.join(process.cwd(), 'output', 'recommendation_ledger_live.json');
 const PREMATCH_LEDGER_PATH = path.join(process.cwd(), 'output', 'recommendation_ledger_prematch.json');
+
+function hasMatchingCandidate(leg: RecommendedLeg, payload: EvaluatorPayload): boolean {
+  const candidates = payload.quant_features?.machine_candidate_signals ?? [];
+  return candidates.some((candidate) =>
+    candidate.market === leg.market &&
+    candidate.side.toUpperCase() === leg.direction &&
+    candidate.line === leg.selected_line &&
+    Math.abs(candidate.odds - leg.current_odds) < 0.02
+  );
+}
 
 export class LedgerPersistence {
   
@@ -37,14 +48,32 @@ export class LedgerPersistence {
     approvedLegs: RecommendedLeg[],
     stage: BettingStage
   ): FormalRecommendation[] {
-    
-    if (approvedLegs.length === 0) return [];
+    if (
+      approvedLegs.length === 0 ||
+      (evaluation.grade !== RecommendationGrade.A_GRADE && evaluation.grade !== RecommendationGrade.B_GRADE) ||
+      evaluation.confidence_score < 70
+    ) {
+      return [];
+    }
+
+    const acceptedLegs = approvedLegs.filter((leg) =>
+      evaluation.recommended_legs.some((recommendedLeg) =>
+        recommendedLeg.market === leg.market &&
+        recommendedLeg.selected_line === leg.selected_line &&
+        recommendedLeg.direction === leg.direction &&
+        Math.abs(recommendedLeg.current_odds - leg.current_odds) < 0.02
+      ) &&
+      hasMatchingCandidate(leg, payload)
+    );
+    if (acceptedLegs.length === 0) {
+      return [];
+    }
     
     const filePath = this.getLedgerPath(stage);
     const existing = this.loadLedger(stage);
     const newRecords: FormalRecommendation[] = [];
     
-    for (const leg of approvedLegs) {
+    for (const leg of acceptedLegs) {
       // Idempotency check: Have we already written this EXACT match, market, and direction at this minute?
       // (Using minute to allow multiple bets if the game state drastically changes later, though usually risk filter blocks it)
       const isDuplicate = existing.some(r => 
@@ -61,6 +90,8 @@ export class LedgerPersistence {
       
       const record: FormalRecommendation = {
         record_id: randomUUID(),
+        record_type: 'formal_ai_recommendation',
+        formal_recommendation: true,
         stage,
         created_at_utc: new Date().toISOString(),
         match_id: payload.ai_brief.match_id,

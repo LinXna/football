@@ -51,7 +51,25 @@ const mockPayload: EvaluatorPayload = {
     bdi: 45,
     goal_phase_alert: 'IMMINENT_GOAL',
     raw_positive_ev_count: 1,
-    machine_candidate_count: 1
+    machine_candidate_count: 1,
+    raw_mathematical_ev_signals: [{
+      market: 'ASIAN_HANDICAP_MAIN',
+      line: '-0/0.5',
+      side: 'away',
+      odds: 1.85,
+      ev: 0.08,
+      confidence: 80,
+      kelly_fraction: 0.02
+    }],
+    machine_candidate_signals: [{
+      market: 'ASIAN_HANDICAP_MAIN',
+      line: '-0/0.5',
+      side: 'away',
+      odds: 1.85,
+      ev: 0.08,
+      confidence: 80,
+      kelly_fraction: 0.02
+    }]
   } as any,
   oos_context: {
     similar_situations_analyzed: 1450,
@@ -95,5 +113,71 @@ if (guardedValid.grade === RecommendationGrade.B_GRADE) {
 } else {
   console.error("[FAIL] Valid leg was rejected!", guardedValid.risk_warnings);
 }
+
+const cupPayload: EvaluatorPayload = {
+  ...mockPayload,
+  ai_brief: { ...mockPayload.ai_brief, league: 'National Cup' },
+  lineup_value_matrix: 'NO_LINEUP'
+};
+const downgradedCup = verifyStatutoryAlignment(
+  { ...validAiResult, grade: RecommendationGrade.A_GRADE, confidence_score: 90 },
+  cupPayload
+);
+if (downgradedCup.grade !== RecommendationGrade.C_GRADE || downgradedCup.recommended_legs.length !== 0) {
+  throw new Error('[FAIL] Cup lineup gate must downgrade and clear formal recommendation legs.');
+}
+console.log("[OK] Cup lineup gate cleared recommendation legs after downgrade.");
+
+const lowConfidence = verifyStatutoryAlignment(
+  { ...validAiResult, grade: RecommendationGrade.B_GRADE, confidence_score: 69 },
+  mockPayload
+);
+if (lowConfidence.recommended_legs.length !== 0) {
+  throw new Error('[FAIL] Confidence below 70 must clear formal recommendation legs.');
+}
+console.log("[OK] Confidence gate cleared recommendation legs below 70.");
+
+const missingCandidateResult = verifyStatutoryAlignment(
+  validAiResult,
+  {
+    ...mockPayload,
+    quant_features: {
+      ...mockPayload.quant_features,
+      machine_candidate_signals: []
+    }
+  }
+);
+if (missingCandidateResult.grade !== RecommendationGrade.REJECTED || missingCandidateResult.recommended_legs.length !== 0) {
+  throw new Error('[FAIL] AI legs without Layer 03 machine candidates must be rejected.');
+}
+console.log("[OK] AI leg without a Layer 03 machine candidate was rejected.");
+
+const secondaryPayload: EvaluatorPayload = {
+  ...mockPayload,
+  ai_brief: {
+    ...mockPayload.ai_brief,
+    core_markets: {
+      ...mockPayload.ai_brief.core_markets,
+      ah_secondary: [{ handicap: '-0.5', home_odds: 1.9, away_odds: 1.9 }],
+      ou_secondary: [{ handicap: '2.5', over_odds: 1.9, under_odds: 1.9 }]
+    }
+  }
+};
+const secondaryAiResult = verifyStatutoryAlignment(
+  {
+    ...validAiResult,
+    recommended_legs: [{
+      ...validAiResult.recommended_legs[0],
+      market: 'ASIAN_HANDICAP_SUB',
+      selected_line: '-0.5',
+      current_odds: 1.9
+    }]
+  },
+  secondaryPayload
+);
+if (secondaryAiResult.grade !== RecommendationGrade.REJECTED || secondaryAiResult.recommended_legs.length !== 0) {
+  throw new Error('[FAIL] Secondary-line AI output must be rejected instead of bypassing Layer 03 machine-candidate gating.');
+}
+console.log("[OK] Secondary-line AI output was rejected by the statutory alignment guard.");
 
 console.log("\n[OK] Layer 04 Deep Defect Refinement Compiled Successfully.");

@@ -43,6 +43,9 @@
 
 ### 2.2 严格按步骤执行 (In-Execution Compliance)
 - 严格对照快照中的清单修改，严禁超出快照范围随意修改其他无关文件。
+- **重构项目硬边界**：当任务属于 `refactor/` Layer 00-06 时，可编辑范围默认仅为 `refactor/**`（含 `refactor/tests/**`）及快照明确列出的文档。`server/**`、`src/**`、`tests-ts/**` 等主系统/旧版运行时目录只能只读参考；不得因为功能同名、调用链相关或测试方便而修改这些目录，除非用户明确书面扩大范围并在快照中登记。
+- **范围闸门**：首次编辑前必须检查 `git status --short` 并登记精确目标文件；首次编辑后必须检查 `git diff --name-only`。发现越界文件时必须立即停止、报告并恢复仅由本次任务引入的越界改动，不得继续验证或追加测试。
+- **验证边界**：refactor 任务优先且原则上只运行 `refactor/tests/**` 与重构专用命令；旧版 `server/` 或 `tests-ts/` 测试结果不得作为 refactor 任务完成依据。
 
 ### 2.3 完成后：闭环验证与状态归档 (Post-Execution Checkpoint)
 - 编写代码并完成本地单测/语法类型检查后，必须立即更新 `HANDOVER_AND_PROGRESS.md`：
@@ -164,4 +167,3 @@
    - 自动化测试套件必须包含 `/refactor/tests/verify_traceability_matrix.ts`，作为物理把关人。
 4. **硬熔断防御机制 (Hard-Fuse on Data Corruption)**：
    - 当检测到核心关键数据损坏（如 YBTY 与雷速比分冲突）时，必须执行 Fail-Fast，直接将数据完整度判定为 `TIER_INVALID`，打上 `is_mismatch_detected = true`，严禁任何推荐准入。
-

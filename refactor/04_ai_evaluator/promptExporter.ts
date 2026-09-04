@@ -139,35 +139,6 @@ export function generateRefactoredPrompt(
       }
     };
 
-    // 韧性提取正 EV 信号
-    const effectiveEvSignals = [...quantFeatures.positive_ev_signals];
-    if (effectiveEvSignals.length === 0) {
-      const spreadEv = quantFeatures.devig.spread_main_ev;
-      if (spreadEv && spreadEv.is_positive_ev && spreadEv.preferred_side !== 'none') {
-        effectiveEvSignals.push({
-          market: 'ASIAN_HANDICAP_MAIN',
-          line: spreadEv.line,
-          side: spreadEv.preferred_side,
-          odds: spreadEv.preferred_side === 'home' ? spreadEv.home_odds : spreadEv.away_odds,
-          ev: spreadEv.preferred_side === 'home' ? spreadEv.home_ev : spreadEv.away_ev,
-          confidence: quantFeatures.confidence_score,
-          kelly_fraction: spreadEv.kelly_fraction ?? 0.0
-        });
-      }
-      const totalEv = quantFeatures.devig.total_main_ev;
-      if (totalEv && totalEv.is_positive_ev && totalEv.preferred_side !== 'none') {
-        effectiveEvSignals.push({
-          market: 'TOTAL_GOALS_MAIN',
-          line: totalEv.line,
-          side: totalEv.preferred_side,
-          odds: totalEv.preferred_side === 'over' ? totalEv.over_odds : totalEv.under_odds,
-          ev: totalEv.preferred_side === 'over' ? totalEv.over_ev : totalEv.under_ev,
-          confidence: quantFeatures.confidence_score,
-          kelly_fraction: totalEv.kelly_fraction ?? 0.0
-        });
-      }
-    }
-
     const blindSpots: string[] = [];
     if (!hasLineupData || lineupStatus === 'NOT_ANNOUNCED') blindSpots.push("首发阵容未公布(需C级风控)");
     if (!hasDA && match.timing.stage === MatchStage.LIVE) blindSpots.push("实时危攻射门缺失");
@@ -218,7 +189,8 @@ export function generateRefactoredPrompt(
       historical_team_profiling: team_profiling,
       lineup_value_matrix: (!hasLineupData || lineupStatus === 'NOT_ANNOUNCED') ? "NO_LINEUP" : lineup_value_matrix,
       quant_features: {
-        mathematical_ev_signals: effectiveEvSignals,
+        raw_mathematical_ev_signals: quantFeatures.raw_positive_ev_signals,
+        machine_candidate_signals: quantFeatures.positive_ev_signals,
         poisson_expected_goals: quantFeatures.poisson ? `Home Rest: ${quantFeatures.poisson.lambda_home_rest?.toFixed(2)}, Away Rest: ${quantFeatures.poisson.lambda_away_rest?.toFixed(2)}` : undefined,
         market_divergence_insights: quantFeatures.devig.bookmaker_posture
       }

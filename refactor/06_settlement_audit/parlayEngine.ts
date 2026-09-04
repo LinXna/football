@@ -33,6 +33,14 @@ export function evaluateParlaySettlement(legs: ParlayLegResult[]): ParlaySettlem
 
   for (const leg of legs) {
     const o = leg.settlement.outcome;
+    if (!Number.isFinite(leg.odds) || leg.odds <= 1) {
+      return {
+        outcome: 'INVALID',
+        net_profit_unit: 0,
+        payout_multiplier: 0,
+        explanation: `Invalid odds for leg ${leg.leg_index}.`,
+      };
+    }
     if (o === 'LOSE') {
       hasFailedLeg = true;
       effectiveMultiplier = 0;

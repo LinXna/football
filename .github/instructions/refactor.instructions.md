@@ -8,6 +8,9 @@ applyTo: "refactor/**/*.ts"
 ## Start From The Current State
 
 - Read `refactor/AI_CODING_STANDARDS_AND_RULES.md`, `refactor/HANDOVER_AND_PROGRESS.md`, and `refactor/SYSTEM_ARCHITECTURE_AND_PIPELINE.md` before changing refactor code.
+- This instruction applies to the refactor project only. For a task scoped to `refactor/`, the editable implementation and test boundary is `refactor/**` (including `refactor/tests/**`) plus explicitly named documentation files. Do not edit, test-drive changes through, or add regression coverage in `server/**`, `src/**`, `tests-ts/**`, or other legacy/runtime directories unless the user explicitly expands the scope.
+- Functional similarity is not scope authorization: a legacy API or service that implements a similar concept is reference-only unless it is listed in the active snapshot's target files. If behavior must be compared, inspect it read-only and record the comparison; do not patch it.
+- Before the first edit, run `git status --short` and register exact target paths in the active snapshot. After editing, run `git diff --name-only` and stop if any changed path is outside that registered boundary.
 - Treat the latest active snapshot and the current TypeScript implementation as authoritative. Do not redesign completed work without a concrete failing behavior, test, or contract mismatch.
 - Work on one atomic task at a time. Before editing, state the controlling code path, one falsifiable local hypothesis, one cheap discriminating check, and the smallest intended edit.
 - Before editing code, register the task, target files, action plan, and `IN_PROGRESS` status in `refactor/HANDOVER_AND_PROGRESS.md`.

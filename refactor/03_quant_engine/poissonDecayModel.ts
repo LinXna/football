@@ -371,12 +371,15 @@ export function calculateInPlayPoissonFeatures(
     collector?.record('UNPRICEABLE_MATCH', Layer03OpId.POISSON_FORWARD_MODEL, 'RC-005', 'Core pricing data (minute or verified score) is missing. Cannot evaluate expected values.', undefined, match.canonical_id);
     throw new Error('UNPRICEABLE_MATCH: Core pricing data is missing, blocking Poisson deduction to prevent fake EV.');
   }
-  const elapsedMinute = Math.min(90, Math.max(0, match.timing.minute as number));
+  const isPrematch = match.timing.stage === MatchStage.PREMATCH;
+  const elapsedMinute = isPrematch
+    ? 0
+    : Math.min(90, Math.max(0, match.timing.minute as number));
   const remainingMinutes = Math.max(0, 90 - elapsedMinute);
   const isFinished = match.timing.stage === MatchStage.FINISHED;
   const isUnpriceableStoppageTime = !isFinished && match.timing.stage === MatchStage.LIVE && elapsedMinute >= 90;
-  const currentHomeScore = match.score.home_score as number;
-  const currentAwayScore = match.score.away_score as number;
+  const currentHomeScore = isPrematch ? 0 : match.score.home_score as number;
+  const currentAwayScore = isPrematch ? 0 : match.score.away_score as number;
   const scoreDiff = currentHomeScore - currentAwayScore;
 
   // 完赛直接返回固定概率
