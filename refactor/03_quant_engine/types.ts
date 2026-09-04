@@ -457,6 +457,7 @@ export interface OosCalibrationSample {
 /** 可持久化的 OOS 校准档案；仅 VALIDATED 档案可解锁机器候选。 */
 export interface OosCalibrationArchive {
   schema_version: 1;
+  archive_provenance: 'OOS_ARCHIVE_BUILDER_V1';
   generated_at: string;
   model_version: string;
   training_window_start_at: string;
@@ -464,7 +465,7 @@ export interface OosCalibrationArchive {
   prediction_window_start_at: string;
   prediction_window_end_at: string;
   training_cutoff_at: string;
-  global_profile: QuantCalibrationProfile;
+  global_profiles: readonly QuantCalibrationProfile[];
   profiles: readonly QuantCalibrationProfile[];
 }
 
@@ -560,6 +561,7 @@ export interface QuantitativeFeatures {
   match_state: UnifiedMatchState;
   battlefield_dominance_index: number;
   goal_phase_alert: GoalPhaseAlert;
+  raw_positive_ev_signals: PositiveEVSignal[];
   positive_ev_signals: PositiveEVSignal[];
   risk_flags: QuantAlert[];
   confidence_score: number;

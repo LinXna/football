@@ -8,6 +8,23 @@
 - Layer 00-02 normal-path verification: passed.
 - Layer 02 alignment gate: fixed; only `MATCHED_BY_ALIAS` and `MATCHED_AUTO` may enter Layer 03.
 - Layer 03 integrity sweep completed through dynamic Poisson support bounds.
+- Layer 05→06 settled-record adapter implemented and validated; incomplete records are rejected explicitly.
+- Layer 05 recommendation fields remain separate from post-match/OOS fields; Layer 06 consumes an explicit settled envelope.
+- Layer 06 settled records now carry settlement-market provenance; market mismatches are rejected before OOS ingestion.
+- Layer 06 settled records now carry settlement-basis provenance; OOS observed goals use the declared settlement window.
+- Layer 06 ingestion rejects duplicate sample IDs, prediction timestamps outside the prediction window, and settlements after archive generation.
+- OOS archives expose per-market `global_profiles`; profile buckets preserve market and LIVE/PREMATCH isolation.
+- OOS profile fallback is explicitly ordered: validated team, validated league bucket, then validated same-market global profile.
+- OOS lambda calibration is now market-bound: `TOTAL_GOALS_MAIN` calibration changes totals EV only, while Asian-handicap EV retains the raw Poisson input.
+- Secondary-line EV remains visible as raw mathematical output, but only explicitly supported main-market OOS profiles can unlock machine candidates; secondary lines are not silently promoted.
+- Layer 04 statutory alignment rejects secondary-line markets, so AI cannot re-promote Layer 03-excluded raw EV into a formal recommendation.
+- Formal AI legs must also match a Layer 03 `machine_candidate_signals` entry by market, line, direction, and current odds.
+- Layer 05 persistence re-checks A/B grade, confidence >=70, AI-leg membership, and Layer 03 candidate membership before writing the formal ledger.
+- Layer 06 adapter independently re-checks formal grade/confidence before accepting a settled envelope; nested Layer 05 settlement data is not authoritative.
+- Layer 06 ingestion accepts only records carrying the adapter-issued `settled_record_provenance` marker; direct normalized objects cannot create OOS samples.
+- OOS archives carry `archive_provenance: 'OOS_ARCHIVE_BUILDER_V1'`; JSON-reloaded archives without this marker are rejected before profile selection.
+- OOS profile selection currently supports only `schema_version=1`; missing or unsupported archive versions are hard-rejected.
+- Final Layer 03–06 targeted regression and the 00–03 dual-track integration suite pass; no further planned feature audit remains.
 - Latest verified commands:
   - `npx tsx refactor/tests/verify_quant_engine.ts`
   - `npx tsx refactor/tests/verify_full_pipeline_00_03.ts`
@@ -26,9 +43,7 @@
 
 ## Next Atomic Task
 
-Audit Layer 03 market-line coverage and OOS market separation. Confirm every YBTY main/sub line is represented and that raw EV, validated OOS EV, and machine candidates remain distinct. Do not change formulas until a failing assertion or contract mismatch is demonstrated.
-
-After that, audit dynamic Poisson support bounds, market-line coverage, OOS market separation, and EPI/trinity calibration one atomic issue at a time.
+No further planned feature audit remains; only commit/release steps are pending if requested.
 
 ## Resume Protocol
 
