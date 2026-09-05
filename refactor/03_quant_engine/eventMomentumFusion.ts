@@ -198,7 +198,10 @@ export function calculateLiveThreatTrinity(
     const baseThreat = physical.stats_available
       ? (0.45 * momentumSupport + 0.30 * eventSupport + 0.25 * statsSupport)
       : (0.60 * momentumSupport + 0.40 * eventSupport);
-    const calibratedThreat = bounded(baseThreat * (0.55 + 0.45 * alignmentScore) * (conflict ? 0.45 : 1));
+    const conflictDamping = conflict
+      ? (Math.max(eventSupport, statsSupport) >= 0.35 ? 0.75 : 0.45)
+      : 1;
+    const calibratedThreat = bounded(baseThreat * (0.55 + 0.45 * alignmentScore) * conflictDamping);
     return {
       momentum_support: Number(momentumSupport.toFixed(3)),
       event_support: Number(eventSupport.toFixed(3)),

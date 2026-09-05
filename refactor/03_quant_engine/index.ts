@@ -93,12 +93,16 @@ export function buildUnifiedMatchState(
 ): UnifiedMatchState {
   const trinity = spatioTemporal.live_threat_trinity;
   const cooldown = spatioTemporal.goal_climax.post_goal_cooldown_active ? 0.70 : 1.0;
-  const homeIntensity = trinity.home.calibrated_threat * spatioTemporal.regime.regime_multiplier_home * cooldown;
-  const awayIntensity = trinity.away.calibrated_threat * spatioTemporal.regime.regime_multiplier_away * cooldown;
+  const homeIntensity = trinity.home.calibrated_threat * cooldown;
+  const awayIntensity = trinity.away.calibrated_threat * cooldown;
+  const effectiveHomeIntensity = homeIntensity * spatioTemporal.regime.regime_multiplier_home;
+  const effectiveAwayIntensity = awayIntensity * spatioTemporal.regime.regime_multiplier_away;
   return Object.freeze({
     home_intensity: Number(Math.max(0, Math.min(1.5, homeIntensity)).toFixed(3)),
     away_intensity: Number(Math.max(0, Math.min(1.5, awayIntensity)).toFixed(3)),
-    dominance_index: Number(((homeIntensity - awayIntensity) * 100).toFixed(2)),
+    regime_multiplier_home: spatioTemporal.regime.regime_multiplier_home,
+    regime_multiplier_away: spatioTemporal.regime.regime_multiplier_away,
+    dominance_index: Number(((effectiveHomeIntensity - effectiveAwayIntensity) * 100).toFixed(2)),
     imminent_goal: spatioTemporal.goal_climax.is_imminent_threat,
     post_goal_cooldown_active: spatioTemporal.goal_climax.post_goal_cooldown_active,
     has_evidence_conflict: trinity.has_material_conflict,

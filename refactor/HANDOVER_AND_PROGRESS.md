@@ -1,5 +1,35 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
+- **任务编号 (Task)**: `SNAPSHOT-20260905-LIVE-QUANT-AUDIT-FIXES`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  1. 修复旧系统可靠 YBTY/雷速比分仍显示待核验的问题；
+  2. 让重构系统已计算的战术相变乘子进入 Forward 泊松；
+  3. 将三源冲突折损改为区分真实无效控球与暂时证据不一致；
+  4. 禁止 raw EV 越过 OOS 校准门槛成为机器候选或最佳下注方向。
+- **改动文件清单 (Target Files)**：
+  - `server/routes/pipelineRoutes.ts`
+  - `server/services/scoreValidation.ts`
+  - `refactor/03_quant_engine/eventMomentumFusion.ts`
+  - `refactor/03_quant_engine/poissonDecayModel.ts`
+  - `refactor/03_quant_engine/index.ts`
+  - `src/components/QuantBettingDecisionMatrix.tsx`
+  - 相关已有测试文件
+- **执行步骤 (Steps)**：
+  1. 接入旧系统已有雷速快照进行比分交叉核验，保持未核验熔断；
+  2. 传递 regime multiplier，并调整三源冲突仅对低终结证据施加强折损；
+  3. 让 UI 最佳下注仅消费 validated machine candidates；
+  4. 运行定向测试、类型检查和页面/API 回归。
+- **交付物与验证 (Deliverables & Verification)**：
+  - 旧系统 `/api/pipeline/live` 已接入已有雷速快照的主客队比分交叉核验；缺失或不一致仍保持未核验。
+  - 三源冲突对有实质事件/统计支持的场景使用中等折损，低支持场景保留强折损。
+  - `UnifiedMatchState` 显式携带 regime multiplier，Forward 泊松仅应用一次；raw EV 不再参与 UI 最佳机器方向选择。
+  - `npx tsx refactor/tests/verify_quant_engine.ts` 8/8 通过；`npx tsx refactor/tests/verify_full_pipeline_00_03.ts` 通过；`npm run test:ts` 通过；`git diff --check` 通过。
+  - `npx tsc --noEmit` 仍受既有 `matchIdx` 和 `useCallback` 错误阻断，与本任务改动无关。
+- **下一步待办 (Next Steps)**：
+  - 在旧系统真实雷速快照重新生成后验证 `/api/pipeline/live` 显示 `score_verified=true`。
+  - 单独修复既有 TypeScript 基线错误，再进行全量类型门禁。
+
 - **任务编号 (Task)**: `SNAPSHOT-20260904-LAYER03-DYNAMIC-POISSON-SUPPORT`
 - **当前状态 (Status)**: `DONE`
 - **任务目标 (Goal)**：

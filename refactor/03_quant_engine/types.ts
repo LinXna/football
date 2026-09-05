@@ -539,6 +539,8 @@ export interface SpatioTemporalEventFeatures {
 export interface UnifiedMatchState {
   home_intensity: number;
   away_intensity: number;
+  regime_multiplier_home: number;
+  regime_multiplier_away: number;
   dominance_index: number;
   imminent_goal: boolean;
   post_goal_cooldown_active: boolean;

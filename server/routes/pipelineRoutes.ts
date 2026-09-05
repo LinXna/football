@@ -2,6 +2,7 @@ import type express from 'express';
 import { DATA_FILES } from '../dataFiles';
 import { readJsonFile } from '../jsonStore';
 import { recordMatchSnapshots, computeMatchSnapshotDelta } from '../services/snapshotDeltaEngine';
+import { resolveScoreVerification } from '../services/scoreValidation';
 
 type PipelineDependencies = {
   cleanTeamName: (value: unknown) => string;
@@ -16,6 +17,19 @@ export function registerPipelineRoutes(app: express.Express, deps: PipelineDepen
     const decisions = readJsonFile<any>(DATA_FILES.live.decisions, { decisions: [], summary: {} });
     const candidates = readJsonFile<any>(DATA_FILES.live.candidates, { candidates: [] });
     const ybtyLatest = readJsonFile<any>(DATA_FILES.live.ybtySnapshot, { matches: [] });
+    const leisuLatest = readJsonFile<any>(DATA_FILES.live.leisuSnapshot, { events: [] });
+    const leisuScoresByMatch = new Map<string, { home: number; away: number; source: string }>();
+    for (const event of Array.isArray(leisuLatest.events) ? leisuLatest.events : []) {
+      const home = event.homeTeam?.name || event.home || event.home_team;
+      const away = event.awayTeam?.name || event.away || event.away_team;
+      const homeScore = event.homeScore?.current ?? event.home_score ?? event.score?.home;
+      const awayScore = event.awayScore?.current ?? event.away_score ?? event.score?.away;
+      if (!home || !away || !Number.isInteger(Number(homeScore)) || !Number.isInteger(Number(awayScore))) continue;
+      leisuScoresByMatch.set(
+        `${deps.cleanTeamName(home)}|${deps.cleanTeamName(away)}`,
+        { home: Number(homeScore), away: Number(awayScore), source: String(event._score_source || 'leisu_export') },
+      );
+    }
     const rawMarketByMatch = new Map<string, unknown[]>();
     const leagueByMatch = new Map<string, string>();
     for (const match of Array.isArray(ybtyLatest.matches) ? ybtyLatest.matches : []) {
@@ -41,8 +55,16 @@ export function registerPipelineRoutes(app: express.Express, deps: PipelineDepen
       const id = deps.matchIdentity(item);
       const fallbackLeague = leagueByMatch.get(id);
       const snapshotDelta = computeMatchSnapshotDelta(item);
+      const leisuScore = leisuScoresByMatch.get(
+        `${deps.cleanTeamName(item.leisu_home)}|${deps.cleanTeamName(item.leisu_away)}`,
+      );
+      const scoreVerification = resolveScoreVerification(
+        leisuScore ? { ...item, leisu_score: leisuScore } : item,
+      );
       return deps.hideInvalidRecommendation({
         ...item,
+        score_verified: scoreVerification.verified,
+        score_source: scoreVerification.source,
         league: item.league || fallbackLeague,
         ybty_league: item.ybty_league || fallbackLeague,
         ybty_raw_markets: rawMarketByMatch.get(id) || deps.normalizeYbtyMarketTypes(item.ybty_raw_markets),
