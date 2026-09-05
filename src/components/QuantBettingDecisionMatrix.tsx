@@ -290,8 +290,11 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
     };
 
     const candidates: Candidate[] = [];
+    const candidateMarkets = new Set(
+      quant.positive_ev_signals.map((signal) => signal.market),
+    );
 
-    if (fullSpreadEval) {
+    if (fullSpreadEval && candidateMarkets.has("ASIAN_HANDICAP_MAIN")) {
       candidates.push({
         key: "FULL_SPREAD",
         ev: fullSpreadEval.ev,
@@ -300,7 +303,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       });
     }
 
-    if (fullTotalEval) {
+    if (fullTotalEval && candidateMarkets.has("TOTAL_GOALS_MAIN")) {
       candidates.push({
         key: "FULL_TOTAL",
         ev: fullTotalEval.ev,

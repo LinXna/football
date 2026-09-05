@@ -498,8 +498,8 @@ export function calculateInPlayPoissonFeatures(
   const timeDecay = calculateTimeDecayAndUrgencyMultiplier(elapsedMinute, scoreDiff, homeWeights, awayWeights, priorStrengthRatio);
 
   // 4. 唯一实时状态已经融合 xT、动量、事件、红牌与战术相变；本函数不得再次读取原始特征。
-  const regimeMultiplierHome = 1.0;
-  const regimeMultiplierAway = 1.0;
+  const regimeMultiplierHome = matchState.regime_multiplier_home;
+  const regimeMultiplierAway = matchState.regime_multiplier_away;
   const redAttackHome = matchState.red_card_attack_multiplier_home ?? 1.0;
   const redAttackAway = matchState.red_card_attack_multiplier_away ?? 1.0;
   const redLeakHome = matchState.red_card_defense_leak_multiplier_home ?? 1.0;

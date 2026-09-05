@@ -202,11 +202,13 @@ export function calculateLiveThreatTrinity(
     const baseThreat = physical.stats_available
       ? (0.45 * momentumSupport + 0.30 * eventSupport + 0.25 * statsSupport)
       : (0.60 * momentumSupport + 0.40 * eventSupport);
-    // Conflicting feeds increase uncertainty; they must not become a
-    // deterministic low-scoring signal. Alignment still moderates the threat,
-    // while the confidence gate blocks conflicted machine candidates.
+    // Conflicting feeds increase uncertainty without turning every mismatch
+    // into a deterministic low-scoring signal.
     const alignmentFactor = conflict ? 1.0 : (0.55 + 0.45 * alignmentScore);
-    const calibratedThreat = bounded(baseThreat * alignmentFactor);
+    const conflictDamping = conflict
+      ? (Math.max(eventSupport, statsSupport) >= 0.35 ? 0.75 : 0.45)
+      : 1;
+    const calibratedThreat = bounded(baseThreat * alignmentFactor * conflictDamping);
     return {
       momentum_support: Number(momentumSupport.toFixed(3)),
       event_support: Number(eventSupport.toFixed(3)),
