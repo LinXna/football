@@ -116,6 +116,8 @@ export class LedgerPersistence {
       }
       
       const record: FormalRecommendation = {
+        record_type: 'formal_ai_recommendation',
+        formal_recommendation: true,
         record_id: randomUUID(),
         stage,
         created_at_utc: new Date().toISOString(),
@@ -128,7 +130,9 @@ export class LedgerPersistence {
           current_score: scoreVerification.current_score,
           bdi: quantFeatures.bdi || 0,
           goal_phase_alert: quantFeatures.goal_phase_alert || 'NONE',
-          machine_candidate_count: quantFeatures.machine_candidate_count || 0
+          machine_candidate_count: quantFeatures.machine_candidate_count || 0,
+          score_verified: Boolean(scoreVerification.is_verified),
+          source: 'YBTY',
         },
         ai_assessment: {
           grade: evaluation.grade,

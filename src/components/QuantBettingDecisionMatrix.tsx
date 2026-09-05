@@ -162,23 +162,19 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
   const h2hMain = quant.devig.h2h_devig;
   const fullH2hMarket = match.markets.full_h2h;
 
-  // 1. 全场独赢 EV 计算
+  // 1. 全场独赢 EV 计算 (直接消费 Layer 03 底层纯数学结算结果)
   const fullH2hEval = (() => {
     if (!fullH2hMarket || !h2hMain) return null;
-    const homeEv = fullH2hMarket.home_odds * h2hMain.fair_probabilities[0] - 1;
-    const drawEv = fullH2hMarket.draw_odds * h2hMain.fair_probabilities[1] - 1;
-    const awayEv = fullH2hMarket.away_odds * h2hMain.fair_probabilities[2] - 1;
+    const modelProbs = h2hMain.model_probabilities ?? h2hMain.fair_probabilities;
+    const homeEv = h2hMain.home_ev ?? (fullH2hMarket.home_odds * modelProbs[0] - 1);
+    const drawEv = h2hMain.draw_ev ?? (fullH2hMarket.draw_odds * modelProbs[1] - 1);
+    const awayEv = h2hMain.away_ev ?? (fullH2hMarket.away_odds * modelProbs[2] - 1);
 
-    let bestSide: "home" | "draw" | "away" = "home";
-    let maxEv = homeEv;
-    if (drawEv > maxEv) {
-      maxEv = drawEv;
-      bestSide = "draw";
-    }
-    if (awayEv > maxEv) {
-      maxEv = awayEv;
-      bestSide = "away";
-    }
+    const bestSide: "home" | "draw" | "away" = (h2hMain.preferred_side && h2hMain.preferred_side !== "none")
+      ? h2hMain.preferred_side
+      : (homeEv >= drawEv && homeEv >= awayEv ? "home" : drawEv >= awayEv ? "draw" : "away");
+
+    const maxEv = bestSide === "home" ? homeEv : bestSide === "draw" ? drawEv : awayEv;
 
     const sideName =
       bestSide === "home"
@@ -194,10 +190,10 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
         : fullH2hMarket.draw_odds;
     const bestProb =
       bestSide === "home"
-        ? h2hMain.fair_probabilities[0]
+        ? modelProbs[0]
         : bestSide === "away"
-        ? h2hMain.fair_probabilities[2]
-        : h2hMain.fair_probabilities[1];
+        ? modelProbs[2]
+        : modelProbs[1];
 
     return {
       homeEv,
@@ -208,7 +204,8 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       bestOdds,
       bestProb,
       maxEv,
-      isPositiveEv: maxEv > 0,
+      isPositiveEv: h2hMain.is_positive_ev ?? (maxEv >= 0.035),
+      modelProbs,
     };
   })();
 
@@ -417,7 +414,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                         <div className="text-[10px] text-slate-400 truncate">主胜</div>
                         <div className="text-xs font-bold text-slate-200">@{fullH2hMarket.home_odds}</div>
                         <div className="text-[10px] text-blue-400">
-                          {(h2hMain.fair_probabilities[0] * 100).toFixed(1)}%
+                          {((fullH2hEval?.modelProbs?.[0] ?? h2hMain.fair_probabilities[0]) * 100).toFixed(1)}%
                         </div>
                       </div>
                       {fullH2hEval?.bestSide === "home" && fullH2hEval?.isPositiveEv && (
@@ -440,7 +437,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                         <div className="text-[10px] text-slate-400 truncate">平局</div>
                         <div className="text-xs font-bold text-slate-200">@{fullH2hMarket.draw_odds}</div>
                         <div className="text-[10px] text-amber-400">
-                          {(h2hMain.fair_probabilities[1] * 100).toFixed(1)}%
+                          {((fullH2hEval?.modelProbs?.[1] ?? h2hMain.fair_probabilities[1]) * 100).toFixed(1)}%
                         </div>
                       </div>
                       {fullH2hEval?.bestSide === "draw" && fullH2hEval?.isPositiveEv && (
@@ -463,7 +460,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                         <div className="text-[10px] text-slate-400 truncate">客胜</div>
                         <div className="text-xs font-bold text-slate-200">@{fullH2hMarket.away_odds}</div>
                         <div className="text-[10px] text-purple-400">
-                          {(h2hMain.fair_probabilities[2] * 100).toFixed(1)}%
+                          {((fullH2hEval?.modelProbs?.[2] ?? h2hMain.fair_probabilities[2]) * 100).toFixed(1)}%
                         </div>
                       </div>
                       {fullH2hEval?.bestSide === "away" && fullH2hEval?.isPositiveEv && (

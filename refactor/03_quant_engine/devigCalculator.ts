@@ -437,6 +437,81 @@ export function identifyBookmakerPosture(
 /**
  * Layer 03 M5 统一入口：计算去抽水与全量盘口复合期望特征
  */
+/**
+ * 求解 1X2 独赢市场 EV 与最优投注选择 (纯数学公理计算，零魔法常数)
+ */
+export function calculateH2hEV(
+  homeOdds: number,
+  drawOdds: number,
+  awayOdds: number,
+  poisson: InPlayPoissonFeatures,
+  minEvThreshold = 0.035
+): {
+  model_probabilities: [number, number, number];
+  home_ev: number;
+  draw_ev: number;
+  away_ev: number;
+  preferred_side: 'home' | 'draw' | 'away' | 'none';
+  is_positive_ev: boolean;
+  kelly_fraction: number;
+} {
+  const probs = poisson.full_time_probabilities ?? {
+    prob_home_win: poisson.rest_score_matrix.prob_home_win_rest,
+    prob_draw: poisson.rest_score_matrix.prob_draw_rest,
+    prob_away_win: poisson.rest_score_matrix.prob_away_win_rest
+  };
+
+  const probHome = probs.prob_home_win;
+  const probDraw = probs.prob_draw;
+  const probAway = probs.prob_away_win;
+
+  const homeEv = homeOdds > 1 ? Number((probHome * homeOdds - 1.0).toFixed(4)) : -1.0;
+  const drawEv = drawOdds > 1 ? Number((probDraw * drawOdds - 1.0).toFixed(4)) : -1.0;
+  const awayEv = awayOdds > 1 ? Number((probAway * awayOdds - 1.0).toFixed(4)) : -1.0;
+
+  let preferredSide: 'home' | 'draw' | 'away' | 'none' = 'none';
+  let maxEv = -1.0;
+  let maxProb = 0.0;
+  let maxOdds = 0.0;
+
+  if (homeEv >= minEvThreshold && homeEv > maxEv) {
+    maxEv = homeEv;
+    preferredSide = 'home';
+    maxProb = probHome;
+    maxOdds = homeOdds;
+  }
+  if (drawEv >= minEvThreshold && drawEv > maxEv) {
+    maxEv = drawEv;
+    preferredSide = 'draw';
+    maxProb = probDraw;
+    maxOdds = drawOdds;
+  }
+  if (awayEv >= minEvThreshold && awayEv > maxEv) {
+    maxEv = awayEv;
+    preferredSide = 'away';
+    maxProb = probAway;
+    maxOdds = awayOdds;
+  }
+
+  let kelly = 0.0;
+  if (preferredSide !== 'none' && maxOdds > 1.0) {
+    const b = maxOdds - 1.0;
+    const q = 1.0 - maxProb;
+    const fullKelly = (b * maxProb - q) / b;
+    kelly = Number(Math.max(0.0, Math.min(0.05, fullKelly * 0.25)).toFixed(4));
+  }
+
+  return {
+    model_probabilities: [probHome, probDraw, probAway],
+    home_ev: homeEv,
+    draw_ev: drawEv,
+    away_ev: awayEv,
+    preferred_side: preferredSide,
+    is_positive_ev: preferredSide !== 'none',
+    kelly_fraction: kelly
+  };
+}
+
 export function calculateDeviggedMarketFeatures(
   match: CanonicalMatch,
   poisson: InPlayPoissonFeatures,
@@ -451,16 +526,25 @@ export function calculateDeviggedMarketFeatures(
     if (h2hOdds.away_odds) decimalOdds.push(h2hOdds.away_odds);
   }
 
-  // 1. 欧赔去抽水
+  // 1. 欧赔去抽水与 M3 独赢 EV 计算
   let h2hDevig: SingleMarketDevig | undefined;
-  if (decimalOdds.length === 3) {
+  if (decimalOdds.length === 3 && h2hOdds?.home_odds && h2hOdds?.draw_odds && h2hOdds?.away_odds) {
     const shin = devigShin(decimalOdds);
+    const h2hEval = calculateH2hEV(h2hOdds.home_odds, h2hOdds.draw_odds, h2hOdds.away_odds, poisson);
     h2hDevig = {
       market_type: MarketType.MONEYLINE_1X2,
       raw_overround: shin.overround,
       devig_method: DevigMethod.SHIN,
       fair_probabilities: shin.fair_probs,
-      fair_odds: shin.fair_probs.map((p) => (p > 0 ? Number((1.0 / p).toFixed(3)) : 0.0))
+      fair_odds: shin.fair_probs.map((p) => (p > 0 ? Number((1.0 / p).toFixed(3)) : 0.0)),
+      market_odds: [h2hOdds.home_odds, h2hOdds.draw_odds, h2hOdds.away_odds],
+      model_probabilities: h2hEval.model_probabilities,
+      home_ev: h2hEval.home_ev,
+      draw_ev: h2hEval.draw_ev,
+      away_ev: h2hEval.away_ev,
+      preferred_side: h2hEval.preferred_side,
+      is_positive_ev: h2hEval.is_positive_ev,
+      kelly_fraction: h2hEval.kelly_fraction
     };
   }
 

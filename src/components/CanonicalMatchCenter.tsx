@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   CheckCircle,
   AlertTriangle,
@@ -58,6 +58,7 @@ import { QuantBettingDecisionMatrix } from "./QuantBettingDecisionMatrix";
 import { TimelineIncidentLegend, parseIncidentMeta, ProMatchEventIcon } from "./TimelineIncidentBadge";
 import { GenericTimelineEventPin } from "./IncidentIconsHelper";
 import { calculateQuantitativeFeatures } from "../../refactor/03_quant_engine";
+import { QuantitativeFeatures } from "../../refactor/03_quant_engine/types";
 
 function getMarketsSummary(mkts?: CleanMarketsGroup | null) {
   if (!mkts) return { count: 0, text: "0个玩法" };
@@ -208,8 +209,24 @@ function getTimelineIncidentBadge(type: number | string, typeName?: string, text
 export const CanonicalMatchCenter: React.FC = () => {
   const [mode, setMode] = useState<"live" | "prematch">("live");
   const [matches, setMatches] = useState<CanonicalMatch[]>([]);
+  const [serverQuantFeatures, setServerQuantFeatures] = useState<Record<string, QuantitativeFeatures>>({});
   const [aiBriefs, setAiBriefs] = useState<AiEvaluationBrief[]>([]);
   const [leisuPool, setLeisuPool] = useState<LeisuCandidateItem[]>([]);
+
+  // 统一量化特征映射：优先从服务端预计算读取（零开销、零延迟），客户端仅作为容错 Fallback 并在内存中记忆化
+  const quantFeaturesMap = useMemo(() => {
+    const map: Record<string, QuantitativeFeatures> = { ...serverQuantFeatures };
+    for (const m of matches) {
+      if (!map[m.canonical_id]) {
+        try {
+          map[m.canonical_id] = calculateQuantitativeFeatures(m);
+        } catch (err: any) {
+          console.error(`Client fallback quant calculation failed for ${m.canonical_id}:`, err);
+        }
+      }
+    }
+    return map;
+  }, [matches, serverQuantFeatures]);
   const [metadata, setMetadata] = useState<any>(null);
   const [refactorBatchId, setRefactorBatchId] = useState<string | null>(null);
   const [refactorImportedAt, setRefactorImportedAt] = useState<string | null>(null);
@@ -585,6 +602,7 @@ export const CanonicalMatchCenter: React.FC = () => {
       if (data.success) {
         setMatches(data.matches || []);
         setAiBriefs(data.ai_briefs || []);
+        setServerQuantFeatures(data.quantitative_features || {});
         setMetadata(data.metadata || null);
         setRefactorBatchId(data.batch_id || null);
         setRefactorImportedAt(data.imported_at || null);
@@ -724,6 +742,9 @@ export const CanonicalMatchCenter: React.FC = () => {
         const newMatches: CanonicalMatch[] = data.matches || [];
         setMatches(newMatches);
         setAiBriefs(data.ai_briefs || []);
+        if (data.quantitative_features) {
+          setServerQuantFeatures(data.quantitative_features);
+        }
         setMetadata(data.metadata || null);
         setRefactorBatchId(data.batch_id || null);
         setRefactorImportedAt(data.imported_at || null);
@@ -1160,6 +1181,9 @@ export const CanonicalMatchCenter: React.FC = () => {
         });
         setMatches(data.matches || []);
         setAiBriefs(data.ai_briefs || []);
+        if (data.quantitative_features) {
+          setServerQuantFeatures(data.quantitative_features);
+        }
         setMetadata(data.metadata || null);
         setRefactorBatchId(data.batch_id || null);
         setRefactorImportedAt(data.imported_at || null);
@@ -1519,15 +1543,18 @@ export const CanonicalMatchCenter: React.FC = () => {
               }
             }
 
-            // Layer 03: 确定性量化评估与博弈决策计算
-            let quant: any = null;
+            // Layer 03: 优先读取服务端预计算/记忆化缓存的确定性量化特征集与博弈决策（彻底消除重复重算卡顿）
+            const quant: QuantitativeFeatures | null = quantFeaturesMap[m.canonical_id] || null;
             let quantDecision: any = null;
             let quantError: string | null = null;
-            try {
-              quant = calculateQuantitativeFeatures(m);
-              quantDecision = getQuantScreeningDecision(quant);
-            } catch (err: any) {
-              quantError = err.message || String(err);
+            if (quant) {
+              try {
+                quantDecision = getQuantScreeningDecision(quant);
+              } catch (err: any) {
+                quantError = err.message || String(err);
+              }
+            } else {
+              quantError = "量化特征未就绪";
             }
 
             return (
@@ -3107,7 +3134,7 @@ export const CanonicalMatchCenter: React.FC = () => {
                                     const hHalf = h.home_scores && h.home_scores.length > 1 ? h.home_scores[1] : "-";
                                     const aHalf = h.away_scores && h.away_scores.length > 1 ? h.away_scores[1] : "-";
                                     const matchDate = h.match_time ? new Date(Number(h.match_time) * 1000).toISOString().slice(0, 10) : "-";
-                                    const hw = quant?.context?.historical_weights?.[hIdx];
+                                    const hw = quant?.context?.h2h_weights?.[hIdx];
 
                                     return (
                                       <div key={hIdx} className="bg-slate-900/90 p-2 rounded-lg text-xs grid grid-cols-12 items-center font-mono border border-slate-800/80 hover:border-slate-700 transition-colors">

@@ -23,7 +23,7 @@ import {
 } from './types.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
-import { calculateAsianHandicapEV, calculateTotalGoalsEV, devigShin } from './devigCalculator.js';
+import { calculateAsianHandicapEV, calculateTotalGoalsEV, devigShin, formatAsianHandicapLine } from './devigCalculator.js';
 import { computePoisson1X2 } from './prematchPriorEngine.js';
 import { ParsedHandicapMarket, ParsedTotalMarket, ParsedWinnerMarket } from '../01_data_ingestion/leisu/types.js';
 
@@ -77,7 +77,11 @@ function jointMarketLambdaEstimate(
         error += ev.over_ev ** 2 + ev.under_ev ** 2;
       }
       if (handicapFairOdds !== undefined && handicap !== undefined && handicap.line !== null) {
-        const ev = calculateAsianHandicapEV(String(handicap.line), handicapFairOdds[0], handicapFairOdds[1], poisson);
+        // 雷速浮点数值规范: line > 0 为主让 (如 1.0 为主让1球, 0.75 为主让半一).
+        // calculateAsianHandicapEV 与 YBTY 规范: 负数表示主让 (如 "-1", "-0.5/1").
+        // 故在此严格符号对齐: -handicap.line
+        const handicapLineStr = formatAsianHandicapLine(-handicap.line);
+        const ev = calculateAsianHandicapEV(handicapLineStr, handicapFairOdds[0], handicapFairOdds[1], poisson);
         error += ev.home_ev ** 2 + ev.away_ev ** 2;
       }
       if (Number.isFinite(error) && error < bestError) {

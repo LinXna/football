@@ -237,7 +237,33 @@ export function calculateConfidenceAndAlerts(
     score -= 2;
   }
 
-  // 提取让球与大小球的正 EV 信号
+  // 提取独赢、让球与大小球的正 EV 信号
+  if (devig.h2h_devig && devig.h2h_devig.is_positive_ev && devig.h2h_devig.preferred_side && devig.h2h_devig.preferred_side !== 'none') {
+    const side = devig.h2h_devig.preferred_side;
+    const ev = side === 'home' ? (devig.h2h_devig.home_ev ?? 0) : side === 'draw' ? (devig.h2h_devig.draw_ev ?? 0) : (devig.h2h_devig.away_ev ?? 0);
+    const odds = side === 'home'
+      ? (devig.h2h_devig.market_odds?.[0] ?? 0)
+      : side === 'draw'
+      ? (devig.h2h_devig.market_odds?.[1] ?? 0)
+      : (devig.h2h_devig.market_odds?.[2] ?? 0);
+    const prob = side === 'home'
+      ? devig.h2h_devig.model_probabilities?.[0]
+      : side === 'draw'
+      ? devig.h2h_devig.model_probabilities?.[1]
+      : devig.h2h_devig.model_probabilities?.[2];
+    const kelly = devig.h2h_devig.kelly_fraction ?? 0.0;
+    positiveEVSignals.push(Object.freeze({
+      market: 'MONEYLINE_1X2',
+      line: '0',
+      side: side,
+      odds: odds,
+      ev: ev,
+      model_probability: prob,
+      confidence: Math.max(50, score),
+      kelly_fraction: kelly
+    }));
+  }
+
   if (devig.spread_main_ev && devig.spread_main_ev.is_positive_ev && devig.spread_main_ev.preferred_side !== 'none') {
     const side = devig.spread_main_ev.preferred_side;
     const ev = side === 'home' ? devig.spread_main_ev.home_ev : devig.spread_main_ev.away_ev;

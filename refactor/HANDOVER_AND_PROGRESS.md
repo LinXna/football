@@ -1,6 +1,53 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
--- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER03-SYSTEM-ACCEPTANCE`
+- **任务编号 (Task)**: `SNAPSHOT-20260905-QUANT-SERVER-SIDE-PRECOMPUTE`
+- **当前状态 (Status)**: `IN_PROGRESS`
+- **任务目标 (Goal)**：
+  1. 将 Layer 03 确定性物理量化评估 (`calculateQuantitativeFeatures`) 从前端浏览器主线程渲染期解耦，前移至服务端装配流水线 (`assembleMatchesForMode` / `persistRuntimeBatch`)。
+  2. 在数据装配导入阶段一次性并发执行 Layer 03 求解，将 `QuantitativeFeatures` 结构体持久化存储于 `runtimeBatch.quantitative_features` 中，并随 `/api/refactor/canonical-matches` 一起下发。
+  3. 前端 `CanonicalMatchCenter.tsx` 优先直接消费服务端预计算好的 `quantitative_features`，配合前端 `useMemo` 缓存机制，实现页面切换与交互时的“零延迟秒开”。
+  4. 保持零算法与预测变动：纯数学确定性公式不变，入参出参严格保持 100% 同构，对预测概率、EV与推荐结果零任何影响。
+- **影响文件 (Target Files)**：
+  `server/routes/canonicalRoutes.ts`
+  `src/components/CanonicalMatchCenter.tsx`
+  `refactor/HANDOVER_AND_PROGRESS.md`
+- **完成结果 (Result)**：待自测验证通过后更新。
+
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260905-LEISU-HANDICAP-SIGN-INVERSION-FIX` (DONE)
+- **任务目标 (Goal)**：
+  1. 根除雷速亚洲让球盘口在机构反推引擎 (`marketDivergenceEngine.ts`) 中的符号反转 Bug。
+  2. 领域契约服从：雷速浮点数值 `line > 0` 表示主让，而 `calculateAsianHandicapEV` 遵循 YBTY 规范（负数如 `-1`, `-0.5/1` 表示主让）。原有代码直接使用 `String(handicap.line)`，将主让 1 球当成客让 1 球，导致大热门强队被算法误判为弱旅，反向输出暴利客胜推荐。
+  3. 采用 `formatAsianHandicapLine(-handicap.line)` 准确转换雷速让球盘，保证四分之一盘、半球盘与整球盘完全精确对齐。
+  4. 验证 live 批次全部 5 场比赛的 $\lambda$ 期望、模型概率与 EV 推荐，杜绝深盘 0-0 逆向推荐客胜的灾难性问题。
+- **完成结果 (Result)**：
+  - 在 `marketDivergenceEngine.ts` 中引入 `formatAsianHandicapLine(-handicap.line)`，将雷速浮点盘口（正数为主让）严格转换为 YBTY/EV 计算标准符号（负数为主让）。
+  - Match 2（布尔萨体育 1.45 主让 1 球，40' 0-0）：基准期望从荒谬的 $\lambda_H=0.504, \lambda_A=1.042$ 彻底恢复为正统的 $\lambda_H=1.472, \lambda_A=0.242$；全场主胜模型概率由 24.2% 恢复至 69.5%，客胜模型概率由 39.6% 降至 6.2%；客胜 EV 从原先暴利的 +188.9% 纠偏为 -55.1%，彻底杜绝荒谬的客胜大冷门推荐！
+  - Match 5（开罗国民 1.72 主让半一，37' 0-0）：基准期望由偏斜全面回正为 $\lambda_H=0.969, \lambda_A=0.326$。
+  - 在 `verify_quant_engine.ts` 中追加第 9 项回归断言 `[Test 9/9]`，验证大热门深盘反推强队期望绝对压倒客队且杜绝客胜推荐。
+  - 自动化测试套件 9/9 100% 通过，`lint_applet` 和 `compile_applet` 100% 成功。
+
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260905-LAYER03-H2H-QUANT-ALIGNMENT` (DONE)
+- **任务目标 (Goal)**：
+  1. 根治全场独赢 (1X2 / H2H) 算法断层：将 M3 计算的不可变比分联合概率矩阵 exact_score_matrix 映射至胜平负模型概率 (Home/Draw/Away)，严禁仅用市场去抽水自乘导致 EV 恒负。
+  2. 保持零魔法常数 (No Magic Numbers)：完全使用概率公理 P(Home) = sum_{h>a} P(h,a), P(Draw) = sum_{h=a} P(h,a), P(Away) = sum_{h<a} P(h,a) 进行真实 EV 评估。
+  3. 连通前端 QuantBettingDecisionMatrix：直接消费 Layer 03 结构体计算出的真实 H2H EV 与推荐状态，剔除前端临时去水自乘代码。
+- **影响文件 (Target Files)**：
+  `refactor/03_quant_engine/devigCalculator.ts`
+  `refactor/03_quant_engine/types.ts`
+  `refactor/03_quant_engine/index.ts`
+  `refactor/03_quant_engine/poissonDecayModel.ts`
+  `refactor/03_quant_engine/eventMomentumFusion.ts`
+  `src/components/QuantBettingDecisionMatrix.tsx`
+  `refactor/tests/verify_quant_engine.ts`
+- **完成结果 (Result)**：
+  - 在 `poissonDecayModel.ts` 中基于二元泊松联合网格 (poissonGrid) 完全求解全场终态概率 (full_time_probabilities)。
+  - 在 `devigCalculator.ts` 中通过纯数学期望 `EV = (P_model * Odds) - 1` 求解胜平负各自期望，并计算推荐侧与凯利分数。
+  - 在 `index.ts` 中将 MONEYLINE_1X2 正 EV 信号纳入量化决策矩阵。
+  - 在 `eventMomentumFusion.ts` 中去除死板分支，保持证据冲突阻尼与门禁阻断，不产生机械性低进球乘数。
+  - 前端 `QuantBettingDecisionMatrix.tsx` 纯化消费底层真实模型概率与 EV，完全剔除前端自乘计算。
+  - Layer 03 测试套件 8/8 100% 通过；`compile_applet` 和 `lint_applet` 均 100% 通过。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER03-SYSTEM-ACCEPTANCE`
 - **当前状态 (Status)**: `DONE`
 - **新任务**: 移除重构页面手工比分核验，改为使用导入数据中 YBTY/雷速一致性，并在页面逐场显示 Layer 03 生产准入结果。
 - **新任务状态**: `DONE`

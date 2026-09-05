@@ -16,6 +16,8 @@ import {
   AiEvaluationBrief,
 } from "../../refactor/02_canonical_model/types";
 import { ParsedLeisuMatch } from "../../refactor/01_data_ingestion/leisu/types";
+import { calculateQuantitativeFeatures } from "../../refactor/03_quant_engine";
+import { QuantitativeFeatures } from "../../refactor/03_quant_engine/types";
 import {
   systemAlertBus,
   commonEnumRegistry,
@@ -43,13 +45,14 @@ const REFACTOR_STORAGE = {
   leagueAliases: "league_aliases.json",
 };
 
-type RefactorRuntimeBatch = {
+export type RefactorRuntimeBatch = {
   schema_version: 1;
   batch_id: string;
   imported_at: string;
   mode: "live" | "prematch";
   matches: CanonicalMatch[];
   ai_briefs: AiEvaluationBrief[];
+  quantitative_features?: Record<string, QuantitativeFeatures>;
   metadata: {
     mode: string;
     ybtySource: string;
@@ -66,8 +69,30 @@ function runtimePath(mode: "live" | "prematch"): string {
 
 function persistRuntimeBatch(
   mode: "live" | "prematch",
-  result: ReturnType<typeof assembleMatchesForMode>
+  result: {
+    canonicalMatches: CanonicalMatch[];
+    aiBriefs: AiEvaluationBrief[];
+    quantitativeFeatures?: Record<string, QuantitativeFeatures>;
+    metadata: RefactorRuntimeBatch["metadata"];
+  }
 ): RefactorRuntimeBatch {
+  const quantitativeFeatures: Record<string, QuantitativeFeatures> = {
+    ...(result.quantitativeFeatures || {}),
+  };
+
+  // 保证每场赛事都有一份服务端预计算的 Layer 03 特征集
+  if (Object.keys(quantitativeFeatures).length < result.canonicalMatches.length) {
+    for (const match of result.canonicalMatches) {
+      if (!quantitativeFeatures[match.canonical_id]) {
+        try {
+          quantitativeFeatures[match.canonical_id] = calculateQuantitativeFeatures(match);
+        } catch (err: any) {
+          console.error(`[CanonicalRoutes] Error computing quant for match ${match.canonical_id}:`, err);
+        }
+      }
+    }
+  }
+
   const batch: RefactorRuntimeBatch = {
     schema_version: 1,
     batch_id: `refactor-${mode}-${Date.now()}`,
@@ -75,6 +100,7 @@ function persistRuntimeBatch(
     mode,
     matches: result.canonicalMatches,
     ai_briefs: result.aiBriefs,
+    quantitative_features: quantitativeFeatures,
     metadata: result.metadata,
   };
   if (!writeJsonFile(runtimePath(mode), batch)) {
@@ -84,11 +110,12 @@ function persistRuntimeBatch(
 }
 
 /**
- * 辅助函数：装配指定模式下的所有 Canonical 比赛
+ * 辅助函数：装配指定模式下的所有 Canonical 比赛并预计算 Layer 03 特征集
  */
 export function assembleMatchesForMode(mode: "live" | "prematch"): {
   canonicalMatches: CanonicalMatch[];
   aiBriefs: AiEvaluationBrief[];
+  quantitativeFeatures: Record<string, QuantitativeFeatures>;
   leisuCandidates: Array<{
     match_id: string;
     competition: string;
@@ -252,9 +279,20 @@ export function assembleMatchesForMode(mode: "live" | "prematch"): {
     is_live: m.is_live,
   }));
 
+  // 5. Layer 03: 服务端统一预计算确定性量化特征集 (Precompute Layer 03 Quant Features)
+  const quantitativeFeatures: Record<string, QuantitativeFeatures> = {};
+  for (const match of canonicalMatches) {
+    try {
+      quantitativeFeatures[match.canonical_id] = calculateQuantitativeFeatures(match);
+    } catch (err: any) {
+      console.error(`[CanonicalRoutes] Error computing quant for match ${match.canonical_id}:`, err);
+    }
+  }
+
   return {
     canonicalMatches,
     aiBriefs,
+    quantitativeFeatures,
     leisuCandidates,
     metadata: {
       mode,
@@ -278,15 +316,38 @@ function readRuntimeBatch(mode: "live" | "prematch"): RefactorRuntimeBatch | nul
 export function registerCanonicalRoutes(app: express.Express): void {
   /**
    * GET /api/refactor/canonical-matches
-   * 查询当前重构系统的标准赛事列表
+   * 查询当前重构系统的标准赛事列表与预计算量化特征
    */
   app.get("/api/refactor/canonical-matches", (req, res) => {
     try {
       const mode = (req.query.mode as string) === "prematch" ? "prematch" : "live";
-      const runtimeBatch = readRuntimeBatch(mode);
+      let runtimeBatch = readRuntimeBatch(mode);
+
+      // 如果 runtimeBatch 不存在，则执行初次懒加载装配
+      if (!runtimeBatch) {
+        try {
+          runtimeBatch = persistRuntimeBatch(mode, assembleMatchesForMode(mode));
+        } catch (e) {
+          console.warn("[CanonicalRoutes] Initial assemble failed:", e);
+        }
+      } else if (!runtimeBatch.quantitative_features || Object.keys(runtimeBatch.quantitative_features).length === 0) {
+        // 增量自动升级已有历史批次，预计算 Layer 03 特征集并更新磁盘持久化
+        const quantitativeFeatures: Record<string, QuantitativeFeatures> = {};
+        for (const match of runtimeBatch.matches) {
+          try {
+            quantitativeFeatures[match.canonical_id] = calculateQuantitativeFeatures(match);
+          } catch (err: any) {
+            console.error(`[CanonicalRoutes] Upgrade quant error for ${match.canonical_id}:`, err);
+          }
+        }
+        runtimeBatch.quantitative_features = quantitativeFeatures;
+        writeJsonFile(runtimePath(mode), runtimeBatch);
+      }
+
       const result = runtimeBatch ?? {
         matches: [],
         ai_briefs: [],
+        quantitative_features: {},
         metadata: {
           mode,
           ybtySource: "refactor_runtime",
@@ -305,6 +366,7 @@ export function registerCanonicalRoutes(app: express.Express): void {
         count: result.matches.length,
         matches: result.matches,
         ai_briefs: result.ai_briefs,
+        quantitative_features: result.quantitative_features || {},
         metadata: result.metadata,
         batch_id: "batch_id" in result ? result.batch_id : null,
         imported_at: "imported_at" in result ? result.imported_at : null,
@@ -420,6 +482,7 @@ export function registerCanonicalRoutes(app: express.Express): void {
           mode: targetMode,
           matches: result.matches,
           ai_briefs: result.ai_briefs,
+          quantitative_features: result.quantitative_features || {},
           metadata: result.metadata,
           batch_id: result.batch_id,
           imported_at: result.imported_at,
@@ -492,10 +555,23 @@ export function registerCanonicalRoutes(app: express.Express): void {
       const selectedBriefs = selectedIds && selectedIds.size > 0
         ? assembled.aiBriefs.filter((brief) => selectedIds.has(String(brief.match_id)))
         : assembled.aiBriefs;
+      const selectedQuant: Record<string, QuantitativeFeatures> = {};
+      for (const match of selectedMatches) {
+        if (assembled.quantitativeFeatures[match.canonical_id]) {
+          selectedQuant[match.canonical_id] = assembled.quantitativeFeatures[match.canonical_id];
+        } else {
+          try {
+            selectedQuant[match.canonical_id] = calculateQuantitativeFeatures(match);
+          } catch (e) {
+            console.error(`[CanonicalRoutes] Error computing quant for ${match.canonical_id}:`, e);
+          }
+        }
+      }
+
       const result = persistRuntimeBatch(detectedTargetMode, {
-        ...assembled,
         canonicalMatches: selectedMatches,
         aiBriefs: selectedBriefs,
+        quantitativeFeatures: selectedQuant,
         metadata: {
           ...assembled.metadata,
           alignedCount: selectedMatches.length,
@@ -515,6 +591,7 @@ export function registerCanonicalRoutes(app: express.Express): void {
         mode: detectedTargetMode,
         matches: result.matches,
         ai_briefs: result.ai_briefs,
+        quantitative_features: result.quantitative_features || {},
         metadata: result.metadata,
         batch_id: result.batch_id,
         imported_at: result.imported_at,

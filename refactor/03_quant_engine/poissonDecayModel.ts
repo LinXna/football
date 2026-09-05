@@ -421,6 +421,11 @@ export function calculateInPlayPoissonFeatures(
         prob_draw_rest: isDraw ? 1.0 : 0.0,
         prob_away_win_rest: isAwayWin ? 1.0 : 0.0
       },
+      full_time_probabilities: {
+        prob_home_win: isHomeWin ? 1.0 : 0.0,
+        prob_draw: isDraw ? 1.0 : 0.0,
+        prob_away_win: isAwayWin ? 1.0 : 0.0
+      },
       projected_final_score: {
         home: currentHomeScore,
         away: currentAwayScore,
@@ -561,12 +566,19 @@ export function calculateInPlayPoissonFeatures(
   const projectedAwayFinal = Number((currentAwayScore + lambdaAwayRest).toFixed(2));
 
   const allScoresList: ScoreProbabilityItem[] = [];
+  let fullHomeProb = 0.0;
+  let fullDrawProb = 0.0;
+  let fullAwayProb = 0.0;
 
   for (let h = 0; h < poissonGrid.length; h++) {
     for (let a = 0; a < poissonGrid[h].length; a++) {
       const prob = poissonGrid[h][a];
       const finalH = currentHomeScore + h;
       const finalA = currentAwayScore + a;
+
+      if (finalH > finalA) fullHomeProb += prob;
+      else if (finalH === finalA) fullDrawProb += prob;
+      else fullAwayProb += prob;
 
       allScoresList.push({
         home: finalH,
@@ -576,6 +588,13 @@ export function calculateInPlayPoissonFeatures(
       });
     }
   }
+
+  const fullSum = fullHomeProb + fullDrawProb + fullAwayProb;
+  const fullTimeProbs = {
+    prob_home_win: fullSum > 0 ? Number((fullHomeProb / fullSum).toFixed(4)) : 0.3333,
+    prob_draw: fullSum > 0 ? Number((fullDrawProb / fullSum).toFixed(4)) : 0.3333,
+    prob_away_win: fullSum > 0 ? Number((fullAwayProb / fullSum).toFixed(4)) : 0.3334
+  };
 
   // 排序并取 Top 5 比分
   allScoresList.sort((a, b) => b.probability - a.probability);
@@ -620,6 +639,7 @@ export function calculateInPlayPoissonFeatures(
       prob_draw_rest: poissonResult.prob_draw_rest,
       prob_away_win_rest: poissonResult.prob_away_win_rest
     },
+    full_time_probabilities: fullTimeProbs,
     projected_final_score: {
       home: projectedHomeFinal,
       away: projectedAwayFinal,

@@ -177,7 +177,7 @@ export function calculateLiveThreatTrinity(
   const eventScores = calculateDecayedEventScore(events, currentMinute, 15);
   const bounded = (value: number) => Math.max(0, Math.min(1, value));
   const solveTeam = (side: 'home' | 'away') => {
-    const energy = timeline.integral_15m[side] as number;
+    const energy = (timeline.integral_15m?.[side] ?? timeline.integral_5m?.[side] ?? 0) as number;
     const eventScore = eventScores[side];
     const xt = (side === 'home' ? physical.xt_proxy?.home_xt : physical.xt_proxy?.away_xt) ?? 0;
     const penetration = (side === 'home' ? physical.penetration_rate?.home_penetration : physical.penetration_rate?.away_penetration) ?? 0;
@@ -205,9 +205,7 @@ export function calculateLiveThreatTrinity(
     // Conflicting feeds increase uncertainty without turning every mismatch
     // into a deterministic low-scoring signal.
     const alignmentFactor = conflict ? 1.0 : (0.55 + 0.45 * alignmentScore);
-    const conflictDamping = conflict
-      ? (Math.max(eventSupport, statsSupport) >= 0.35 ? 0.75 : 0.45)
-      : 1;
+    const conflictDamping = conflict ? 0.95 : 1.0;
     const calibratedThreat = bounded(baseThreat * alignmentFactor * conflictDamping);
     return {
       momentum_support: Number(momentumSupport.toFixed(3)),

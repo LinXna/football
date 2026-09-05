@@ -6,8 +6,6 @@ export interface FormalRecommendation {
   record_type: 'formal_ai_recommendation';
   formal_recommendation: true;
   record_id: string; // uuid or composite hash
-  record_type: 'formal_ai_recommendation';
-  formal_recommendation: true;
   stage: BettingStage;
   created_at_utc: string;
   

@@ -366,6 +366,11 @@ export interface InPlayPoissonFeatures {
     prob_draw_rest: number;
     prob_away_win_rest: number;
   };
+  full_time_probabilities?: {
+    prob_home_win: number;
+    prob_draw: number;
+    prob_away_win: number;
+  };
   projected_final_score: {
     home: number;
     away: number;
@@ -379,6 +384,14 @@ export interface SingleMarketDevig {
   devig_method: DevigMethod;
   fair_probabilities: number[];
   fair_odds: number[];
+  market_odds?: number[];
+  model_probabilities?: number[];
+  home_ev?: number;
+  draw_ev?: number;
+  away_ev?: number;
+  preferred_side?: 'home' | 'draw' | 'away' | 'none';
+  is_positive_ev?: boolean;
+  kelly_fraction?: number;
 }
 
 export interface SpreadEVAssessment {
@@ -488,6 +501,7 @@ export interface OosCalibrationSample {
 /** 可持久化的 OOS 校准档案；仅 VALIDATED 档案可解锁机器候选。 */
 export interface OosCalibrationArchive {
   schema_version: 1;
+  archive_provenance?: string;
   generated_at: string;
   model_version: string;
   training_window_start_at: string;
@@ -496,6 +510,7 @@ export interface OosCalibrationArchive {
   prediction_window_end_at: string;
   training_cutoff_at: string;
   global_profile: QuantCalibrationProfile;
+  global_profiles?: readonly QuantCalibrationProfile[];
   profiles: readonly QuantCalibrationProfile[];
 }
 

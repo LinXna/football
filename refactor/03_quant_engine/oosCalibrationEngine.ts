@@ -132,6 +132,7 @@ export function buildOosCalibrationArchive(samples: readonly OosCalibrationSampl
     prediction_window_start_at: options.prediction_window_start_at,
     prediction_window_end_at: options.prediction_window_end_at,
     training_cutoff_at: options.training_window_end_at,
+    global_profile: globalProfile,
     global_profiles: Object.freeze([...globalProfiles.values()]),
     profiles: Object.freeze(profiles)
   });
@@ -188,7 +189,8 @@ export function selectOosCalibrationProfile(
   const bucketCandidate = candidates.find((profile) => profile.team_key === undefined);
   if (teamCandidate !== undefined) return teamCandidate;
   if (bucketCandidate !== undefined) return bucketCandidate;
-  const globalCandidate = archive.global_profiles.find((profile) =>
+  const globalList = archive.global_profiles ?? [archive.global_profile];
+  const globalCandidate = globalList.find((profile: QuantCalibrationProfile) =>
     profile.status === 'VALIDATED' && profile.market === market
   );
   return globalCandidate;

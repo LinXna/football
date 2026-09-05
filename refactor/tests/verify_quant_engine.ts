@@ -50,7 +50,7 @@ import {
   GoalClimaxLevel
 } from '../03_quant_engine/index.js';
 import { CanonicalMatch } from '../02_canonical_model/types.js';
-import { MatchStage } from '../02_canonical_model/enums.js';
+import { MatchStage, MatchAlignmentStatus } from '../02_canonical_model/enums.js';
 import { MarketStanceType } from '../03_quant_engine/types.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
@@ -854,8 +854,86 @@ async function runQuantEngineTests() {
     console.log('   ✅ L0 致命熔断一票否决测试 PASS');
   }
 
+  // =========================================================================
+  // [Test 9] 雷速让球盘口符号规范与深盘大热门反演回归测试 (No Inversion Bias)
+  // =========================================================================
+  console.log('\n👉 [Test 9/9] 雷速让球符号规范与深盘大热门反演断言...');
+  {
+    // 构造 Match 2 同构赛事: 主队让1球 (Leisu line: 1.0, 对应 YBTY "-1"), 主胜1.45, 客胜7.30
+    const deepHandicapMatch: CanonicalMatch = {
+      canonical_id: 'test_deep_handicap_40m_00',
+      home_team_name: '布尔萨体育',
+      away_team_name: '伊斯坦堡士邦',
+      league_name: '土杯',
+      alignment: { status: MatchAlignmentStatus.MATCHED_AUTO, confidence: 100, method: 'AUTOMATIC_EXACT' },
+      timing: { stage: MatchStage.LIVE, minute: 40, status_text: '40', ybty_display_clock: '40' },
+      score: { home_score: 0, away_score: 0, home_half_score: 0, away_half_score: 0, score_verified: true, score_source: 'CANVAS_OCR', is_mismatch_detected: false },
+      markets: {
+        full_h2h: { home_odds: 1.45, draw_odds: 3.40, away_odds: 7.30 },
+        full_spread_main: { line_index: 0, home_selection: '-1', home_odds: 2.01, away_selection: '+1', away_odds: 1.81 },
+        full_spread_subs: [],
+        full_total_main: { line_index: 0, line: '1.5/2', over_odds: 1.79, under_odds: 2.01, settlement_basis: 'FULL_MATCH' as any },
+        full_total_subs: [],
+        half_h2h: null,
+        half_spread_main: null,
+        half_total_main: null
+      },
+      reference: {
+        company_name: '3*',
+        initial: null,
+        pregame: null,
+        live: null,
+        stats: null,
+        attack_momentum: null,
+        odds_matrix: {
+          company_name: '3*',
+          initial: null,
+          pregame: null,
+          live: {
+            match_winner: { home_odds: 1.50, draw_odds: 3.60, away_odds: 7.50 },
+            asian_handicap: { home_odds: 0.97, line: 1.0, away_odds: 0.82 }, // 雷速规范: line > 0 为主让1球
+            total_goals: { over_odds: 0.77, line: 1.75, under_odds: 1.02 },
+            corners: null
+          }
+        },
+        historical_dna: null,
+        prematch_context: null
+      }
+    };
+
+    const qf = calculateQuantitativeFeatures(deepHandicapMatch);
+    
+    // 断言 1: 主队剩余进球期望必须显著高于客队 (主让1球强队绝对不能 λ_home < λ_away)
+    assert(
+      qf.poisson.lambda_home_rest > qf.poisson.lambda_away_rest * 3.0,
+      `主让1球深盘场景下，主队进球期望(${qf.poisson.lambda_home_rest})必须显著大于客队(${qf.poisson.lambda_away_rest})的3倍以上`
+    );
+
+    // 断言 2: 全场模型概率主胜必须占优势 (>= 50%)，客胜必须极低 (<= 15%)
+    assert(
+      qf.poisson.full_time_probabilities.prob_home_win >= 0.50,
+      `主胜模型概率必须 >= 50%，实际为 ${qf.poisson.full_time_probabilities.prob_home_win}`
+    );
+    assert(
+      qf.poisson.full_time_probabilities.prob_away_win <= 0.15,
+      `客胜模型概率必须 <= 15%，实际为 ${qf.poisson.full_time_probabilities.prob_away_win}`
+    );
+
+    // 断言 3: 绝严禁推荐客胜正 EV (客胜真实 EV 必须为负)
+    assert(
+      (qf.devig.h2h_devig?.away_ev ?? 0) < 0,
+      `客胜 EV 必须为负，实际为 ${qf.devig.h2h_devig?.away_ev}`
+    );
+    assert(
+      qf.devig.h2h_devig?.preferred_side !== 'away',
+      `大热门比赛 H2H 绝对禁止推荐客胜`
+    );
+
+    console.log('   ✅ 雷速让球符号规范与深盘大热门反演测试 PASS');
+  }
+
   console.log('\n================================================================');
-  console.log('🎉 [Layer 03 Test Suite] 全部 8 项确定性量化与博弈引擎测试 100% 通过！');
+  console.log('🎉 [Layer 03 Test Suite] 全部 9 项确定性量化与博弈引擎测试 100% 通过！');
   console.log('================================================================\n');
 }
 
