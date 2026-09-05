@@ -290,8 +290,19 @@ export function calculateH2HDecayWeights(
       Number.isInteger(homeScores[0]) && homeScores[0] >= 0 &&
       Number.isInteger(awayScores[0]) && awayScores[0] >= 0;
 
+    const currentHomeName = match.home_team_name;
+    const currentAwayName = match.away_team_name;
+    const h2hWithNames = h2h as typeof h2h & { home_team_name?: string; away_team_name?: string };
+    const h2hHomeName = h2hWithNames.home_team_name;
+    const h2hAwayName = h2hWithNames.away_team_name;
+    const identityMatched =
+      (currentHomeId != null && (h2h.home_team_id === currentHomeId || h2h.away_team_id === currentHomeId)) ||
+      (currentAwayId != null && (h2h.home_team_id === currentAwayId || h2h.away_team_id === currentAwayId)) ||
+      (Boolean(currentHomeName) && (h2hHomeName === currentHomeName || h2hAwayName === currentHomeName)) ||
+      (Boolean(currentAwayName) && (h2hHomeName === currentAwayName || h2hAwayName === currentAwayName));
+
     let decayWeight = 0.0;
-    const isValid = hasValidTime && daysAgo >= 0 && daysAgo <= MAX_VALID_DAYS && hasValidScore;
+    const isValid = identityMatched && hasValidTime && daysAgo >= 0 && daysAgo <= MAX_VALID_DAYS && hasValidScore;
     if (isValid) {
       decayWeight = Math.exp(-decayConstant * daysAgo);
     }
@@ -307,6 +318,14 @@ export function calculateH2HDecayWeights(
     } else if (currentAwayId != null && h2h.away_team_id != null && h2h.away_team_id === currentAwayId) {
       isCurrentHomePlayingHome = true;
     } else if (currentAwayId != null && h2h.home_team_id != null && h2h.home_team_id === currentAwayId) {
+      isCurrentHomePlayingHome = false;
+    } else if (currentHomeName && h2hHomeName === currentHomeName) {
+      isCurrentHomePlayingHome = true;
+    } else if (currentHomeName && h2hAwayName === currentHomeName) {
+      isCurrentHomePlayingHome = false;
+    } else if (currentAwayName && h2hAwayName === currentAwayName) {
+      isCurrentHomePlayingHome = true;
+    } else if (currentAwayName && h2hHomeName === currentAwayName) {
       isCurrentHomePlayingHome = false;
     }
 
@@ -553,21 +572,24 @@ export function calculateRecentFormWeights(
         compWeight = 0.60; // 杯赛权重
       }
 
-      // 3. 方案 1 近期战绩改造：优先使用 team_id 判定是否为主队出战，彻底切断客队判定借用主队雷速名的错误
-      let itemIsHome = true;
+      // 3. 近期战绩必须先确认样本确实属于目标球队；无法确认时不得猜测主客方向。
+      let itemIsHome = false;
+      let teamIdentityMatched = false;
       if (targetTeamId != null && item.home_team_id != null && item.home_team_id === targetTeamId) {
         itemIsHome = true;
+        teamIdentityMatched = true;
       } else if (targetTeamId != null && item.away_team_id != null && item.away_team_id === targetTeamId) {
         itemIsHome = false;
+        teamIdentityMatched = true;
       } else {
         const isHomeName = item.home_team_name === targetTeamName || (Boolean(targetLeisuName) && item.home_team_name === targetLeisuName);
         const isAwayName = item.away_team_name === targetTeamName || (Boolean(targetLeisuName) && item.away_team_name === targetLeisuName);
         if (isHomeName && !isAwayName) {
           itemIsHome = true;
+          teamIdentityMatched = true;
         } else if (!isHomeName && isAwayName) {
           itemIsHome = false;
-        } else {
-          itemIsHome = isHomeName;
+          teamIdentityMatched = true;
         }
       }
 
@@ -581,8 +603,17 @@ export function calculateRecentFormWeights(
       const ftAway = item.fulltime_score?.away;
       const htHome = item.halftime_score?.home;
       const htAway = item.halftime_score?.away;
+      const hasValidFinalScore =
+        typeof ftHome === 'number' && Number.isFinite(ftHome) && ftHome >= 0 &&
+        typeof ftAway === 'number' && Number.isFinite(ftAway) && ftAway >= 0;
+      const hasValidHalfScore =
+        (htHome === null || htHome === undefined || (typeof htHome === 'number' && Number.isFinite(htHome) && htHome >= 0)) &&
+        (htAway === null || htAway === undefined || (typeof htAway === 'number' && Number.isFinite(htAway) && htAway >= 0)) &&
+        (htHome === null || htHome === undefined || (ftHome !== undefined && ftHome !== null && htHome <= ftHome)) &&
+        (htAway === null || htAway === undefined || (ftAway !== undefined && ftAway !== null && htAway <= ftAway));
+      const hasValidScore = hasValidFinalScore && hasValidHalfScore;
 
-      if (ftHome == null || ftAway == null) {
+      if (!teamIdentityMatched || !hasValidScore || !isValidTime || !compName.trim()) {
         return Object.freeze({
           match_id: String(item.match_id || ''),
           match_date: dateStr,
@@ -625,7 +656,7 @@ export function calculateRecentFormWeights(
       if (item.goals_trend?.result === '大') goalsTrendRes = 'BIG';
       else if (item.goals_trend?.result === '小') goalsTrendRes = 'SMALL';
 
-      if (isValidTime && finalWeight > 0) {
+      if (teamIdentityMatched && hasValidScore && isValidTime && finalWeight > 0) {
         totalEffectiveWeight += finalWeight;
         sumScored += scoredFull * finalWeight;
         sumConceded += concededFull * finalWeight;
@@ -746,8 +777,17 @@ export function extractIsoVenueStandings(
   }
 
   const mapStanding = (record: ParsedStandingRecord | null): IsoVenueStandingRecord | null => {
-    if (!record || record.matches_played === 0) return null;
-    const mp = record.matches_played || 1;
+    if (!record || !Number.isFinite(record.matches_played) || record.matches_played <= 0) return null;
+    const numericValues = [
+      record.won, record.draw, record.loss, record.goals_scored,
+      record.goals_conceded, record.goal_difference, record.points
+    ];
+    if (numericValues.some((value) => !Number.isFinite(value) || value < 0) ||
+        record.won + record.draw + record.loss > record.matches_played ||
+        record.goal_difference !== record.goals_scored - record.goals_conceded) {
+      return null;
+    }
+    const mp = record.matches_played;
     return Object.freeze({
       matches_played: record.matches_played,
       won: record.won,
@@ -779,8 +819,15 @@ export function extractGoalDistributionDNA(
   match: CanonicalMatch
 ): GoalDistributionDNAFeatures {
   const goalDist = match.reference?.goal_distribution;
-  if (!goalDist || !goalDist.has_data) {
-    // 默认平均分布 (1/6 = 0.1667)
+  const hasCompleteIntervals = (teamDist: ParsedTeamGoalDistribution | undefined): boolean => {
+    const intervals = teamDist?.all?.scored_intervals || teamDist?.home?.scored_intervals || [];
+    return intervals.length >= 6 &&
+      intervals.slice(0, 6).every((interval) =>
+        typeof interval.goals === 'number' && Number.isFinite(interval.goals) && interval.goals >= 0
+      );
+  };
+  if (!goalDist || !goalDist.has_data || !hasCompleteIntervals(goalDist.home_team) || !hasCompleteIntervals(goalDist.away_team)) {
+    // 返回中性展示值，但 has_data=false，调用方不得把它作为先验使用。
     const uniform = [0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667];
     return Object.freeze({
       has_data: false,
@@ -795,9 +842,6 @@ export function extractGoalDistributionDNA(
 
   const extractWeights = (teamDist: ParsedTeamGoalDistribution | undefined): { weights: number[]; late: number; early: number } => {
     const intervals = teamDist?.all?.scored_intervals || teamDist?.home?.scored_intervals || [];
-    if (intervals.length === 0) {
-      return { weights: [0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667], late: 0.1667, early: 0.3333 };
-    }
 
     // 方案 5：狄利克雷-多项式贝叶斯共轭平滑 (Dirichlet-Multinomial Bayesian Conjugate Smoothing)
     // 假设无信息先验 Alpha_i = 1.0 (K = 6, 均匀先验和为 6.0)
@@ -896,12 +940,12 @@ export function calculateLineupImpactScores(
 
   const homeStarters = lineup?.home_starters || [];
   const awayStarters = lineup?.away_starters || [];
-  const hasStarters = homeStarters.length > 0 || awayStarters.length > 0;
+  const hasBothStarters = homeStarters.length > 0 && awayStarters.length > 0;
 
   let lineupStatus: LineupStatus = 'NOT_ANNOUNCED';
   let isLineupConfirmed = false;
 
-  if (lineup && hasStarters) {
+  if (lineup && hasBothStarters) {
     if (lineup.confirmed === true) {
       lineupStatus = 'CONFIRMED';
       isLineupConfirmed = true;
@@ -1147,6 +1191,16 @@ export function evaluateGoalTimingValidity(
     return { sample_count: 0, is_valid: false, requires_shrinkage: true };
   }
 
+  const hasCompleteIntervals = (teamDist: ParsedTeamGoalDistribution | undefined): boolean => {
+    const intervals = teamDist?.all?.scored_intervals || teamDist?.home?.scored_intervals || [];
+    return intervals.length >= 6 &&
+      intervals.slice(0, 6).every((interval) =>
+        typeof interval.goals === 'number' && Number.isFinite(interval.goals) && interval.goals >= 0
+      );
+  };
+  if (!hasCompleteIntervals(goalDist.home_team) || !hasCompleteIntervals(goalDist.away_team)) {
+    return { sample_count: 0, is_valid: false, requires_shrinkage: true };
+  }
   const homeMatches = goalDist.home_team?.all?.matches_count ?? 0;
   const awayMatches = goalDist.away_team?.all?.matches_count ?? 0;
   const minSample = Math.min(homeMatches, awayMatches);

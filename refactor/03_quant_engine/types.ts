@@ -20,6 +20,7 @@ import {
   Layer03OpId,
   Layer03FeatureId
 } from './enums';
+import { MatchStage } from '../02_canonical_model/enums.js';
 
 export * from './enums.js';
 
@@ -52,6 +53,7 @@ export interface PrematchTheoryPrior {
 export interface MarketCalibrationResult {
   lambda_base_home: number;              // 博弈校准后的基准进球期望 λ_base_H
   lambda_base_away: number;              // 博弈校准后的基准进球期望 λ_base_A
+  is_in_play_market: boolean;            // true means λ base is already remaining-goals semantics
   divergence_delta: number;              // 理论 vs 机构偏差量 (Δ)
   market_stance: MarketStanceType;       // 机构姿态识别
   market_confidence_penalty: number;     // 离散度与异常诱盘扣分
@@ -235,6 +237,10 @@ export interface CleanedContextFeatures {
 
 export interface MomentumTimelineFeatures {
   total_points: number;
+  window_basis?: 'MINUTE_ALIGNED' | 'POINT_COUNT_FALLBACK' | 'UNAVAILABLE';
+  cutoff_minute?: number | null;
+  window_coverage_minutes?: { from: number | null; to: number | null };
+  window_sample_counts?: { five: number; ten: number; fifteen: number };
   current_instant_momentum: number;
   slope_5m: number;
   slope_10m: number;
@@ -325,6 +331,25 @@ export interface ScoreProbabilityItem {
   percentage_str: string;
 }
 
+export interface LambdaDecomposition {
+  market_base_home: number;
+  market_base_away: number;
+  context_multiplier_home: number;
+  context_multiplier_away: number;
+  base_after_context_home: number;
+  base_after_context_away: number;
+  time_fraction_home: number;
+  time_fraction_away: number;
+  urgency_multiplier: number;
+  threat_home: number;
+  threat_away: number;
+  red_attack_home: number;
+  red_attack_away: number;
+  red_leak_home: number;
+  red_leak_away: number;
+  post_goal_cooldown_multiplier: number;
+}
+
 export interface InPlayPoissonFeatures {
   elapsed_minute: number;
   remaining_minutes: number;
@@ -334,6 +359,7 @@ export interface InPlayPoissonFeatures {
   lambda_away_rest: number;
   expected_goals_rest: number;
   lambda_source: 'MARKET_IMPLIED' | 'LEAGUE_DNA' | 'FALLBACK';
+  lambda_decomposition: LambdaDecomposition;
   top_final_scores: ScoreProbabilityItem[];
   rest_score_matrix: {
     prob_home_win_rest: number;
@@ -363,6 +389,8 @@ export interface SpreadEVAssessment {
   away_ev: number;
   preferred_side: 'home' | 'away' | 'none';
   is_positive_ev: boolean;
+  home_model_probability?: number;
+  away_model_probability?: number;
   kelly_fraction?: number;
 }
 
@@ -374,6 +402,8 @@ export interface TotalEVAssessment {
   under_ev: number;
   preferred_side: 'over' | 'under' | 'none';
   is_positive_ev: boolean;
+  over_model_probability?: number;
+  under_model_probability?: number;
   kelly_fraction?: number;
 }
 
@@ -398,6 +428,7 @@ export interface PositiveEVSignal {
   ev: number;
   confidence: number;
   kelly_fraction: number;
+  model_probability?: number;
 }
 
 /**
@@ -430,16 +461,12 @@ export interface QuantCalibrationProfile {
   lambda_log_adjustment: number;
 }
 
-export type OosMarket =
-  | 'ASIAN_HANDICAP_MAIN'
-  | 'ASIAN_HANDICAP_SECONDARY'
-  | 'TOTAL_GOALS_MAIN'
-  | 'TOTAL_GOALS_SECONDARY';
+export type OosMarket = 'ASIAN_HANDICAP_MAIN' | 'TOTAL_GOALS_MAIN';
 
 /** 单条已结算、绝不参与同批模型拟合的 OOS 观测。 */
 export interface OosCalibrationSample {
   sample_id: string;
-  /** 生成预测所用的冻结量化模型版本。 */
+  /** 生成预测所用的冻结量化模型版本；样本必须来自声明的 prediction window。 */
   model_version: string;
   /** 预测在该时间点已经固化；必须严格早于档案训练截止点。 */
   prediction_at: string;
@@ -461,7 +488,6 @@ export interface OosCalibrationSample {
 /** 可持久化的 OOS 校准档案；仅 VALIDATED 档案可解锁机器候选。 */
 export interface OosCalibrationArchive {
   schema_version: 1;
-  archive_provenance: 'OOS_ARCHIVE_BUILDER_V1';
   generated_at: string;
   model_version: string;
   training_window_start_at: string;
@@ -469,7 +495,7 @@ export interface OosCalibrationArchive {
   prediction_window_start_at: string;
   prediction_window_end_at: string;
   training_cutoff_at: string;
-  global_profiles: readonly QuantCalibrationProfile[];
+  global_profile: QuantCalibrationProfile;
   profiles: readonly QuantCalibrationProfile[];
 }
 
@@ -549,6 +575,10 @@ export interface UnifiedMatchState {
   post_goal_cooldown_active: boolean;
   has_evidence_conflict: boolean;
   source_lineage_discount: number;
+  red_card_attack_multiplier_home: number;
+  red_card_attack_multiplier_away: number;
+  red_card_defense_leak_multiplier_home: number;
+  red_card_defense_leak_multiplier_away: number;
 }
 
 export interface QuantitativeFeatures {
@@ -565,8 +595,9 @@ export interface QuantitativeFeatures {
   match_state: UnifiedMatchState;
   battlefield_dominance_index: number;
   goal_phase_alert: GoalPhaseAlert;
+  /** M5 原始正 EV，仅表示数学筛选结果，不代表可交易候选。 */
   raw_positive_ev_signals: PositiveEVSignal[];
-  validated_oos_signals: PositiveEVSignal[];
+  /** 仅保留通过数据质量、OOS 校准和滚球门禁的 machine candidate。 */
   positive_ev_signals: PositiveEVSignal[];
   risk_flags: QuantAlert[];
   confidence_score: number;
@@ -575,4 +606,53 @@ export interface QuantitativeFeatures {
     model_stability_score: number;
     edge_confidence_score: number;
   };
+  data_audit: Layer03DataAudit;
+  production_gate: Layer03ProductionGate;
+}
+
+export type Layer03CalculationStatus = 'PRODUCTION_READY' | 'RESEARCH_ONLY' | 'BLOCKED';
+export type Layer03CandidateStatus = 'UNLOCKED' | 'OOS_LOCKED' | 'DATA_LOCKED';
+
+export interface Layer03ProductionGate {
+  calculation_status: Layer03CalculationStatus;
+  candidate_status: Layer03CandidateStatus;
+  blockers: readonly string[];
+  oos_requirement: string;
+}
+
+export type Layer03AuditCategory =
+  | 'ATTACK_MOMENTUM'
+  | 'LIVE_STATS'
+  | 'TIMELINE_EVENTS'
+  | 'LINEUPS'
+  | 'H2H'
+  | 'RECENT_FORM'
+  | 'STANDINGS'
+  | 'GOAL_DISTRIBUTION'
+  | 'ODDS_MATRIX'
+  | 'ENVIRONMENT';
+
+export type Layer03AuditStatus = 'USED' | 'DEGRADED' | 'REJECTED' | 'NOT_APPLICABLE';
+
+export interface Layer03AuditItem {
+  category: Layer03AuditCategory;
+  source: 'YBTY' | 'LEISU' | 'CANONICAL' | 'DERIVED';
+  status: Layer03AuditStatus;
+  quality_score: number;
+  used_by: readonly string[];
+  evidence: readonly string[];
+  defects: readonly string[];
+  sample_size?: number;
+  covered_minute_from?: number | null;
+  covered_minute_to?: number | null;
+  weight?: number | null;
+}
+
+export interface Layer03DataAudit {
+  generated_at: string;
+  canonical_id: string;
+  match_stage: MatchStage;
+  source_snapshot_at: string | null;
+  overall_status: 'PASS' | 'DEGRADED' | 'BLOCKED';
+  items: readonly Layer03AuditItem[];
 }

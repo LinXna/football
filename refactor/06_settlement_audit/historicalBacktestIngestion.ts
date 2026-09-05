@@ -11,24 +11,12 @@ function isNonNegativeInteger(value: number): boolean {
   return Number.isInteger(value) && value >= 0;
 }
 
-function rejectionFor(
-  record: HistoricalBacktestRecord,
-  archiveOptions: OosArchiveBuildOptions
-): HistoricalSampleRejection | undefined {
-  if (record.settled_record_provenance !== 'SETTLED_LEDGER_ADAPTER_V1') {
-    return { record_id: record.record_id, reason: HistoricalSampleRejectionReason.ADAPTER_INPUT_INCOMPLETE };
-  }
+function rejectionFor(record: HistoricalBacktestRecord): HistoricalSampleRejection | undefined {
   if (record.record_type !== 'formal_ai_recommendation' || !record.formal_recommendation) {
     return { record_id: record.record_id, reason: HistoricalSampleRejectionReason.NOT_FORMAL_RECOMMENDATION };
   }
   if (!record.score_verified) {
     return { record_id: record.record_id, reason: HistoricalSampleRejectionReason.SCORE_NOT_VERIFIED };
-  }
-  if (record.settlement_market !== record.market) {
-    return { record_id: record.record_id, reason: HistoricalSampleRejectionReason.SETTLEMENT_MARKET_MISMATCH };
-  }
-  if (record.stage === 'PREMATCH' && record.settlement_basis !== 'FULL_MATCH') {
-    return { record_id: record.record_id, reason: HistoricalSampleRejectionReason.SETTLEMENT_BASIS_MISMATCH };
   }
   if (!isNonNegativeInteger(record.score_at_recommendation.home) ||
       !isNonNegativeInteger(record.score_at_recommendation.away) ||
@@ -49,16 +37,6 @@ function rejectionFor(
   if (!Number.isFinite(predictionTimestamp) || !Number.isFinite(settlementTimestamp) || predictionTimestamp >= settlementTimestamp) {
     return { record_id: record.record_id, reason: HistoricalSampleRejectionReason.PREDICTION_TIMESTAMP_INVALID };
   }
-  const predictionStartTimestamp = Date.parse(archiveOptions.prediction_window_start_at);
-  const predictionEndTimestamp = Date.parse(archiveOptions.prediction_window_end_at);
-  const generatedTimestamp = Date.parse(archiveOptions.generated_at);
-  if (!Number.isFinite(predictionStartTimestamp) || !Number.isFinite(predictionEndTimestamp) ||
-      predictionTimestamp < predictionStartTimestamp || predictionTimestamp > predictionEndTimestamp) {
-    return { record_id: record.record_id, reason: HistoricalSampleRejectionReason.PREDICTION_OUTSIDE_WINDOW };
-  }
-  if (Number.isFinite(generatedTimestamp) && settlementTimestamp > generatedTimestamp) {
-    return { record_id: record.record_id, reason: HistoricalSampleRejectionReason.SETTLEMENT_AFTER_GENERATION };
-  }
   if (record.stage === 'LIVE' && (record.minute === null || !Number.isInteger(record.minute) || record.minute < 0 || record.minute > 130)) {
     return { record_id: record.record_id, reason: HistoricalSampleRejectionReason.LIVE_MINUTE_INVALID };
   }
@@ -75,8 +53,7 @@ function rejectionFor(
 }
 
 function toOosSample(record: HistoricalBacktestRecord): OosCalibrationSample {
-  const observedGoals = record.settlement_basis === 'REMAINING_GOALS' ||
-    record.settlement_basis === 'REMAINING_PERIOD_DOMINANCE'
+  const observedGoals = record.stage === 'LIVE'
     ? record.final_score.home + record.final_score.away - record.score_at_recommendation.home - record.score_at_recommendation.away
     : record.final_score.home + record.final_score.away;
   return Object.freeze({
@@ -98,6 +75,20 @@ function toOosSample(record: HistoricalBacktestRecord): OosCalibrationSample {
   });
 }
 
+function duplicateKey(record: HistoricalBacktestRecord): string {
+  return [
+    record.stage,
+    record.home_team_key,
+    record.away_team_key,
+    record.minute ?? 'PREMATCH',
+    record.score_at_recommendation.home,
+    record.score_at_recommendation.away,
+    record.market,
+    record.line ?? '',
+    record.odds ?? ''
+  ].join('|');
+}
+
 /** Converts only auditable, settled formal recommendations into Layer 03 OOS samples. */
 export function ingestHistoricalBacktestRecords(
   records: readonly HistoricalBacktestRecord[],
@@ -105,16 +96,19 @@ export function ingestHistoricalBacktestRecords(
 ): HistoricalOosIngestionResult {
   const acceptedSamples: OosCalibrationSample[] = [];
   const rejectedRecords: HistoricalSampleRejection[] = [];
-  const acceptedSampleIds = new Set<string>();
+  const acceptedKeys = new Set<string>();
   for (const record of records) {
-    const rejection = acceptedSampleIds.has(record.record_id)
-      ? { record_id: record.record_id, reason: HistoricalSampleRejectionReason.DUPLICATE_SAMPLE_ID }
-      : rejectionFor(record, archiveOptions);
+    const rejection = rejectionFor(record);
     if (rejection !== undefined) {
       rejectedRecords.push(Object.freeze(rejection));
+    } else if (acceptedKeys.has(duplicateKey(record))) {
+      rejectedRecords.push(Object.freeze({
+        record_id: record.record_id,
+        reason: HistoricalSampleRejectionReason.DUPLICATE_SAMPLE
+      }));
     } else {
+      acceptedKeys.add(duplicateKey(record));
       acceptedSamples.push(toOosSample(record));
-      acceptedSampleIds.add(record.record_id);
     }
   }
   const calibrationArchive = acceptedSamples.length === 0

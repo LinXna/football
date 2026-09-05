@@ -1,6 +1,6 @@
 {
   "canonical_id": "4562395",
-  "calculated_at": "2026-09-04T22:39:47.919Z",
+  "calculated_at": "2026-09-05T05:26:43.387Z",
   "context": {
     "circuit_breaker": {
       "is_triggered": false,
@@ -1877,17 +1877,29 @@
     "theory_total_goals_expected": 0.944
   },
   "market_calibration": {
-    "lambda_base_home": 0.969,
-    "lambda_base_away": 1.085,
-    "divergence_delta": -0.44,
+    "lambda_base_home": 0.861,
+    "lambda_base_away": 1.011,
+    "is_in_play_market": true,
+    "divergence_delta": -0.34,
     "market_stance": "TRAP_INDUCEMENT",
     "market_confidence_penalty": 5,
-    "implied_market_home_win_prob": 0.3521,
-    "implied_market_draw_prob": 0.2713,
-    "implied_market_away_win_prob": 0.3765
+    "implied_market_home_win_prob": 0.0987,
+    "implied_market_draw_prob": 0.2501,
+    "implied_market_away_win_prob": 0.6512
   },
   "timeline": {
     "total_points": 63,
+    "window_basis": "MINUTE_ALIGNED",
+    "cutoff_minute": 62,
+    "window_coverage_minutes": {
+      "from": 1,
+      "to": 62
+    },
+    "window_sample_counts": {
+      "five": 5,
+      "ten": 10,
+      "fifteen": 15
+    },
     "current_instant_momentum": -100,
     "slope_5m": -28.6,
     "slope_10m": 2.085,
@@ -1948,7 +1960,7 @@
     "corner_pressure": {
       "home_corners_total": 6,
       "away_corners_total": 7,
-      "is_corner_cascade": true,
+      "is_corner_cascade": false,
       "window_source": "CUMULATIVE_BASELINE"
     },
     "counter_threat_index": {
@@ -1986,51 +1998,69 @@
     "remaining_minutes": 28,
     "is_stoppage_time_unpriceable": false,
     "time_decay_curve": "LINEAR_UNIFORM",
-    "lambda_home_rest": 0.097,
-    "lambda_away_rest": 0.266,
-    "expected_goals_rest": 0.363,
+    "lambda_home_rest": 0.958,
+    "lambda_away_rest": 1.236,
+    "expected_goals_rest": 2.194,
     "lambda_source": "MARKET_IMPLIED",
+    "lambda_decomposition": {
+      "market_base_home": 0.861,
+      "market_base_away": 1.011,
+      "context_multiplier_home": 1,
+      "context_multiplier_away": 1,
+      "base_after_context_home": 0.819,
+      "base_after_context_away": 0.961,
+      "time_fraction_home": 1,
+      "time_fraction_away": 1,
+      "urgency_multiplier": 1.024,
+      "threat_home": 1.143,
+      "threat_away": 1.256,
+      "red_attack_home": 1,
+      "red_attack_away": 1,
+      "red_leak_home": 1,
+      "red_leak_away": 1,
+      "post_goal_cooldown_multiplier": 1
+    },
     "top_final_scores": [
       {
         "home": 0,
-        "away": 1,
-        "probability": 0.6947,
-        "percentage_str": "69.5%"
+        "away": 2,
+        "probability": 0.1444,
+        "percentage_str": "14.4%"
       },
       {
-        "home": 0,
+        "home": 1,
         "away": 2,
-        "probability": 0.1859,
-        "percentage_str": "18.6%"
+        "probability": 0.1254,
+        "percentage_str": "12.5%"
       },
       {
         "home": 1,
         "away": 1,
-        "probability": 0.0684,
-        "percentage_str": "6.8%"
+        "probability": 0.1134,
+        "percentage_str": "11.3%"
+      },
+      {
+        "home": 0,
+        "away": 1,
+        "probability": 0.1049,
+        "percentage_str": "10.5%"
       },
       {
         "home": 0,
         "away": 3,
-        "probability": 0.0246,
-        "percentage_str": "2.5%"
-      },
-      {
-        "home": 1,
-        "away": 2,
-        "probability": 0.017,
-        "percentage_str": "1.7%"
+        "probability": 0.0851,
+        "percentage_str": "8.5%"
       }
     ],
     "rest_score_matrix": {
-      "prob_home_win_rest": 0.0727,
-      "prob_draw_rest": 0.7119,
-      "prob_away_win_rest": 0.2155
+      "prob_home_win_rest": 0.2928,
+      "prob_draw_rest": 0.2749,
+      "prob_away_win_rest": 0.4324
     },
     "projected_final_score": {
-      "home": 0.1,
-      "away": 1.27,
-      "most_likely_score": "0-1"
+      "home": 0.96,
+      "away": 2.24,
+      "most_likely_score": "0-2"
     }
   },
   "devig": {
@@ -2053,42 +2083,50 @@
       "line": "-0/0.5",
       "home_odds": 2.2,
       "away_odds": 1.71,
-      "home_ev": -0.4842,
-      "away_ev": 0.3331,
+      "home_ev": -0.2185,
+      "away_ev": 0.1118,
       "preferred_side": "away",
       "is_positive_ev": true,
-      "kelly_fraction": 0.05
+      "home_model_probability": 0.2928,
+      "away_model_probability": 0.7072,
+      "kelly_fraction": 0.0394
     },
     "spread_secondary_ev": [
       {
         "line": "0",
         "home_odds": 1.6,
         "away_odds": 2.38,
-        "home_ev": -0.1719,
-        "away_ev": 0.2247,
+        "home_ev": -0.2567,
+        "away_ev": 0.3039,
         "preferred_side": "away",
         "is_positive_ev": true,
-        "kelly_fraction": 0.0407
+        "home_model_probability": 0.2928,
+        "away_model_probability": 0.4324,
+        "kelly_fraction": 0.05
       },
       {
         "line": "-0.5",
         "home_odds": 2.69,
         "away_odds": 1.47,
-        "home_ev": -0.8046,
-        "away_ev": 0.3632,
+        "home_ev": -0.2125,
+        "away_ev": 0.0396,
         "preferred_side": "away",
         "is_positive_ev": true,
-        "kelly_fraction": 0.05
+        "home_model_probability": 0.2928,
+        "away_model_probability": 0.7072,
+        "kelly_fraction": 0.0211
       }
     ],
     "total_main_ev": {
       "line": "2",
       "over_odds": 1.91,
       "under_odds": 1.95,
-      "over_ev": -0.6483,
-      "under_ev": 0.6089,
-      "preferred_side": "under",
+      "over_ev": 0.4745,
+      "under_ev": -0.5381,
+      "preferred_side": "over",
       "is_positive_ev": true,
+      "over_model_probability": 0.644,
+      "under_model_probability": 0.1115,
       "kelly_fraction": 0.05
     },
     "total_secondary_ev": [
@@ -2096,26 +2134,30 @@
         "line": "2/2.5",
         "over_odds": 2.4,
         "under_odds": 1.57,
-        "over_ev": -0.7492,
-        "under_ev": 0.4165,
-        "preferred_side": "under",
+        "over_ev": 0.6678,
+        "under_ev": -0.5107,
+        "preferred_side": "over",
         "is_positive_ev": true,
+        "over_model_probability": 0.644,
+        "under_model_probability": 0.356,
         "kelly_fraction": 0.05
       },
       {
         "line": "1.5/2",
         "over_odds": 1.56,
         "under_odds": 2.42,
-        "over_ev": -0.5958,
-        "under_ev": 0.8096,
-        "preferred_side": "under",
+        "over_ev": 0.3176,
+        "under_ev": -0.608,
+        "preferred_side": "over",
         "is_positive_ev": true,
+        "over_model_probability": 0.8885,
+        "under_model_probability": 0.1115,
         "kelly_fraction": 0.05
       }
     ],
     "line_dispersion": {
-      "spread_variance": 0.041667,
-      "total_variance": 0.041667
+      "spread_variance": 0,
+      "total_variance": 0
     },
     "bookmaker_posture": "BALANCED_NEUTRAL"
   },
@@ -2184,7 +2226,11 @@
     "imminent_goal": true,
     "post_goal_cooldown_active": false,
     "has_evidence_conflict": false,
-    "source_lineage_discount": 1
+    "source_lineage_discount": 1,
+    "red_card_attack_multiplier_home": 1,
+    "red_card_attack_multiplier_away": 1,
+    "red_card_defense_leak_multiplier_home": 1,
+    "red_card_defense_leak_multiplier_away": 1
   },
   "battlefield_dominance_index": -16.14,
   "goal_phase_alert": "IMMINENT_GOAL",
@@ -2194,57 +2240,22 @@
       "line": "-0/0.5",
       "side": "away",
       "odds": 1.71,
-      "ev": 0.3331,
-      "confidence": 93,
-      "kelly_fraction": 0.05
-    },
-    {
-      "market": "ASIAN_HANDICAP_SUB",
-      "line": "0",
-      "side": "away",
-      "odds": 2.38,
-      "ev": 0.2247,
-      "confidence": 93,
-      "kelly_fraction": 0.0407
-    },
-    {
-      "market": "ASIAN_HANDICAP_SUB",
-      "line": "-0.5",
-      "side": "away",
-      "odds": 1.47,
-      "ev": 0.3632,
-      "confidence": 93,
-      "kelly_fraction": 0.05
+      "ev": 0.1118,
+      "model_probability": 0.7072,
+      "confidence": 98,
+      "kelly_fraction": 0.0394
     },
     {
       "market": "TOTAL_GOALS_MAIN",
       "line": "2",
-      "side": "under",
-      "odds": 1.95,
-      "ev": 0.6089,
-      "confidence": 93,
-      "kelly_fraction": 0.05
-    },
-    {
-      "market": "TOTAL_GOALS_SUB",
-      "line": "2/2.5",
-      "side": "under",
-      "odds": 1.57,
-      "ev": 0.4165,
-      "confidence": 93,
-      "kelly_fraction": 0.05
-    },
-    {
-      "market": "TOTAL_GOALS_SUB",
-      "line": "1.5/2",
-      "side": "under",
-      "odds": 2.42,
-      "ev": 0.8096,
-      "confidence": 93,
+      "side": "over",
+      "odds": 1.91,
+      "ev": 0.4745,
+      "model_probability": 0.644,
+      "confidence": 98,
       "kelly_fraction": 0.05
     }
   ],
-  "validated_oos_signals": [],
   "positive_ev_signals": [],
   "risk_flags": [
     "LETHAL_COUNTER_WARNING",
@@ -2256,5 +2267,195 @@
     "data_quality_score": 100,
     "model_stability_score": 82,
     "edge_confidence_score": 0
+  },
+  "data_audit": {
+    "generated_at": "2026-09-05T05:26:43.387Z",
+    "canonical_id": "4562395",
+    "match_stage": "LIVE",
+    "source_snapshot_at": "2026-09-01T07:23:14.894Z",
+    "overall_status": "DEGRADED",
+    "items": [
+      {
+        "category": "ATTACK_MOMENTUM",
+        "source": "LEISU",
+        "status": "USED",
+        "quality_score": 90,
+        "used_by": [
+          "M3 slope_5m/slope_10m/slope_15m",
+          "M3 momentum integrals",
+          "M3.5 threat trinity"
+        ],
+        "evidence": [
+          "有效动量点数: 63",
+          "最近动量值: -100",
+          "全场净积分: 286",
+          "窗口样本数: 5m=5, 10m=10, 15m=15"
+        ],
+        "defects": [],
+        "sample_size": 63,
+        "covered_minute_from": 1,
+        "covered_minute_to": 62,
+        "weight": 1
+      },
+      {
+        "category": "LIVE_STATS",
+        "source": "LEISU",
+        "status": "USED",
+        "quality_score": 100,
+        "used_by": [
+          "M3 physical stats",
+          "M3.5 stats_support",
+          "data quality score"
+        ],
+        "evidence": [
+          "9/9 项统计可用",
+          "统计基线: CUMULATIVE_QUALITY_BASELINE"
+        ],
+        "defects": [],
+        "weight": 1
+      },
+      {
+        "category": "TIMELINE_EVENTS",
+        "source": "LEISU",
+        "status": "USED",
+        "quality_score": 85,
+        "used_by": [
+          "M3.5 event decay",
+          "tactical regime",
+          "goal climax"
+        ],
+        "evidence": [
+          "原始事件数: 46",
+          "有明确分钟的事件数: 42"
+        ],
+        "defects": [],
+        "sample_size": 42,
+        "covered_minute_to": 62,
+        "weight": 1
+      },
+      {
+        "category": "LINEUPS",
+        "source": "LEISU",
+        "status": "USED",
+        "quality_score": 90,
+        "used_by": [
+          "M2 lineup impact",
+          "prematch prior"
+        ],
+        "evidence": [
+          "阵容状态: CONFIRMED"
+        ],
+        "defects": [],
+        "weight": 1
+      },
+      {
+        "category": "H2H",
+        "source": "LEISU",
+        "status": "REJECTED",
+        "quality_score": 0,
+        "used_by": [
+          "M2 H2H decay",
+          "prematch prior"
+        ],
+        "evidence": [
+          "原始样本: 6",
+          "有效比分样本: 0",
+          "有效战术样本: 0"
+        ],
+        "defects": [
+          "没有通过时间和比分门禁的交锋样本"
+        ],
+        "sample_size": 0,
+        "weight": 0
+      },
+      {
+        "category": "RECENT_FORM",
+        "source": "LEISU",
+        "status": "USED",
+        "quality_score": 75,
+        "used_by": [
+          "M2 recent form",
+          "prematch prior"
+        ],
+        "evidence": [
+          "主队有效样本: 35/40",
+          "客队有效样本: 34/40"
+        ],
+        "defects": [],
+        "sample_size": 34,
+        "weight": 1
+      },
+      {
+        "category": "STANDINGS",
+        "source": "LEISU",
+        "status": "USED",
+        "quality_score": 70,
+        "used_by": [
+          "M2 iso-venue standings",
+          "M2 motivation urgency"
+        ],
+        "evidence": [
+          "积分榜标记为可用"
+        ],
+        "defects": [],
+        "weight": 0.1
+      },
+      {
+        "category": "GOAL_DISTRIBUTION",
+        "source": "LEISU",
+        "status": "DEGRADED",
+        "quality_score": 35,
+        "used_by": [
+          "M2 goal timing DNA",
+          "M4 phased decay"
+        ],
+        "evidence": [
+          "有效样本数: 1"
+        ],
+        "defects": [
+          "样本不足8场，已要求贝叶斯收缩；来源未提供异常比赛明细"
+        ],
+        "sample_size": 1,
+        "weight": 0
+      },
+      {
+        "category": "ODDS_MATRIX",
+        "source": "LEISU",
+        "status": "DEGRADED",
+        "quality_score": 55,
+        "used_by": [
+          "market calibration prior only"
+        ],
+        "evidence": [
+          "雷速赔率矩阵存在"
+        ],
+        "defects": [
+          "当前实现尚未证明 initial/pregame/live 的时间点完整一致"
+        ],
+        "weight": 0.15
+      },
+      {
+        "category": "ENVIRONMENT",
+        "source": "LEISU",
+        "status": "NOT_APPLICABLE",
+        "quality_score": 0,
+        "used_by": [],
+        "evidence": [
+          "没有环境数据"
+        ],
+        "defects": [
+          "当前版本尚未将天气/场地接入 λ 计算"
+        ],
+        "weight": 0
+      }
+    ]
+  },
+  "production_gate": {
+    "calculation_status": "RESEARCH_ONLY",
+    "candidate_status": "OOS_LOCKED",
+    "blockers": [
+      "没有满足门槛的 VALIDATED OOS 校准档案；只能输出研究结果"
+    ],
+    "oos_requirement": "正式 machine candidate 需要对应盘口 VALIDATED 且有效样本数 >= 200"
   }
 }

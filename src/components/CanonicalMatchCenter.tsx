@@ -211,6 +211,10 @@ export const CanonicalMatchCenter: React.FC = () => {
   const [aiBriefs, setAiBriefs] = useState<AiEvaluationBrief[]>([]);
   const [leisuPool, setLeisuPool] = useState<LeisuCandidateItem[]>([]);
   const [metadata, setMetadata] = useState<any>(null);
+  const [refactorBatchId, setRefactorBatchId] = useState<string | null>(null);
+  const [refactorImportedAt, setRefactorImportedAt] = useState<string | null>(null);
+  const [formalLedger, setFormalLedger] = useState<any[]>([]);
+  const [ledgerFeedback, setLedgerFeedback] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   // State for AI Prompt & Evaluator Modal
@@ -582,6 +586,8 @@ export const CanonicalMatchCenter: React.FC = () => {
         setMatches(data.matches || []);
         setAiBriefs(data.ai_briefs || []);
         setMetadata(data.metadata || null);
+        setRefactorBatchId(data.batch_id || null);
+        setRefactorImportedAt(data.imported_at || null);
         setLeisuPool(data.leisu_candidates || []);
       } else {
         setError(data.message || "获取标准赛事数据失败");
@@ -593,9 +599,24 @@ export const CanonicalMatchCenter: React.FC = () => {
     }
   };
 
+  const fetchRefactorLedger = useCallback(async () => {
+    try {
+      const response = await fetch('/api/refactor/formal-ledger');
+      const data = await response.json();
+      if (!response.ok || data.success !== true) throw new Error(data.error || `HTTP ${response.status}`);
+      setFormalLedger(mode === 'live' ? (data.live || []) : (data.prematch || []));
+    } catch (err: any) {
+      setLedgerFeedback(`重构台账读取失败：${err.message || '未知错误'}`);
+    }
+  }, [mode]);
+
   useEffect(() => {
     fetchCanonicalData();
   }, [mode]);
+
+  useEffect(() => {
+    fetchRefactorLedger();
+  }, [fetchRefactorLedger]);
 
   const processRawJsonFile = (file: File) => {
     return new Promise<SniffedFileInfo>((resolve, reject) => {
@@ -704,6 +725,8 @@ export const CanonicalMatchCenter: React.FC = () => {
         setMatches(newMatches);
         setAiBriefs(data.ai_briefs || []);
         setMetadata(data.metadata || null);
+        setRefactorBatchId(data.batch_id || null);
+        setRefactorImportedAt(data.imported_at || null);
         if (data.leisu_candidates) {
           setLeisuPool(data.leisu_candidates);
         }
@@ -1070,6 +1093,23 @@ export const CanonicalMatchCenter: React.FC = () => {
       }
     }
 
+    const finalizeResponse = await fetch("/api/refactor/import-data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode,
+        files_payload: sniffedFiles.map((sf) => ({
+          fileName: sf.fileName,
+          rawJson: sf.rawJson,
+        })),
+        selected_match_ids: selectedImportMatchIds,
+      }),
+    });
+    const finalizeData = await finalizeResponse.json();
+    if (!finalizeResponse.ok || !finalizeData.success) {
+      throw new Error(finalizeData.error || "保存所选重构赛事批次失败");
+    }
+
     setImportFeedback({
       success: true,
       message: `已批量确认 ${selectedImportMatchIds.length} 场赛事对齐并持久化 ${successAliasCount} 项别名，正在刷新重装配标准赛事...`,
@@ -1121,6 +1161,8 @@ export const CanonicalMatchCenter: React.FC = () => {
         setMatches(data.matches || []);
         setAiBriefs(data.ai_briefs || []);
         setMetadata(data.metadata || null);
+        setRefactorBatchId(data.batch_id || null);
+        setRefactorImportedAt(data.imported_at || null);
 
         setTimeout(() => {
           setShowImportModal(false);
@@ -1276,8 +1318,14 @@ export const CanonicalMatchCenter: React.FC = () => {
               <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
                 <span>YBTY 法定执行源 ↔ 雷速增强源精准对齐与极简 AI Brief 提炼</span>
                 <span className="text-[11px] text-slate-500 font-mono">
-                  | 合并后: {matches.length}场比赛
+                  | 当前重构批次: {matches.length}场
+                  {refactorBatchId ? ` · ${refactorBatchId}` : " · 尚未导入重构批次"}
                 </span>
+                {refactorImportedAt && (
+                  <span className="text-[11px] text-slate-600">
+                    导入时间: {new Date(refactorImportedAt).toLocaleString("zh-CN")}
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -1345,6 +1393,41 @@ export const CanonicalMatchCenter: React.FC = () => {
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
+      </div>
+
+      <div className="bg-slate-900/70 rounded-xl border border-indigo-900/60 p-3 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-sm font-semibold text-indigo-200">重构正式台账</div>
+            <div className="text-[11px] text-slate-400">
+              独立于旧系统；只读取 refactor/runtime。比分以导入时 YBTY 与雷速一致性为准，不需要二次人工核验。
+            </div>
+          </div>
+          <button
+            onClick={fetchRefactorLedger}
+            className="px-2.5 py-1 text-xs rounded border border-indigo-800 text-indigo-300 hover:bg-indigo-950/60"
+          >
+            刷新重构台账 ({formalLedger.length})
+          </button>
+        </div>
+        {ledgerFeedback && <div className="text-xs text-amber-300">{ledgerFeedback}</div>}
+        {formalLedger.length === 0 ? (
+          <div className="text-xs text-slate-500">当前模式暂无正式重构台账记录。</div>
+        ) : (
+          <div className="space-y-2">
+            {formalLedger.map((record) => (
+              <div key={record.record_id} className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-2 items-center bg-slate-950/60 rounded-lg p-2 border border-slate-800">
+                <div className="text-xs">
+                  <div className="text-slate-200 font-semibold">{record.teams?.home} vs {record.teams?.away}</div>
+                  <div className="text-slate-500">{record.prediction_snapshot?.market} {record.prediction_snapshot?.line} @ {record.prediction_snapshot?.odds} · {record.settlement?.outcome || 'PENDING'}</div>
+                </div>
+                <span className="text-[11px] text-slate-400">
+                  比分：{record.settlement?.final_score_verified || "随导入数据核验"}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 搜索与多维过滤条 */}
@@ -1515,6 +1598,35 @@ export const CanonicalMatchCenter: React.FC = () => {
                         (BDI: {quant ? (quant.battlefield_dominance_index > 0 ? `+${quant.battlefield_dominance_index.toFixed(0)}` : quant.battlefield_dominance_index.toFixed(0)) : 'N/A'})
                       </span>
                     </button>
+
+                    {quant?.production_gate && (
+                      <button
+                        onClick={() => {
+                          setExpandedMatchId(m.canonical_id);
+                          setActiveTabByMatch((prev) => ({ ...prev, [m.canonical_id]: "diagnostics" }));
+                        }}
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                          quant.production_gate.calculation_status === "PRODUCTION_READY"
+                            ? "bg-emerald-950/60 text-emerald-300 border-emerald-700"
+                            : quant.production_gate.calculation_status === "RESEARCH_ONLY"
+                              ? "bg-amber-950/60 text-amber-300 border-amber-700"
+                              : "bg-rose-950/60 text-rose-300 border-rose-700"
+                        }`}
+                        title="点击查看本场 Layer 03 生产准入明细"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>
+                          {quant.production_gate.calculation_status === "PRODUCTION_READY"
+                            ? "生产准入"
+                            : quant.production_gate.calculation_status === "RESEARCH_ONLY"
+                              ? "研究模式"
+                              : "生产阻断"}
+                        </span>
+                        <span className="font-mono text-[10px] opacity-80">
+                          · {quant.production_gate.candidate_status === "UNLOCKED" ? "候选解锁" : "候选锁定"}
+                        </span>
+                      </button>
+                    )}
 
                     {/* 数据完整度定级 */}
                     {getTierBadge(m.completeness_tier)}
@@ -2238,6 +2350,125 @@ export const CanonicalMatchCenter: React.FC = () => {
                             </div>
                           </div>
                         </div>
+
+                        {quant?.data_audit && (
+                          <div className="bg-slate-900/80 rounded-lg border border-cyan-900/60 overflow-hidden">
+                            <div className="p-3 bg-cyan-950/30 border-b border-cyan-900/60 flex items-center justify-between gap-3">
+                              <div>
+                                <div className="font-semibold text-sm text-cyan-200">03 数据使用审计</div>
+                                <div className="text-[11px] text-slate-400 mt-0.5">
+                                  逐项显示来源、质量、实际使用模块和缺陷；低置信度数据不会自动升级为正式推荐。
+                                </div>
+                              </div>
+                              <span className={`px-2 py-1 rounded text-[11px] font-semibold ${
+                                quant.data_audit.overall_status === "PASS"
+                                  ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                                  : quant.data_audit.overall_status === "DEGRADED"
+                                    ? "bg-amber-950 text-amber-300 border border-amber-800"
+                                    : "bg-rose-950 text-rose-300 border border-rose-800"
+                              }`}>
+                                {quant.data_audit.overall_status === "PASS" ? "可用" : quant.data_audit.overall_status === "DEGRADED" ? "降级/有缺陷" : "阻断"}
+                              </span>
+                            </div>
+                            {quant.production_gate && (
+                              <div className={`mx-3 mt-3 mb-1 rounded-lg border p-3 ${
+                                quant.production_gate.calculation_status === "PRODUCTION_READY"
+                                  ? "border-emerald-800 bg-emerald-950/30"
+                                  : quant.production_gate.calculation_status === "RESEARCH_ONLY"
+                                    ? "border-amber-800 bg-amber-950/30"
+                                    : "border-rose-800 bg-rose-950/30"
+                              }`}>
+                                <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold">
+                                  <span>Layer 03 生产准入</span>
+                                  <span className="font-mono">
+                                    {quant.production_gate.calculation_status === "PRODUCTION_READY"
+                                      ? "计算链路已具备生产准入"
+                                      : quant.production_gate.calculation_status === "RESEARCH_ONLY"
+                                        ? "仅研究模式"
+                                        : "数据阻断"}
+                                    {" · "}
+                                    {quant.production_gate.candidate_status === "UNLOCKED" ? "候选已解锁" : "正式候选锁定"}
+                                  </span>
+                                </div>
+                                <div className="mt-1 text-[11px] text-slate-400">
+                                  {quant.production_gate.blockers.join("；")}
+                                </div>
+                              </div>
+                            )}
+                            <div className="divide-y divide-slate-800/80">
+                              {quant.data_audit.items.map((auditItem: any) => (
+                                <div key={auditItem.category} className="p-3 space-y-2">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold text-slate-200">{auditItem.category}</span>
+                                      <span className="text-[10px] text-slate-500 font-mono">{auditItem.source}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[11px] font-mono">
+                                      <span className="text-slate-400">质量 {auditItem.quality_score}</span>
+                                      <span className={`px-1.5 py-0.5 rounded ${
+                                        auditItem.status === "USED"
+                                          ? "text-emerald-300 bg-emerald-950/70"
+                                          : auditItem.status === "DEGRADED"
+                                            ? "text-amber-300 bg-amber-950/70"
+                                            : auditItem.status === "REJECTED"
+                                              ? "text-rose-300 bg-rose-950/70"
+                                              : "text-slate-400 bg-slate-800"
+                                      }`}>
+                                        {auditItem.status}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 text-[11px]">
+                                    <div className="text-slate-400">
+                                      <span className="text-slate-500">证据：</span>{auditItem.evidence.join("；") || "无"}
+                                    </div>
+                                    <div className="text-slate-400">
+                                      <span className="text-slate-500">实际使用：</span>{auditItem.used_by.join("；") || "未进入计算"}
+                                    </div>
+                                  </div>
+                                  {auditItem.defects.length > 0 && (
+                                    <div className="text-[11px] text-amber-300 bg-amber-950/30 border border-amber-900/50 rounded px-2 py-1.5">
+                                      <span className="font-semibold">缺陷：</span>{auditItem.defects.join("；")}
+                                    </div>
+                                  )}
+                                  <div className="text-[10px] text-slate-500 font-mono">
+                                    {auditItem.sample_size !== undefined ? `样本 ${auditItem.sample_size} · ` : ""}
+                                    {auditItem.covered_minute_to !== undefined && auditItem.covered_minute_to !== null ? `覆盖至 ${auditItem.covered_minute_to}' · ` : ""}
+                                    {auditItem.weight !== undefined && auditItem.weight !== null ? `权重 ${auditItem.weight}` : "未参与权重"}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {quant?.poisson?.lambda_decomposition && (
+                          <div className="bg-slate-900/80 rounded-lg border border-violet-900/60 overflow-hidden">
+                            <div className="p-3 bg-violet-950/30 border-b border-violet-900/60">
+                              <div className="font-semibold text-sm text-violet-200">03 M4 剩余 λ 分解</div>
+                              <div className="text-[11px] text-slate-400 mt-0.5">
+                                显示市场基准、M2 乘子、时间因子、威胁张量和红牌乘数，避免只看最终总数。
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 p-3 text-[11px] font-mono">
+                              {([
+                                ["市场基准 H/A", `${quant.poisson.lambda_decomposition.market_base_home} / ${quant.poisson.lambda_decomposition.market_base_away}`],
+                                ["M2后基准 H/A", `${quant.poisson.lambda_decomposition.base_after_context_home} / ${quant.poisson.lambda_decomposition.base_after_context_away}`],
+                                ["时间因子 H/A", `${quant.poisson.lambda_decomposition.time_fraction_home} / ${quant.poisson.lambda_decomposition.time_fraction_away}`],
+                                ["紧迫度", quant.poisson.lambda_decomposition.urgency_multiplier],
+                                ["威胁张量 H/A", `${quant.poisson.lambda_decomposition.threat_home} / ${quant.poisson.lambda_decomposition.threat_away}`],
+                                ["红牌进攻 H/A", `${quant.poisson.lambda_decomposition.red_attack_home} / ${quant.poisson.lambda_decomposition.red_attack_away}`],
+                                ["红牌漏洞 H/A", `${quant.poisson.lambda_decomposition.red_leak_home} / ${quant.poisson.lambda_decomposition.red_leak_away}`],
+                                ["最终 λ H/A", `${quant.poisson.lambda_home_rest} / ${quant.poisson.lambda_away_rest}`]
+                              ] as const).map(([label, value]) => (
+                                <div key={label} className="bg-slate-950/70 rounded px-2 py-1.5">
+                                  <div className="text-slate-500">{label}</div>
+                                  <div className="text-violet-200 mt-0.5">{value}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         {/* 11 维度全面清单 */}
                         <div className="bg-slate-900/80 rounded-lg border border-slate-800 overflow-hidden">

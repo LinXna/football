@@ -35,9 +35,10 @@ const baseRecord: HistoricalBacktestRecord = Object.freeze({
 const rejectedMachine: HistoricalBacktestRecord = { ...baseRecord, record_id: 'machine-001', record_type: 'machine_candidate', formal_recommendation: false };
 const rejectedScore: HistoricalBacktestRecord = { ...baseRecord, record_id: 'score-001', score_verified: false };
 const rejectedQuarter: HistoricalBacktestRecord = { ...baseRecord, record_id: 'quarter-001', settlement_outcome: 'WIN_HALF' };
+const duplicateRecord: HistoricalBacktestRecord = { ...baseRecord, record_id: 'formal-settled-duplicate' };
 
 const result = ingestHistoricalBacktestRecords(
-  [baseRecord, rejectedMachine, rejectedScore, rejectedQuarter],
+  [baseRecord, rejectedMachine, rejectedScore, rejectedQuarter, duplicateRecord],
   {
     generated_at: '2026-09-03T00:00:00.000Z',
     model_version: 'layer03-v1',
@@ -52,10 +53,11 @@ assert(result.accepted_samples.length === 1, 'Only formal, score-verified binary
 assert(result.accepted_samples[0].observed_goals === 2, 'Live OOS observed goals must use post-recommendation goals.');
 assert(result.accepted_samples[0].outcome === 1, 'WIN must map to the full-win calibration target.');
 assert(result.calibration_archive !== undefined, 'Accepted records must produce a calibration archive artifact.');
-assert(result.rejected_records.length === 3, 'Invalid records must remain explicitly auditable.');
+assert(result.rejected_records.length === 4, 'Invalid records must remain explicitly auditable.');
 assert(result.rejected_records.some((record) => record.reason === HistoricalSampleRejectionReason.NOT_FORMAL_RECOMMENDATION), 'Machine candidates must be rejected.');
 assert(result.rejected_records.some((record) => record.reason === HistoricalSampleRejectionReason.SCORE_NOT_VERIFIED), 'Unverified scores must be rejected.');
 assert(result.rejected_records.some((record) => record.reason === HistoricalSampleRejectionReason.SETTLEMENT_NOT_BINARY), 'Quarter outcomes must not be misused as Brier labels.');
+assert(result.rejected_records.some((record) => record.reason === HistoricalSampleRejectionReason.DUPLICATE_SAMPLE), 'Duplicate match snapshots must not inflate OOS samples.');
 
 const empty = ingestHistoricalBacktestRecords([rejectedMachine], {
   generated_at: '2026-09-03T00:00:00.000Z',

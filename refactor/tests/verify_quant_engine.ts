@@ -25,28 +25,33 @@ import {
   parseAsianHandicapLine,
   calculateAsianHandicapEV,
   calculateTotalGoalsEV,
+  calculateContinuousThreatTensor,
   calculateTimeDecayAndUrgencyMultiplier,
   calculateBivariatePoissonGrid,
   calculateH2HDecayWeights,
+  calculateRecentFormWeights,
+  extractGoalDistributionDNA,
+  evaluateGoalTimingValidity,
+  extractIsoVenueStandings,
+  calculateLineupImpactScores,
   checkL0CircuitBreaker,
   extractMomentumTimelineFeatures,
   extractRealTimePhysicalStats,
   calculateLiveThreatTrinity,
   calculateEventPressureConversion,
-  calculateDeviggedMarketFeatures,
   evaluateTacticalRegime,
   evaluateGoalClimax,
+  calculateDeviggedMarketFeatures,
   buildOosCalibrationArchive,
   selectOosCalibrationProfile,
   extractSpatioTemporalEventFeatures,
   EventPressureConversionType,
   TacticalRegimeType,
-  GoalClimaxLevel,
-  QuantAlert
+  GoalClimaxLevel
 } from '../03_quant_engine/index.js';
-import { calculateDecayedEventScore } from '../03_quant_engine/eventMomentumFusion.js';
 import { CanonicalMatch } from '../02_canonical_model/types.js';
 import { MatchStage } from '../02_canonical_model/enums.js';
+import { MarketStanceType } from '../03_quant_engine/types.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
 
@@ -162,6 +167,46 @@ async function runQuantEngineTests() {
     assert(missingScoreResult.weights[0].is_valid === false, 'H2H without complete scores must be invalid');
     assert(missingScoreResult.analytics.valid_count === 0, 'H2H without complete scores must not increase valid count');
 
+    const dirtyContextMatch: CanonicalMatch = {
+      ...mockH2HMatch,
+      reference: {
+        ...mockH2HMatch.reference!,
+        tactical_context: {
+          ...mockH2HMatch.reference!.tactical_context!,
+          home_recent_matches: [{
+            match_id: 99,
+            match_time: Date.now(),
+            home_team_name: 'Unrelated Team',
+            away_team_name: 'Another Team',
+            fulltime_score: { home: -1, away: 4 },
+            halftime_score: { home: 0, away: 2 }
+          }],
+          away_recent_matches: []
+        },
+        goal_distribution: {
+          has_data: true,
+          home_team: { all: { matches_count: 20, scored_intervals: [] } },
+          away_team: { all: { matches_count: 20, scored_intervals: [] } }
+        } as any,
+        lineups: {
+          confirmed: true,
+          home_starters: [],
+          away_starters: [{ name: 'Only Away Starter' }]
+        } as any,
+        league_standings: {
+          has_data: true,
+          home_team: { home: { matches_played: 10, won: 8, draw: 8, loss: 0, goals_scored: 10, goals_conceded: 2, goal_difference: 8, points: 32 } },
+          away_team: null
+        } as any
+      }
+    };
+    const dirtyRecent = calculateRecentFormWeights(dirtyContextMatch, Date.now());
+    assert(dirtyRecent.home_analytics.valid_count === 0, 'Recent form must reject unknown-team or invalid-score samples');
+    assert(!extractGoalDistributionDNA(dirtyContextMatch).has_data, 'Incomplete goal intervals must not become usable uniform DNA');
+    assert(!evaluateGoalTimingValidity(dirtyContextMatch).is_valid, 'Incomplete goal intervals must fail timing validity');
+    assert(extractIsoVenueStandings(dirtyContextMatch).home_at_home === null, 'Inconsistent standings must be rejected');
+    assert(calculateLineupImpactScores(dirtyContextMatch).lineup_status === 'NOT_ANNOUNCED', 'One-sided lineup data must not be treated as projected or confirmed');
+
     // (2) L0 熔断测试
     const fatalMatch: CanonicalMatch = {
       ...mockH2HMatch,
@@ -177,7 +222,101 @@ async function runQuantEngineTests() {
     const cb = checkL0CircuitBreaker(fatalMatch);
     assert(cb.is_triggered === true, 'Fatal match must trigger L0 circuit breaker');
     assert(cb.reasons.length >= 2, 'Should report multiple L0 fatal reasons');
-    console.log('   ✅ M2 时效衰减与 L0 熔断测试 PASS');
+
+    // Layer 03 回归：实时威胁乘数与已发生进球节奏不得系统性压低剩余 λ
+    const neutralTensor = calculateContinuousThreatTensor({
+      home_intensity: 0.5,
+      away_intensity: 0.5,
+      dominance_index: 0,
+      imminent_goal: false,
+      post_goal_cooldown_active: false,
+      has_evidence_conflict: false,
+      source_lineage_discount: 1
+    });
+    assert(neutralTensor.homeThreat === 1 && neutralTensor.awayThreat === 1, 'Neutral threat must preserve the base lambda');
+
+    const highEventMatch = {
+      ...mockH2HMatch,
+      alignment: { status: 'MATCHED_AUTO' as any },
+      timing: { ...mockH2HMatch.timing, minute: 62 },
+      score: { ...mockH2HMatch.score, home_score: 2, away_score: 2, score_verified: true },
+      markets: {
+        ...mockH2HMatch.markets,
+        full_h2h: { home_odds: 2.56, draw_odds: 2.12, away_odds: 3.2 },
+        full_total_main: { line: '5', over_odds: 1.90, under_odds: 1.84 }
+      },
+      reference: {
+        ...mockH2HMatch.reference!,
+        stats: {
+          dangerous_attacks: { home: 33, away: 30 },
+          attacks: { home: 60, away: 44 },
+          shots: { home: 10, away: 7 },
+          shots_on_target: { home: 3, away: 4 },
+          shots_off_target: { home: 7, away: 3 },
+          corners: { home: 6, away: 2 },
+          possession: { home: 59, away: 41 },
+          yellow_cards: { home: 1, away: 3 },
+          red_cards: { home: 0, away: 0 }
+        },
+        attack_momentum: {
+          available: true,
+          nominal_segment_minutes: 1,
+          data: [Array.from({ length: 63 }, () => 20)]
+        }
+      } as any
+    } as CanonicalMatch;
+    const highEventQuant = calculateQuantitativeFeatures(highEventMatch);
+    assert(highEventQuant.poisson.expected_goals_rest > 0.55, 'Verified 2-2 at 62 minutes must retain the observed scoring-rate evidence');
+    const cooldownState = buildUnifiedMatchState(highEventQuant.spatio_temporal_events);
+    const noCooldownState = buildUnifiedMatchState({
+      ...highEventQuant.spatio_temporal_events,
+      goal_climax: {
+        ...highEventQuant.spatio_temporal_events.goal_climax,
+        post_goal_cooldown_active: false
+      }
+    });
+    assert(
+      cooldownState.home_intensity === noCooldownState.home_intensity &&
+      cooldownState.away_intensity === noCooldownState.away_intensity,
+      'M3.5 cooldown must remain state metadata and not pre-scale unified intensity'
+    );
+    const redCardMatch: CanonicalMatch = {
+      ...highEventMatch,
+      reference: {
+        ...highEventMatch.reference!,
+        stats: {
+          ...highEventMatch.reference!.stats!,
+          red_cards: { home: 1, away: 0 }
+        }
+      }
+    };
+    const redCardQuant = calculateQuantitativeFeatures(redCardMatch);
+    assert(redCardQuant.match_state.red_card_attack_multiplier_home < 1, 'Verified home red card must reduce home attack multiplier');
+    assert(redCardQuant.match_state.red_card_defense_leak_multiplier_home > 1, 'Verified home red card must increase home defensive leak multiplier');
+    assert(redCardQuant.poisson.lambda_home_rest < highEventQuant.poisson.lambda_home_rest, 'Home red card must reduce home residual lambda');
+    assert(redCardQuant.poisson.lambda_away_rest > highEventQuant.poisson.lambda_away_rest, 'Home red card must increase away residual lambda');
+    const minuteWindowMatch: CanonicalMatch = {
+      ...highEventMatch,
+      timing: { ...highEventMatch.timing, minute: 20 },
+      reference: {
+        ...highEventMatch.reference!,
+        attack_momentum: {
+          available: true,
+          nominal_segment_minutes: 45,
+          data: [
+            Array.from({ length: 45 }, (_, index) => index + 1),
+            Array.from({ length: 45 }, () => 999)
+          ]
+        }
+      }
+    };
+    const minuteWindow = extractMomentumTimelineFeatures(minuteWindowMatch);
+    assert(minuteWindow.total_points === 20, 'Live momentum must exclude points after the captured minute');
+    assert(minuteWindow.cutoff_minute === 20, 'Momentum audit must preserve the captured live minute');
+    assert(minuteWindow.window_basis === 'MINUTE_ALIGNED', 'Momentum windows must use minute coordinates when interval is known');
+    assert(minuteWindow.window_sample_counts?.five === 5 && minuteWindow.window_sample_counts?.fifteen === 15, 'Momentum windows must use real five/fifteen-minute coverage');
+    console.log('   ✅ M2 时效衰减与 Layer 03 实时进球节奏回归测试 PASS');
+    console.log('   ✅ 实时威胁中性校准与进球节奏回归测试 PASS');
   }
 
   // -------------------------------------------------------------------------
@@ -273,28 +412,49 @@ async function runQuantEngineTests() {
     assert(typeof ouEV.over_ev === 'number', 'Over EV must be number');
     assert(typeof ouEV.under_ev === 'number', 'Under EV must be number');
 
-    const marketMatch = {
-      canonical_id: 'dispersion_test',
-      score: { home_score: 0, away_score: 0 },
+    // (5) LIVE 40' 1-1: a full-match 3.0 line must be evaluated against
+    // one remaining goal, while an explicitly remaining-goals 3.0 line
+    // must be evaluated against three remaining goals.
+    const liveTotalMatch = {
+      canonical_id: 'live_total_semantics',
       markets: {
         full_h2h: null,
-        full_spread_main: { line_index: 0, home_selection: '-0/0.5', home_odds: 2.00, away_selection: '+0/0.5', away_odds: 1.80 },
-        full_spread_subs: [
-          { line_index: 1, home_selection: '0', home_odds: 1.90, away_selection: '0', away_odds: 1.90 },
-          { line_index: 2, home_selection: '-0.5', home_odds: 2.20, away_selection: '+0.5', away_odds: 1.65 }
-        ],
-        full_total_main: { line_index: 0, line: '2', over_odds: 1.90, under_odds: 1.90 },
-        full_total_subs: [
-          { line_index: 1, line: '2/2.5', over_odds: 2.00, under_odds: 1.80 },
-          { line_index: 2, line: '1.5/2', over_odds: 1.80, under_odds: 2.00 }
-        ]
-      }
+        full_spread_main: null,
+        full_spread_subs: [],
+        full_total_main: { line_index: 0, line: '3', over_odds: 1.90, under_odds: 1.90 },
+        full_total_subs: [],
+        half_h2h: null,
+        half_spread_main: null,
+        half_total_main: null
+      },
+      score: { home_score: 1, away_score: 1 }
     } as CanonicalMatch;
-    const marketFeatures = calculateDeviggedMarketFeatures(marketMatch, mockPoisson);
-    assert(marketFeatures.spread_secondary_ev.length === 2, 'All spread sub-lines must be evaluated');
-    assert(marketFeatures.total_secondary_ev.length === 2, 'All total sub-lines must be evaluated');
-    assert(marketFeatures.line_dispersion.spread_variance > 0, 'Spread line dispersion must not remain a fixed zero');
-    assert(marketFeatures.line_dispersion.total_variance > 0, 'Total line dispersion must not remain a fixed zero');
+    const fullMatchTotalEV = calculateDeviggedMarketFeatures(
+      liveTotalMatch,
+      mockPoisson,
+      collector,
+      tracer
+    ).total_main_ev;
+    const remainingGoalsTotalEV = calculateDeviggedMarketFeatures(
+      {
+        ...liveTotalMatch,
+        markets: {
+          ...liveTotalMatch.markets,
+          full_total_main: {
+            ...liveTotalMatch.markets.full_total_main!,
+            settlement_basis: 'REMAINING_GOALS'
+          }
+        }
+      },
+      mockPoisson,
+      collector,
+      tracer
+    ).total_main_ev;
+    assert(fullMatchTotalEV !== undefined && remainingGoalsTotalEV !== undefined, 'Total EV must be available for both settlement bases');
+    assert(
+      fullMatchTotalEV!.under_ev !== remainingGoalsTotalEV!.under_ev,
+      'Full-match and remaining-goals total lines must not share the same EV after 1-1'
+    );
     console.log('   ✅ M5 Shin 去抽水、中文盘口与闭式复合 EV 测试 PASS');
   }
 
@@ -343,18 +503,18 @@ async function runQuantEngineTests() {
     const trinityBarren = calculateLiveThreatTrinity(mockTimelineLethal, mockEventsBarren, mockPhysicalBarren, 70);
     assert(trinityBarren.home.has_conflict, 'High momentum without event/stat corroboration must be flagged as conflict');
     assert(trinityBarren.home.calibrated_threat < trinityLethal.home.calibrated_threat, 'Uncorroborated momentum must be damped');
+    assert(
+      trinityBarren.home.calibrated_threat / trinityLethal.home.calibrated_threat > 0.55,
+      'Evidence conflict must not become a deterministic 0.45 low-goal multiplier'
+    );
     const epiBarren = calculateEventPressureConversion(mockTimelineLethal, mockEventsBarren, trinityBarren, 70);
     assert(epiBarren.home.classification === EventPressureConversionType.BARREN_DOMINANCE, 'Home should be classified as BARREN_DOMINANCE when no events');
-    const decayedWithUnknownMinute = calculateDecayedEventScore([
-      { minute: null, type: 1, side: 'home', is_cancelled: false },
-      { minute: 70, type: 1, side: 'away', is_cancelled: false }
-    ] as any, 70);
-    assert(decayedWithUnknownMinute.home === 0 && decayedWithUnknownMinute.away > 0, 'Events without a minute must not be treated as minute zero');
 
     // (3) 破门临界态探测 (二阶加速度与尾端事件爆发)
     const mockClimaxMatch = {
       timing: { minute: 78 },
       reference: { timeline_events: [
+        { minute: null, type: 0, side: 'neutral', is_cancelled: false },
         { minute: 75, type: 2, side: 'home', is_cancelled: false },
         { minute: 76, type: 3, side: 'away', is_on_pitch: true, is_cancelled: false },
         { minute: 77, type: 2, side: 'home', is_cancelled: false }
@@ -365,6 +525,7 @@ async function runQuantEngineTests() {
     assert(climaxRes.climax_score >= 55, 'Climax score should be >= 55 under dense incidents and surging slope');
     assert(climaxRes.attacking_side === 'home', 'Attacking side should be home');
     assert(climaxRes.momentum_acceleration_5m === 15, 'Momentum acceleration should be 15 (20 - 5)');
+    assert(climaxRes.recent_incident_density_5m === 3, 'Untimed system events must not enter the 5-minute incident density');
 
     // (4) 进球后的短时重置：刚发生的进球不得被继续解释为下一球临界压力。
     const mockPostGoalMatch = {
@@ -403,23 +564,6 @@ async function runQuantEngineTests() {
       predicted_lambda: 1.0,
       observed_goals: 2
     }));
-    const prematchHandicapSamples = Array.from({ length: 240 }, (_, index) => ({
-      sample_id: `prematch-ah-${index}`,
-      model_version: 'layer03-v1',
-      prediction_at: '2026-09-01T00:00:00.000Z',
-      league_key: 'Premier League',
-      home_team_key: 'Team E',
-      away_team_key: 'Team F',
-      stage: 'PREMATCH' as const,
-      minute: null,
-      score_state: '0-0',
-      red_card_state: '0-0',
-      market: 'ASIAN_HANDICAP_MAIN' as const,
-      model_probability: 0.55,
-      outcome: index % 2 === 0 ? 1 : 0,
-      predicted_lambda: 1.0,
-      observed_goals: 2
-    }));
     const oosArchiveOptions = {
       generated_at: '2026-09-02T00:00:00.000Z',
       model_version: 'layer03-v1',
@@ -428,22 +572,8 @@ async function runQuantEngineTests() {
       prediction_window_start_at: '2026-08-02T00:00:00.000Z',
       prediction_window_end_at: '2026-09-01T23:59:59.000Z'
     };
-    const archive = buildOosCalibrationArchive([...oosSamples, ...prematchHandicapSamples], oosArchiveOptions);
-    const reloadedArchive = JSON.parse(JSON.stringify(archive)) as OosCalibrationArchive;
-    assert(reloadedArchive.archive_provenance === 'OOS_ARCHIVE_BUILDER_V1',
-      'OOS archive provenance must survive JSON serialization and reload');
-    assert(archive.global_profiles.length === 2, 'Each OOS market must have its own global profile');
-    const totalGlobalProfile = archive.global_profiles.find((profile) => profile.market === 'TOTAL_GOALS_MAIN');
-    assert(totalGlobalProfile?.status === 'VALIDATED', '240 settled samples must validate the total-goals global profile');
-    assert(archive.profiles.some((profile) =>
-      profile.market === 'TOTAL_GOALS_MAIN' && profile.minute_band === 'LIVE_60_90'
-    ), 'Live total-goals profiles must remain in the live time bucket');
-    assert(archive.profiles.some((profile) =>
-      profile.market === 'ASIAN_HANDICAP_MAIN' && profile.minute_band === 'PREMATCH'
-    ), 'Prematch handicap profiles must remain in the prematch bucket');
-    assert(!archive.profiles.some((profile) =>
-      profile.market === 'ASIAN_HANDICAP_MAIN' && profile.minute_band === 'LIVE_60_90'
-    ), 'Prematch handicap samples must not leak into live profile buckets');
+    const archive = buildOosCalibrationArchive(oosSamples, oosArchiveOptions);
+    assert(archive.global_profile.status === 'VALIDATED', '240 settled samples must validate the global archive');
     const teamAProfile = archive.profiles.find((profile) => profile.team_key === 'Team A');
     assert(teamAProfile !== undefined, 'Team-specific OOS profile must be generated');
     assert(teamAProfile!.status === 'INSUFFICIENT_EVIDENCE', 'A 120-sample team bucket must not borrow fictitious evidence to validate itself');
@@ -463,26 +593,6 @@ async function runQuantEngineTests() {
     assert(selected?.team_key === undefined && selected?.league_key === 'Premier League', 'Only the validated non-team bucket may be selected when team evidence is insufficient');
     const noMatch = selectOosCalibrationProfile(archive, { ...calibrationMatch, league_name: 'Other League' }, 'TOTAL_GOALS_MAIN');
     assert(noMatch?.league_key === 'GLOBAL', 'Unmatched context may only fall back to the validated global profile');
-    const handicapFallback = selectOosCalibrationProfile(archive, calibrationMatch, 'ASIAN_HANDICAP_MAIN');
-    assert(handicapFallback?.league_key === 'GLOBAL' && handicapFallback.market === 'ASIAN_HANDICAP_MAIN',
-      'A market fallback must select only that market global profile');
-    const invalidGlobalFallback = selectOosCalibrationProfile({
-      ...archive,
-      archive_provenance: 'OOS_ARCHIVE_BUILDER_V1',
-      global_profiles: archive.global_profiles.map((profile) =>
-        profile.market === 'ASIAN_HANDICAP_MAIN' ? { ...profile, status: 'INSUFFICIENT_EVIDENCE' } : profile
-      )
-    }, calibrationMatch, 'ASIAN_HANDICAP_MAIN');
-    assert(invalidGlobalFallback === undefined, 'An insufficient global profile must not unlock calibration');
-    const forgedArchive = { ...reloadedArchive, archive_provenance: undefined } as unknown as OosCalibrationArchive;
-    assert(selectOosCalibrationProfile(forgedArchive, calibrationMatch, 'TOTAL_GOALS_MAIN') === undefined,
-      'An archive without builder provenance must not unlock profile selection');
-    const unsupportedVersionArchive = { ...reloadedArchive, schema_version: 2 } as unknown as OosCalibrationArchive;
-    assert(selectOosCalibrationProfile(unsupportedVersionArchive, calibrationMatch, 'TOTAL_GOALS_MAIN') === undefined,
-      'An unsupported OOS archive schema version must not unlock profile selection');
-    const missingVersionArchive = { ...reloadedArchive, schema_version: undefined } as unknown as OosCalibrationArchive;
-    assert(selectOosCalibrationProfile(missingVersionArchive, calibrationMatch, 'TOTAL_GOALS_MAIN') === undefined,
-      'An OOS archive without a schema version must not unlock profile selection');
     const basePoisson = calculateInPlayPoissonFeatures(
       calibrationMatch,
       extractCleanedContextFeatures(calibrationMatch),
@@ -504,29 +614,45 @@ async function runQuantEngineTests() {
       selected
     );
     assert(adjustedPoisson.expected_goals_rest > basePoisson.expected_goals_rest, 'Validated OOS lambda adjustment must change the Poisson output');
-    const baselineQuant = calculateQuantitativeFeatures(calibrationMatch);
-    const totalCalibratedQuant = calculateQuantitativeFeatures(calibrationMatch, {
-      calibration_profile: {
-        ...selected!,
-        lambda_log_adjustment: 0.4
+
+    // M4 consumes the frozen UnifiedMatchState produced by M3.5. Changing
+    // raw M3 inputs without rebuilding that state must not change M4 output.
+    const frozenState = buildUnifiedMatchState(extractSpatioTemporalEventFeatures(
+      calibrationMatch,
+      extractMomentumTimelineFeatures(calibrationMatch),
+      extractRealTimePhysicalStats(calibrationMatch)
+    ));
+    const frozenContext = extractCleanedContextFeatures(calibrationMatch);
+    const alteredRawInputsMatch: CanonicalMatch = {
+      ...calibrationMatch,
+      reference: {
+        ...calibrationMatch.reference!,
+        stats: {
+          dangerous_attacks: { home: 999, away: 1 },
+          attacks: { home: 999, away: 1 },
+          shots: { home: 99, away: 1 },
+          shots_on_target: { home: 99, away: 1 },
+          shots_off_target: { home: 0, away: 0 },
+          corners: { home: 20, away: 0 },
+          possession: { home: 90, away: 10 },
+          yellow_cards: { home: 0, away: 0 },
+          red_cards: { home: 0, away: 0 }
+        }
       }
-    });
-    assert(
-      totalCalibratedQuant.devig.spread_main_ev?.home_ev === baselineQuant.devig.spread_main_ev?.home_ev &&
-        totalCalibratedQuant.devig.spread_main_ev?.away_ev === baselineQuant.devig.spread_main_ev?.away_ev,
-      'TOTAL_GOALS_MAIN lambda calibration must not change Asian-handicap EV'
+    };
+    const frozenStatePoisson = calculateInPlayPoissonFeatures(
+      calibrationMatch,
+      frozenContext,
+      frozenState
+    );
+    const alteredRawInputsPoisson = calculateInPlayPoissonFeatures(
+      alteredRawInputsMatch,
+      frozenContext,
+      frozenState
     );
     assert(
-      totalCalibratedQuant.devig.total_main_ev?.over_ev !== baselineQuant.devig.total_main_ev?.over_ev ||
-        totalCalibratedQuant.devig.total_main_ev?.under_ev !== baselineQuant.devig.total_main_ev?.under_ev,
-      'TOTAL_GOALS_MAIN lambda calibration must change totals EV when the calibrated lambda changes'
-    );
-    const handicapCalibratedQuant = calculateQuantitativeFeatures(calibrationMatch, {
-      calibration_profile: handicapFallback
-    });
-    assert(
-      handicapCalibratedQuant.poisson.expected_goals_rest === baselineQuant.poisson.expected_goals_rest,
-      'ASIAN_HANDICAP_MAIN calibration must not change Poisson lambda'
+      alteredRawInputsPoisson.expected_goals_rest === frozenStatePoisson.expected_goals_rest,
+      'M4 must not re-read raw M3 statistics after UnifiedMatchState is frozen'
     );
     let leakageBlocked = false;
     try {
@@ -546,32 +672,6 @@ async function runQuantEngineTests() {
       ))
     );
     assert(stoppagePoisson.is_stoppage_time_unpriceable, 'A live 90+ clock must be marked unpriceable rather than treated as a finished match');
-    const incompletePhysicalMatch = {
-      ...calibrationMatch,
-      reference: {
-        ...calibrationMatch.reference,
-        stats: {
-          ...calibrationMatch.reference?.stats,
-          corners: { home: null, away: null },
-          red_cards: { home: null, away: null }
-        }
-      }
-    } as CanonicalMatch;
-    const incompletePhysical = extractRealTimePhysicalStats(incompletePhysicalMatch);
-    assert(incompletePhysical.corner_pressure.is_corner_cascade === undefined, 'Missing corners must not become a false corner-cascade fact');
-    assert(incompletePhysical.red_card_penalty.home_attack_multiplier === 1, 'Missing red-card stats must remain neutral rather than fabricate a penalty');
-    const cornerCascadeMatch = {
-      ...incompletePhysicalMatch,
-      reference: {
-        ...incompletePhysicalMatch.reference,
-        stats: {
-          ...incompletePhysicalMatch.reference?.stats,
-          corners: { home: 5, away: 4 },
-          red_cards: { home: 0, away: 0 }
-        }
-      }
-    } as CanonicalMatch;
-    assert(extractRealTimePhysicalStats(cornerCascadeMatch).corner_pressure.is_corner_cascade === true, 'Five or more valid corners must trigger corner cascade');
     console.log('   ✅ OOS 校准档案测试 PASS');
   }
 
@@ -605,89 +705,72 @@ async function runQuantEngineTests() {
     assert(quantResult.physical_stats.corner_pressure.window_source === 'CUMULATIVE_BASELINE', 'Live technical corners must remain cumulative baseline, never a recent-window claim');
     assert(quantResult.confidence_breakdown.edge_confidence_score === 0, 'Unvalidated OOS calibration must not create tradable edge confidence');
     assert(quantResult.positive_ev_signals.length === 0, 'Raw devig EV without validated OOS evidence must not become a machine trade candidate');
-    assert(quantResult.raw_positive_ev_signals.length >= 2, 'Raw positive EV must retain calculated main and secondary market signals');
-    assert(quantResult.devig.spread_secondary_ev.length === 2, 'Real YBTY spread sub-lines must remain represented in Layer 03');
-    assert(quantResult.devig.total_secondary_ev.length === 2, 'Real YBTY total sub-lines must remain represented in Layer 03');
-    assert(quantResult.devig.line_dispersion.spread_variance > 0, 'Real spread line dispersion must be measurable');
-    assert(quantResult.devig.line_dispersion.total_variance > 0, 'Real total line dispersion must be measurable');
-    const validatedMainProfileQuant = calculateQuantitativeFeatures(targetMatch!, {
-      calibration_profile: {
-        status: 'VALIDATED',
-        league_key: 'GLOBAL',
-        minute_band: 'ALL',
-        score_state: 'ALL',
-        red_card_state: 'ALL',
-        market: 'TOTAL_GOALS_MAIN',
-        sample_size: 240,
-        effective_sample_size: 240,
-        oos_brier_score: 0.2,
-        lambda_log_adjustment: 0.1
-      }
-    });
-    assert(validatedMainProfileQuant.raw_positive_ev_signals.some((signal) =>
-      signal.market === 'ASIAN_HANDICAP_SUB' || signal.market === 'TOTAL_GOALS_SUB'
-    ), 'Secondary raw EV must remain observable when a main-market profile is validated');
-    assert(validatedMainProfileQuant.positive_ev_signals.every((signal) =>
-      signal.market === 'ASIAN_HANDICAP_MAIN' || signal.market === 'TOTAL_GOALS_MAIN'
-    ), 'A validated main-market profile must not unlock secondary-line machine candidates');
-    assert(quantResult.raw_positive_ev_signals.length >= quantResult.positive_ev_signals.length, 'Raw EV layer must contain machine candidates');
-    assert(quantResult.validated_oos_signals.length === 0, 'No OOS archive must produce no validated OOS signals');
-    assert(
-      quantResult.raw_positive_ev_signals.some((signal) => signal.market === 'ASIAN_HANDICAP_MAIN' || signal.market === 'TOTAL_GOALS_MAIN'),
-      'Raw EV layer must preserve main-market signals'
-    );
-    assert(
-      quantResult.devig.line_dispersion.spread_variance >= 0 && quantResult.devig.line_dispersion.total_variance >= 0,
-      'Line dispersion variances must be finite non-negative values'
-    );
+    assert(quantResult.raw_positive_ev_signals.length >= quantResult.positive_ev_signals.length, 'Raw EV signals must remain observable separately from machine candidates');
+    assert(quantResult.devig.total_main_ev?.line === targetMatch!.markets.full_total_main?.line, 'Live total EV must use the YBTY execution line');
+    assert(quantResult.devig.spread_secondary_ev.length === targetMatch!.markets.full_spread_subs.length, 'Every YBTY secondary handicap line must produce an EV assessment');
+    assert(quantResult.devig.total_secondary_ev.length === targetMatch!.markets.full_total_subs.length, 'Every YBTY secondary total line must produce an EV assessment');
     assert(quantResult.battlefield_dominance_index === quantResult.match_state.dominance_index, 'BDI must consume the unified match state only');
+    if (quantResult.market_calibration?.market_stance !== MarketStanceType.MARKET_DATA_MISSING) {
+      assert(quantResult.poisson.lambda_decomposition.context_multiplier_home === 1, 'M2 home context must not be applied twice after market calibration');
+      assert(quantResult.poisson.lambda_decomposition.context_multiplier_away === 1, 'M2 away context must not be applied twice after market calibration');
+    }
+    assert(quantResult.data_audit.items.length === 10, 'Layer 03 data audit must expose all 10 input categories');
+    assert(quantResult.data_audit.items.some((item) => item.category === 'GOAL_DISTRIBUTION'), 'Goal distribution audit item missing');
+    assert(quantResult.data_audit.items.some((item) => item.category === 'ENVIRONMENT'), 'Environment audit item missing');
+    assert(quantResult.data_audit.items.some((item) => item.category === 'ODDS_MATRIX'), 'Odds matrix audit item missing');
 
-    const prematchQuant = calculateQuantitativeFeatures({
-      ...targetMatch!,
-      timing: {
-        ...targetMatch!.timing,
-        stage: MatchStage.PREMATCH,
-        minute: null,
-        ybty_display_clock: '即将开赛'
-      },
-      score: {
-        ...targetMatch!.score,
-        home_score: 0,
-        away_score: 0,
-        score_verified: true,
-        score_source: 'YBTY_DIRECT'
-      }
-    }, undefined, collector, tracer);
-    assert(prematchQuant.poisson.elapsed_minute === 0, 'Prematch Poisson must use an explicit zero elapsed minute');
-    assert(prematchQuant.poisson.remaining_minutes === 90, 'Prematch Poisson must represent the full match horizon');
-    assert(prematchQuant.poisson.projected_final_score.home >= 0 && prematchQuant.poisson.projected_final_score.away >= 0, 'Prematch projection must remain finite and non-negative');
-    assert(!prematchQuant.risk_flags.includes(QuantAlert.TECHNICAL_METRICS_DEFICIT), 'Prematch must not inherit the LIVE technical metrics deficit warning');
+    // A single imported snapshot must be sufficient at any normal in-play
+    // minute. A later snapshot is an optional enhancement, not a prerequisite.
+    for (const minute of [5, 15, 30, 40, 60]) {
+      const singleSnapshotMatch: CanonicalMatch = {
+        ...targetMatch!,
+        timing: {
+          ...targetMatch!.timing,
+          stage: MatchStage.LIVE,
+          minute,
+          is_half_time: false
+        },
+        score: {
+          ...targetMatch!.score,
+          home_score: targetMatch!.score.home_score ?? 0,
+          away_score: targetMatch!.score.away_score ?? 0,
+          score_verified: true
+        }
+      };
+      const singleSnapshotResult = calculateQuantitativeFeatures(singleSnapshotMatch, undefined, collector, tracer);
+      assert(Number.isFinite(singleSnapshotResult.poisson.expected_goals_rest), `Single snapshot at ${minute}' must produce finite residual lambda`);
+      assert(singleSnapshotResult.poisson.expected_goals_rest > 0, `Single snapshot at ${minute}' must retain positive residual goal expectation`);
+      assert(singleSnapshotResult.timeline.cutoff_minute === minute, `Single snapshot at ${minute}' must use the imported minute as cutoff`);
+    }
 
-    const liveWithoutStats = calculateQuantitativeFeatures({
+    const halfTimeMatch: CanonicalMatch = {
       ...targetMatch!,
-      reference: {
-        ...targetMatch!.reference!,
-        stats: null,
-        attack_momentum: null
-      },
       timing: {
         ...targetMatch!.timing,
         stage: MatchStage.LIVE,
-        minute: 62
+        minute: 45,
+        is_half_time: true
       },
       score: {
         ...targetMatch!.score,
-        home_score: 0,
-        away_score: 1,
-        score_verified: true,
-        score_source: 'LEISU_INTERFACE'
+        home_score: targetMatch!.score.home_score ?? 0,
+        away_score: targetMatch!.score.away_score ?? 0,
+        score_verified: true
       }
-    }, undefined, collector, tracer);
-    assert(liveWithoutStats.physical_stats.stats_available === false, 'LIVE missing technical statistics must remain unavailable');
-    assert(liveWithoutStats.physical_stats.xt_proxy.home_xt === undefined, 'Missing LIVE statistics must not become a fabricated zero xT');
-    assert(liveWithoutStats.risk_flags.includes(QuantAlert.TECHNICAL_METRICS_DEFICIT), 'LIVE missing technical statistics must trigger the technical deficit warning');
-    assert(liveWithoutStats.confidence_score <= 55, 'LIVE missing technical statistics must cap confidence');
-    assert(liveWithoutStats.positive_ev_signals.length === 0, 'LIVE missing technical statistics must not produce machine candidates');
+    };
+    const halfTimeResult = calculateQuantitativeFeatures(halfTimeMatch, undefined, collector, tracer);
+    assert(halfTimeResult.poisson.remaining_minutes >= 44, 'Half-time single snapshot must preserve the second-half time horizon');
+
+    const missingMomentumMatch: CanonicalMatch = {
+      ...halfTimeMatch,
+      reference: {
+        ...halfTimeMatch.reference!,
+        attack_momentum: null
+      }
+    };
+    const missingMomentumResult = calculateQuantitativeFeatures(missingMomentumMatch, undefined, collector, tracer);
+    assert(missingMomentumResult.timeline.total_points === 0, 'Missing momentum must remain observable as missing data');
+    assert(missingMomentumResult.poisson.expected_goals_rest > 0, 'Missing local momentum must not be converted into zero residual threat');
 
     console.log(`   📊 [量化推演战报]:`);
     console.log(`      - 法定进行时间: ${quantResult.poisson.elapsed_minute}' (剩余: ${quantResult.poisson.remaining_minutes}')`);

@@ -330,20 +330,14 @@ export function calculateBivariatePoissonGrid(
 export function calculateContinuousThreatTensor(
   state: UnifiedMatchState
 ): { homeThreat: number; awayThreat: number } {
-  // 当队伍处于极端被动（零射正、零角球、低强度）时，允许威胁度下探，严禁给予0.65的虚高硬性保底
+  // intensity 是已校准的相对威胁分数，0.5 表示中性，不应被当作绝对衰减率。
   const mapIntensity = (intensity: number, opponentIntensity: number) => {
-    let val: number;
-    if (intensity <= 0.15) {
-      // 极端被动/零威胁/无射正态势，威胁阻尼线性下沉至 0.05 ~ 0.25
-      val = 0.05 + intensity * 1.33;
-    } else {
-      val = 0.25 + (intensity - 0.15) * 0.85;
+    let val = 0.65 + Math.max(0, Math.min(1, intensity)) * 0.7;
+    // 只有明确的深度压制才额外折损，避免普通均势被误判为低进球。
+    if (opponentIntensity >= 0.85 && intensity <= 0.20) {
+      val *= 0.85;
     }
-    // 场面被绝对压制惩罚 (对方绝对统治且自身微弱)
-    if (opponentIntensity >= 0.60 && intensity <= 0.20) {
-      val *= 0.50; // 深度压制折损 50%
-    }
-    return Number(Math.max(0.02, Math.min(2.50, val)).toFixed(3));
+    return Number(Math.max(0.20, Math.min(1.60, val)).toFixed(3));
   };
   return {
     homeThreat: mapIntensity(state.home_intensity, state.away_intensity),
@@ -398,6 +392,24 @@ export function calculateInPlayPoissonFeatures(
       lambda_away_rest: 0.0,
       expected_goals_rest: 0.0,
       lambda_source: 'FALLBACK',
+      lambda_decomposition: {
+        market_base_home: 0,
+        market_base_away: 0,
+        context_multiplier_home: 0,
+        context_multiplier_away: 0,
+        base_after_context_home: 0,
+        base_after_context_away: 0,
+        time_fraction_home: 0,
+        time_fraction_away: 0,
+        urgency_multiplier: 0,
+        threat_home: 0,
+        threat_away: 0,
+        red_attack_home: 0,
+        red_attack_away: 0,
+        red_leak_home: 0,
+        red_leak_away: 0,
+        post_goal_cooldown_multiplier: 0
+      },
       top_final_scores: [{
         home: currentHomeScore,
         away: currentAwayScore,
@@ -423,12 +435,16 @@ export function calculateInPlayPoissonFeatures(
   let lambdaSource: 'MARKET_IMPLIED' | 'LEAGUE_DNA' | 'FALLBACK' = 'LEAGUE_DNA';
   let baseHomeLambda = 1.35;
   let baseAwayLambda = 1.35;
+  let contextAlreadyIncluded = false;
 
   if (calibration && calibration.market_stance !== MarketStanceType.MARKET_DATA_MISSING) {
     baseHomeLambda = calibration.lambda_base_home;
     baseAwayLambda = calibration.lambda_base_away;
     baseTotalGoals = baseHomeLambda + baseAwayLambda;
     lambdaSource = 'MARKET_IMPLIED';
+    // Market calibration already shrinks toward the M2 theory prior, which
+    // contains lineup and motivation effects. Do not apply those multipliers twice.
+    contextAlreadyIncluded = true;
   } else {
     const leagueName = match.league_name ?? '';
     baseTotalGoals = getLeagueBaseGoals(leagueName);
@@ -438,17 +454,41 @@ export function calculateInPlayPoissonFeatures(
 
   baseHomeLambda = Math.max(0.3, baseHomeLambda);
   baseAwayLambda = Math.max(0.3, baseAwayLambda);
+  const marketBaseHome = baseHomeLambda;
+  const marketBaseAway = baseAwayLambda;
+  const rawContextMultiplierHome = context?.motivation_urgency && context.lineup_impact
+    ? context.motivation_urgency.home_mui * context.lineup_impact.home_lis
+    : 1;
+  const rawContextMultiplierAway = context?.motivation_urgency && context.lineup_impact
+    ? context.motivation_urgency.away_mui * context.lineup_impact.away_lis
+    : 1;
+  const contextMultiplierHome = contextAlreadyIncluded ? 1 : rawContextMultiplierHome;
+  const contextMultiplierAway = contextAlreadyIncluded ? 1 : rawContextMultiplierAway;
 
   // 2. 注入 M2 先验战意与阵容折损乘子 (MUI / LIS)
   if (context && context.motivation_urgency && context.lineup_impact) {
-    baseHomeLambda *= (context.motivation_urgency.home_mui * context.lineup_impact.home_lis);
-    baseAwayLambda *= (context.motivation_urgency.away_mui * context.lineup_impact.away_lis);
+    baseHomeLambda *= contextMultiplierHome;
+    baseAwayLambda *= contextMultiplierAway;
   }
 
   if (oosCalibration?.market === 'TOTAL_GOALS_MAIN' && oosCalibration.status === 'VALIDATED' && oosCalibration.effective_sample_size >= 200) {
     const multiplier = Math.exp(oosCalibration.lambda_log_adjustment);
     baseHomeLambda *= multiplier;
     baseAwayLambda *= multiplier;
+  }
+
+  // 将截至当前分钟的已核验进球节奏作为受限的 in-play 证据，避免 2-2/3-0
+  // 等高事件比赛仍沿用纯赛前低进球先验。早期样本权重较低，且观察速率有上限。
+  const currentTotalGoals = currentHomeScore + currentAwayScore;
+  if (elapsedMinute >= 15 && currentTotalGoals > 0) {
+    const priorTotalLambda = baseHomeLambda + baseAwayLambda;
+    const observedFullMatchRate = Math.min(5.5, (currentTotalGoals / elapsedMinute) * 90);
+    const paceWeight = Math.min(0.35, ((elapsedMinute - 15) / 75) * 0.35);
+    const blendedTotalLambda =
+      priorTotalLambda * (1 - paceWeight) + observedFullMatchRate * paceWeight;
+    const homeShare = baseHomeLambda / Math.max(0.01, priorTotalLambda);
+    baseHomeLambda = blendedTotalLambda * homeShare;
+    baseAwayLambda = blendedTotalLambda * (1 - homeShare);
   }
 
   // 3. 计算时间衰减与局势非线性搏命因子 (结合 15 分钟进球时段 DNA 与 先验实力差)
@@ -460,8 +500,10 @@ export function calculateInPlayPoissonFeatures(
   // 4. 唯一实时状态已经融合 xT、动量、事件、红牌与战术相变；本函数不得再次读取原始特征。
   const regimeMultiplierHome = 1.0;
   const regimeMultiplierAway = 1.0;
-  const redPenaltyHome = 1.0;
-  const redPenaltyAway = 1.0;
+  const redAttackHome = matchState.red_card_attack_multiplier_home ?? 1.0;
+  const redAttackAway = matchState.red_card_attack_multiplier_away ?? 1.0;
+  const redLeakHome = matchState.red_card_defense_leak_multiplier_home ?? 1.0;
+  const redLeakAway = matchState.red_card_defense_leak_multiplier_away ?? 1.0;
 
   // 4.5 由唯一状态映射连续威胁强度张量。
   // 代替离散硬编码 if 语句，以连续数学模型动态调整真实进球期望
@@ -471,17 +513,37 @@ export function calculateInPlayPoissonFeatures(
   const postGoalCooldownMultiplier = matchState.post_goal_cooldown_active ? 0.70 : 1.0;
 
   // 5. 综合求解滚球 0:0 剩余时段动态进球期望 (lambda_home_rest, lambda_away_rest)
-  const remainingFactorHome = timeDecay.time_fraction_home * timeDecay.urgency_multiplier;
-  const remainingFactorAway = timeDecay.time_fraction_away * timeDecay.urgency_multiplier;
+  const marketAlreadyRemaining = calibration?.is_in_play_market === true;
+  const remainingFactorHome = (marketAlreadyRemaining ? 1 : timeDecay.time_fraction_home) * timeDecay.urgency_multiplier;
+  const remainingFactorAway = (marketAlreadyRemaining ? 1 : timeDecay.time_fraction_away) * timeDecay.urgency_multiplier;
 
   // xT, shots, corners and momentum are already fused in the single threat tensor; do not multiply them again.
-  let lambdaHomeRest = baseHomeLambda * remainingFactorHome * redPenaltyHome * regimeMultiplierHome * threatDampingHome * postGoalCooldownMultiplier;
-  let lambdaAwayRest = baseAwayLambda * remainingFactorAway * redPenaltyAway * regimeMultiplierAway * threatDampingAway * postGoalCooldownMultiplier;
+  // 红牌同时改变本方进攻能力和对手面对的防守漏洞；缺失或未验证时乘数保持 1.0。
+  let lambdaHomeRest = baseHomeLambda * remainingFactorHome * redAttackHome * redLeakAway * regimeMultiplierHome * threatDampingHome * postGoalCooldownMultiplier;
+  let lambdaAwayRest = baseAwayLambda * remainingFactorAway * redAttackAway * redLeakHome * regimeMultiplierAway * threatDampingAway * postGoalCooldownMultiplier;
 
   // 极值安全钳位
   lambdaHomeRest = Math.max(0.01, Math.min(3.50, Number(lambdaHomeRest.toFixed(3))));
   lambdaAwayRest = Math.max(0.01, Math.min(3.50, Number(lambdaAwayRest.toFixed(3))));
   const expectedGoalsRest = Number((lambdaHomeRest + lambdaAwayRest).toFixed(3));
+  const lambdaDecomposition = {
+    market_base_home: Number(marketBaseHome.toFixed(3)),
+    market_base_away: Number(marketBaseAway.toFixed(3)),
+    context_multiplier_home: Number(contextMultiplierHome.toFixed(3)),
+    context_multiplier_away: Number(contextMultiplierAway.toFixed(3)),
+    base_after_context_home: Number(baseHomeLambda.toFixed(3)),
+    base_after_context_away: Number(baseAwayLambda.toFixed(3)),
+    time_fraction_home: marketAlreadyRemaining ? 1 : timeDecay.time_fraction_home,
+    time_fraction_away: marketAlreadyRemaining ? 1 : timeDecay.time_fraction_away,
+    urgency_multiplier: timeDecay.urgency_multiplier,
+    threat_home: threatDampingHome,
+    threat_away: threatDampingAway,
+    red_attack_home: redAttackHome,
+    red_attack_away: redAttackAway,
+    red_leak_home: redLeakHome,
+    red_leak_away: redLeakAway,
+    post_goal_cooldown_multiplier: postGoalCooldownMultiplier
+  };
 
   // 6. 求解双变量泊松网格，动态覆盖可忽略的高进球尾部
   const configuredSupport = maxPoissonGoals === undefined
@@ -551,6 +613,7 @@ export function calculateInPlayPoissonFeatures(
     lambda_away_rest: lambdaAwayRest,
     expected_goals_rest: expectedGoalsRest,
     lambda_source: lambdaSource,
+    lambda_decomposition: lambdaDecomposition,
     top_final_scores: topFinalScores,
     rest_score_matrix: {
       prob_home_win_rest: poissonResult.prob_home_win_rest,

@@ -13,6 +13,7 @@ export interface FormalRecommendation {
   
   match_id: string;
   kickoff_time: string;
+  league_key: string;
   teams: { home: string, away: string };
   
   // A snapshot of the exact conditions when the bet was placed
@@ -35,12 +36,29 @@ export interface FormalRecommendation {
   };
   
   leg: RecommendedLeg;
+  prediction_snapshot: {
+    model_version: string;
+    prediction_at: string;
+    market: string;
+    line: string;
+    odds: number;
+    model_probability: number;
+    predicted_lambda: { home: number; away: number };
+    minute: number | null;
+    score_at_recommendation: string;
+    score_verified: boolean;
+    score_source: string;
+    red_card_state: string;
+  };
   
   // Post-match verification (Layer 06 populates this later)
   settlement?: {
     is_settled: boolean;
+    settled_at?: string;
     outcome?: 'WIN' | 'WIN_HALF' | 'DRAW' | 'LOSE_HALF' | 'LOSE' | 'INVALID_DATA' | 'PENDING';
     final_score_verified?: string;
+    final_score_source?: string;
+    final_score_verified_at?: string;
     profit_loss?: number;
   };
 }

@@ -107,6 +107,11 @@ function createMockMatch(): CanonicalMatch {
           match_winner: { home_odds: 1.80, draw_odds: 3.70, away_odds: 4.40 },
           asian_handicap: { line: -0.75, home_odds: 1.90, away_odds: 2.00 },
           total_goals: { line: 2.75, over_odds: 1.88, under_odds: 1.92 }
+        },
+        live: {
+          match_winner: { home_odds: 2.40, draw_odds: 2.80, away_odds: 3.20 },
+          asian_handicap: { line: -0.25, home_odds: 0.90, away_odds: 1.00 },
+          total_goals: { line: 1.5, over_odds: 0.92, under_odds: 0.88 }
         }
       },
       league_standings: null,
@@ -163,6 +168,17 @@ async function runTests() {
     throw new Error('Invalid market stance!');
   }
   console.log('  ✅ Stage 1.1 Market Calibration Passed!');
+
+  const liveMatch = { ...match, timing: { ...match.timing, stage: MatchStage.LIVE, minute: 40 } };
+  const liveCalibrated = calibrateWithMarketOdds(liveMatch, prior, collector, tracer);
+  if (!liveCalibrated.is_in_play_market) {
+    throw new Error('Live calibration must be marked as remaining-goals market semantics');
+  }
+  if (liveCalibrated.lambda_base_home >= calibrated.lambda_base_home ||
+      liveCalibrated.lambda_base_away >= calibrated.lambda_base_away) {
+    throw new Error('Live calibration did not use the lower live market phase as expected');
+  }
+  console.log('  ✅ Live market phase and Hong Kong odds normalization passed!');
 
   // Test 4: End-to-End Orchestrator
   console.log('\n▶ Test 4: Layer 03 Orchestrator Integration...');

@@ -1,235 +1,337 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260904-LAYER03-MISSING-EVENT-MINUTE`
+- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER03-SYSTEM-ACCEPTANCE`
 - **当前状态 (Status)**: `DONE`
+- **新任务**: 移除重构页面手工比分核验，改为使用导入数据中 YBTY/雷速一致性，并在页面逐场显示 Layer 03 生产准入结果。
+- **新任务状态**: `DONE`
+- **新任务结果**: 删除重构页面手工比分输入、保存按钮和 POST 核验接口；LIVE 比分由 YBTY/雷速导入比分一致性自动通过；每场卡片顶部显示 `PRODUCTION_READY`/`RESEARCH_ONLY`/`BLOCKED` 及候选锁定状态。
 - **任务目标 (Goal)**：
-  修复 Layer 03 将事件缺失分钟当作第 0 分钟，避免其污染衰减积分、近窗事件密度、进球冷却和红牌响应。
-- **改动文件 (Target Files)**：
-  - `refactor/03_quant_engine/eventMomentumFusion.ts`
-  - `refactor/tests/verify_quant_engine.ts`
-  - `refactor/HANDOVER_AND_PROGRESS.md`
-- **执行步骤 (Action Plan)**：
-  1. 对缺失分钟事件建立回归输入，确认其不参与时间窗口和衰减计算；
-  2. 将所有事件分钟消费点改为显式跳过未知分钟；
-  3. 运行 Layer 03 验证、类型检查和差异检查后归档。
-- **交付物与验证 (Deliverables & Verification)**：
-  - 事件分钟改为显式可空值；所有衰减、近窗、进球冷却和红牌响应路径跳过未知分钟事件。
-  - 新增缺失分钟事件不进入衰减积分的回归断言。
-  - `npx tsx refactor/tests/verify_quant_engine.ts` 通过 8/8；`git diff --check` 通过。
-  - `npx tsc --noEmit` 仍被既有 `server/routes/aiReadRoutes.ts:294-295` 的 `matchIdx` 未定义错误阻断。
-- **下一步待办 (Next Steps)**：
-  - 继续处理标准红牌事件类型覆盖和主系统旧 Prompt/决策链隔离。
+  建立 Layer 03 生产准入边界，并建立与旧系统隔离的重构正式台账赛果入口。
+- **假设与判别检查**：
+  若 Layer 03 将 YBTY 滚球全场线直接作为剩余线，当前已有比分不为 0:0 的赛事会出现系统性 EV 偏差；通过构造比分与同一 λ 的对照测试验证。
+- **目标文件**：
+  `refactor/03_quant_engine/**`、`refactor/06_settlement_audit/**`、相关验证脚本。
+- **完成结果 (Result)**：
+  - Layer 03 输出新增 `production_gate`，明确区分计算链路状态和正式 machine candidate 状态；没有 VALIDATED OOS 时只能锁定正式候选，不再把 OOS 缺失表述成计算链路验收完成。
+  - 新增 `/api/refactor/formal-ledger`，只读取重构 runtime 台账；已移除手工核验比分入口，LIVE 比分以导入时 YBTY/雷速一致性为准。
+  - Layer 03 核心回归 8/8 通过；`tsc`、lint、`git diff --check` 通过。
+- **验证**：
+  `verify_quant_engine.ts`、`verify_full_pipeline_00_03.ts`、`verify_prematch_prior_and_market_divergence.ts`、`verify_portfolio_risk.ts`、`verify_settlement_engine.ts`、`verify_historical_backtest_ingestion.ts`、`verify_real_snapshot_oos_audit.ts`、`npx tsc --noEmit`、`npm run lint`、`git diff --check` 均通过。
+- **下一步**：
+  已在标准赛事中心接入独立重构台账读取、核验比分录入和 PENDING 状态提示；下一步仅在真实正式推荐产生后进行 Layer 06 结算与 OOS 校准。
+- **补充结果**：
+  发现滚球雷速 live 盘口反推的 λ 已是推荐时点后的剩余 λ，M4 旧逻辑又乘剩余时间比例，造成二次时间衰减。现已增加 `is_in_play_market` 标记：live 市场不再重复衰减，理论先验仅在融合前按剩余时间缩放。当前五场总剩余 λ 约为 `1.678、1.438、1.698、1.765、1.314`。
+- **验证**：
+  串行运行 `npx tsx refactor/tests/verify_quant_engine.ts` 与 `npx tsx refactor/tests/verify_prematch_prior_and_market_divergence.ts` 均通过；并行运行曾因测试共同写入样本文件产生竞争，已确认不是代码失败。
 
-- **任务编号 (Task)**: `SNAPSHOT-20260904-LAYER03-MISSING-STATS-SEMANTICS`
+- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER03-THREAT-CALIBRATION`
 - **当前状态 (Status)**: `DONE`
 - **任务目标 (Goal)**：
-  修复 Layer 03 将缺失红牌/角球统计静默当作真实 0，以及无论角球数量如何都输出 `is_corner_cascade=false` 的数据语义错误。
-- **改动文件 (Target Files)**：
+  审计并修正 Layer 03 将实时证据缺口/冲突错误转换为系统性低进球率的问题。
+- **完成结果 (Result)**：
+  - 近窗没有关键事件时使用弱证据基线，不再等同于零威胁。
+  - 动量、事件与统计冲突不再直接乘以 `0.45` 砍低 λ；冲突仍降低置信度并阻断机器候选。
+  - 威胁张量的中性点保持在 1.0，低威胁仅受限度量折损，避免正常 0:0 比赛被机械压成极端小球。
+  - 当前 5 场审计总剩余 λ 从约 `0.278–0.698` 调整为 `0.447–1.006`；这不是正式推荐，仍需历史核验样本校准系数。
+- **验证**：
+  `npx tsx refactor/tests/verify_quant_engine.ts`、`npx tsc --noEmit`、`npm run lint`、`git diff --check` 通过。
+- **下一步**：
+  用真实已核验历史样本校准威胁张量、事件支持和盘口融合系数，禁止只凭单批次手调。
+- **补充回归**：
+  Layer 03 测试现在明确断言证据冲突不得复现旧的 `0.45` 低进球乘数；当前批次五场总剩余 λ 约为 `1.195、0.708、1.026、0.985、0.486`，冲突场仍因置信度/候选门禁不能自动升级为推荐。
+- **后续审计修复**：
+  M4 原先对已包含 M2 理论先验的市场校准结果再次乘 MUI×LIS，造成阵容/战意重复惩罚。现仅在纯理论回退时应用该乘子；当前五场总剩余 λ 约为 `1.169、0.695、1.026、1.050、0.863`。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER05-FROZEN-PREDICTION`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  让重构正式台账保存 Layer 06 所需的冻结量化输入，并建立正式台账到 OOS 记录的隔离适配器。
+- **完成结果 (Result)**：
+  - Layer 03 EV 信号保存结构化模型概率；Layer 04 payload 保存模型版本、预测时点、剩余 λ、红牌状态及信号快照。
+  - Layer 05 台账要求并保存市场、盘口、赔率、概率、预测 λ、分钟、推荐时比分、比分校验和来源字段；缺失快照直接拒绝写入。
+  - 新增 `formalLedgerAdapter.ts`，只转换已结算、已核验、二元结果的正式推荐；PENDING、未核验、半赢/走盘等记录保持在台账外，不进入 OOS。
+- **验证**：
+  `npx tsc --noEmit`、`npm run lint`、`npx tsx refactor/tests/verify_portfolio_risk.ts`、`npx tsx refactor/tests/verify_historical_backtest_ingestion.ts`、`git diff --check` 通过。
+- **下一步**：
+  接入真实完赛核验结果，补齐 `settled_at` 和最终比分后运行适配器；在此之前不得生成 `VALIDATED` OOS 档案。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER05-RISK-TEST-CONTRACT`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  修正 Layer 05 风控回归测试没有按重构 `RecommendedLeg` 契约传递盘口字段、且失败只打印不退出的问题。
+- **完成结果 (Result)**：
+  - 测试从旧字段 `line/odds` 改为 `selected_line/current_odds/minimum_acceptable_odds`。
+  - B 级重复方向和 B 级深盘 `-2.5` 现在都由真正失败断言验证为阻断。
+  - 风控实现本身未放宽任何规则。
+- **验证**：
+  `npx tsx refactor/tests/verify_portfolio_risk.ts`、`npx tsc --noEmit`、`git diff --check` 通过。
+- **下一步**：
+  正式推荐台账仍需补齐可供 Layer 06 使用的冻结模型概率、预测 λ、预测时点和比分校验快照。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-REFACTOR-LEDGER-ISOLATION`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  确保重构 Layer 05 正式台账不再写入旧版 `output/`。
+- **完成结果 (Result)**：
+  - `refactor/05_portfolio_risk/ledgerPersistence.ts` 现在只写入 `refactor/runtime/formal_ledger_live.json` 或 `formal_ledger_prematch.json`。
+  - 旧版 `server/routes/ledgerMutationRoutes.ts` 和旧版 `output/recommendation_ledger*.json` 未修改，仍由旧系统独立管理。
+- **验证**：
+  `npx tsc --noEmit`、`npm run lint`、`git diff --check` 通过。
+- **下一步**：
+  正式 AI 推荐产生后，使用重构台账和已核验完赛数据生成 Layer 06 OOS 样本；没有真实结算数据前不得创建 `VALIDATED` 档案。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER03-MARKET-PHASE-CALIBRATION`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  审查 M4 市场校准与 M5 执行盘口之间的时段语义，确认滚球计算不误用赛前赔率，并正确解释雷速香港盘赔率。
+- **根因与修复**：
+  - `marketDivergenceEngine.ts` 原先滚球也优先读取雷速 `pregame`，导致 M4 的市场 λ 不是当前滚球阶段的参考。
+  - 雷速让球/大小球原始值为香港盘（如 `0.92`），原逻辑要求赔率大于 1，故这些市场被静默排除，只剩胜平负参与 λ 反推。
+  - 现在滚球优先读取 `reference.odds_matrix.live`，赛前仍读取 `pregame`，缺失时回退 `initial`。
+  - 让球/大小球只在市场校准内部转换为十进制赔率（香港盘 + 1）；Canonical 原始值和 YBTY 执行盘口不变。
+- **当前 5 场影响**：
+  - 修复前剩余 λ：`0.829、1.640、0.656、0.765、0.503`。
+  - 修复后剩余 λ：`0.668、0.698、0.599、0.561、0.278`。
+  - 这不是把结果强行压成小球，而是改为使用当前滚球阶段的低总进球盘口和滚球胜平负；仍然只是 raw EV，未生成正式机器候选。
+- **验证**：
+  `npx tsc --noEmit`、`npx tsx refactor/tests/verify_prematch_prior_and_market_divergence.ts`、`npx tsx refactor/tests/verify_quant_engine.ts`、`npx tsx refactor/tests/verify_full_pipeline_00_03.ts`、`git diff --check` 通过。
+- **下一步**：
+  收集正式 AI 推荐台账、冻结预测输入和核验赛果，建立真实 OOS 校准样本；在此之前不得创建 `VALIDATED` 档案。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER03-LAMBDA-DECOMPOSITION`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  将 M4 剩余 λ 的逐项计算贡献写入量化输出并在重构页面展示。
+- **完成结果 (Result)**：
+  - `InPlayPoissonFeatures` 新增 `lambda_decomposition`，包含市场基准、M2 后基准、时间/DNA 因子、紧迫度、威胁张量、红牌进攻/防守漏洞乘数和最终 H/A λ。
+  - 完赛/不可定价分支也返回显式零值分解，避免前端字段漂移。
+  - 重构页面新增“03 M4 剩余 λ 分解”面板，逐场可核对中间量。
+- **验证**：
+  `npx tsc --noEmit`、`npm run lint`、`npx tsx refactor/tests/verify_quant_engine.ts`、`git diff --check` 通过。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER03-UNTIMED-EVENT-GATE`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  修复 Layer 03 将 `minute=null` 的雷速准备/系统事件当作第 0 分钟事件参与 M3.5 计算，并修正审计状态误报。
+- **根因与修复**：
+  - `eventMomentumFusion.ts` 原先把缺失分钟转换为 `0`，导致事件衰减、近 15/5 分钟事件密度、进球/红牌冷却逻辑可能吸收无时间事件。
+  - 现在缺失或非有限分钟的事件被跳过；只有明确分钟的事件进入时间窗口和衰减。
+  - `dataAudit.ts` 的 `TIMELINE_EVENTS` 改为按有明确分钟的事件判定 USED，并同时展示原始数与有效时序数。
+  - `verify_quant_engine.ts` 增加准备事件不进入近 5 分钟密度的回归断言。
+- **当前批次影响**：
+  当前 5 场均存在 `minute=null` 的准备/系统事件；修复后这些事件不再伪造实时压力。当前 5 场其余 M4 λ 仍分别为 `0.829、1.640、0.656、0.765、0.503`，没有因此把研究结果升级为正式推荐。
+- **验证**：
+  `npx tsc --noEmit`、`npx tsx refactor/tests/verify_quant_engine.ts`、`git diff --check` 通过。
+- **下一步**：
+  继续单独审查 M4 的 λ 分解和 M5 盘口时间语义；在没有 VALIDATED OOS 档案前保持 `machine_candidate=0`。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-IMPORT-SELECTION-ONE-TO-ONE`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  修复 YBTY 与雷速数量不一致时，未勾选赛事仍进入重构批次，以及多个 YBTY 赛事重复占用同一雷速赛事的问题。
+- **根因**：
+  - 批量确认只持久化别名，刷新时后端重新装配完整 YBTY 列表，忽略了用户勾选的赛事 ID。
+  - Layer 02 原先对每个 YBTY 赛事独立搜索雷速候选，没有消费候选锁，允许同一个雷速赛事被重复匹配。
+- **完成结果 (Result)**：
+  - `/api/refactor/import-data` 支持 `selected_match_ids`，重构批次只保存用户选中的赛事和对应 AI brief。
+  - 批量确认完成后会重新提交选中 ID，页面刷新不会把未勾选赛事带回。
+  - Canonical 装配使用一对一雷速候选消费锁；雷速 5 场时最多装配 5 场，不能重复复用同一雷速赛事。
+  - 接口回归：YBTY 6 场、雷速 5 场，初始装配 5 场，选中 5 场后最终批次 5 场。
+  - 验证：`npm run lint`、`npx tsx refactor/tests/verify_full_pipeline_00_03.ts`、`git diff --check` 通过。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-REFACTOR-LEGACY-SEPARATION`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  建立重构系统独立的当前批次运行快照，禁止重构页面从旧版 `output/*.json` 推断比赛数量、决策或历史快照。
+- **控制路径与边界**：
+  - 重构路径：`当前导入 -> refactor/fixtures -> refactor/runtime/<mode>_batch.json -> /api/refactor/canonical-matches -> CanonicalMatchCenter`。
+  - 禁止路径：`refactor runtime -> output/*.json`；旧版 pipeline 路由继续独立读取旧版 `output`。
+  - 每次重构导入生成唯一 `batch_id`、`imported_at`、模式、CanonicalMatch 和 AI brief 快照。
+- **完成结果 (Result)**：
+  - `/api/refactor/import-data` 导入完成后写入 `refactor/runtime/live_batch.json` 或 `prematch_batch.json`。
+  - `/api/refactor/canonical-matches` 优先读取对应重构批次快照；没有快照时只从重构 fixtures 初始化，不读取旧版 output。
+  - API 返回 `batch_id`、`imported_at` 和当前批次实际比赛数。
+  - 修复 `aiReadRoutes.ts` 中未定义的 `matchIdx` 编译错误。
+  - 验证：重构接口 HTTP 200 且无批次时 `count=0`、`batch_id=null`；浏览器刷新后显示“当前重构批次: 0场 · 尚未导入重构批次”；Layer 03、Layer 00-03 集成、全仓库类型检查和 `git diff --check` 均通过。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER03-OOS-AUDIT`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  对现有已结束/历史快照执行 OOS 可用性审计；只接受正式 AI 推荐、核验比分、已结算二元结果和完整预测时点字段，禁止把 `RESEARCH`、机器候选或无最终比分快照伪装成 OOS 样本。
+- **控制路径与可证伪假设**：
+  - 控制路径：`output/match_snapshot_history.json + output/*decisions.json -> HistoricalBacktestRecord -> ingestHistoricalBacktestRecords -> OosCalibrationArchive`。
+  - 假设：现有历史数据可能只有研究快照，若误入 OOS 会虚增样本量并错误解锁 `VALIDATED` 档案。
+  - 判别检查：逐条统计正式类型、score_verified、最终比分、赔率/市场、结算状态；不满足条件的记录必须被拒绝且不得生成档案。
+- **目标文件 (Target Files)**：
+  - `refactor/tests/verify_historical_backtest_ingestion.ts`
+  - `refactor/06_settlement_audit/historicalBacktestIngestion.ts`
+  - `refactor/HANDOVER_AND_PROGRESS.md`
+- **执行步骤 (Steps)**：
+  1. 运行历史 OOS 摄取门禁测试。
+  2. 审计现有快照和决策文件的真实样本数量与缺陷。
+  3. 增加真实快照“零 OOS 接受”的回归断言，并记录下一轮所需数据。
+- **完成结果 (Result)**：
+  - `output/match_snapshot_history.json` 实际包含 4 场、20 个快照。
+  - `output/ybty_leisu_decisions.json` 实际包含 4 条决策，全部为 `RESEARCH`、C 级、无正式 recommendation，且 `score_verified=false`。
+  - 快照没有 `final_score`、`settled_at`、`model_probability`、`predicted_lambda` 等结算标签。
+  - 因此本批次 OOS 接受样本为 0，未生成 `OosCalibrationArchive`，不得计算 Brier、命中率或解锁 `VALIDATED` 档案。
+  - 新增真实快照审计：`refactor/tests/verify_real_snapshot_oos_audit.ts`。
+  - 验证：`npx tsx refactor/tests/verify_real_snapshot_oos_audit.ts`、`npx tsx refactor/tests/verify_historical_backtest_ingestion.ts`、`git diff --check` 通过。
+  - 下一轮必须导入正式 AI 推荐台账、推荐时冻结输入、核验最终比分、结算结果和预测概率，才能执行真实 OOS。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER03-RED-CARD-M4`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  将经过 M3 实时统计门禁的红牌攻防乘数接入 M4 剩余进球 λ，避免红牌只产生警报而不改变定价。
+- **控制路径与可证伪假设**：
+  - 控制路径：`CanonicalMatch.reference.stats.red_cards -> extractRealTimePhysicalStats -> buildUnifiedMatchState -> calculateInPlayPoissonFeatures`。
+  - 假设：当前 M4 的 `redPenaltyHome/Away` 固定为 1.0，因此有红牌与无红牌的其余条件相同时 λ 完全相同。
+  - 判别检查：单方红牌应降低该方剩余进攻 λ，并提高对手因防守漏洞获得的 λ；缺少可验证红牌字段时必须保持中性 1.0。
+- **目标文件 (Target Files)**：
+  - `refactor/03_quant_engine/types.ts`
+  - `refactor/03_quant_engine/index.ts`
+  - `refactor/03_quant_engine/poissonDecayModel.ts`
+  - `refactor/tests/verify_quant_engine.ts`
+- **执行步骤 (Steps)**：
+  1. 扩展唯一实时状态保存红牌乘数。
+  2. 在 M4 按“本方进攻 × 对手防守漏洞”应用乘数。
+  3. 增加有/无红牌对照回归，验证缺失红牌不改变结果。
+- **完成结果 (Result)**：
+  - `UnifiedMatchState` 现在保存双方红牌进攻乘数和防守漏洞乘数。
+  - M4 使用“本方进攻乘数 × 对手防守漏洞乘数”计算剩余 λ；主队红牌会降低主队 λ、提高客队 λ，反之亦然。
+  - 红牌字段缺失时统一使用 1.0 中性乘数，不制造红牌事实。
+  - 回归测试验证了红牌状态、双方 λ 的方向性变化。
+  - 验证：`npx tsx refactor/tests/verify_quant_engine.ts` 通过；相关类型检查无本次改动错误；`git diff --check` 通过。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER03-LIVE-MINUTE-SEMANTICS`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  将 M3 动量窗口从固定点数改为按雷速点阵的真实分钟坐标计算，并截断到 CanonicalMatch 当前滚球分钟，避免未来点或不等长点阵污染 5/10/15 分钟斜率、积分和拐点。
+- **控制路径与可证伪假设**：
+  - 控制路径：`CanonicalMatch.reference.attack_momentum -> momentumQuantEngine -> M3/M3.5/M4 -> dataAudit`。
+  - 假设：当前 `slice(-5/-10/-15)` 在 20'、60' 等任意导出时刻会把点数误当分钟，并且可能读取当前分钟之后的点。
+  - 判别检查：20' 快照不得使用 21' 以后点；窗口样本数应由分钟坐标决定；缺少名义分钟间隔时不得声称窗口已按真实分钟计算。
+- **目标文件 (Target Files)**：
   - `refactor/03_quant_engine/momentumQuantEngine.ts`
+  - `refactor/03_quant_engine/types.ts`
+  - `refactor/03_quant_engine/dataAudit.ts`
+  - `refactor/tests/verify_quant_engine.ts`
+- **执行步骤 (Steps)**：
+  1. 为分段点阵建立分钟坐标并按当前分钟截断。
+  2. 按 5/10/15 分钟真实时间窗口计算斜率、积分和拐点。
+  3. 增加窗口覆盖元数据与回归断言，禁止无间隔时伪装为真实窗口。
+- **完成结果 (Result)**：
+  - 动量点阵按 `segment_index * nominal_segment_minutes + point_index + 1` 建立分钟坐标。
+  - LIVE 快照按 CanonicalMatch 的 YBTY 分钟截断，20' 快照不会读取 21' 以后或第二半场未来点。
+  - 5/10/15 分钟斜率、积分和拐点使用真实分钟窗口；输出记录 `window_basis`、`cutoff_minute`、覆盖范围和各窗口样本数。
+  - 缺少名义分钟间隔时保留研究可见性，但标记 `POINT_COUNT_FALLBACK`，审计权重为 0，不得作为真实分钟证据进入正式候选。
+  - CanonicalMatch 的压缩动量展示同步按当前分钟截断。
+  - 验证：`npx tsx refactor/tests/verify_quant_engine.ts`、`npx tsx refactor/tests/verify_full_pipeline_00_03.ts`、`git diff --check` 通过；全量 TypeScript 检查仍仅受既有 `aiReadRoutes.ts` 的 `matchIdx` 错误阻断。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER03-DIRTY-DATA-GATES`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  收紧 M2 近期战绩、H2H、积分榜、进球分布和阵容的脏数据准入；缺少身份、赛事、比分、样本或统计语义时只能显式降级，不能静默作为正常先验。
+- **控制路径与可证伪假设**：
+  - 控制路径：`CanonicalMatch.reference -> contextEngine -> CleanedContextFeatures -> dataAudit/confidence/machine-candidate gate`。
+  - 假设：近期战绩在无法确认球队身份或赛事元数据缺失时仍可能获得非零权重；进球分布在 `has_data=true` 但没有完整区间时仍可能回退为均匀分布并参与 M4。
+  - 判别检查：身份不匹配、负数/非有限比分、缺少赛事名称、缺少完整进球区间的样本必须零权重；无有效进球区间必须 `has_data=false`。
+- **目标文件 (Target Files)**：
+  - `refactor/03_quant_engine/contextEngine.ts`
+  - `refactor/03_quant_engine/dataAudit.ts`
+  - `refactor/tests/verify_quant_engine.ts`
+- **执行步骤 (Steps)**：
+  1. 增加近期战绩身份/赛事/比分一致性门禁。
+  2. 禁止不完整进球分布静默回退为可用数据，并校验积分榜数值。
+  3. 增加回归断言，验证污染样本不进入权重和机器候选。
+- **完成结果 (Result)**：
+  - 近期战绩：无法确认目标球队、赛事名称缺失、非法/不一致比分或无效时间窗口的样本权重为 0。
+  - H2H：增加当前球队身份锚定；无法通过球队 ID 或名称确认的历史样本不计入有效样本。
+  - 进球分布：缺少六个合法区间时 `has_data=false`，均匀数组仅作为页面中性展示，不得作为先验使用。
+  - 积分榜：拒绝负数、非有限值、胜平负超过场次或净胜球不一致的数据。
+  - 阵容：只有双方都有首发时才允许 `CONFIRMED/PROJECTED`；单边或空阵容保持 `NOT_ANNOUNCED` 与基准 LIS。
+  - 回归测试：`npx tsx refactor/tests/verify_quant_engine.ts` 通过；本仓库既有 `aiReadRoutes.ts` 的 `matchIdx` 类型错误仍阻断全量 `tsc`。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER03-MARKET-OOS-SEPARATION`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  审计 Layer 03 是否完整计算 YBTY 全场让球/大小球主盘与副盘，并确保原始 EV、已验证 OOS EV 与 machine candidate 三个层次不混淆；只有主盘且具备已验证 OOS 档案的信号才能进入 machine candidate。
+- **控制路径与可证伪假设**：
+  - 控制路径：`CanonicalMatch.markets -> calculateDeviggedMarketFeatures -> calculateConfidenceAndAlerts -> OOS profile gate -> QuantitativeFeatures.positive_ev_signals`。
+  - 假设：副盘可能已计算但缺少可验证的覆盖证据，或原始 EV 可能被误认为机器候选；通过“主盘/副盘逐项回归 + 无 OOS 档案时候选为空”即可证伪。
+  - 判别检查：同一场含 1 个主盘和 2 个副盘时，三档均产生 EV；machine candidate 只能来自主盘，且无 VALIDATED OOS profile 时必须为空。
+- **目标文件 (Target Files)**：
+  - `refactor/03_quant_engine/devigCalculator.ts`
+  - `refactor/03_quant_engine/types.ts`
+  - `refactor/03_quant_engine/index.ts`
+  - `refactor/tests/verify_quant_engine.ts`
+- **执行步骤 (Steps)**：
+  1. 先用现有代码和测试确认主盘/副盘实际覆盖及 OOS 门禁行为。
+  2. 若发现契约缺口，增加最小的可观察覆盖元数据和回归断言，不改变定价公式。
+  3. 运行 Layer 03 与全链路定向验证，记录原始 EV 与 machine candidate 的分离结果。
+- **当前发现**：
+  - 主盘与副盘已有逐档 EV 计算，但原始正 EV 只存在于调度局部变量，输出无法审计“原始 EV vs machine candidate”分层。
+  - 当前补丁将原始正 EV 以 `raw_positive_ev_signals` 暴露，同时保持 `positive_ev_signals` 只表示 OOS/质量门禁后的 machine candidate。
+- **交付结果与验证 (Deliverables & Verification)**：
+  1. `QuantitativeFeatures.raw_positive_ev_signals` 暴露 M5 原始正 EV；`positive_ev_signals` 继续只表示通过 OOS、数据质量和滚球门禁的 machine candidate。
+  2. 增加主盘/副盘覆盖回归：YBTY 每一档全场让球与大小球都必须生成对应 EV assessment。
+  3. `npx tsx refactor/tests/verify_quant_engine.ts` 通过；`npx tsx refactor/tests/verify_full_pipeline_00_03.ts` 通过；`git diff --check` 通过。
+  4. 未改变盘口定价公式；无 VALIDATED OOS 档案时，原始 EV 仍不得进入 machine candidate。
+
+- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER03-DATA-AUDIT-CONTRACT`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  为 Layer 03 建立逐场数据审计契约，明确每类输入的来源、时间语义、有效性、缺陷、采用状态和权重，供后续公式校准和页面审计面板使用。
+- **控制路径与可证伪假设**：
+  - 控制路径：`CanonicalMatch -> buildLayer03DataAudit -> QuantitativeFeatures.data_audit -> page audit panel`。
+  - 假设：现有模型输出缺少逐场输入采用证据，导致脏数据、低样本和时间语义冲突无法被用户识别。
+  - 判别检查：审计快照必须逐项列出 10 类数据的来源、时间/样本信息、质量状态、采用状态和缺陷原因，不得依赖默认值掩盖缺失。
+- **目标文件 (Target Files)**：
+  - `refactor/03_quant_engine/types.ts`
+  - `refactor/03_quant_engine/dataAudit.ts`
+  - `refactor/03_quant_engine/index.ts`
   - `refactor/tests/verify_quant_engine.ts`
   - `refactor/HANDOVER_AND_PROGRESS.md`
-- **执行步骤 (Action Plan)**：
-  1. 构造缺失和有效角球统计场景，确认当前输出偏差；
-  2. 让红牌缺失保持中性但由 `available_metrics.red_cards` 表示不可用，角球级联仅在角球成对有效时计算；
-  3. 运行 Layer 03 验证、类型检查和差异检查，完成后归档。
-- **交付物与验证 (Deliverables & Verification)**：
-  - 缺失红牌统计不再通过 `?? 0` 伪造红牌为零；缺失角球不再输出 `is_corner_cascade=false`。
-  - 新增缺失/有效角球与红牌回归断言。
-  - `npx tsx refactor/tests/verify_quant_engine.ts` 通过 8/8；`git diff --check` 通过。
-  - `npx tsc --noEmit` 仍被既有 `server/routes/aiReadRoutes.ts:294-295` 的 `matchIdx` 未定义错误阻断。
+- **执行步骤 (Steps)**：
+  1. 定义 10 类输入的统一审计状态、来源、质量、采用状态和缺陷契约。
+  2. 从 CanonicalMatch 与已计算特征生成不可变逐场审计快照，并挂载到 QuantitativeFeatures。
+  3. 增加缺失/低样本/时间语义异常回归断言，运行 Layer 03 和 TypeScript 测试。
+- **交付结果与验证 (Deliverables & Verification)**：
+  1. 新增 `Layer03DataAudit`、`Layer03AuditItem` 和 10 类数据分类，记录来源、质量分、采用模块、证据、缺陷、样本/覆盖分钟和权重。
+  2. 新增 `buildLayer03DataAudit`，已挂载到 `QuantitativeFeatures.data_audit`，当前会显式标记进球分布低样本、赔率时间点未分离、环境未进入 λ、阵容未确认等问题。
+  3. `npx tsx refactor/tests/verify_quant_engine.ts` 通过，并增加 10 类审计项回归断言。
+  4. `git diff --check` 通过。`npm run test:ts` 的 API 集成测试因测试服务未变健康而失败，非本次审计契约编译/逻辑失败；仓库既有 `aiReadRoutes.ts` 的 `matchIdx` 类型错误仍存在。
 - **下一步待办 (Next Steps)**：
-  - 继续审计事件缺失分钟、红牌事件类型和主系统旧 Prompt 链路。
-
-- **任务编号 (Task)**: `SNAPSHOT-20260904-LAYER06-PARLAY-ODDS-FIELD`
-- **当前状态 (Status)**: `DONE`
-- **任务目标 (Goal)**：
-  修复 Layer 06 串关结算读取不存在的 `leg.current_odds` 字段，导致包含赢半腿的串关结果变为 `LOSE` 或 `NaN`。
-- **改动文件 (Target Files)**：
-  - `refactor/06_settlement_audit/parlayEngine.ts`
-  - `refactor/tests/verify_settlement_engine.ts`
-  - `refactor/HANDOVER_AND_PROGRESS.md`
-- **执行步骤 (Action Plan)**：
-  1. 以 15/18 失败验证确认串关赔率字段错接；
-  2. 使用权威 `ParlayLegResult.odds` 计算 WIN/WIN_HALF；
-  3. 运行 Layer 06 验证并记录类型检查的独立基线错误。
-- **交付物与验证 (Deliverables & Verification)**：
-  - 串关结算统一读取 `ParlayLegResult.odds`，WIN/WIN_HALF 不再产生 `NaN`。
-  - `npx tsx refactor/tests/verify_settlement_engine.ts` 通过 18/18。
-  - `git diff --check` 通过。
-- **下一步待办 (Next Steps)**：
-  - 继续审计验证脚本是否在断言失败时返回非零退出码。
-
-- **任务编号 (Task)**: `SNAPSHOT-20260904-LAYER05-DEEP-SPREAD-FIELD`
-- **当前状态 (Status)**: `DONE`
-- **任务目标 (Goal)**：
-  修复 Layer 05 深盘风控读取不存在的 `leg.selected_line` 字段，导致 B 级亚洲让球深盘被错误解析为 0 并放行。
-- **改动文件 (Target Files)**：
-  - `refactor/05_portfolio_risk/riskFilter.ts`
-  - `refactor/tests/verify_portfolio_risk.ts`
-  - `refactor/HANDOVER_AND_PROGRESS.md`
-- **执行步骤 (Action Plan)**：
-  1. 以现有失败验证确认字段错接；
-  2. 使用权威 `leg.line` 解析深盘并补充回归断言；
-  3. 运行 Layer 05 验证、类型检查和差异检查，完成后归档快照。
-- **交付物与验证 (Deliverables & Verification)**：
-  - Layer 05 深盘判断和日志统一读取权威 `leg.line`，B 级 `-2.5` 让球现在被正确拦截。
-  - `npx tsx refactor/tests/verify_portfolio_risk.ts` 通过，重复暴露与深盘拦截均通过。
-  - `git diff --check` 通过；`npx tsc --noEmit` 仍被既有 `server/routes/aiReadRoutes.ts:294-295` 的 `matchIdx` 未定义错误阻断。
-- **下一步待办 (Next Steps)**：
-  - 完成本原子任务后，继续处理已确认的 Layer 06 串关赔率字段错接和验证脚本未失败退出问题。
+  - 继续收紧近期战绩、H2H、进球分布和阵容的质量门禁；
+  - 修复动量真实分钟窗口与红牌乘数接入 M4；
+  - 导入一批真实快照后复核页面审计卡片的逐场显示。
+- **交付结果与验证 (Deliverables & Verification)**：
+  1. `calculateContinuousThreatTensor` 改为 0.5 强度对应 1.0 中性乘数；只有明确深度压制才额外折损。
+  2. M4 以当前已核验比分形成观察进球速率，并以最多 35% 的受限权重与赛前/市场基准融合。
+  3. 当前页面复测：第一场 `2-2 @ 62'` 的剩余 λ 从 `0.52` 提升至 `1.17`，大小球两边均为负 EV，不再机械推荐小球；其余比赛的低球方向与当前比分和盘口一致。
+  4. `npx tsx refactor/tests/verify_quant_engine.ts` 通过；`npx tsx refactor/tests/verify_full_pipeline_00_03.ts` 通过；`npm run test:ts` 通过。
+  5. `npx tsc --noEmit` 仍被既有的 `server/routes/aiReadRoutes.ts:294-295` 未定义 `matchIdx` 阻断，与本次 Layer 03 改动无关。
 
 - **任务编号 (Task)**: `SNAPSHOT-20260904-LAYER03-DYNAMIC-POISSON-SUPPORT`
 - **当前状态 (Status)**: `DONE`
 - **任务目标 (Goal)**：
-  执行 Layer 03–06 最终跨层回归与范围审计，确认累计修改可交付且保护目录无变化。
+  修复 Layer 03 主泊松推演固定 0~7 球支持集造成的高 λ 尾部概率截断，确保概率矩阵、胜平负和 Top 比分使用同一动态支持边界。
 - **改动文件 (Target Files)**：
-  - `refactor/tests/verify_quant_engine.ts`
-  - `refactor/tests/verify_full_pipeline_00_03.ts`
-  - `refactor/tests/verify_ai_evaluator.ts`
-  - `refactor/tests/verify_portfolio_risk.ts`
-  - `refactor/tests/verify_historical_backtest_ingestion.ts`
-  - `refactor/tests/verify_settlement_engine.ts`
-  - `refactor/HANDOVER_AND_PROGRESS.md`
-- **执行步骤 (Action Plan)**：
-  1. 运行 Layer 03–06 定向验证；
-  2. 检查 diff、保护目录与 sources 边界；
-  3. 更新最终交接状态。
-**交付物与验证 (Deliverables & Verification)**：
-  1. 已完成：Layer 03、00–03 全链路、Layer 04、Layer 05、Layer 06 ingestion/settlement 全部通过。
-  2. 已完成：`git diff --check` 通过，保护目录无差异。
-  3. 已确认：测试刷新了既有 refactor sample 输出，未产生范围外修改。
-- **下一步待办 (Next Steps)**：
-  - 当前：本轮审计与回归已完成；后续仅按需提交或发布。
-- **任务编号 (Task)**: `SNAPSHOT-20260905-TYPESCRIPT-BASELINE`
-- **当前状态 (Status)**: `DONE`
-- **任务目标 (Goal)**：消除验收阶段确认的 4 个全仓 TypeScript 基线错误，不改变业务行为。
-- **改动文件 (Target Files)**：
-  - `server/routes/aiReadRoutes.ts`
-  - `src/components/CanonicalMatchCenter.tsx`
-  - `refactor/HANDOVER_AND_PROGRESS.md`
-- **执行步骤 (Steps)**：
-  1. 将 AI 读取结果映射中的未定义 `matchIdx` 改为 map 当前索引。
-  2. 补齐 React `useCallback` 导入。
-  3. 运行全仓类型检查、既有测试和 diff 检查。
-- **交付与验证**：
-  - `server/routes/aiReadRoutes.ts`：`parsed.matches.map` 现在显式接收 `matchIdx`，修复选中比赛索引回落引用未定义问题。
-  - `src/components/CanonicalMatchCenter.tsx`：补齐 `useCallback` React 导入。
-  - `npx tsc --noEmit`：通过，0 errors。
-  - `npm run test:ts`：71/71 通过，0 failed。
-  - `git diff --check`：通过。
-- **结论**：全仓 TypeScript 基线阻断已清除；00-04 业务验收与全仓静态检查均达到绿色。
-
-### 上一活动快照
-
-- **任务编号 (Task)**: `SNAPSHOT-20260905-ACCEPTANCE-00-04`
-- **当前状态 (Status)**: `DONE`
-- **任务目标 (Goal)**：对 00-04 重构链路执行正式标准验收，分别验证基础设施、摄取、规范模型、量化、AI 运行时契约及跨层证据链，并记录既有全仓阻断。
-- **改动文件 (Target Files)**：
-  - `refactor/HANDOVER_AND_PROGRESS.md`
-  - 不修改业务代码，仅执行现有验收命令。
-- **执行步骤 (Steps)**：
-  1. 运行 Layer 00、01、02、03、04、05、06 定向验证。
-  2. 运行 00-03 集成、03-04 联合和现有 TypeScript 测试套件。
-  3. 运行全仓类型检查与 diff 检查，区分既有基线问题和本次整改问题。
-  4. 生成逐层通过/阻断矩阵并归档。
-- **验收矩阵 (Acceptance Matrix)**：
-  - Layer 00：PASS — `verify_common_infrastructure.ts`。
-  - Layer 01：PASS — YBTY live/prematch 与 Leisu extractor 验证。
-  - Layer 02：PASS — CanonicalMatch 组装、比分/时间/雷速身份熔断验证。
-  - Layer 03：PASS — `verify_quant_engine.ts` 8/8；00-03 双轨集成通过。
-  - Layer 04：PASS — AI evaluator、alignment、03-04 联合防御通过；联合测试 21/21。
-  - Formal ledger / Layer 05：PASS — portfolio risk、正式身份和非正式结果拦截通过。
-  - Layer 06 contract：PASS — historical backtest ingestion 9/9。
-  - Existing TypeScript suite：PASS — `npm run test:ts` 71/71，0 failed。
-  - Full TypeScript compile：BASELINE BLOCKED — 仅既有 `server/routes/aiReadRoutes.ts:294-295` 的 `matchIdx` 和 `src/components/CanonicalMatchCenter.tsx:276,298` 的 `useCallback`；本次 00-04 修改未新增错误。
-  - Formatting：PASS — `git diff --check`。
-- **正式结论**：00-04 重构链路的业务验收通过；全仓静态编译仍受 2 个既有文件中的 4 个基线错误阻断，不纳入本次整改回归缺陷。
-- **下一步**：如需达到全仓绿色，单独创建基线修复原子任务，不与本次 00-04 正式链路整改混合。
-
-### 上一活动快照
-
-- **任务编号 (Task)**: `SNAPSHOT-20260905-FORMAL-RECOMMENDATION-EVIDENCE`
-- **当前状态 (Status)**: `DONE`
-- **任务目标 (Goal)**：将通过 04 对齐和 05 风控的 AI 结果明确标记为 `formal_ai_recommendation`，并在台账中保留 YBTY 队名、时间、盘口、赔率、滚球分钟/比分和比分校验状态；machine candidate 与非正式 AI 结果不得写入正式台账。
-- **改动文件 (Target Files)**：
-  - `refactor/05_portfolio_risk/types.ts`
-  - `refactor/05_portfolio_risk/ledgerPersistence.ts`
-  - `refactor/05_portfolio_risk/riskFilter.ts`
-  - `refactor/tests/verify_portfolio_risk.ts`
-  - `refactor/HANDOVER_AND_PROGRESS.md`
-- **执行步骤 (Steps)**：
-  1. 扩展正式推荐记录契约，加入正式身份和来源证据快照。
-  2. 在台账写入前强制检查 A/B 级、置信度、身份、时间和比分校验。
-  3. 保持已有去重和组合风控，确保只有 approved legs 能入账。
-  4. 运行 05 层与历史台账契约测试，再更新快照。
-- **交付与验证**：
-  - `FormalRecommendation` 明确写入 `record_type: formal_ai_recommendation` 和 `formal_recommendation: true`。
-  - 台账记录保留 YBTY 原始队名、开赛时间、盘口、当前赔率、滚球状态/比分、比分校验状态和来源标记。
-  - 台账写入前强制拒绝 C/WATCH/RESEARCH、置信度低于 70、身份不一致、缺失关键身份或未校验比分。
-  - `npx tsx refactor/tests/verify_portfolio_risk.ts` 通过，包含非正式 AI 结果不得入账断言。
-  - `npx tsx refactor/tests/verify_historical_backtest_ingestion.ts`：9/9 通过。
-  - `npx tsc --noEmit` 仍仅报告既有 `matchIdx` 与 `useCallback` 错误；`git diff --check` 通过。
-- **结论**：正式推荐身份与 05 层台账证据链已接通；下一步执行 00-04 正式标准验收。
-
-### 上一活动快照
-
-- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER04-RUNTIME-CONTRACT`
-- **当前状态 (Status)**: `DONE`
-- **任务目标 (Goal)**：收紧 Layer 04 AI 输入输出运行时契约，阻止畸形 JSON、身份错配、非法推荐腿和未透传评估模式进入正式评估链路。
-- **改动文件 (Target Files)**：
-  - `refactor/04_ai_evaluator/types.ts`
-  - `refactor/04_ai_evaluator/aiCaller.ts`
-  - `refactor/04_ai_evaluator/alignmentGuard.ts`
-  - `refactor/04_ai_evaluator/promptBuilder.ts`
-  - `refactor/tests/*`（仅直接回归）
-- **执行步骤 (Steps)**：
-  1. 将核心盘口输入从 `any` 收紧为显式结构，并保持 YBTY 原始盘口字段兼容。
-  2. 为 AI JSON 响应增加身份、等级、置信度、推荐腿和赔率边界运行时校验。
-  3. 透传 `live_eval`、`prematch_eval`、`parlay_check` 模式。
-  4. 让空推荐和拒绝结果继续经过统一对齐/硬门禁规范化。
-  5. 运行 Layer 04 与联合测试、类型检查并归档结果。
-- **当前进展**：
-  - AI response schema 已要求 `match_id` 和 `match`，`evaluateMatch` 已透传评估模式。
-  - 已新增 JSON 运行时校验，拒绝身份错配、非法枚举、置信度越界、赔率无效和非法推荐市场。
-  - 核心盘口类型已删除 `any`；保留主盘原始 YBTY 字段兼容。
-  - alignment guard 不再跳过拒绝/空推荐结果，并对 A/B 级空腿熔断。
-- **交付与验证**：
-  - `npx tsx --test tests-ts/aiEvaluatorAlignment.test.ts tests-ts/jointLayer03Layer04.test.ts`：15/15 通过。
-  - `npx tsx refactor/tests/verify_full_pipeline_00_03.ts`：00-03 双轨与防御场景全部通过。
-  - `npx tsc --noEmit`：本次 04 改动未新增类型错误，仍仅报告既有 `matchIdx` 与 `useCallback` 错误。
-  - `git diff --check`：通过。
-  - 运行时校验已覆盖 JSON 身份、枚举、置信度、推荐市场/方向和赔率边界；AI 模式已透传；空 A/B 级推荐被熔断。
-- **结论**：Layer 04 运行时契约整改完成；下一原子任务为正式推荐身份与 05 层台账证据链。
-
-### 上一活动快照
-
-- **任务编号 (Task)**: `SNAPSHOT-20260905-LAYER03-MARKET-VALUE-LAYERING`
-- **当前状态 (Status)**: `DONE`
-- **任务目标 (Goal)**：
-  让 Layer 03 的 YBTY 主盘与副盘进入同一可审计价值链，并明确区分 raw EV、validated OOS EV 与 machine candidate；同时消除计算层对缺失比分的默认 0:0 依赖。
-- **改动文件 (Target Files)**：
-  - `refactor/03_quant_engine/types.ts`
   - `refactor/03_quant_engine/index.ts`
-  - `refactor/03_quant_engine/devigCalculator.ts`
-  - `refactor/03_quant_engine/oosCalibrationEngine.ts`
+  - `refactor/03_quant_engine/poissonDecayModel.ts`
+  - `refactor/03_quant_engine/contextEngine.ts`
   - `refactor/tests/verify_quant_engine.ts`
-  - `refactor/tests/verify_full_pipeline_00_03.ts`
   - `refactor/HANDOVER_AND_PROGRESS.md`
 - **执行步骤 (Action Plan)**：
-  1. 先补失败断言，证明主盘/副盘信号和三层价值语义当前不完整；
-  2. 在不改变已确认结算公式的前提下，让主盘与副盘统一生成带市场身份的 raw EV；
-  3. 让 OOS 验证按市场保留 validated 层，并让 machine candidate 只消费 validated 信号；
-  4. 计算盘口离散度并使 `max_poisson_goals` 进入实际调用；
-  5. 执行 03 定向、00-03 集成、类型检查并更新本快照。
+  1. 审计高 λ 场景的泊松尾部质量与支持边界；
+  2. 让主泊松推演使用动态支持上界并统一遍历边界；
+  3. 补充高 λ 概率回归测试并运行 Layer 03 与 00~03 验证。
 - **交付物与验证 (Deliverables & Verification)**：
-  1. 主盘与所有 YBTY 副盘统一生成 raw positive EV signals，并以 `ASIAN_HANDICAP_SECONDARY` / `TOTAL_GOALS_SECONDARY` 保留市场身份。
-  2. `QuantitativeFeatures` 新增 `raw_positive_ev_signals` 与 `validated_oos_signals`；`positive_ev_signals` 继续只表示通过候选门禁的 machine candidates。
-  3. 盘口离散度从主/副盘真实盘口数值计算，不再固定为 `0.0`；缺失比分时大小球 EV 不再补当前总进球 0。
-  4. `QuantEngineOptions.max_poisson_goals` 已透传到动态泊松网格上界。
-  5. `npx tsx refactor/tests/verify_quant_engine.ts` 通过 8/8；`npx tsx refactor/tests/verify_full_pipeline_00_03.ts` 通过；`git diff --check` 通过。
-  6. `npx tsc --noEmit` 仍只报告既有 `matchIdx` 与 `useCallback` 错误，未发现本次 03 层修改新增的类型错误。
+  1. Layer 03 主泊松推演使用基于 λ 的动态支持上界，概率矩阵、胜平负聚合和 Top 比分统一遍历实际网格。
+  2. 新增高 λ 回归：`lambda_home=3.5`、`lambda_away=3.5` 时，扩展支持集相对 0~7 截断结果产生可验证的分布修正。
+  3. `npx tsx refactor/tests/verify_quant_engine.ts` 通过 8/8；`npx tsx refactor/tests/verify_full_pipeline_00_03.ts` 通过；`npm run test:ts` 通过 71/71；`npx tsc --noEmit` 与 `git diff --check` 通过。
 - **下一步待办 (Next Steps)**：
-  - 开始 Layer 04 AI 运行时契约整改。
+  - 用 LYX 最新快照继续审计 Layer 03 的阶段语义、盘口档位覆盖、统计缺失传播和原始 EV/机器候选展示口径。
 - **改动文件清单 (Target Files)**：
   - `refactor/03_quant_engine/index.ts`
   - `refactor/tests/verify_full_pipeline_00_03.ts`

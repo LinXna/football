@@ -45,7 +45,7 @@ const res1 = applyPortfolioRiskFilters({ existing_ledger: existingLedger, incomi
 if (!res1.is_approved && res1.approved_legs.length === 0) {
   console.log("[OK] B_GRADE max exposure (1) successfully blocked duplicate bet.");
 } else {
-  console.error("[FAIL] B_GRADE duplicate was NOT blocked!");
+  throw new Error("[FAIL] B_GRADE duplicate was NOT blocked!");
 }
 
 // Test 2: Deep Spread Block (Line >= 2.0 requires A_GRADE)
@@ -68,7 +68,7 @@ const res2 = applyPortfolioRiskFilters({ existing_ledger: existingLedger, incomi
 if (!res2.is_approved) {
   console.log("[OK] Deep spread (-2.5) on B_GRADE successfully blocked.");
 } else {
-  console.error("[FAIL] Deep spread on B_GRADE was allowed!");
+  throw new Error("[FAIL] Deep spread on B_GRADE was allowed!");
 }
 
 const cGradeEvaluation = { ...incomingBGrade, match_id: 'match_3', grade: RecommendationGrade.C_GRADE, confidence_score: 90 };
