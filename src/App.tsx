@@ -298,7 +298,7 @@ export default function App() {
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
             }`}
           >
-            <CheckSquare className="w-4 h-4 text-emerald-400" /> 投注建议中心 ({liveDecisions.length + prematchDecisions.length})
+            <CheckSquare className="w-4 h-4 text-emerald-400" /> 旧版投注建议 ({liveDecisions.length + prematchDecisions.length})
           </button>
 
           <button
@@ -309,7 +309,7 @@ export default function App() {
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
             }`}
           >
-            <Activity className="w-4 h-4 text-rose-400" /> 滚球决策 ({liveDecisions.length})
+            <Activity className="w-4 h-4 text-rose-400" /> 旧版滚球决策 ({liveDecisions.length})
           </button>
 
           <button
@@ -320,7 +320,7 @@ export default function App() {
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
             }`}
           >
-            <Calendar className="w-4 h-4 text-blue-400" /> 赛前决策 ({prematchDecisions.length})
+            <Calendar className="w-4 h-4 text-blue-400" /> 旧版赛前决策 ({prematchDecisions.length})
           </button>
 
           <button

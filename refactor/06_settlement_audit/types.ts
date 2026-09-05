@@ -27,6 +27,8 @@ export interface HistoricalBacktestRecord {
   score_verified: boolean;
   red_card_state: string;
   market: OosMarket;
+  line?: string;
+  odds?: number;
   model_probability: number;
   predicted_lambda: number;
   settlement_outcome: SettlementOutcome;

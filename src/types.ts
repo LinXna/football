@@ -246,6 +246,8 @@ export interface StandardMatchData {
   
   // 核心精简标准化字段 (统一事实源)
   unified_stats: UnifiedMatchStats;
+  live_stats_available?: boolean;
+  live_stats_source?: string | null;
   tactical_context: TacticalContext;
   market_snapshots: MarketSnapshot[];
   ybty_raw_markets?: any[];
@@ -294,8 +296,8 @@ export function toStandardMatchData(raw: any): StandardMatchData {
   }
 
   // 1. 提取并强校验对阵权威队名 (严格对齐 YBTY 权威基准)
-  let homeTeam = String(raw.ybty_home || raw.home || raw.home_team || '').trim();
-  let awayTeam = String(raw.ybty_away || raw.away || raw.away_team || '').trim();
+  let homeTeam = String(raw.ybty_home || raw.home || raw.home_team || raw.home_team_name || '').trim();
+  let awayTeam = String(raw.ybty_away || raw.away || raw.away_team || raw.away_team_name || '').trim();
 
   // 若字段分离缺失，尝试从 match 对阵字符串严格解析
   if ((!homeTeam || !awayTeam) && typeof raw.match === 'string' && raw.match.includes(' vs ')) {
@@ -327,7 +329,7 @@ export function toStandardMatchData(raw: any): StandardMatchData {
   const league = String(raw.league || raw.ybty_league || raw.leisu_league || '未分类联赛').trim();
 
   // 3. 时间与赛前/滚球状态标准化 (明确区分比赛进程 match_status 与筛选决策 status)
-  const rawMinute = raw.minute !== undefined ? Number(raw.minute) : NaN;
+  const rawMinute = raw.minute !== undefined ? Number(raw.minute) : Number(raw.timing?.minute);
   const minute = !isNaN(rawMinute) && rawMinute >= 0 ? Math.floor(rawMinute) : 0;
   const isPrematch = minute === 0 || raw.export_mode === 'prematch' || String(raw.status || raw.match_status || '').toUpperCase().includes('PRE');
   const matchStatus = raw.match_status || (isPrematch ? 'PREMATCH' : (minute > 0 ? 'IN_PLAY' : 'PREMATCH'));
@@ -399,7 +401,19 @@ export function toStandardMatchData(raw: any): StandardMatchData {
   const attackMomentumTimeline = extractMomentumTimeline(raw);
 
   // 6. 统一技术统计数据清洗 (Unified Match Stats)
-  const liveStats = raw.unified_stats || raw.liveStats || raw.confirmed_statistics || raw.detail_context?.formal?.live_match?.confirmed_statistics || {};
+  const liveStatsCandidates = [
+    ['unified_stats', raw.unified_stats],
+    ['live_statistics', raw.live_statistics],
+    ['liveStats', raw.liveStats],
+    ['confirmed_statistics', raw.confirmed_statistics],
+    ['detail_context.formal.live_match.confirmed_statistics', raw.detail_context?.formal?.live_match?.confirmed_statistics],
+    ['formal.live_match.confirmed_statistics', raw.formal?.live_match?.confirmed_statistics],
+    ['canonical.reference.stats', raw.reference?.stats],
+  ] as const;
+  const [liveStatsSource, liveStats] = liveStatsCandidates.find(([, value]) =>
+    value && typeof value === 'object' && Object.keys(value).length > 0
+  ) || [null, {}];
+  const liveStatsAvailable = liveStatsSource !== null;
   const incidents = raw.focused_incidents || {};
 
   const parseStatNumber = (statVal: any, side: 'home' | 'away', fallback = 0): number => {
@@ -607,6 +621,8 @@ export function toStandardMatchData(raw: any): StandardMatchData {
     grade: raw.grade || 'C',
     model_score: Number(raw.model_score || 0),
     unified_stats,
+    live_stats_available: liveStatsAvailable,
+    live_stats_source: liveStatsSource,
     tactical_context,
     market_snapshots,
     ybty_raw_markets: Array.isArray(raw.ybty_raw_markets) ? raw.ybty_raw_markets : (Array.isArray(raw.markets) ? raw.markets : []),

@@ -32,7 +32,7 @@ const incomingBGrade: AiEvaluationResult = {
   qualitative_summary: '',
   risk_warnings: [],
   recommended_legs: [
-    { market: 'ASIAN_HANDICAP_MAIN', line: '-0.5', odds: 1.9, direction: 'HOME', basis: '' }
+    { market: 'ASIAN_HANDICAP_MAIN', selected_line: '-0.5', current_odds: 1.9, minimum_acceptable_odds: 1.8, direction: 'HOME', basis: '' }
   ]
 };
 
@@ -40,7 +40,7 @@ const res1 = applyPortfolioRiskFilters({ existing_ledger: existingLedger, incomi
 if (!res1.is_approved && res1.approved_legs.length === 0) {
   console.log("[OK] B_GRADE max exposure (1) successfully blocked duplicate bet.");
 } else {
-  console.error("[FAIL] B_GRADE duplicate was NOT blocked!");
+  throw new Error("[FAIL] B_GRADE duplicate was NOT blocked!");
 }
 
 // Test 2: Deep Spread Block (Line >= 2.0 requires A_GRADE)
@@ -54,7 +54,7 @@ const incomingDeepSpread: AiEvaluationResult = {
   qualitative_summary: '',
   risk_warnings: [],
   recommended_legs: [
-    { market: 'ASIAN_HANDICAP_MAIN', line: '-2.5', odds: 2.1, direction: 'HOME', basis: '' } // Line is 2.5
+    { market: 'ASIAN_HANDICAP_MAIN', selected_line: '-2.5', current_odds: 2.1, minimum_acceptable_odds: 2.0, direction: 'HOME', basis: '' } // Line is 2.5
   ]
 };
 
@@ -62,7 +62,7 @@ const res2 = applyPortfolioRiskFilters({ existing_ledger: existingLedger, incomi
 if (!res2.is_approved) {
   console.log("[OK] Deep spread (-2.5) on B_GRADE successfully blocked.");
 } else {
-  console.error("[FAIL] Deep spread on B_GRADE was allowed!");
+  throw new Error("[FAIL] Deep spread on B_GRADE was allowed!");
 }
 
 console.log("\n[OK] Layer 05 Risk Filters Compiled and Tested Successfully.");

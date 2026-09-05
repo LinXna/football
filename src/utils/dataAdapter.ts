@@ -71,7 +71,20 @@ export function adaptToStandardMatch(raw: any): StandardMatchData {
   }
 
   // 3. 技术统计归一化
-  const statsRaw = raw.unified_stats || raw.live_statistics || raw.live_facts?.stats || raw.liveStats || raw.confirmed_statistics || raw.detail_context?.formal?.live_match?.confirmed_statistics || raw.formal?.live_match?.confirmed_statistics || {};
+  const statsCandidates = [
+    ['unified_stats', raw.unified_stats],
+    ['live_statistics', raw.live_statistics],
+    ['live_facts.stats', raw.live_facts?.stats],
+    ['liveStats', raw.liveStats],
+    ['confirmed_statistics', raw.confirmed_statistics],
+    ['detail_context.formal.live_match.confirmed_statistics', raw.detail_context?.formal?.live_match?.confirmed_statistics],
+    ['formal.live_match.confirmed_statistics', raw.formal?.live_match?.confirmed_statistics],
+    ['canonical.reference.stats', raw.reference?.stats],
+  ] as const;
+  const [liveStatsSource, statsRaw] = statsCandidates.find(([, value]) =>
+    value && typeof value === 'object' && Object.keys(value).length > 0
+  ) || [null, {}];
+  const liveStatsAvailable = liveStatsSource !== null;
   const unified_stats: UnifiedMatchStats = {
     possession: {
       home: safeNumber(statsRaw.possession?.home ?? statsRaw.possession_home, 50),
@@ -168,6 +181,8 @@ export function adaptToStandardMatch(raw: any): StandardMatchData {
     unified_stats,
     tactical_context,
     market_snapshots,
+    live_stats_available: liveStatsAvailable,
+    live_stats_source: liveStatsSource,
     ybty_raw_markets: raw.ybty_raw_markets || raw.markets || [],
     verified_ybty_markets: raw.verified_ybty_markets || [],
     timeline_events: raw.timeline_events || [],

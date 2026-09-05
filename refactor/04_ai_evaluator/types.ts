@@ -35,7 +35,17 @@ export interface EvaluatorTeamProfiling {
 
 export interface EvaluatorQuantFeatures {
   mathematical_ev_signals: readonly PositiveEVSignal[];
+  bdi?: number;
+  goal_phase_alert?: string;
+  machine_candidate_count?: number;
   poisson_expected_goals?: string;
+  prediction_snapshot?: {
+    model_version: string;
+    prediction_at: string;
+    predicted_lambda: { home: number; away: number };
+    red_card_state: string;
+    signals: readonly PositiveEVSignal[];
+  };
   market_divergence_insights?: string;
 }
 

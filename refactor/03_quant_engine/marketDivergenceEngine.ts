@@ -13,6 +13,7 @@
  */
 
 import { CanonicalMatch } from '../02_canonical_model/types.js';
+import { MatchStage } from '../02_canonical_model/enums.js';
 import {
   PrematchTheoryPrior,
   MarketCalibrationResult,
@@ -40,6 +41,11 @@ function requiredOdds(odds: number | null): number {
     throw new Error('Joint market inversion requires valid decimal odds greater than one.');
   }
   return odds;
+}
+
+function normalizeAsianOdds(odds: number | null): number | null {
+  if (odds === null || !Number.isFinite(odds) || odds < 0) return null;
+  return odds < 1 ? Number((odds + 1).toFixed(3)) : odds;
 }
 
 function proportionalFairOdds(firstOdds: number, secondOdds: number): readonly [number, number] {
@@ -104,9 +110,27 @@ export function calibrateWithMarketOdds(
   );
 
   const oddsMatrix = match.reference?.odds_matrix;
-  const winnerMarket = oddsMatrix?.pregame?.match_winner || oddsMatrix?.initial?.match_winner;
-  const totalMarket = oddsMatrix?.pregame?.total_goals ?? oddsMatrix?.initial?.total_goals ?? undefined;
-  const handicapMarket = oddsMatrix?.pregame?.asian_handicap ?? oddsMatrix?.initial?.asian_handicap ?? undefined;
+  const liveMarket = match.timing.stage === MatchStage.LIVE ? oddsMatrix?.live : undefined;
+  const fallbackMarket = oddsMatrix?.pregame ?? oddsMatrix?.initial;
+  const selectedMarket = liveMarket ?? fallbackMarket;
+  const isInPlayMarket = liveMarket !== undefined && selectedMarket === liveMarket;
+  const winnerMarket = selectedMarket?.match_winner;
+  const totalRaw = selectedMarket?.total_goals;
+  const handicapRaw = selectedMarket?.asian_handicap;
+  const totalMarket = totalRaw
+    ? {
+        ...totalRaw,
+        over_odds: normalizeAsianOdds(totalRaw.over_odds),
+        under_odds: normalizeAsianOdds(totalRaw.under_odds)
+      }
+    : undefined;
+  const handicapMarket = handicapRaw
+    ? {
+        ...handicapRaw,
+        home_odds: normalizeAsianOdds(handicapRaw.home_odds),
+        away_odds: normalizeAsianOdds(handicapRaw.away_odds)
+      }
+    : undefined;
 
   // 若缺失雷速机构赔率数据，回退到纯理论先验
   if (!winnerMarket || !hasValidOdds(winnerMarket.home_odds, winnerMarket.draw_odds, winnerMarket.away_odds)) {
@@ -121,6 +145,7 @@ export function calibrateWithMarketOdds(
     return Object.freeze({
       lambda_base_home: theoryPrior.lambda_home_theory,
       lambda_base_away: theoryPrior.lambda_away_theory,
+      is_in_play_market: false,
       divergence_delta: 0.0,
       market_stance: MarketStanceType.MARKET_DATA_MISSING,
       market_confidence_penalty: 0,
@@ -164,12 +189,16 @@ export function calibrateWithMarketOdds(
   // 融合权重：一般情况下，博彩公司的赔率（市场）信息更优，但我们必须保持一定比例的独立理论模型，防止完全随波逐流
   const marketWeight = 0.85;
   const theoryWeight = 0.15;
-  const finalBaseH = (lambda_mkt_H * marketWeight) + (theoryPrior.lambda_home_theory * theoryWeight);
-  const finalBaseA = (lambda_mkt_A * marketWeight) + (theoryPrior.lambda_away_theory * theoryWeight);
+  const theoryRemainingFactor = isInPlayMarket
+    ? Math.max(0, 1 - Math.min(90, Math.max(0, match.timing.minute ?? 0)) / 90)
+    : 1;
+  const finalBaseH = (lambda_mkt_H * marketWeight) + (theoryPrior.lambda_home_theory * theoryRemainingFactor * theoryWeight);
+  const finalBaseA = (lambda_mkt_A * marketWeight) + (theoryPrior.lambda_away_theory * theoryRemainingFactor * theoryWeight);
 
   const result: MarketCalibrationResult = {
     lambda_base_home: Number(finalBaseH.toFixed(3)),
     lambda_base_away: Number(finalBaseA.toFixed(3)),
+    is_in_play_market: isInPlayMarket,
     divergence_delta: netDelta,
     market_stance: stance,
     market_confidence_penalty: penalty,

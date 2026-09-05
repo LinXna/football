@@ -31,7 +31,9 @@ export function registerAliasMutationRoutes(app: express.Express, deps: AliasMut
       const canonicalName = String(req.body?.canonical_name || '').trim();
       const alias = String(req.body?.alias || '').trim();
       if (!canonicalName || !alias) return res.status(400).json({ error: 'canonical_name and alias are required' });
-      if (normalize(canonicalName) === normalize(alias)) return res.status(400).json({ error: 'An alias must differ from its canonical team name' });
+      if (normalize(canonicalName) === normalize(alias)) {
+        return res.json({ success: true, skipped: true, reason: 'Alias matches canonical team name after normalization' });
+      }
 
       const manual = readJsonFile<Record<string, string[]>>(DATA_FILES.aliases.manual, {});
       const removed_from: string[] = [];

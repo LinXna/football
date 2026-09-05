@@ -75,6 +75,20 @@ function toOosSample(record: HistoricalBacktestRecord): OosCalibrationSample {
   });
 }
 
+function duplicateKey(record: HistoricalBacktestRecord): string {
+  return [
+    record.stage,
+    record.home_team_key,
+    record.away_team_key,
+    record.minute ?? 'PREMATCH',
+    record.score_at_recommendation.home,
+    record.score_at_recommendation.away,
+    record.market,
+    record.line ?? '',
+    record.odds ?? ''
+  ].join('|');
+}
+
 /** Converts only auditable, settled formal recommendations into Layer 03 OOS samples. */
 export function ingestHistoricalBacktestRecords(
   records: readonly HistoricalBacktestRecord[],
@@ -82,11 +96,18 @@ export function ingestHistoricalBacktestRecords(
 ): HistoricalOosIngestionResult {
   const acceptedSamples: OosCalibrationSample[] = [];
   const rejectedRecords: HistoricalSampleRejection[] = [];
+  const acceptedKeys = new Set<string>();
   for (const record of records) {
     const rejection = rejectionFor(record);
     if (rejection !== undefined) {
       rejectedRecords.push(Object.freeze(rejection));
+    } else if (acceptedKeys.has(duplicateKey(record))) {
+      rejectedRecords.push(Object.freeze({
+        record_id: record.record_id,
+        reason: HistoricalSampleRejectionReason.DUPLICATE_SAMPLE
+      }));
     } else {
+      acceptedKeys.add(duplicateKey(record));
       acceptedSamples.push(toOosSample(record));
     }
   }

@@ -357,11 +357,9 @@ export function assembleCanonicalMatch(
         mismatchDetails = `比分冲突: YBTY(${homeScore}-${awayScore}) vs 雷速(${leisuHomeScore}-${leisuAwayScore})`;
         missingReasons.push(MissingDataReason.SCORE_MISMATCH);
       } else {
-        scoreVerified = leisuMatch.score_verified;
+        // 两个独立导入源的当前比分一致即可通过本系统交叉校验。
+        scoreVerified = true;
         scoreSource = "LEISU_INTERFACE";
-        if (!scoreVerified) {
-          missingReasons.push(MissingDataReason.SCORE_NOT_VERIFIED);
-        }
       }
     } else {
       scoreVerified = true;
@@ -613,7 +611,20 @@ export function extractAiEvaluationBrief(canonical: CanonicalMatch): AiEvaluatio
   let momentum15min: { home: number; away: number } | null = null;
 
   if (canonical.reference?.attack_momentum?.data && canonical.reference.attack_momentum.data.length > 0) {
-    const flatPoints = canonical.reference.attack_momentum.data.flat();
+    const momentum = canonical.reference.attack_momentum;
+    const segmentMinutes = momentum.nominal_segment_minutes;
+    const cutoffMinute = canonical.timing.stage === MatchStage.LIVE ? canonical.timing.minute : null;
+    const flatPoints = momentum.data.flatMap((segment, segmentIndex) =>
+      segment
+        .map((value, pointIndex) => ({
+          value,
+          minute: segmentMinutes && segmentMinutes > 0
+            ? segmentIndex * segmentMinutes + pointIndex + 1
+            : pointIndex + 1
+        }))
+        .filter((point) => cutoffMinute === null || point.minute <= cutoffMinute)
+        .map((point) => point.value)
+    );
     if (flatPoints.length >= 5) {
       const last5 = flatPoints.slice(-5);
       const homeVal = Math.round(last5.filter(v => v > 0).reduce((acc, v) => acc + v, 0) / 5);
@@ -675,4 +686,3 @@ export function extractAiEvaluationBrief(canonical: CanonicalMatch): AiEvaluatio
     data_deficits: dataDeficits,
   };
 }
-

@@ -27,6 +27,8 @@ import { sniffIngressPayload } from "../../refactor/01_data_ingestion/ingressSni
 
 // 重构系统专有文件路径（完全物理隔离，零外部 output/ 依赖）
 const REFACTOR_STORAGE = {
+  runtimeLive: "refactor/runtime/live_batch.json",
+  runtimePrematch: "refactor/runtime/prematch_batch.json",
   liveYbtyActive: "refactor/fixtures/active_live_ybty.json",
   liveYbtyDefault: "refactor/fixtures/ybty_v2.8.0_live_2026-08-20T20-20-13-747Z.json",
   liveLeisuActive: "refactor/fixtures/active_live_leisu.json",
@@ -40,6 +42,46 @@ const REFACTOR_STORAGE = {
   manualAliases: "team_aliases.json",
   leagueAliases: "league_aliases.json",
 };
+
+type RefactorRuntimeBatch = {
+  schema_version: 1;
+  batch_id: string;
+  imported_at: string;
+  mode: "live" | "prematch";
+  matches: CanonicalMatch[];
+  ai_briefs: AiEvaluationBrief[];
+  metadata: {
+    mode: string;
+    ybtySource: string;
+    leisuSource: string;
+    ybtyMatchCount: number;
+    leisuMatchCount: number;
+    alignedCount: number;
+  };
+};
+
+function runtimePath(mode: "live" | "prematch"): string {
+  return mode === "live" ? REFACTOR_STORAGE.runtimeLive : REFACTOR_STORAGE.runtimePrematch;
+}
+
+function persistRuntimeBatch(
+  mode: "live" | "prematch",
+  result: ReturnType<typeof assembleMatchesForMode>
+): RefactorRuntimeBatch {
+  const batch: RefactorRuntimeBatch = {
+    schema_version: 1,
+    batch_id: `refactor-${mode}-${Date.now()}`,
+    imported_at: new Date().toISOString(),
+    mode,
+    matches: result.canonicalMatches,
+    ai_briefs: result.aiBriefs,
+    metadata: result.metadata,
+  };
+  if (!writeJsonFile(runtimePath(mode), batch)) {
+    throw new Error(`Failed to persist refactor ${mode} runtime batch`);
+  }
+  return batch;
+}
 
 /**
  * 辅助函数：装配指定模式下的所有 Canonical 比赛
@@ -170,16 +212,17 @@ export function assembleMatchesForMode(mode: "live" | "prematch"): {
   // 4. 组装标准赛事 CanonicalMatch 与 AI Brief
   const canonicalMatches: CanonicalMatch[] = [];
   const aiBriefs: AiEvaluationBrief[] = [];
+  const availableLeisuMatches = [...parsedLeisuMatches];
 
   for (const ybtyMatch of parsedYbtyMatches) {
     const { best_match, decision } = findBestLeisuMatch(
       ybtyMatch,
-      parsedLeisuMatches,
+      availableLeisuMatches,
       manualAliases,
       leagueAliases
     );
 
-    if (!decision) continue;
+    if (!decision || !best_match) continue;
 
     const canonical = assembleCanonicalMatch(
       ybtyMatch,
@@ -191,6 +234,10 @@ export function assembleMatchesForMode(mode: "live" | "prematch"): {
 
     canonicalMatches.push(canonical);
     aiBriefs.push(brief);
+    const matchedIndex = availableLeisuMatches.findIndex(
+      (candidate) => candidate.match_id === best_match.match_id
+    );
+    if (matchedIndex >= 0) availableLeisuMatches.splice(matchedIndex, 1);
   }
 
   const leisuCandidates = parsedLeisuMatches.map((m) => ({
@@ -220,6 +267,14 @@ export function assembleMatchesForMode(mode: "live" | "prematch"): {
   };
 }
 
+function readRuntimeBatch(mode: "live" | "prematch"): RefactorRuntimeBatch | null {
+  const batch = readJsonFile<RefactorRuntimeBatch | null>(runtimePath(mode), null);
+  if (!batch || batch.schema_version !== 1 || batch.mode !== mode || !Array.isArray(batch.matches)) {
+    return null;
+  }
+  return batch;
+}
+
 export function registerCanonicalRoutes(app: express.Express): void {
   /**
    * GET /api/refactor/canonical-matches
@@ -228,15 +283,31 @@ export function registerCanonicalRoutes(app: express.Express): void {
   app.get("/api/refactor/canonical-matches", (req, res) => {
     try {
       const mode = (req.query.mode as string) === "prematch" ? "prematch" : "live";
-      const result = assembleMatchesForMode(mode);
+      const runtimeBatch = readRuntimeBatch(mode);
+      const result = runtimeBatch ?? {
+        matches: [],
+        ai_briefs: [],
+        metadata: {
+          mode,
+          ybtySource: "refactor_runtime",
+          leisuSource: "refactor_runtime",
+          ybtyMatchCount: 0,
+          leisuMatchCount: 0,
+          alignedCount: 0,
+        },
+        batch_id: null,
+        imported_at: null,
+      };
 
       res.json({
         success: true,
         mode: result.metadata.mode,
-        count: result.canonicalMatches.length,
-        matches: result.canonicalMatches,
-        ai_briefs: result.aiBriefs,
+        count: result.matches.length,
+        matches: result.matches,
+        ai_briefs: result.ai_briefs,
         metadata: result.metadata,
+        batch_id: "batch_id" in result ? result.batch_id : null,
+        imported_at: "imported_at" in result ? result.imported_at : null,
       });
     } catch (error: any) {
       console.error("[CanonicalRoutes] Error assembling canonical matches:", error);
@@ -327,6 +398,7 @@ export function registerCanonicalRoutes(app: express.Express): void {
       const {
         mode,
         files_payload,
+        selected_match_ids,
         ybty_payload,
         leisu_payload,
         reset_to_sample = false,
@@ -341,14 +413,16 @@ export function registerCanonicalRoutes(app: express.Express): void {
         if (fs.existsSync(ybtyActivePath)) fs.unlinkSync(ybtyActivePath);
         if (fs.existsSync(leisuActivePath)) fs.unlinkSync(leisuActivePath);
 
-        const result = assembleMatchesForMode(targetMode);
+        const result = persistRuntimeBatch(targetMode, assembleMatchesForMode(targetMode));
         return res.json({
           success: true,
           message: `已重置为 ${targetMode} 模式内置测试样本`,
           mode: targetMode,
-          matches: result.canonicalMatches,
-          ai_briefs: result.aiBriefs,
+          matches: result.matches,
+          ai_briefs: result.ai_briefs,
           metadata: result.metadata,
+          batch_id: result.batch_id,
+          imported_at: result.imported_at,
         });
       }
 
@@ -408,7 +482,25 @@ export function registerCanonicalRoutes(app: express.Express): void {
       }
 
       // 4. 立即执行 Layer 01 解析与 Layer 02 对齐
-      const result = assembleMatchesForMode(detectedTargetMode);
+      const assembled = assembleMatchesForMode(detectedTargetMode);
+      const selectedIds = Array.isArray(selected_match_ids)
+        ? new Set(selected_match_ids.map((id: unknown) => String(id)))
+        : null;
+      const selectedMatches = selectedIds && selectedIds.size > 0
+        ? assembled.canonicalMatches.filter((match) => selectedIds.has(String(match.canonical_id)))
+        : assembled.canonicalMatches;
+      const selectedBriefs = selectedIds && selectedIds.size > 0
+        ? assembled.aiBriefs.filter((brief) => selectedIds.has(String(brief.match_id)))
+        : assembled.aiBriefs;
+      const result = persistRuntimeBatch(detectedTargetMode, {
+        ...assembled,
+        canonicalMatches: selectedMatches,
+        aiBriefs: selectedBriefs,
+        metadata: {
+          ...assembled.metadata,
+          alignedCount: selectedMatches.length,
+        },
+      });
 
       const updateLogs: string[] = [];
       if (ybtyLiveWritten) updateLogs.push("YBTY滚球");
@@ -421,9 +513,11 @@ export function registerCanonicalRoutes(app: express.Express): void {
           ? `已成功智能识别并导入 ${updateLogs.length} 项数据源: ${updateLogs.join("、")}`
           : "数据已导入",
         mode: detectedTargetMode,
-        matches: result.canonicalMatches,
-        ai_briefs: result.aiBriefs,
+        matches: result.matches,
+        ai_briefs: result.ai_briefs,
         metadata: result.metadata,
+        batch_id: result.batch_id,
+        imported_at: result.imported_at,
       });
     } catch (error: any) {
       console.error("[CanonicalRoutes] Error importing data:", error);

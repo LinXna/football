@@ -232,6 +232,8 @@ export function calculateAsianHandicapEV(
 
   let homeEV = 0.0;
   let awayEV = 0.0;
+  let homePositiveProbability = 0.0;
+  let awayPositiveProbability = 0.0;
 
   for (let h = 0; h < matrix.length; h++) {
     for (let a = 0; a < matrix[h].length; a++) {
@@ -255,6 +257,7 @@ export function calculateAsianHandicapEV(
         payoffHome = -1.0; // 全输
       }
       homeEV += pCell * payoffHome;
+      if (payoffHome > 0) homePositiveProbability += pCell;
 
       // 2. 客队收益
       const deltaAway = -d - line;
@@ -271,6 +274,7 @@ export function calculateAsianHandicapEV(
         payoffAway = -1.0; // 全输
       }
       awayEV += pCell * payoffAway;
+      if (payoffAway > 0) awayPositiveProbability += pCell;
     }
   }
 
@@ -298,6 +302,8 @@ export function calculateAsianHandicapEV(
     away_ev: awayEV,
     preferred_side: preferredSide,
     is_positive_ev: preferredSide !== 'none',
+    home_model_probability: Number(homePositiveProbability.toFixed(4)),
+    away_model_probability: Number(awayPositiveProbability.toFixed(4)),
     kelly_fraction: kellyFraction
   });
 }
@@ -328,6 +334,8 @@ export function calculateTotalGoalsEV(
 
   let overEV = 0.0;
   let underEV = 0.0;
+  let overPositiveProbability = 0.0;
+  let underPositiveProbability = 0.0;
 
   // 动态展开至可忽略尾部，避免深盘与高 λ 时丢失概率质量。
   for (let k = 0; k <= poissonSupportUpperBound(lambdaRest); k++) {
@@ -349,6 +357,7 @@ export function calculateTotalGoalsEV(
       payoffOver = -1.0;
     }
     overEV += pK * payoffOver;
+    if (payoffOver > 0) overPositiveProbability += pK;
 
     // 2. 小球收益
     const deltaUnder = remainingTarget - k;
@@ -365,6 +374,7 @@ export function calculateTotalGoalsEV(
       payoffUnder = -1.0;
     }
     underEV += pK * payoffUnder;
+    if (payoffUnder > 0) underPositiveProbability += pK;
   }
 
   overEV = Number(overEV.toFixed(4));
@@ -391,6 +401,8 @@ export function calculateTotalGoalsEV(
     under_ev: underEV,
     preferred_side: preferredSide,
     is_positive_ev: preferredSide !== 'none',
+    over_model_probability: Number(overPositiveProbability.toFixed(4)),
+    under_model_probability: Number(underPositiveProbability.toFixed(4)),
     kelly_fraction: kellyFraction
   });
 }
@@ -470,7 +482,12 @@ export function calculateDeviggedMarketFeatures(
 
   // 3. 大小球盘 EV
   const totalMarket = match.markets?.full_total_main;
-  const currentTotal = (match.score.home_score ?? 0) + (match.score.away_score ?? 0);
+  // M4 predicts future goals. For a full-match line, convert it to a
+  // remaining-goals target by subtracting the verified current score. A
+  // remaining-goals line must be explicitly marked by the source parser.
+  const currentTotal = totalMarket?.settlement_basis === 'REMAINING_GOALS'
+    ? 0
+    : (match.score.home_score ?? 0) + (match.score.away_score ?? 0);
   let totalMain: TotalEVAssessment | undefined;
   if (totalMarket && totalMarket.line && totalMarket.over_odds && totalMarket.under_odds) {
     totalMain = calculateTotalGoalsEV(totalMarket.line, totalMarket.over_odds, totalMarket.under_odds, currentTotal, poisson);
@@ -480,7 +497,10 @@ export function calculateDeviggedMarketFeatures(
   if (match.markets?.full_total_subs) {
     for (const sub of match.markets.full_total_subs) {
       if (sub.line && sub.over_odds && sub.under_odds) {
-        totalSecondaryEV.push(calculateTotalGoalsEV(sub.line, sub.over_odds, sub.under_odds, currentTotal, poisson));
+        const subCurrentTotal = sub.settlement_basis === 'REMAINING_GOALS'
+          ? 0
+          : (match.score.home_score ?? 0) + (match.score.away_score ?? 0);
+        totalSecondaryEV.push(calculateTotalGoalsEV(sub.line, sub.over_odds, sub.under_odds, subCurrentTotal, poisson));
       }
     }
   }

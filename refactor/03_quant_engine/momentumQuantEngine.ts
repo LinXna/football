@@ -93,6 +93,7 @@ export function flattenMomentumPoints(match: CanonicalMatch): number[] {
   if (!momentum || !momentum.available || !momentum.data) {
     return [];
   }
+
   const result: number[] = [];
   for (const segment of momentum.data) {
     if (Array.isArray(segment)) {
@@ -106,6 +107,67 @@ export function flattenMomentumPoints(match: CanonicalMatch): number[] {
   return result;
 }
 
+interface TimedMomentumPoint {
+  minute: number;
+  value: number;
+}
+
+function getTimedMomentumPoints(match: CanonicalMatch): {
+  points: TimedMomentumPoint[];
+  basis: MomentumTimelineFeatures['window_basis'];
+  cutoffMinute: number | null;
+} {
+  const momentum = match.reference?.attack_momentum;
+  if (!momentum || !momentum.available || !momentum.data || momentum.data.length === 0) {
+    return { points: [], basis: 'UNAVAILABLE', cutoffMinute: match.timing.minute ?? null };
+  }
+
+  const segmentMinutes = momentum.nominal_segment_minutes;
+  const cutoffMinute = match.timing.stage === 'LIVE'
+    ? match.timing.minute
+    : null;
+  if (segmentMinutes === null || segmentMinutes === undefined || !Number.isFinite(segmentMinutes) || segmentMinutes <= 0) {
+    const fallback = flattenMomentumPoints(match).map((value, index) => ({ minute: index + 1, value }));
+    return {
+      points: cutoffMinute === null ? fallback : fallback.filter((point) => point.minute <= cutoffMinute),
+      basis: 'POINT_COUNT_FALLBACK',
+      cutoffMinute
+    };
+  }
+
+  const points: TimedMomentumPoint[] = [];
+  momentum.data.forEach((segment, segmentIndex) => {
+    if (!Array.isArray(segment)) return;
+    segment.forEach((value, pointIndex) => {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return;
+      const minute = segmentIndex * segmentMinutes + pointIndex + 1;
+      if (cutoffMinute === null || minute <= cutoffMinute) {
+        points.push({ minute, value });
+      }
+    });
+  });
+  return { points, basis: 'MINUTE_ALIGNED', cutoffMinute };
+}
+
+function calculateTimedSlope(points: TimedMomentumPoint[]): number {
+  if (points.length < 2) return 0;
+  const n = points.length;
+  const sumX = points.reduce((sum, point) => sum + point.minute, 0);
+  const sumY = points.reduce((sum, point) => sum + point.value, 0);
+  const sumXY = points.reduce((sum, point) => sum + point.minute * point.value, 0);
+  const sumXX = points.reduce((sum, point) => sum + point.minute * point.minute, 0);
+  const denominator = n * sumXX - sumX * sumX;
+  return denominator === 0 ? 0 : Number(((n * sumXY - sumX * sumY) / denominator).toFixed(3));
+}
+
+function selectTimedWindow(points: TimedMomentumPoint[], cutoffMinute: number | null, duration: number): number[] {
+  if (points.length === 0) return [];
+  const end = cutoffMinute ?? points[points.length - 1].minute;
+  return points
+    .filter((point) => point.minute > end - duration && point.minute <= end)
+    .map((point) => point.value);
+}
+
 /**
  * 提取实时危攻时序走势、多尺度斜率与积分形态
  * @param match CanonicalMatch
@@ -117,7 +179,9 @@ export function extractMomentumTimelineFeatures(
   collector?: DeficitCollector,
   tracer?: Tracer
 ): MomentumTimelineFeatures {
-  const rawPoints = flattenMomentumPoints(match);
+  const timed = getTimedMomentumPoints(match);
+  const timedPoints = timed.points;
+  const rawPoints = timedPoints.map((point) => point.value);
   const totalPoints = rawPoints.length;
 
   if (totalPoints === 0) {
@@ -134,6 +198,10 @@ export function extractMomentumTimelineFeatures(
 
     return Object.freeze({
       total_points: 0,
+      window_basis: timed.basis,
+      cutoff_minute: timed.cutoffMinute,
+      window_coverage_minutes: { from: null, to: timed.cutoffMinute },
+      window_sample_counts: { five: 0, ten: 0, fifteen: 0 },
       current_instant_momentum: 0,
       slope_5m: 0,
       slope_10m: 0,
@@ -151,15 +219,15 @@ export function extractMomentumTimelineFeatures(
   // 1. 即时当前分钟动量值
   const currentInstantMomentum = rawPoints[totalPoints - 1];
 
-  // 2. 提取不同时间窗口切片
-  const slice5 = rawPoints.slice(-Math.min(5, totalPoints));
-  const slice10 = rawPoints.slice(-Math.min(10, totalPoints));
-  const slice15 = rawPoints.slice(-Math.min(15, totalPoints));
+  // 2. 按真实分钟坐标提取窗口，不能把点数直接当作分钟数
+  const slice5 = selectTimedWindow(timedPoints, timed.cutoffMinute, 5);
+  const slice10 = selectTimedWindow(timedPoints, timed.cutoffMinute, 10);
+  const slice15 = selectTimedWindow(timedPoints, timed.cutoffMinute, 15);
 
   // 3. 计算多尺度最小二乘斜率 (Derivatives)
-  const slope5 = calculateLinearRegressionSlope(slice5);
-  const slope10 = calculateLinearRegressionSlope(slice10);
-  const slope15 = calculateLinearRegressionSlope(slice15);
+  const slope5 = calculateTimedSlope(timedPoints.filter((point) => point.minute > (timed.cutoffMinute ?? point.minute) - 5 && point.minute <= (timed.cutoffMinute ?? point.minute)));
+  const slope10 = calculateTimedSlope(timedPoints.filter((point) => point.minute > (timed.cutoffMinute ?? point.minute) - 10 && point.minute <= (timed.cutoffMinute ?? point.minute)));
+  const slope15 = calculateTimedSlope(timedPoints.filter((point) => point.minute > (timed.cutoffMinute ?? point.minute) - 15 && point.minute <= (timed.cutoffMinute ?? point.minute)));
 
   // 4. 计算多尺度能量积分 (Integrals)
   const integral5 = calculateMomentumIntegral(slice5);
@@ -193,6 +261,17 @@ export function extractMomentumTimelineFeatures(
 
   const result: MomentumTimelineFeatures = Object.freeze({
     total_points: totalPoints,
+    window_basis: timed.basis,
+    cutoff_minute: timed.cutoffMinute,
+    window_coverage_minutes: {
+      from: timedPoints[0]?.minute ?? null,
+      to: timedPoints[timedPoints.length - 1]?.minute ?? timed.cutoffMinute
+    },
+    window_sample_counts: {
+      five: slice5.length,
+      ten: slice10.length,
+      fifteen: slice15.length
+    },
     current_instant_momentum: currentInstantMomentum,
     slope_5m: slope5,
     slope_10m: slope10,

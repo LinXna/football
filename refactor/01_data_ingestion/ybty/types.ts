@@ -34,6 +34,7 @@ export type YbtyMarketType =
 export interface YbtyRawMarket {
   line_index: number;
   market: YbtyMarketType;
+  settlement_basis?: "FULL_MATCH" | "REMAINING_GOALS";
   market_title: string;
   market_title_raw: string | null;
   market_type_source: string;
@@ -131,6 +132,11 @@ export interface CleanTotalMarket {
   line: string;
   over_odds: number;
   under_odds: number;
+  /**
+   * Full-match totals are the safe default. A remaining-goals market must be
+   * explicitly identified by the source parser before M5 can use that basis.
+   */
+  settlement_basis?: "FULL_MATCH" | "REMAINING_GOALS";
 }
 
 export interface CleanMarketsGroup {

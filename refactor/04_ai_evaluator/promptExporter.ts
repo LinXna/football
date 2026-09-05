@@ -220,6 +220,16 @@ export function generateRefactoredPrompt(
       quant_features: {
         mathematical_ev_signals: effectiveEvSignals,
         poisson_expected_goals: quantFeatures.poisson ? `Home Rest: ${quantFeatures.poisson.lambda_home_rest?.toFixed(2)}, Away Rest: ${quantFeatures.poisson.lambda_away_rest?.toFixed(2)}` : undefined,
+        prediction_snapshot: quantFeatures.poisson ? {
+          model_version: 'refactor-layer03-v1',
+          prediction_at: quantFeatures.calculated_at,
+          predicted_lambda: {
+            home: quantFeatures.poisson.lambda_home_rest,
+            away: quantFeatures.poisson.lambda_away_rest
+          },
+          red_card_state: `${quantFeatures.match_state.red_card_attack_multiplier_home.toFixed(2)}/${quantFeatures.match_state.red_card_attack_multiplier_away.toFixed(2)}`,
+          signals: effectiveEvSignals
+        } : undefined,
         market_divergence_insights: quantFeatures.devig.bookmaker_posture
       }
     });

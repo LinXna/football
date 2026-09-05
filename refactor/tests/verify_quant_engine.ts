@@ -25,9 +25,15 @@ import {
   parseAsianHandicapLine,
   calculateAsianHandicapEV,
   calculateTotalGoalsEV,
+  calculateContinuousThreatTensor,
   calculateTimeDecayAndUrgencyMultiplier,
   calculateBivariatePoissonGrid,
   calculateH2HDecayWeights,
+  calculateRecentFormWeights,
+  extractGoalDistributionDNA,
+  evaluateGoalTimingValidity,
+  extractIsoVenueStandings,
+  calculateLineupImpactScores,
   checkL0CircuitBreaker,
   extractMomentumTimelineFeatures,
   extractRealTimePhysicalStats,
@@ -35,6 +41,7 @@ import {
   calculateEventPressureConversion,
   evaluateTacticalRegime,
   evaluateGoalClimax,
+  calculateDeviggedMarketFeatures,
   buildOosCalibrationArchive,
   selectOosCalibrationProfile,
   extractSpatioTemporalEventFeatures,
@@ -44,6 +51,7 @@ import {
 } from '../03_quant_engine/index.js';
 import { CanonicalMatch } from '../02_canonical_model/types.js';
 import { MatchStage } from '../02_canonical_model/enums.js';
+import { MarketStanceType } from '../03_quant_engine/types.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
 
@@ -159,6 +167,46 @@ async function runQuantEngineTests() {
     assert(missingScoreResult.weights[0].is_valid === false, 'H2H without complete scores must be invalid');
     assert(missingScoreResult.analytics.valid_count === 0, 'H2H without complete scores must not increase valid count');
 
+    const dirtyContextMatch: CanonicalMatch = {
+      ...mockH2HMatch,
+      reference: {
+        ...mockH2HMatch.reference!,
+        tactical_context: {
+          ...mockH2HMatch.reference!.tactical_context!,
+          home_recent_matches: [{
+            match_id: 99,
+            match_time: Date.now(),
+            home_team_name: 'Unrelated Team',
+            away_team_name: 'Another Team',
+            fulltime_score: { home: -1, away: 4 },
+            halftime_score: { home: 0, away: 2 }
+          }],
+          away_recent_matches: []
+        },
+        goal_distribution: {
+          has_data: true,
+          home_team: { all: { matches_count: 20, scored_intervals: [] } },
+          away_team: { all: { matches_count: 20, scored_intervals: [] } }
+        } as any,
+        lineups: {
+          confirmed: true,
+          home_starters: [],
+          away_starters: [{ name: 'Only Away Starter' }]
+        } as any,
+        league_standings: {
+          has_data: true,
+          home_team: { home: { matches_played: 10, won: 8, draw: 8, loss: 0, goals_scored: 10, goals_conceded: 2, goal_difference: 8, points: 32 } },
+          away_team: null
+        } as any
+      }
+    };
+    const dirtyRecent = calculateRecentFormWeights(dirtyContextMatch, Date.now());
+    assert(dirtyRecent.home_analytics.valid_count === 0, 'Recent form must reject unknown-team or invalid-score samples');
+    assert(!extractGoalDistributionDNA(dirtyContextMatch).has_data, 'Incomplete goal intervals must not become usable uniform DNA');
+    assert(!evaluateGoalTimingValidity(dirtyContextMatch).is_valid, 'Incomplete goal intervals must fail timing validity');
+    assert(extractIsoVenueStandings(dirtyContextMatch).home_at_home === null, 'Inconsistent standings must be rejected');
+    assert(calculateLineupImpactScores(dirtyContextMatch).lineup_status === 'NOT_ANNOUNCED', 'One-sided lineup data must not be treated as projected or confirmed');
+
     // (2) L0 熔断测试
     const fatalMatch: CanonicalMatch = {
       ...mockH2HMatch,
@@ -174,7 +222,101 @@ async function runQuantEngineTests() {
     const cb = checkL0CircuitBreaker(fatalMatch);
     assert(cb.is_triggered === true, 'Fatal match must trigger L0 circuit breaker');
     assert(cb.reasons.length >= 2, 'Should report multiple L0 fatal reasons');
-    console.log('   ✅ M2 时效衰减与 L0 熔断测试 PASS');
+
+    // Layer 03 回归：实时威胁乘数与已发生进球节奏不得系统性压低剩余 λ
+    const neutralTensor = calculateContinuousThreatTensor({
+      home_intensity: 0.5,
+      away_intensity: 0.5,
+      dominance_index: 0,
+      imminent_goal: false,
+      post_goal_cooldown_active: false,
+      has_evidence_conflict: false,
+      source_lineage_discount: 1
+    });
+    assert(neutralTensor.homeThreat === 1 && neutralTensor.awayThreat === 1, 'Neutral threat must preserve the base lambda');
+
+    const highEventMatch = {
+      ...mockH2HMatch,
+      alignment: { status: 'MATCHED_AUTO' as any },
+      timing: { ...mockH2HMatch.timing, minute: 62 },
+      score: { ...mockH2HMatch.score, home_score: 2, away_score: 2, score_verified: true },
+      markets: {
+        ...mockH2HMatch.markets,
+        full_h2h: { home_odds: 2.56, draw_odds: 2.12, away_odds: 3.2 },
+        full_total_main: { line: '5', over_odds: 1.90, under_odds: 1.84 }
+      },
+      reference: {
+        ...mockH2HMatch.reference!,
+        stats: {
+          dangerous_attacks: { home: 33, away: 30 },
+          attacks: { home: 60, away: 44 },
+          shots: { home: 10, away: 7 },
+          shots_on_target: { home: 3, away: 4 },
+          shots_off_target: { home: 7, away: 3 },
+          corners: { home: 6, away: 2 },
+          possession: { home: 59, away: 41 },
+          yellow_cards: { home: 1, away: 3 },
+          red_cards: { home: 0, away: 0 }
+        },
+        attack_momentum: {
+          available: true,
+          nominal_segment_minutes: 1,
+          data: [Array.from({ length: 63 }, () => 20)]
+        }
+      } as any
+    } as CanonicalMatch;
+    const highEventQuant = calculateQuantitativeFeatures(highEventMatch);
+    assert(highEventQuant.poisson.expected_goals_rest > 0.55, 'Verified 2-2 at 62 minutes must retain the observed scoring-rate evidence');
+    const cooldownState = buildUnifiedMatchState(highEventQuant.spatio_temporal_events);
+    const noCooldownState = buildUnifiedMatchState({
+      ...highEventQuant.spatio_temporal_events,
+      goal_climax: {
+        ...highEventQuant.spatio_temporal_events.goal_climax,
+        post_goal_cooldown_active: false
+      }
+    });
+    assert(
+      cooldownState.home_intensity === noCooldownState.home_intensity &&
+      cooldownState.away_intensity === noCooldownState.away_intensity,
+      'M3.5 cooldown must remain state metadata and not pre-scale unified intensity'
+    );
+    const redCardMatch: CanonicalMatch = {
+      ...highEventMatch,
+      reference: {
+        ...highEventMatch.reference!,
+        stats: {
+          ...highEventMatch.reference!.stats!,
+          red_cards: { home: 1, away: 0 }
+        }
+      }
+    };
+    const redCardQuant = calculateQuantitativeFeatures(redCardMatch);
+    assert(redCardQuant.match_state.red_card_attack_multiplier_home < 1, 'Verified home red card must reduce home attack multiplier');
+    assert(redCardQuant.match_state.red_card_defense_leak_multiplier_home > 1, 'Verified home red card must increase home defensive leak multiplier');
+    assert(redCardQuant.poisson.lambda_home_rest < highEventQuant.poisson.lambda_home_rest, 'Home red card must reduce home residual lambda');
+    assert(redCardQuant.poisson.lambda_away_rest > highEventQuant.poisson.lambda_away_rest, 'Home red card must increase away residual lambda');
+    const minuteWindowMatch: CanonicalMatch = {
+      ...highEventMatch,
+      timing: { ...highEventMatch.timing, minute: 20 },
+      reference: {
+        ...highEventMatch.reference!,
+        attack_momentum: {
+          available: true,
+          nominal_segment_minutes: 45,
+          data: [
+            Array.from({ length: 45 }, (_, index) => index + 1),
+            Array.from({ length: 45 }, () => 999)
+          ]
+        }
+      }
+    };
+    const minuteWindow = extractMomentumTimelineFeatures(minuteWindowMatch);
+    assert(minuteWindow.total_points === 20, 'Live momentum must exclude points after the captured minute');
+    assert(minuteWindow.cutoff_minute === 20, 'Momentum audit must preserve the captured live minute');
+    assert(minuteWindow.window_basis === 'MINUTE_ALIGNED', 'Momentum windows must use minute coordinates when interval is known');
+    assert(minuteWindow.window_sample_counts?.five === 5 && minuteWindow.window_sample_counts?.fifteen === 15, 'Momentum windows must use real five/fifteen-minute coverage');
+    console.log('   ✅ M2 时效衰减与 Layer 03 实时进球节奏回归测试 PASS');
+    console.log('   ✅ 实时威胁中性校准与进球节奏回归测试 PASS');
   }
 
   // -------------------------------------------------------------------------
@@ -269,6 +411,50 @@ async function runQuantEngineTests() {
     assert(ouEV.line === '2/2.5', 'O/U line mismatch');
     assert(typeof ouEV.over_ev === 'number', 'Over EV must be number');
     assert(typeof ouEV.under_ev === 'number', 'Under EV must be number');
+
+    // (5) LIVE 40' 1-1: a full-match 3.0 line must be evaluated against
+    // one remaining goal, while an explicitly remaining-goals 3.0 line
+    // must be evaluated against three remaining goals.
+    const liveTotalMatch = {
+      canonical_id: 'live_total_semantics',
+      markets: {
+        full_h2h: null,
+        full_spread_main: null,
+        full_spread_subs: [],
+        full_total_main: { line_index: 0, line: '3', over_odds: 1.90, under_odds: 1.90 },
+        full_total_subs: [],
+        half_h2h: null,
+        half_spread_main: null,
+        half_total_main: null
+      },
+      score: { home_score: 1, away_score: 1 }
+    } as CanonicalMatch;
+    const fullMatchTotalEV = calculateDeviggedMarketFeatures(
+      liveTotalMatch,
+      mockPoisson,
+      collector,
+      tracer
+    ).total_main_ev;
+    const remainingGoalsTotalEV = calculateDeviggedMarketFeatures(
+      {
+        ...liveTotalMatch,
+        markets: {
+          ...liveTotalMatch.markets,
+          full_total_main: {
+            ...liveTotalMatch.markets.full_total_main!,
+            settlement_basis: 'REMAINING_GOALS'
+          }
+        }
+      },
+      mockPoisson,
+      collector,
+      tracer
+    ).total_main_ev;
+    assert(fullMatchTotalEV !== undefined && remainingGoalsTotalEV !== undefined, 'Total EV must be available for both settlement bases');
+    assert(
+      fullMatchTotalEV!.under_ev !== remainingGoalsTotalEV!.under_ev,
+      'Full-match and remaining-goals total lines must not share the same EV after 1-1'
+    );
     console.log('   ✅ M5 Shin 去抽水、中文盘口与闭式复合 EV 测试 PASS');
   }
 
@@ -317,6 +503,10 @@ async function runQuantEngineTests() {
     const trinityBarren = calculateLiveThreatTrinity(mockTimelineLethal, mockEventsBarren, mockPhysicalBarren, 70);
     assert(trinityBarren.home.has_conflict, 'High momentum without event/stat corroboration must be flagged as conflict');
     assert(trinityBarren.home.calibrated_threat < trinityLethal.home.calibrated_threat, 'Uncorroborated momentum must be damped');
+    assert(
+      trinityBarren.home.calibrated_threat / trinityLethal.home.calibrated_threat > 0.55,
+      'Evidence conflict must not become a deterministic 0.45 low-goal multiplier'
+    );
     const epiBarren = calculateEventPressureConversion(mockTimelineLethal, mockEventsBarren, trinityBarren, 70);
     assert(epiBarren.home.classification === EventPressureConversionType.BARREN_DOMINANCE, 'Home should be classified as BARREN_DOMINANCE when no events');
 
@@ -324,6 +514,7 @@ async function runQuantEngineTests() {
     const mockClimaxMatch = {
       timing: { minute: 78 },
       reference: { timeline_events: [
+        { minute: null, type: 0, side: 'neutral', is_cancelled: false },
         { minute: 75, type: 2, side: 'home', is_cancelled: false },
         { minute: 76, type: 3, side: 'away', is_on_pitch: true, is_cancelled: false },
         { minute: 77, type: 2, side: 'home', is_cancelled: false }
@@ -334,6 +525,7 @@ async function runQuantEngineTests() {
     assert(climaxRes.climax_score >= 55, 'Climax score should be >= 55 under dense incidents and surging slope');
     assert(climaxRes.attacking_side === 'home', 'Attacking side should be home');
     assert(climaxRes.momentum_acceleration_5m === 15, 'Momentum acceleration should be 15 (20 - 5)');
+    assert(climaxRes.recent_incident_density_5m === 3, 'Untimed system events must not enter the 5-minute incident density');
 
     // (4) 进球后的短时重置：刚发生的进球不得被继续解释为下一球临界压力。
     const mockPostGoalMatch = {
@@ -422,6 +614,46 @@ async function runQuantEngineTests() {
       selected
     );
     assert(adjustedPoisson.expected_goals_rest > basePoisson.expected_goals_rest, 'Validated OOS lambda adjustment must change the Poisson output');
+
+    // M4 consumes the frozen UnifiedMatchState produced by M3.5. Changing
+    // raw M3 inputs without rebuilding that state must not change M4 output.
+    const frozenState = buildUnifiedMatchState(extractSpatioTemporalEventFeatures(
+      calibrationMatch,
+      extractMomentumTimelineFeatures(calibrationMatch),
+      extractRealTimePhysicalStats(calibrationMatch)
+    ));
+    const frozenContext = extractCleanedContextFeatures(calibrationMatch);
+    const alteredRawInputsMatch: CanonicalMatch = {
+      ...calibrationMatch,
+      reference: {
+        ...calibrationMatch.reference!,
+        stats: {
+          dangerous_attacks: { home: 999, away: 1 },
+          attacks: { home: 999, away: 1 },
+          shots: { home: 99, away: 1 },
+          shots_on_target: { home: 99, away: 1 },
+          shots_off_target: { home: 0, away: 0 },
+          corners: { home: 20, away: 0 },
+          possession: { home: 90, away: 10 },
+          yellow_cards: { home: 0, away: 0 },
+          red_cards: { home: 0, away: 0 }
+        }
+      }
+    };
+    const frozenStatePoisson = calculateInPlayPoissonFeatures(
+      calibrationMatch,
+      frozenContext,
+      frozenState
+    );
+    const alteredRawInputsPoisson = calculateInPlayPoissonFeatures(
+      alteredRawInputsMatch,
+      frozenContext,
+      frozenState
+    );
+    assert(
+      alteredRawInputsPoisson.expected_goals_rest === frozenStatePoisson.expected_goals_rest,
+      'M4 must not re-read raw M3 statistics after UnifiedMatchState is frozen'
+    );
     let leakageBlocked = false;
     try {
       buildOosCalibrationArchive([{ ...oosSamples[0], sample_id: 'future-oos', prediction_at: '2026-09-02T00:00:00.000Z' }], oosArchiveOptions);
@@ -473,7 +705,72 @@ async function runQuantEngineTests() {
     assert(quantResult.physical_stats.corner_pressure.window_source === 'CUMULATIVE_BASELINE', 'Live technical corners must remain cumulative baseline, never a recent-window claim');
     assert(quantResult.confidence_breakdown.edge_confidence_score === 0, 'Unvalidated OOS calibration must not create tradable edge confidence');
     assert(quantResult.positive_ev_signals.length === 0, 'Raw devig EV without validated OOS evidence must not become a machine trade candidate');
+    assert(quantResult.raw_positive_ev_signals.length >= quantResult.positive_ev_signals.length, 'Raw EV signals must remain observable separately from machine candidates');
+    assert(quantResult.devig.total_main_ev?.line === targetMatch!.markets.full_total_main?.line, 'Live total EV must use the YBTY execution line');
+    assert(quantResult.devig.spread_secondary_ev.length === targetMatch!.markets.full_spread_subs.length, 'Every YBTY secondary handicap line must produce an EV assessment');
+    assert(quantResult.devig.total_secondary_ev.length === targetMatch!.markets.full_total_subs.length, 'Every YBTY secondary total line must produce an EV assessment');
     assert(quantResult.battlefield_dominance_index === quantResult.match_state.dominance_index, 'BDI must consume the unified match state only');
+    if (quantResult.market_calibration?.market_stance !== MarketStanceType.MARKET_DATA_MISSING) {
+      assert(quantResult.poisson.lambda_decomposition.context_multiplier_home === 1, 'M2 home context must not be applied twice after market calibration');
+      assert(quantResult.poisson.lambda_decomposition.context_multiplier_away === 1, 'M2 away context must not be applied twice after market calibration');
+    }
+    assert(quantResult.data_audit.items.length === 10, 'Layer 03 data audit must expose all 10 input categories');
+    assert(quantResult.data_audit.items.some((item) => item.category === 'GOAL_DISTRIBUTION'), 'Goal distribution audit item missing');
+    assert(quantResult.data_audit.items.some((item) => item.category === 'ENVIRONMENT'), 'Environment audit item missing');
+    assert(quantResult.data_audit.items.some((item) => item.category === 'ODDS_MATRIX'), 'Odds matrix audit item missing');
+
+    // A single imported snapshot must be sufficient at any normal in-play
+    // minute. A later snapshot is an optional enhancement, not a prerequisite.
+    for (const minute of [5, 15, 30, 40, 60]) {
+      const singleSnapshotMatch: CanonicalMatch = {
+        ...targetMatch!,
+        timing: {
+          ...targetMatch!.timing,
+          stage: MatchStage.LIVE,
+          minute,
+          is_half_time: false
+        },
+        score: {
+          ...targetMatch!.score,
+          home_score: targetMatch!.score.home_score ?? 0,
+          away_score: targetMatch!.score.away_score ?? 0,
+          score_verified: true
+        }
+      };
+      const singleSnapshotResult = calculateQuantitativeFeatures(singleSnapshotMatch, undefined, collector, tracer);
+      assert(Number.isFinite(singleSnapshotResult.poisson.expected_goals_rest), `Single snapshot at ${minute}' must produce finite residual lambda`);
+      assert(singleSnapshotResult.poisson.expected_goals_rest > 0, `Single snapshot at ${minute}' must retain positive residual goal expectation`);
+      assert(singleSnapshotResult.timeline.cutoff_minute === minute, `Single snapshot at ${minute}' must use the imported minute as cutoff`);
+    }
+
+    const halfTimeMatch: CanonicalMatch = {
+      ...targetMatch!,
+      timing: {
+        ...targetMatch!.timing,
+        stage: MatchStage.LIVE,
+        minute: 45,
+        is_half_time: true
+      },
+      score: {
+        ...targetMatch!.score,
+        home_score: targetMatch!.score.home_score ?? 0,
+        away_score: targetMatch!.score.away_score ?? 0,
+        score_verified: true
+      }
+    };
+    const halfTimeResult = calculateQuantitativeFeatures(halfTimeMatch, undefined, collector, tracer);
+    assert(halfTimeResult.poisson.remaining_minutes >= 44, 'Half-time single snapshot must preserve the second-half time horizon');
+
+    const missingMomentumMatch: CanonicalMatch = {
+      ...halfTimeMatch,
+      reference: {
+        ...halfTimeMatch.reference!,
+        attack_momentum: null
+      }
+    };
+    const missingMomentumResult = calculateQuantitativeFeatures(missingMomentumMatch, undefined, collector, tracer);
+    assert(missingMomentumResult.timeline.total_points === 0, 'Missing momentum must remain observable as missing data');
+    assert(missingMomentumResult.poisson.expected_goals_rest > 0, 'Missing local momentum must not be converted into zero residual threat');
 
     console.log(`   📊 [量化推演战报]:`);
     console.log(`      - 法定进行时间: ${quantResult.poisson.elapsed_minute}' (剩余: ${quantResult.poisson.remaining_minutes}')`);

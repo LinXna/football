@@ -45,6 +45,7 @@ import { extractMomentumTimelineFeatures, extractRealTimePhysicalStats } from '.
 import { extractSpatioTemporalEventFeatures } from './eventMomentumFusion.js';
 import { calculateInPlayPoissonFeatures } from './poissonDecayModel.js';
 import { calculateDeviggedMarketFeatures } from './devigCalculator.js';
+import { buildLayer03DataAudit, buildLayer03ProductionGate } from './dataAudit.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
 
@@ -57,6 +58,7 @@ export * from './momentumQuantEngine.js';
 export * from './eventMomentumFusion.js';
 export * from './poissonDecayModel.js';
 export * from './devigCalculator.js';
+export * from './dataAudit.js';
 export * from './oosCalibrationEngine.js';
 
 /**
@@ -89,12 +91,14 @@ function hasValidatedOosProfile(profile: QuantCalibrationProfile | undefined): p
 
 /** 将三源证据、战术状态和进球后冷却凝结为下游唯一可消费的实时状态。 */
 export function buildUnifiedMatchState(
-  spatioTemporal: QuantitativeFeatures['spatio_temporal_events']
+  spatioTemporal: QuantitativeFeatures['spatio_temporal_events'],
+  physical?: RealTimePhysicalStatsFeatures
 ): UnifiedMatchState {
   const trinity = spatioTemporal.live_threat_trinity;
-  const cooldown = spatioTemporal.goal_climax.post_goal_cooldown_active ? 0.70 : 1.0;
-  const homeIntensity = trinity.home.calibrated_threat * spatioTemporal.regime.regime_multiplier_home * cooldown;
-  const awayIntensity = trinity.away.calibrated_threat * spatioTemporal.regime.regime_multiplier_away * cooldown;
+  // Keep post-goal cooldown as state, not as part of intensity. M4 applies
+  // this residual-time state factor exactly once after threat mapping.
+  const homeIntensity = trinity.home.calibrated_threat * spatioTemporal.regime.regime_multiplier_home;
+  const awayIntensity = trinity.away.calibrated_threat * spatioTemporal.regime.regime_multiplier_away;
   return Object.freeze({
     home_intensity: Number(Math.max(0, Math.min(1.5, homeIntensity)).toFixed(3)),
     away_intensity: Number(Math.max(0, Math.min(1.5, awayIntensity)).toFixed(3)),
@@ -103,7 +107,11 @@ export function buildUnifiedMatchState(
     post_goal_cooldown_active: spatioTemporal.goal_climax.post_goal_cooldown_active,
     has_evidence_conflict: trinity.has_material_conflict,
     // 动量、事件与技术统计来自同一雷速上游：一致性不获得“独立来源”额外加成。
-    source_lineage_discount: 1.0
+    source_lineage_discount: 1.0,
+    red_card_attack_multiplier_home: physical?.red_card_penalty?.home_attack_multiplier ?? 1.0,
+    red_card_attack_multiplier_away: physical?.red_card_penalty?.away_attack_multiplier ?? 1.0,
+    red_card_defense_leak_multiplier_home: physical?.red_card_penalty?.home_defense_leak_multiplier ?? 1.0,
+    red_card_defense_leak_multiplier_away: physical?.red_card_penalty?.away_defense_leak_multiplier ?? 1.0
   });
 }
 
@@ -238,6 +246,9 @@ export function calculateConfidenceAndAlerts(
       side: side,
       odds: odds,
       ev: ev,
+      model_probability: side === 'home'
+        ? devig.spread_main_ev.home_model_probability
+        : devig.spread_main_ev.away_model_probability,
       confidence: Math.max(50, score),
       kelly_fraction: kelly
     }));
@@ -254,6 +265,9 @@ export function calculateConfidenceAndAlerts(
       side: side,
       odds: odds,
       ev: ev,
+      model_probability: side === 'over'
+        ? devig.total_main_ev.over_model_probability
+        : devig.total_main_ev.under_model_probability,
       confidence: Math.max(50, score),
       kelly_fraction: kelly
     }));
@@ -330,7 +344,7 @@ export function calculateQuantitativeFeatures(
     collector,
     tracer
   );
-  const matchState = buildUnifiedMatchState(spatioTemporalFeatures);
+  const matchState = buildUnifiedMatchState(spatioTemporalFeatures, physicalStatsFeatures);
 
   // 3. M4: 滚球 0:0 Forward 泊松时间衰减推演 (注入博弈校准基准、物理场与战术相变乘子)
   const rawPoissonFeatures = calculateInPlayPoissonFeatures(
@@ -454,6 +468,12 @@ export function calculateQuantitativeFeatures(
     }
   }
 
+  const dataAudit = buildLayer03DataAudit(match, contextFeatures, timelineFeatures, physicalStatsFeatures);
+  const productionGate = buildLayer03ProductionGate(
+    match,
+    dataAudit,
+    validatedSignalProfiles.length > 0
+  );
   const result: QuantitativeFeatures = Object.freeze({
     canonical_id: match.canonical_id,
     calculated_at: new Date().toISOString(),
@@ -468,6 +488,7 @@ export function calculateQuantitativeFeatures(
     match_state: matchState,
     battlefield_dominance_index: bdi,
     goal_phase_alert: goalPhase,
+    raw_positive_ev_signals: positive_ev_signals,
     positive_ev_signals: machineCandidateSignals,
     risk_flags: finalRiskFlags,
     confidence_score: Math.min(screeningIntegrityScore, adjustedConfidence),
@@ -475,7 +496,9 @@ export function calculateQuantitativeFeatures(
       data_quality_score: dataQualityScore,
       model_stability_score: modelStabilityScore,
       edge_confidence_score: edgeConfidenceScore
-    }
+    },
+    data_audit: dataAudit,
+    production_gate: productionGate
   });
 
   tracer?.info(

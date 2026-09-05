@@ -76,6 +76,9 @@ export function parseTotalMarket(rawMarket: YbtyRawMarket): CleanTotalMarket | n
     line: line,
     over_odds: overOdds,
     under_odds: underOdds,
+    settlement_basis: rawMarket.settlement_basis === "REMAINING_GOALS"
+      ? "REMAINING_GOALS"
+      : "FULL_MATCH",
   };
 }
 

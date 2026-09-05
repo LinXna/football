@@ -1059,6 +1059,23 @@ export function calculatePrematchQuantAnalysis(item: DecisionItem | StandardMatc
  */
 export function calculateLiveQuantAnalysis(item: DecisionItem | StandardMatchData): MatchQuantAnalysis {
   const std: StandardMatchData = item.unified_stats ? (item as unknown as StandardMatchData) : toStandardMatchData(item);
+  if (std.live_stats_available === false) {
+    return {
+      match: std.match,
+      homeTeam: std.home_team,
+      awayTeam: std.away_team,
+      minute: Math.max(1, Number(std.minute || 1)),
+      score: { home: Number(std.score?.home ?? 0), away: Number(std.score?.away ?? 0) },
+      homeThreatScore: 0,
+      awayThreatScore: 0,
+      expectedRemainingGoals: 0,
+      dominanceStatus: 'BALANCED_PRESSURE',
+      engineMode: 'LIVE_IN_PLAY_MOMENTUM',
+      dataQualityLevel: 'PURE_MARKET_CONSENSUS',
+      dataQualityBadge: '实时技术统计缺失：不输出大小球方向',
+      predictions: {},
+    };
+  }
   const stats = std.unified_stats || {
     possession: { home: 50, away: 50 },
     shots: { home: 0, away: 0 },
