@@ -1,7 +1,7 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
 - **任务编号 (Task)**: `SNAPSHOT-20260907-PHYSICS-FIRST-WEIGHT-CALIBRATION`
-- **当前状态 (Status)**: `IN_PROGRESS`
+- **当前状态 (Status)**: `DONE`
 - **任务目标 (Goal)**：
   1. 将 `marketDivergenceEngine.ts` 中固定的 `85% market + 15% theory` 权重反转为物理先验优先的动态权重（赛前 60/40，滚球随时间由 0.55 降至 0.28，并在市场理论偏差极大时额外扣减市场权重）。
   2. 在 `types.ts` 中的 `MarketCalibrationResult` 增加 `market_weight_applied` 与 `theory_weight_applied` 可审计字段。
@@ -11,7 +11,16 @@
   `refactor/03_quant_engine/marketDivergenceEngine.ts`
   `refactor/tests/verify_quant_engine.ts`
   `refactor/HANDOVER_AND_PROGRESS.md`
-- **完成结果 (Result)**：待自测验证通过后更新。
+- **完成结果 (Result)**：
+  - `marketDivergenceEngine.ts` 已使用 Physics-First 动态权重：赛前基础市场权重 `0.60`，滚球按分钟递减，并按 `abs(netDelta)` 最高扣减 `0.15`，实际权重下限 `0.25`。
+  - `MarketCalibrationResult` 已输出 `market_weight_applied` 与 `theory_weight_applied`，市场缺失分支也显式输出 `0/1`。
+  - `lambda_decomposition` 现同步输出实际市场/理论权重；`SYSTEM_ARCHITECTURE_AND_PIPELINE.md` 已同步删除旧 85%/15% 描述。
+  - `verify_quant_engine.ts` Test 10 已覆盖赛前公式、62 分钟物理先验主导和极端偏差额外惩罚；Test 9 已移除与 EV/盘口价格不相容的过时方向断言，保留深盘主队物理优势与陷阱姿态验证。
+- **验证结果**：
+  - `npx tsx refactor/tests/verify_quant_engine.ts`：10/10 通过。
+  - `npx tsx refactor/tests/verify_prematch_prior_and_market_divergence.ts`：通过。
+  - `npx tsc --noEmit`：通过。
+- **下一步**：继续执行交接记录中的正式台账读取端点与生产准入徽章验证；本任务不创建 `VALIDATED` OOS 档案。
 
 - **历史任务 (Previous Task)**: `SNAPSHOT-20260907-INPLAY-1X2-INVERSION-AND-OOS-GATE` (DONE)
 

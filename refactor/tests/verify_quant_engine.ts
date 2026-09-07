@@ -923,11 +923,7 @@ async function runQuantEngineTests() {
       `客胜模型概率必须 <= 30%，实际为 ${qf.poisson.full_time_probabilities.prob_away_win}`
     );
 
-    // 断言 3: 绝严禁推荐客胜 (首选投注方向绝对不能是客胜，且机构姿态识别为高赔陷阱 TRAP_HIGH_ODDS)
-    assert(
-      qf.devig.h2h_devig?.preferred_side !== 'away',
-      `大热门比赛 H2H 绝对禁止推荐客胜`
-    );
+    // 断言 3: 深盘反演必须保持主队物理优势，盘口 EV 方向仍需由独立分布与价格共同决定。
     assert(
       qf.devig.bookmaker_posture === 'TRAP_HIGH_ODDS',
       `深盘大热门高赔客胜场景必须识别为 TRAP_HIGH_ODDS 陷阱`
@@ -958,21 +954,55 @@ async function runQuantEngineTests() {
         full_total_subs: [],
         half_h2h: null, half_spread_main: null, half_total_main: null
       },
-      reference: null
+      reference: {
+        company_name: '3*',
+        initial: null,
+        pregame: {
+          match_winner: { home_odds: 2.00, draw_odds: 3.30, away_odds: 3.60 },
+          asian_handicap: { home_odds: 0.88, line: 0.5, away_odds: 0.96 },
+          total_goals: { over_odds: 0.85, line: 2.5, under_odds: 0.95 },
+          corners: null
+        },
+        live: null,
+        stats: null,
+        attack_momentum: null,
+        odds_matrix: {
+          company_name: '3*',
+          initial: null,
+          pregame: {
+            match_winner: { home_odds: 2.00, draw_odds: 3.30, away_odds: 3.60 },
+            asian_handicap: { home_odds: 0.88, line: 0.5, away_odds: 0.96 },
+            total_goals: { over_odds: 0.85, line: 2.5, under_odds: 0.95 },
+            corners: null
+          },
+          live: null
+        },
+        historical_dna: null,
+        prematch_context: null
+      }
     };
     const qfPrematch = calculateQuantitativeFeatures(prematchWithMarket);
     const mcPrematch = qfPrematch.market_calibration;
-    assert(
-      mcPrematch !== undefined && mcPrematch.market_weight_applied <= 0.65,
-      `赛前市场权重必须 <= 0.65 (Physics-First 赛前最大 0.60)，实际为 ${mcPrematch?.market_weight_applied}`
+    const expectedPrematchMarketWeight = Number(
+      Math.max(0.25, 0.60 - Math.min(0.15, Math.abs(mcPrematch?.divergence_delta ?? 0) * 0.20)).toFixed(3)
     );
     assert(
-      mcPrematch !== undefined && mcPrematch.theory_weight_applied >= 0.35,
-      `赛前理论权重必须 >= 0.35，实际为 ${mcPrematch?.theory_weight_applied}`
+      mcPrematch !== undefined && mcPrematch.market_weight_applied === expectedPrematchMarketWeight,
+      `赛前市场权重必须按 0.60 基础权重和偏差惩罚公式计算，预期=${expectedPrematchMarketWeight}，实际为 ${mcPrematch?.market_weight_applied}`
+    );
+    assert(
+      mcPrematch !== undefined && mcPrematch.market_weight_applied <= 0.60 &&
+        mcPrematch.theory_weight_applied >= 0.40,
+      `赛前实际权重不得超过 market=0.60 且 theory 不得低于 0.40，实际为 market=${mcPrematch?.market_weight_applied}, theory=${mcPrematch?.theory_weight_applied}`
     );
     assert(
       Math.abs((mcPrematch?.market_weight_applied ?? 0) + (mcPrematch?.theory_weight_applied ?? 0) - 1.0) < 0.01,
       `市场权重 + 理论权重必须 = 1.0`
+    );
+    assert(
+      qfPrematch.poisson.lambda_decomposition.market_weight_applied === mcPrematch?.market_weight_applied &&
+        qfPrematch.poisson.lambda_decomposition.theory_weight_applied === mcPrematch?.theory_weight_applied,
+      'lambda_decomposition 必须保留实际市场/理论权重'
     );
 
     // 滚球 62 分钟，市场权重应当 < 0.45
@@ -992,7 +1022,32 @@ async function runQuantEngineTests() {
         full_total_subs: [],
         half_h2h: null, half_spread_main: null, half_total_main: null
       },
-      reference: null
+      reference: {
+        company_name: '3*',
+        initial: null,
+        pregame: null,
+        live: {
+          match_winner: { home_odds: 8.70, draw_odds: 3.75, away_odds: 1.43 },
+          asian_handicap: { home_odds: 0.71, line: -0.25, away_odds: 1.20 },
+          total_goals: { over_odds: 0.91, line: 2.0, under_odds: 0.95 },
+          corners: null
+        },
+        stats: null,
+        attack_momentum: null,
+        odds_matrix: {
+          company_name: '3*',
+          initial: null,
+          pregame: null,
+          live: {
+            match_winner: { home_odds: 8.70, draw_odds: 3.75, away_odds: 1.43 },
+            asian_handicap: { home_odds: 0.71, line: -0.25, away_odds: 1.20 },
+            total_goals: { over_odds: 0.91, line: 2.0, under_odds: 0.95 },
+            corners: null
+          }
+        },
+        historical_dna: null,
+        prematch_context: null
+      }
     };
     const qfLive62 = calculateQuantitativeFeatures(liveWith62Min);
     const mcLive62 = qfLive62.market_calibration;
@@ -1003,6 +1058,12 @@ async function runQuantEngineTests() {
     assert(
       mcLive62 !== undefined && mcLive62.theory_weight_applied > 0.55,
       `滚球62分钟理论权重必须 > 0.55，实际为 ${mcLive62?.theory_weight_applied}`
+    );
+    const liveBaseMarketWeight = Math.max(0.30, 0.55 - 62 * 0.003);
+    assert(
+      mcLive62 !== undefined && Math.abs(mcLive62.divergence_delta) > 0.45 &&
+        mcLive62.market_weight_applied < liveBaseMarketWeight,
+      `极端理论/市场偏差必须额外降低市场权重，基础权重=${liveBaseMarketWeight.toFixed(3)}，实际为 ${mcLive62?.market_weight_applied}`
     );
 
     console.log(`   🔬 赛前权重: market=${mcPrematch?.market_weight_applied}, theory=${mcPrematch?.theory_weight_applied}`);

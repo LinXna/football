@@ -395,6 +395,8 @@ export function calculateInPlayPoissonFeatures(
       lambda_decomposition: {
         market_base_home: 0,
         market_base_away: 0,
+        market_weight_applied: calibration?.market_weight_applied ?? 0,
+        theory_weight_applied: calibration?.theory_weight_applied ?? 1,
         context_multiplier_home: 0,
         context_multiplier_away: 0,
         base_after_context_home: 0,
@@ -534,6 +536,8 @@ export function calculateInPlayPoissonFeatures(
   const lambdaDecomposition = {
     market_base_home: Number(marketBaseHome.toFixed(3)),
     market_base_away: Number(marketBaseAway.toFixed(3)),
+    market_weight_applied: calibration?.market_weight_applied ?? 0,
+    theory_weight_applied: calibration?.theory_weight_applied ?? 1,
     context_multiplier_home: Number(contextMultiplierHome.toFixed(3)),
     context_multiplier_away: Number(contextMultiplierAway.toFixed(3)),
     base_after_context_home: Number(baseHomeLambda.toFixed(3)),

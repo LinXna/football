@@ -336,6 +336,8 @@ export interface ScoreProbabilityItem {
 export interface LambdaDecomposition {
   market_base_home: number;
   market_base_away: number;
+  market_weight_applied: number;
+  theory_weight_applied: number;
   context_multiplier_home: number;
   context_multiplier_away: number;
   base_after_context_home: number;

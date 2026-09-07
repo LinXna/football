@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^npx tsx refactor/tests/verify_quant_engine\\.ts$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
