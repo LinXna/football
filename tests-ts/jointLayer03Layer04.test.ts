@@ -191,7 +191,18 @@ describe('Joint Layer 03 and Layer 04 Integration & Hardening Tests', () => {
           ev_signals: [],
           risk_flags: quantRiskFlags,
           goal_alert: 'NONE',
-          confidence: 88
+          confidence: 88,
+          machine_candidate_signals: [
+            {
+              market: 'ASIAN_HANDICAP_MAIN',
+              line: '-0.5',
+              side: 'home',
+              odds: 1.95,
+              ev: 0.05,
+              confidence: 88,
+              kelly_fraction: 0.02
+            }
+          ]
         }
       };
     }

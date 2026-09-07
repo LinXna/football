@@ -21,8 +21,8 @@ test("Server-Side Quant Precomputation: assembleMatchesForMode automatically com
 
     const freshCalculated = calculateQuantitativeFeatures(match);
     assert.strictEqual(
-      precomputed.bdi.battlefield_dominance_index,
-      freshCalculated.bdi.battlefield_dominance_index,
+      precomputed.battlefield_dominance_index,
+      freshCalculated.battlefield_dominance_index,
       `BDI must match for ${match.canonical_id}`
     );
     assert.strictEqual(

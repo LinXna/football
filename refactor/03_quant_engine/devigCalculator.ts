@@ -204,6 +204,13 @@ export function formatAsianHandicapLine(lineVal: number): string {
   return lineVal >= 0 ? `+${lineVal}` : `${lineVal}`;
 }
 
+export function invertHandicapString(lineStr: string): string {
+  if (!lineStr || lineStr === '0' || lineStr === '0.0') return '0';
+  if (lineStr.startsWith('+')) return lineStr.replace('+', '-');
+  if (lineStr.startsWith('-')) return lineStr.replace('-', '+');
+  return '-' + lineStr;
+}
+
 /**
  * 亚洲让球盘 (Asian Handicap) 复合 EV 计算器
  * 核心原理：
@@ -282,9 +289,12 @@ export function calculateAsianHandicapEV(
   awayEV = Number(awayEV.toFixed(4));
 
   let preferredSide: 'home' | 'away' | 'none' = 'none';
-  if (homeEV >= 0.035 && homeEV > awayEV) {
+  const marketMargin = Math.max(0.025, (1.0 / homeOdds + 1.0 / awayOdds) - 1.0);
+  const minRequiredEV = Math.max(0.015, marketMargin * 0.5 + 0.01);
+
+  if (homePositiveProbability > awayPositiveProbability && homeEV >= minRequiredEV) {
     preferredSide = 'home';
-  } else if (awayEV >= 0.035 && awayEV > homeEV) {
+  } else if (awayPositiveProbability > homePositiveProbability && awayEV >= minRequiredEV) {
     preferredSide = 'away';
   }
 
@@ -381,9 +391,12 @@ export function calculateTotalGoalsEV(
   underEV = Number(underEV.toFixed(4));
 
   let preferredSide: 'over' | 'under' | 'none' = 'none';
-  if (overEV >= 0.035 && overEV > underEV) {
+  const marketMargin = Math.max(0.025, (1.0 / overOdds + 1.0 / underOdds) - 1.0);
+  const minRequiredEV = Math.max(0.015, marketMargin * 0.5 + 0.01);
+
+  if (overPositiveProbability > underPositiveProbability && overEV >= minRequiredEV) {
     preferredSide = 'over';
-  } else if (underEV >= 0.035 && underEV > overEV) {
+  } else if (underPositiveProbability > overPositiveProbability && underEV >= minRequiredEV) {
     preferredSide = 'under';
   }
 
@@ -474,19 +487,26 @@ export function calculateH2hEV(
   let maxProb = 0.0;
   let maxOdds = 0.0;
 
-  if (homeEv >= minEvThreshold && homeEv > maxEv) {
+  const MIN_KELLY_ALLOCATION = 0.015;
+  const isEligible1X2 = (ev: number, odds: number) => {
+    if (ev < minEvThreshold || odds <= 1.0) return false;
+    const kellyFraction = ev / (odds - 1.0);
+    return kellyFraction >= MIN_KELLY_ALLOCATION;
+  };
+
+  if (homeEv > maxEv && isEligible1X2(homeEv, homeOdds)) {
     maxEv = homeEv;
     preferredSide = 'home';
     maxProb = probHome;
     maxOdds = homeOdds;
   }
-  if (drawEv >= minEvThreshold && drawEv > maxEv) {
+  if (drawEv > maxEv && isEligible1X2(drawEv, drawOdds)) {
     maxEv = drawEv;
     preferredSide = 'draw';
     maxProb = probDraw;
     maxOdds = drawOdds;
   }
-  if (awayEv >= minEvThreshold && awayEv > maxEv) {
+  if (awayEv > maxEv && isEligible1X2(awayEv, awayOdds)) {
     maxEv = awayEv;
     preferredSide = 'away';
     maxProb = probAway;

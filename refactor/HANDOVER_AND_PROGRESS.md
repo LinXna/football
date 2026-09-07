@@ -1,6 +1,20 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260905-QUANT-SERVER-SIDE-PRECOMPUTE`
+- **任务编号 (Task)**: `SNAPSHOT-20260906-LAYER03-EV-LOGIC-FIX`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  1. 修复量化推演引擎 (Layer 03) 中关于亚洲让球和大小球的 EV 偏好方选择逻辑，根除“只推大概率”的数学偏差，恢复真实+EV筛选，并修复 OOS 门禁穿透漏洞。
+  2. 排查并证实此前因为 EV 选择要求胜率 > 50%，导致前端面板虽然显示高价值正 EV，但未将其列入最佳候选，出现“界面推荐和+EV脱离设计”的问题。
+- **影响文件 (Target Files)**：
+  `refactor/03_quant_engine/devigCalculator.ts`
+  `refactor/03_quant_engine/index.ts`
+- **完成结果 (Result)**：
+  - 修复 `devigCalculator.ts`，严格以 `homeEV > awayEV` 且 `EV >= minRequiredEV` 作为唯一判断依据，符合数学期望(Value Betting)本质。
+  - 修复 `index.ts`，强制只有具备 `validatedSignalProfiles.length > 0` (OOS验证档案) 的正 EV 信号才能转换为机器候选，否则返回空；`edge_confidence_score` 未经验证时强制为 0。
+  - 经过5场实时赛事的追踪排查，高价值(+EV)但小概率的方向（如博德鲁姆FK的+17.1% EV下盘）均能正确进入系统量化视野，不再因胜率未过半而被剔除。
+  - 全量单元测试 `verify_quant_engine.ts` 100% PASS。
+
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260905-QUANT-SERVER-SIDE-PRECOMPUTE`
 - **当前状态 (Status)**: `IN_PROGRESS`
 - **任务目标 (Goal)**：
   1. 将 Layer 03 确定性物理量化评估 (`calculateQuantitativeFeatures`) 从前端浏览器主线程渲染期解耦，前移至服务端装配流水线 (`assembleMatchesForMode` / `persistRuntimeBatch`)。

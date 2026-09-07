@@ -55,7 +55,36 @@ function createBasePayload(): EvaluatorPayload {
       ev_signals: [],
       risk_flags: [],
       goal_alert: 'NONE',
-      confidence: 88
+      confidence: 88,
+      machine_candidate_signals: [
+        {
+          market: 'ASIAN_HANDICAP_MAIN',
+          line: '-0.5',
+          side: 'home',
+          odds: 1.95,
+          ev: 0.05,
+          confidence: 88,
+          kelly_fraction: 0.02
+        },
+        {
+          market: 'TOTAL_GOALS_MAIN',
+          line: '2.5/3',
+          side: 'over',
+          odds: 1.88,
+          ev: 0.05,
+          confidence: 88,
+          kelly_fraction: 0.02
+        },
+        {
+          market: 'EURO_1X2',
+          line: '0',
+          side: 'home',
+          odds: 1.95,
+          ev: 0.05,
+          confidence: 88,
+          kelly_fraction: 0.02
+        }
+      ]
     }
   };
 }

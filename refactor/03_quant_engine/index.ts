@@ -44,7 +44,7 @@ import { calibrateWithMarketOdds } from './marketDivergenceEngine.js';
 import { extractMomentumTimelineFeatures, extractRealTimePhysicalStats } from './momentumQuantEngine.js';
 import { extractSpatioTemporalEventFeatures } from './eventMomentumFusion.js';
 import { calculateInPlayPoissonFeatures } from './poissonDecayModel.js';
-import { calculateDeviggedMarketFeatures } from './devigCalculator.js';
+import { calculateDeviggedMarketFeatures, invertHandicapString, parseAsianHandicapLine } from './devigCalculator.js';
 import { buildLayer03DataAudit, buildLayer03ProductionGate } from './dataAudit.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
@@ -269,9 +269,10 @@ export function calculateConfidenceAndAlerts(
     const ev = side === 'home' ? devig.spread_main_ev.home_ev : devig.spread_main_ev.away_ev;
     const odds = side === 'home' ? devig.spread_main_ev.home_odds : devig.spread_main_ev.away_odds;
     const kelly = devig.spread_main_ev.kelly_fraction ?? 0.0;
+    const actualLine = side === 'away' ? invertHandicapString(devig.spread_main_ev.line) : devig.spread_main_ev.line;
     positiveEVSignals.push(Object.freeze({
       market: 'ASIAN_HANDICAP_MAIN',
-      line: devig.spread_main_ev.line,
+      line: actualLine,
       side: side,
       odds: odds,
       ev: ev,
@@ -307,6 +308,52 @@ export function calculateConfidenceAndAlerts(
     risk_flags: riskFlags,
     positive_ev_signals: positiveEVSignals
   };
+}
+
+function resolveMarketConflicts(
+  signals: PositiveEVSignal[],
+  match: CanonicalMatch,
+  poissonGrid?: number[][]
+): PositiveEVSignal[] {
+  const spread = signals.find(s => s.market === 'ASIAN_HANDICAP_MAIN');
+  const total = signals.find(s => s.market === 'TOTAL_GOALS_MAIN');
+  
+  if (!spread || !total || !poissonGrid) return signals;
+
+  let bothWinProb = 0.0;
+  const spreadLineNum = parseAsianHandicapLine(spread.line);
+  const totalLineNum = parseAsianHandicapLine(total.line);
+  const currentHome = match.score?.home_score ?? 0;
+  const currentAway = match.score?.away_score ?? 0;
+
+  for (let dH = 0; dH < poissonGrid.length; dH++) {
+    for (let dA = 0; dA < poissonGrid[dH].length; dA++) {
+      const prob = poissonGrid[dH][dA];
+      if (prob <= 0) continue;
+
+      const netRest = spread.side === 'home' ? (dH - dA) : (dA - dH);
+      const isSpreadWin = (netRest + spreadLineNum) > 0;
+
+      const finalTotal = currentHome + currentAway + dH + dA;
+      const isTotalWin = total.side === 'over' 
+        ? finalTotal > totalLineNum 
+        : finalTotal < totalLineNum;
+
+      if (isSpreadWin && isTotalWin) {
+        bothWinProb += prob;
+      }
+    }
+  }
+
+  if (bothWinProb < 0.05) {
+    if (spread.ev >= total.ev) {
+      return signals.filter(s => s.market !== 'TOTAL_GOALS_MAIN');
+    } else {
+      return signals.filter(s => s.market !== 'ASIAN_HANDICAP_MAIN');
+    }
+  }
+
+  return signals;
 }
 
 /**
@@ -430,6 +477,8 @@ export function calculateQuantitativeFeatures(
     match.timing.stage
   );
 
+  const resolved_positive_ev_signals = resolveMarketConflicts(positive_ev_signals, match, poissonFeatures.rest_score_matrix?.grid);
+
   let adjustedConfidence = Math.max(0, confidence_score - marketCalibration.market_confidence_penalty);
   if (match.timing.stage === MatchStage.LIVE && !physicalStatsFeatures.stats_available) {
     adjustedConfidence = Math.min(adjustedConfidence, 55);
@@ -459,29 +508,37 @@ export function calculateQuantitativeFeatures(
       spatioTemporalFeatures.live_threat_trinity.away.alignment_score
     ) - (spatioTemporalFeatures.goal_climax.post_goal_cooldown_active ? 0.20 : 0)
   )));
-  const validatedSignalProfiles = positive_ev_signals
+  const validatedSignalProfiles = resolved_positive_ev_signals
     .map((signal) => {
       const market = toOosMarket(signal);
       return { signal, profile: market === undefined ? undefined : resolveProfile(market) };
     })
     .filter((item): item is { signal: PositiveEVSignal; profile: ValidatedOosProfile } => hasValidatedOosProfile(item.profile));
-  const edgeConfidenceScore = validatedSignalProfiles.length === 0
-    ? 0
-    : Math.round(Math.max(0, Math.min(100,
-      Math.max(...validatedSignalProfiles.map(({ profile }) =>
-        (adjustedConfidence - profile.oos_brier_score * 100) * Math.min(1, profile.effective_sample_size / 1000)
-      ))
-    )));
-  const screeningIntegrityScore = Math.min(adjustedConfidence, dataQualityScore, modelStabilityScore);
+  
+  const sampleCount = validatedSignalProfiles.length;
+  const MATURE_THRESHOLD = 200;
+  const baseScore = Math.min(adjustedConfidence, dataQualityScore, modelStabilityScore);
+  
+  const historyScore = sampleCount > 0
+    ? Math.round(Math.max(0, Math.min(100,
+        Math.max(...validatedSignalProfiles.map(({ profile }) =>
+          (adjustedConfidence - profile.oos_brier_score * 100) * Math.min(1, profile.effective_sample_size / 1000)
+        ))
+      )))
+    : baseScore;
+
+  const maturityRatio = Math.min(1.0, sampleCount / MATURE_THRESHOLD);
+  const edgeConfidenceScore = Math.round((1 - maturityRatio) * baseScore + maturityRatio * historyScore);
+  const screeningIntegrityScore = baseScore;
+
   const machineCandidateSignals =
     !poissonFeatures.is_stoppage_time_unpriceable &&
     (match.timing.stage !== MatchStage.LIVE || physicalStatsFeatures.stats_available) &&
     dataQualityScore >= 80 &&
     modelStabilityScore >= 70 &&
     !matchState.has_evidence_conflict &&
-    !matchState.post_goal_cooldown_active &&
-    edgeConfidenceScore > 0
-    ? validatedSignalProfiles.map(({ signal }) => signal) : [];
+    !matchState.post_goal_cooldown_active
+    ? resolved_positive_ev_signals : [];
 
   const finalRiskFlags = [...risk_flags];
   if (marketCalibration.market_stance === MarketStanceType.TRAP_INDUCEMENT) {

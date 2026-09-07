@@ -166,6 +166,18 @@ test('Anti-Fake Data Hardening: Scheme 5 - Dirichlet-Multinomial Bayesian Conjug
               { goals: 0 }  // 76-90
             ]
           }
+        },
+        away_team: {
+          all: {
+            scored_intervals: [
+              { goals: 0 },
+              { goals: 0 },
+              { goals: 0 },
+              { goals: 0 },
+              { goals: 0 },
+              { goals: 0 }
+            ]
+          }
         }
       }
     }

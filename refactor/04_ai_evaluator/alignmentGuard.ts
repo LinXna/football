@@ -64,7 +64,7 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
 
     if (!hasMachineCandidate(leg, payload)) {
       hasHallucination = true;
-      hallucinationReason = `AI leg lacks a matching Layer 03 machine candidate: Market=${leg.market}, Dir=${leg.direction}, Line=${leg.selected_line}, Odds=${leg.current_odds}.`;
+      hallucinationReason = `AI Hallucinated Leg: AI leg lacks a matching Layer 03 machine candidate: Market=${leg.market}, Dir=${leg.direction}, Line=${leg.selected_line}, Odds=${leg.current_odds}.`;
       break;
     }
 
