@@ -170,3 +170,25 @@
 3. **标准模型测试**：`verify_canonical_match_assembler.ts` (Layer 02)
 4. **量化引擎全覆盖测试**：`verify_quant_engine.ts` (Layer 03 - 7 大核心模块 M1~M6 及 M3.5 共生引擎)
 5. **双路全链路端到端集成测试**：`verify_full_pipeline_00_03.ts` (Layer 00 ~ 03 贯通测试)
+
+
+## Layer 03 Candidate State Machine
+
+`raw_positive_ev_signals` is the research/math track and is never a tradable candidate. Every raw signal enters one single state machine: `RAW +EV → OOS validation → DATA/EXECUTION gate → machine candidate → production unlock`.
+
+Only a `VALIDATED` OOS profile with `effective_sample_size >= 200` can cross the OOS boundary. Layer 06 adds an independent terminal provenance gate: only `formal_ai_recommendation` records whose persisted `candidate_pipeline_state` is `PRODUCTION_UNLOCKED` may enter settlement/OOS conversion. `machine_candidate`, `RESEARCH`, `OOS_LOCKED`, `DATA_LOCKED`, and `NO_POSITIVE_EV` records are rejected fail-closed. Settled records must also have verified scores, binary `WIN/LOSE` outcomes, a supported OOS market, and a prediction timestamp inside the declared archive prediction window; settlement must not occur after archive generation. The canonical Layer 06 path is `FormalRecommendation -> convertFormalLedgerRecords -> ingestHistoricalBacktestRecords -> OosCalibrationArchive`. Unsupported markets are explicitly `UNSUPPORTED_MARKET` and remain locked. Without any validated OOS candidate, `edge_confidence_score` is `0` and the candidate remains `OOS_LOCKED`; with validated OOS but failed execution/data gates it becomes `DATA_LOCKED`; only a non-empty machine-candidate set reaches `PRODUCTION_UNLOCKED` and maps to the legacy `production_gate.candidate_status = UNLOCKED`.
+
+The `candidate_pipeline` contract is exported with Layer 03 output and forwarded to Layer 04 so downstream layers do not infer production eligibility independently.
+
+### Layer 04 → Layer 05 Candidate Boundary
+
+Layer 04 is a consumer of the Layer 03 authorization contract, not an authority that can create production eligibility. `verifyStatutoryAlignment()` hard-fails any `candidate_pipeline.state` other than `PRODUCTION_UNLOCKED`: the AI may still provide research commentary, but `recommended_legs` is cleared, confidence is forced to `0`, and the grade is downgraded to `RESEARCH`.
+
+Layer 05 is a second, independent fail-closed boundary. `applyPortfolioRiskFilters()` requires `PRODUCTION_UNLOCKED`, requires a non-zero machine-candidate count, and rejects any Layer 03 / AI pipeline snapshot mismatch before applying grade, confidence, exposure, and spread rules. `LedgerPersistence.appendApprovedLegs()` repeats the same production-state, machine-candidate, and snapshot-consistency checks, so direct persistence cannot bypass Portfolio Risk.
+
+Therefore the authorization invariant is:
+
+`PRODUCTION_UNLOCKED ∧ machine_candidate_count > 0 ∧ A/B grade ∧ confidence >= 70 ∧ PortfolioRiskPassed → formal ledger write`
+
+Any missing or conflicting authorization state fails closed. `OOS_LOCKED`, `DATA_LOCKED`, `NO_POSITIVE_EV`, absent pipeline data, and pipeline snapshot mismatch can never become a formal recommendation.
+

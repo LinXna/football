@@ -1,5 +1,5 @@
 import { AiEvaluationBrief } from '../02_canonical_model/types.js';
-import { PositiveEVSignal, QuantAlert, DeviggedMarketFeatures, InPlayPoissonFeatures, SpatioTemporalEventFeatures } from '../03_quant_engine/types.js';
+import { PositiveEVSignal, QuantAlert, DeviggedMarketFeatures, InPlayPoissonFeatures, SpatioTemporalEventFeatures, Layer03CandidatePipeline } from '../03_quant_engine/types.js';
 import { RecommendationGrade, TrapDetectionResult, TacticalRegimeEvaluation } from './enums.js';
 
 export interface OosHistoricalContext {
@@ -38,6 +38,11 @@ export interface EvaluatorQuantFeatures {
   bdi?: number;
   goal_phase_alert?: string;
   machine_candidate_count?: number;
+  /** Canonical Layer 03 tracks; raw is research-only, machine candidates are OOS/data gated. */
+  raw_positive_ev_signals?: readonly PositiveEVSignal[];
+  machine_candidate_signals?: readonly PositiveEVSignal[];
+  candidate_pipeline?: Layer03CandidatePipeline;
+  risk_flags?: QuantAlert[];
   poisson_expected_goals?: string;
   prediction_snapshot?: {
     model_version: string;
@@ -96,6 +101,9 @@ export interface BlindSpotChecklist {
 
 export interface AiEvaluationResult {
   match_id: string;
+  match: string;
+  /** Immutable Layer 03 candidate authorization snapshot. AI/Risk layers must not infer eligibility independently. */
+  candidate_pipeline: Layer03CandidatePipeline;
   evaluation_time: string;
   
   blind_spot_analysis: BlindSpotChecklist;

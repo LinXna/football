@@ -5,6 +5,7 @@ import {
   Layer03AuditItem,
   Layer03DataAudit,
   Layer03ProductionGate,
+  Layer03CandidatePipeline,
   MomentumTimelineFeatures,
   RealTimePhysicalStatsFeatures
 } from './types.js';
@@ -211,7 +212,11 @@ export function buildLayer03DataAudit(
 export function buildLayer03ProductionGate(
   match: CanonicalMatch,
   audit: Layer03DataAudit,
-  hasValidatedOosCandidate: boolean
+  candidatePipeline: Layer03CandidatePipeline | {
+    state: 'NO_POSITIVE_EV' | 'OOS_LOCKED' | 'DATA_LOCKED' | 'PRODUCTION_UNLOCKED';
+    machine_candidate_count: number;
+    blockers: readonly string[];
+  }
 ): Layer03ProductionGate {
   const blockers: string[] = [];
   const alignment = match.alignment?.status;
@@ -234,24 +239,29 @@ export function buildLayer03ProductionGate(
   if (!hasExecutionMarket) blockers.push('缺少 YBTY 可执行主盘口');
   if (audit.overall_status === 'BLOCKED') blockers.push('Layer 03 数据审计已阻断');
 
-  const calculationStatus = blockers.length > 0
+  const dataBlockersPresent = blockers.length > 0;
+  const calculationStatus = dataBlockersPresent
     ? 'BLOCKED'
     : audit.overall_status === 'PASS'
       ? 'PRODUCTION_READY'
       : 'RESEARCH_ONLY';
-  const candidateStatus = calculationStatus === 'BLOCKED'
-    ? 'DATA_LOCKED'
-    : hasValidatedOosCandidate
-      ? 'UNLOCKED'
+
+  if (candidatePipeline.machine_candidate_count === 0) {
+    for (const blocker of candidatePipeline.blockers) {
+      if (!blockers.includes(blocker)) blockers.push(blocker);
+    }
+  }
+
+  const candidateStatus = candidatePipeline.machine_candidate_count > 0
+    ? 'UNLOCKED'
+    : candidatePipeline.state === 'DATA_LOCKED' || calculationStatus === 'BLOCKED'
+      ? 'DATA_LOCKED'
       : 'OOS_LOCKED';
 
-  if (!hasValidatedOosCandidate) {
-    blockers.push('没有满足门槛的 VALIDATED OOS 校准档案；只能输出研究结果');
-  }
   return Object.freeze({
     calculation_status: calculationStatus,
     candidate_status: candidateStatus,
     blockers: Object.freeze(blockers),
-    oos_requirement: '正式 machine candidate 需要对应盘口 VALIDATED 且有效样本数 >= 200'
+    oos_requirement: '正式 machine candidate 需要对应盘口 VALIDATED 且有效样本数 >= 200；所有数学 +EV 若无对应 OOS 验证只能停留在研究轨道。'
   });
 }

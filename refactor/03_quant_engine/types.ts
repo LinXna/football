@@ -366,6 +366,8 @@ export interface InPlayPoissonFeatures {
     prob_draw_rest: number;
     prob_away_win_rest: number;
   };
+  /** 完整剩余比分概率网格，仅供盘口冲突解析与审计，不允许下游自行重算。 */
+  score_probability_grid?: number[][];
   full_time_probabilities?: {
     prob_home_win: number;
     prob_draw: number;
@@ -625,10 +627,41 @@ export interface QuantitativeFeatures {
   };
   data_audit: Layer03DataAudit;
   production_gate: Layer03ProductionGate;
+  candidate_pipeline: Layer03CandidatePipeline;
 }
 
 export type Layer03CalculationStatus = 'PRODUCTION_READY' | 'RESEARCH_ONLY' | 'BLOCKED';
 export type Layer03CandidateStatus = 'UNLOCKED' | 'OOS_LOCKED' | 'DATA_LOCKED';
+
+export type Layer03CandidatePipelineState =
+  | 'NO_POSITIVE_EV'
+  | 'OOS_LOCKED'
+  | 'DATA_LOCKED'
+  | 'PRODUCTION_UNLOCKED';
+
+export interface Layer03CandidateOosValidation {
+  market: OosMarket | null;
+  status: 'VALIDATED' | 'INSUFFICIENT_EVIDENCE' | 'REJECTED' | 'NO_PROFILE' | 'UNSUPPORTED_MARKET';
+  effective_sample_size: number;
+  oos_brier_score: number | null;
+  blockers: readonly string[];
+}
+
+export interface Layer03CandidatePipelineTransition {
+  from: Layer03CandidatePipelineState | 'START';
+  to: Layer03CandidatePipelineState;
+  reason: string;
+}
+
+export interface Layer03CandidatePipeline {
+  state: Layer03CandidatePipelineState;
+  raw_signal_count: number;
+  oos_validated_count: number;
+  machine_candidate_count: number;
+  validations: readonly Layer03CandidateOosValidation[];
+  blockers: readonly string[];
+  transitions: readonly Layer03CandidatePipelineTransition[];
+}
 
 export interface Layer03ProductionGate {
   calculation_status: Layer03CalculationStatus;

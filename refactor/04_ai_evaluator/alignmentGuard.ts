@@ -1,5 +1,5 @@
 import { AiEvaluationResult, EvaluatorPayload } from './types.js';
-import { RecommendationGrade } from './enums.js';
+import { RecommendationGrade, TacticalRegimeEvaluation } from './enums.js';
 import { QuantAlert } from '../03_quant_engine/enums.js';
 
 /**
@@ -54,7 +54,24 @@ function hasMachineCandidate(leg: AiEvaluationResult['recommended_legs'][number]
  * Also enforces strict system-level risk overrides (Data Blind-Spot, Unverified Score).
  */
 export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: EvaluatorPayload): AiEvaluationResult {
+  const candidatePipeline = payload.quant_features?.candidate_pipeline;
+  const candidateState = candidatePipeline?.state ?? 'OOS_LOCKED';
   const statutoryMarkets = payload.ai_brief.core_markets || {};
+
+  // Hard Layer 03 authorization boundary: locked states may be evaluated for research,
+  // but can never carry actionable AI legs or an A/B recommendation grade downstream.
+  if (candidateState !== 'PRODUCTION_UNLOCKED') {
+    return {
+      ...result,
+      grade: RecommendationGrade.RESEARCH,
+      confidence_score: 0,
+      risk_warnings: [
+        ...result.risk_warnings,
+        `SYSTEM HARD GATE: Layer 03 candidate_pipeline.state=${candidateState}; AI actionable recommendation is forbidden.`
+      ],
+      recommended_legs: []
+    };
+  }
   let hasHallucination = false;
   let hallucinationReason = '';
 
@@ -189,7 +206,9 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
   // 3. 杯赛/友谊赛首发未确认时：最高 C 级，不进正式串关
   const league = payload.ai_brief.league ?? '';
   const isCupOrFriendly = /杯|Cup|copa|pokal|coupe|友谊|friendly/i.test(league);
-  const lineupNotConfirmed = !payload.lineup_value_matrix?.is_lineup_confirmed;
+  const lineupNotConfirmed = typeof payload.lineup_value_matrix === 'string'
+    ? true
+    : !payload.lineup_value_matrix?.is_lineup_confirmed;
   if (isCupOrFriendly && lineupNotConfirmed) {
     if (enforcedGrade === RecommendationGrade.A_GRADE || enforcedGrade === RecommendationGrade.B_GRADE) {
       enforcedGrade = RecommendationGrade.C_GRADE;
@@ -219,7 +238,7 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
       additionalWarnings.push("SYSTEM HARD GATE: 触发 Layer 03 假控球警报 (BARREN_DOMINANCE)，剥夺 A 级资格降为 B 级");
     }
     if (result.blind_spot_analysis && result.blind_spot_analysis.tactical_regime_evaluation === 'GENUINE_DOMINANCE') {
-      result.blind_spot_analysis.tactical_regime_evaluation = 'BARREN_DOMINANCE';
+      result.blind_spot_analysis.tactical_regime_evaluation = TacticalRegimeEvaluation.BARREN_DOMINANCE;
       additionalWarnings.push("SYSTEM HARD GATE: 修正战术态势为 BARREN_DOMINANCE (无实质威胁虚假控球)");
     }
   }

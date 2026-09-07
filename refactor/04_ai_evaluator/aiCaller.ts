@@ -4,6 +4,16 @@ import { RecommendationGrade, TacticalRegimeEvaluation, TrapDetectionResult } fr
 import { buildSystemPrompt, buildUserPrompt } from './promptBuilder.js';
 import { verifyStatutoryAlignment } from './alignmentGuard.js';
 
+const EMPTY_LOCKED_PIPELINE = Object.freeze({
+  state: 'OOS_LOCKED' as const,
+  raw_signal_count: 0,
+  oos_validated_count: 0,
+  machine_candidate_count: 0,
+  validations: Object.freeze([]),
+  blockers: Object.freeze(['缺少 Layer 03 candidate_pipeline，禁止生产解锁。']),
+  transitions: Object.freeze([])
+});
+
 export class AiEvaluatorService {
   private ai: GoogleGenAI;
   
@@ -99,8 +109,9 @@ export class AiEvaluatorService {
         const rawResult: unknown = JSON.parse(response.text);
         const result = validateAiResponse(rawResult, payload);
 
-        // Apply alignment guard
-        return verifyStatutoryAlignment(result, payload);
+        // Apply alignment guard. The Layer 03 candidate authorization snapshot is immutable context.
+        const aligned = verifyStatutoryAlignment(result, payload);
+        return { ...aligned, candidate_pipeline: payload.quant_features?.candidate_pipeline ?? EMPTY_LOCKED_PIPELINE };
 
       } catch (error: unknown) {
         attempt++;
@@ -122,6 +133,7 @@ export class AiEvaluatorService {
 
   private createFallbackResult(payload: EvaluatorPayload, errorMsg: string): AiEvaluationResult {
     return {
+      candidate_pipeline: payload.quant_features?.candidate_pipeline ?? EMPTY_LOCKED_PIPELINE,
       match_id: payload.ai_brief.match_id ?? 'unknown_match',
       match: `${payload.ai_brief.teams?.home ?? 'UNKNOWN'} vs ${payload.ai_brief.teams?.away ?? 'UNKNOWN'}`,
       evaluation_time: new Date().toISOString(),
@@ -170,6 +182,7 @@ function validateAiResponse(raw: unknown, payload: EvaluatorPayload): AiEvaluati
   }
   const recommendedLegs = raw.recommended_legs.map(parseRecommendedLeg);
   return {
+    candidate_pipeline: payload.quant_features?.candidate_pipeline ?? EMPTY_LOCKED_PIPELINE,
     match_id: raw.match_id,
     match: raw.match,
     evaluation_time: new Date().toISOString(),

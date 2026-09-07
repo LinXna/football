@@ -81,6 +81,7 @@ const mockPayload: EvaluatorPayload = {
 
 // Valid AI response using float format '-0.25'
 const validAiResult: AiEvaluationResult = {
+  candidate_pipeline: unlockedPipeline,
   match_id: '12345',
   evaluation_time: new Date().toISOString(),
   blind_spot_analysis: {

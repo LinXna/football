@@ -52,6 +52,11 @@ const minuteFromSnapshot = (record: SettledFormalLedgerRecord): number | null =>
 
 export function adaptSettledFormalLedgerRecord(record: SettledFormalLedgerRecord): LedgerRecordAdapterResult {
   const recordId = String(record?.record_id || '');
+  if (record?.record_type === 'formal_ai_recommendation' && record?.formal_recommendation === true &&
+      (record?.candidate_pipeline_state !== 'PRODUCTION_UNLOCKED' ||
+       record?.condition_snapshot?.candidate_pipeline_state !== 'PRODUCTION_UNLOCKED')) {
+    return { accepted: false, record_id: recordId, reason: HistoricalSampleRejectionReason.CANDIDATE_NOT_PRODUCTION_UNLOCKED };
+  }
   const minute = minuteFromSnapshot(record);
   const teamsAreValid = isObject(record?.teams) &&
     hasText(record.teams.home) && hasText(record.teams.away);
@@ -103,6 +108,7 @@ export function adaptSettledFormalLedgerRecord(record: SettledFormalLedgerRecord
       settled_record_provenance: 'SETTLED_LEDGER_ADAPTER_V1',
       record_id: record.record_id,
       record_type: record.record_type,
+      candidate_pipeline_state: record.candidate_pipeline_state,
       formal_recommendation: record.formal_recommendation,
       model_version: record.model_version,
       prediction_at: record.prediction_at,

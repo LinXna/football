@@ -1,4 +1,5 @@
 import { AiEvaluationResult, RecommendedLeg } from '../04_ai_evaluator/types.js';
+import { Layer03CandidatePipeline, PositiveEVSignal } from '../03_quant_engine/types.js';
 
 export type BettingStage = 'LIVE' | 'PREMATCH';
 
@@ -13,6 +14,7 @@ export interface FormalRecommendation {
   kickoff_time: string;
   league_key: string;
   teams: { home: string, away: string };
+  candidate_pipeline_state: 'NO_POSITIVE_EV' | 'OOS_LOCKED' | 'DATA_LOCKED' | 'PRODUCTION_UNLOCKED';
   
   // A snapshot of the exact conditions when the bet was placed
   condition_snapshot: {
@@ -21,6 +23,7 @@ export interface FormalRecommendation {
     bdi?: number;
     goal_phase_alert?: string;
     machine_candidate_count?: number;
+    candidate_pipeline_state?: 'NO_POSITIVE_EV' | 'OOS_LOCKED' | 'DATA_LOCKED' | 'PRODUCTION_UNLOCKED';
     score_verified: boolean;
     source: 'YBTY';
   };
@@ -64,10 +67,13 @@ export interface FormalRecommendation {
 export interface RiskFilterContext {
   existing_ledger: FormalRecommendation[];
   incoming_evaluation: AiEvaluationResult;
+  /** Optional explicit snapshot; when supplied it must match incoming_evaluation.candidate_pipeline. */
+  candidate_pipeline?: Layer03CandidatePipeline;
 }
 
 export interface RiskFilterResult {
   is_approved: boolean;
+  candidate_state: Layer03CandidatePipeline['state'];
   rejection_reason?: string;
   approved_legs: RecommendedLeg[];
 }

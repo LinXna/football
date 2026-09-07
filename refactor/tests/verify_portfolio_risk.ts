@@ -5,8 +5,12 @@ import { LedgerPersistence } from '../05_portfolio_risk/ledgerPersistence.js';
 import { RecommendationGrade } from '../04_ai_evaluator/enums.js';
 import { FormalRecommendation } from '../05_portfolio_risk/types.js';
 import { AiEvaluationResult } from '../04_ai_evaluator/types.js';
+import { Layer03CandidatePipeline } from '../03_quant_engine/types.js';
 
 console.log("=== TESTING PORTFOLIO RISK FILTERS ===");
+
+const unlockedPipeline: Layer03CandidatePipeline = { state: 'PRODUCTION_UNLOCKED', raw_signal_count: 1, oos_validated_count: 1, machine_candidate_count: 1, validations: [], blockers: [], transitions: [] };
+const lockedPipeline: Layer03CandidatePipeline = { state: 'OOS_LOCKED', raw_signal_count: 1, oos_validated_count: 0, machine_candidate_count: 0, validations: [], blockers: ['OOS'], transitions: [] };
 
 // Dummy existing ledger
 const existingLedger: FormalRecommendation[] = [
@@ -19,14 +23,18 @@ const existingLedger: FormalRecommendation[] = [
     match_id: 'match_1',
     kickoff_time: '',
     teams: { home: 'A', away: 'B' },
+    league_key: 'TEST',
+    candidate_pipeline_state: 'PRODUCTION_UNLOCKED',
     condition_snapshot: { match_minute: "LIVE 10'", current_score: "0-0", score_verified: true, source: 'YBTY' },
     ai_assessment: { grade: RecommendationGrade.B_GRADE, confidence_score: 80, blind_spot_analysis: {} as any, internal_logical_audit: '', qualitative_summary: '' },
-    leg: { market: 'ASIAN_HANDICAP_MAIN', selected_line: '-0.5', current_odds: 1.9, minimum_acceptable_odds: 1.8, direction: 'HOME', basis: '' }
+    leg: { market: 'ASIAN_HANDICAP_MAIN', selected_line: '-0.5', current_odds: 1.9, minimum_acceptable_odds: 1.8, direction: 'HOME', basis: '' },
+    prediction_snapshot: { model_version: 'test', prediction_at: '', market: 'ASIAN_HANDICAP_MAIN', line: '-0.5', odds: 1.9, model_probability: 0.55, predicted_lambda: { home: 1, away: 1 }, minute: 10, score_at_recommendation: '0-0', score_verified: true, score_source: 'YBTY', red_card_state: 'NONE' }
   }
 ];
 
 // Test 1: B_GRADE Exposure Limit (Max 1)
 const incomingBGrade: AiEvaluationResult = {
+  candidate_pipeline: unlockedPipeline,
   match_id: 'match_1', // Same match
   match: 'A vs B',
   evaluation_time: '',
@@ -50,6 +58,7 @@ if (!res1.is_approved && res1.approved_legs.length === 0) {
 
 // Test 2: Deep Spread Block (Line >= 2.0 requires A_GRADE)
 const incomingDeepSpread: AiEvaluationResult = {
+  candidate_pipeline: unlockedPipeline,
   match_id: 'match_2',
   match: 'A vs B',
   evaluation_time: '',
@@ -96,6 +105,7 @@ const persistencePayload = {
   ai_brief: {
     match_id: 'match_1',
     kickoff_time: '2026-09-04T16:00:00Z',
+    league: 'TEST',
     teams: { home: 'A', away: 'B' },
     status_summary: "PREMATCH",
     score_verification: { current_score: '0 - 0', is_verified: true },
@@ -113,7 +123,15 @@ const persistencePayload = {
     }],
     bdi: 0,
     goal_phase_alert: 'NONE',
-    machine_candidate_count: 1
+    machine_candidate_count: 1,
+    candidate_pipeline: unlockedPipeline,
+    prediction_snapshot: {
+      model_version: 'test',
+      prediction_at: '2026-09-04T16:10:00Z',
+      predicted_lambda: { home: 1.2, away: 0.8 },
+      red_card_state: 'NONE',
+      signals: [{ market: 'ASIAN_HANDICAP_MAIN', line: '-0.5', side: 'home', odds: 1.9, ev: 0.08, confidence: 80, kelly_fraction: 0.02, model_probability: 0.55 }]
+    }
   }
 } as any;
 try {
@@ -129,20 +147,23 @@ try {
 }
 console.log("[OK] Rejected AI evaluation was blocked before ledger persistence.");
 
-const missingCandidatePersistence = LedgerPersistence.appendApprovedLegs(
-  {
-    ...persistencePayload,
-    quant_features: {
-      ...persistencePayload.quant_features,
-      machine_candidate_signals: []
-    }
-  },
-  incomingBGrade,
-  incomingBGrade.recommended_legs,
-  'PREMATCH'
-);
-if (missingCandidatePersistence.length !== 0) {
-  throw new Error('[FAIL] AI legs without matching Layer 03 candidates must never be persisted.');
+try {
+  LedgerPersistence.appendApprovedLegs(
+    {
+      ...persistencePayload,
+      quant_features: {
+        ...persistencePayload.quant_features,
+        machine_candidate_signals: [],
+        candidate_pipeline: lockedPipeline
+      }
+    },
+    { ...incomingBGrade, candidate_pipeline: lockedPipeline },
+    incomingBGrade.recommended_legs,
+    'PREMATCH'
+  );
+  throw new Error('[FAIL] AI leg without matching Layer 03 candidates must never be persisted.');
+} catch (error) {
+  if (!(error instanceof Error) || !error.message.includes('PRODUCTION_UNLOCKED')) throw error;
 }
 console.log("[OK] AI leg without matching Layer 03 candidate was blocked before persistence.");
 

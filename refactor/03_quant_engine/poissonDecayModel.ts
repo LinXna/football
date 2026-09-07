@@ -639,6 +639,7 @@ export function calculateInPlayPoissonFeatures(
       prob_draw_rest: poissonResult.prob_draw_rest,
       prob_away_win_rest: poissonResult.prob_away_win_rest
     },
+    score_probability_grid: poissonGrid,
     full_time_probabilities: fullTimeProbs,
     projected_final_score: {
       home: projectedHomeFinal,

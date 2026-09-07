@@ -6,6 +6,12 @@ export interface FormalLedgerConversionResult {
   skipped: readonly { record_id: string; reason: string }[];
 }
 
+const isOosMarket = (value: unknown): value is HistoricalBacktestRecord['market'] =>
+  value === 'ASIAN_HANDICAP_MAIN' || value === 'TOTAL_GOALS_MAIN';
+
+const isSettlementBasis = (value: unknown): value is NonNullable<HistoricalBacktestRecord['settlement_basis']> =>
+  value === 'FULL_MATCH' || value === 'REMAINING_GOALS' || value === 'REMAINING_PERIOD_DOMINANCE';
+
 function parseScore(value: string): { home: number; away: number } | undefined {
   const match = value.match(/^\s*(\d+)\s*[-:]\s*(\d+)\s*$/);
   if (!match) return undefined;
@@ -24,7 +30,22 @@ export function convertFormalLedgerRecords(
 
   for (const record of records) {
     const settlement = record.settlement;
+    if (record.record_type !== 'formal_ai_recommendation' ||
+        record.formal_recommendation !== true ||
+        record.candidate_pipeline_state !== 'PRODUCTION_UNLOCKED' ||
+        record.condition_snapshot?.candidate_pipeline_state !== 'PRODUCTION_UNLOCKED') {
+      skipped.push({ record_id: record.record_id, reason: 'CANDIDATE_NOT_PRODUCTION_UNLOCKED' });
+      continue;
+    }
     const recommendationScore = parseScore(record.prediction_snapshot.score_at_recommendation);
+    if (!isOosMarket(record.prediction_snapshot?.market)) {
+      skipped.push({ record_id: record.record_id, reason: 'UNSUPPORTED_OOS_MARKET' });
+      continue;
+    }
+    if (!isSettlementBasis(record.leg?.basis)) {
+      skipped.push({ record_id: record.record_id, reason: 'INVALID_SETTLEMENT_BASIS' });
+      continue;
+    }
     const finalScore = settlement?.final_score_verified
       ? parseScore(settlement.final_score_verified)
       : undefined;
@@ -45,6 +66,8 @@ export function convertFormalLedgerRecords(
       record_id: record.record_id,
       record_type: 'formal_ai_recommendation',
       formal_recommendation: true,
+      candidate_pipeline_state: 'PRODUCTION_UNLOCKED',
+      settled_record_provenance: 'SETTLED_LEDGER_ADAPTER_V1',
       model_version: record.prediction_snapshot.model_version,
       prediction_at: record.prediction_snapshot.prediction_at,
       settled_at: settlement.settled_at,
@@ -57,11 +80,13 @@ export function convertFormalLedgerRecords(
       final_score: finalScore,
       score_verified: record.prediction_snapshot.score_verified,
       red_card_state: record.prediction_snapshot.red_card_state,
-      market: record.prediction_snapshot.market as HistoricalBacktestRecord['market'],
+      market: record.prediction_snapshot.market,
       line: record.prediction_snapshot.line,
       odds: record.prediction_snapshot.odds,
       model_probability: record.prediction_snapshot.model_probability,
       predicted_lambda: record.prediction_snapshot.predicted_lambda.home + record.prediction_snapshot.predicted_lambda.away,
+      settlement_market: record.prediction_snapshot.market,
+      settlement_basis: record.leg.basis,
       settlement_outcome: settlement.outcome
     });
   }

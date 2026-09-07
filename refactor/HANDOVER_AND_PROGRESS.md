@@ -1310,3 +1310,10 @@
   3. 运行 `npx tsx refactor/tests/verify_settlement_engine.ts` 18/18 断言全量通过，所有核心赔率分支和边角情形均按亚洲让球精确规则计算；
   4. 运行 `npx tsc --noEmit` 全局 TypeScript 零报错，遵循强类型零 `any` 规则。
 - **下一步待办**: 将旧版 `output/recommendation_ledger*.json` 的脏数据和老格式导入由这套强类型的 Layer 06 Settlement Engine 校验并转化为全新的 OOS 档案结构；或者推进 Layer 04 (AI Evaluator) 与 Layer 05 (Portfolio Risk) 的重构。
+
+### Layer 06 OOS provenance hardening (2026-09-07)
+- Layer 06 now independently requires `candidate_pipeline_state === PRODUCTION_UNLOCKED` in both the formal-ledger adapter and normalized OOS ingestion. This is a terminal fail-closed boundary; Layer 04/05 bugs cannot promote `OOS_LOCKED`, `DATA_LOCKED`, `NO_POSITIVE_EV`, `machine_candidate`, or `RESEARCH` records into OOS samples.
+- `formalLedgerAdapter.ts` is exported from `06_settlement_audit/index.ts` as the canonical conversion entry point.
+- OOS ingestion now explicitly rejects duplicate sample IDs, predictions outside the archive prediction window, and settlements after archive generation instead of allowing the archive builder to fail later.
+- Runtime market and settlement-basis validation was added to the formal-ledger conversion path.
+- Layer 06 regression covers the locked-candidate boundary and the existing settled-record audit path; the targeted TypeScript/runtime verification passes.

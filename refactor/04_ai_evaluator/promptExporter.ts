@@ -189,10 +189,13 @@ export function generateRefactoredPrompt(
       historical_team_profiling: team_profiling,
       lineup_value_matrix: (!hasLineupData || lineupStatus === 'NOT_ANNOUNCED') ? "NO_LINEUP" : lineup_value_matrix,
       quant_features: {
-        mathematical_ev_signals: quantFeatures.raw_positive_ev_signals ?? quantFeatures.positive_ev_signals,
+        mathematical_ev_signals: quantFeatures.raw_positive_ev_signals,
+        raw_positive_ev_signals: quantFeatures.raw_positive_ev_signals,
+        machine_candidate_signals: quantFeatures.positive_ev_signals,
+        candidate_pipeline: quantFeatures.candidate_pipeline,
         bdi: quantFeatures.battlefield_dominance_index,
         goal_phase_alert: quantFeatures.goal_phase_alert,
-        machine_candidate_count: quantFeatures.positive_ev_signals.length,
+        machine_candidate_count: quantFeatures.candidate_pipeline.machine_candidate_count,
         poisson_expected_goals: quantFeatures.poisson ? `Home Rest: ${quantFeatures.poisson.lambda_home_rest?.toFixed(2)}, Away Rest: ${quantFeatures.poisson.lambda_away_rest?.toFixed(2)}` : undefined,
         prediction_snapshot: quantFeatures.poisson ? {
           model_version: 'refactor-layer03-v1',

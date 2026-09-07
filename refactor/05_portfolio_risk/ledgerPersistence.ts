@@ -84,6 +84,7 @@ export class LedgerPersistence {
     }
     const quantFeatures = payload.quant_features;
     const scoreVerification = brief.score_verification;
+    const candidatePipeline = quantFeatures?.candidate_pipeline;
     if (
       !brief.match_id ||
       !brief.kickoff_time ||
@@ -94,6 +95,24 @@ export class LedgerPersistence {
       !quantFeatures
     ) {
       throw new Error(`[Ledger] Incomplete refactor evaluation payload for ${brief.match_id || 'unknown match'}`);
+    }
+
+    const evaluationGradeEligible = evaluation.grade === 'A_GRADE' || evaluation.grade === 'B_GRADE';
+    if (!evaluationGradeEligible) {
+      throw new Error(`[Ledger] Only A_GRADE or B_GRADE can be persisted.`);
+    }
+    if (evaluation.confidence_score < 70) {
+      throw new Error(`[Ledger] Confidence below 70 cannot be persisted.`);
+    }
+    if (candidatePipeline?.state !== 'PRODUCTION_UNLOCKED' || evaluation.candidate_pipeline.state !== 'PRODUCTION_UNLOCKED') {
+      throw new Error(`[Ledger] Candidate pipeline is not PRODUCTION_UNLOCKED; formal persistence denied.`);
+    }
+    if (candidatePipeline.machine_candidate_count <= 0 || evaluation.candidate_pipeline.machine_candidate_count <= 0) {
+      throw new Error(`[Ledger] No Layer 03 machine candidate exists; formal persistence denied.`);
+    }
+    if (candidatePipeline.state !== evaluation.candidate_pipeline.state ||
+        candidatePipeline.machine_candidate_count !== evaluation.candidate_pipeline.machine_candidate_count) {
+      throw new Error(`[Ledger] Candidate pipeline snapshot mismatch; fail closed.`);
     }
     
     const filePath = this.getLedgerPath(stage);
@@ -130,10 +149,12 @@ export class LedgerPersistence {
           current_score: scoreVerification.current_score,
           bdi: quantFeatures.bdi || 0,
           goal_phase_alert: quantFeatures.goal_phase_alert || 'NONE',
-          machine_candidate_count: quantFeatures.machine_candidate_count || 0,
+          machine_candidate_count: quantFeatures.machine_candidate_count || candidatePipeline.machine_candidate_count,
+          candidate_pipeline_state: candidatePipeline.state,
           score_verified: Boolean(scoreVerification.is_verified),
           source: 'YBTY',
         },
+        candidate_pipeline_state: evaluation.candidate_pipeline.state,
         ai_assessment: {
           grade: evaluation.grade,
           confidence_score: evaluation.confidence_score,

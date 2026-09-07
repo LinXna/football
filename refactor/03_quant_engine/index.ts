@@ -35,7 +35,8 @@ import {
   BookmakerPosture,
   MarketStanceType,
   Layer03OpId,
-  Layer03FeatureId
+  Layer03FeatureId,
+  Layer03CandidatePipeline
 } from './types.js';
 import { selectOosCalibrationProfile } from './oosCalibrationEngine.js';
 import { extractCleanedContextFeatures } from './contextEngine.js';
@@ -46,6 +47,7 @@ import { extractSpatioTemporalEventFeatures } from './eventMomentumFusion.js';
 import { calculateInPlayPoissonFeatures } from './poissonDecayModel.js';
 import { calculateDeviggedMarketFeatures, invertHandicapString, parseAsianHandicapLine } from './devigCalculator.js';
 import { buildLayer03DataAudit, buildLayer03ProductionGate } from './dataAudit.js';
+import { evaluateCandidatePipeline } from './candidateStateMachine.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
 
@@ -60,6 +62,7 @@ export * from './poissonDecayModel.js';
 export * from './devigCalculator.js';
 export * from './dataAudit.js';
 export * from './oosCalibrationEngine.js';
+export * from './candidateStateMachine.js';
 
 /**
  * 计算战场统治权指数 (Battlefield Dominance Index, BDI ∈ [-100, +100])
@@ -77,16 +80,10 @@ function toOosMarket(signal: PositiveEVSignal | undefined): OosMarket | undefine
   return undefined;
 }
 
-function isValidatedOosProfile(profile: QuantCalibrationProfile | undefined): profile is QuantCalibrationProfile {
+function isValidatedOosProfile(profile: QuantCalibrationProfile | undefined): boolean {
   return profile?.status === 'VALIDATED' &&
     profile.effective_sample_size >= 200 &&
     profile.oos_brier_score !== null;
-}
-
-type ValidatedOosProfile = QuantCalibrationProfile & { oos_brier_score: number };
-
-function hasValidatedOosProfile(profile: QuantCalibrationProfile | undefined): profile is ValidatedOosProfile {
-  return isValidatedOosProfile(profile) && typeof profile.oos_brier_score === 'number';
 }
 
 /** 将三源证据、战术状态和进球后冷却凝结为下游唯一可消费的实时状态。 */
@@ -477,7 +474,7 @@ export function calculateQuantitativeFeatures(
     match.timing.stage
   );
 
-  const resolved_positive_ev_signals = resolveMarketConflicts(positive_ev_signals, match, poissonFeatures.rest_score_matrix?.grid);
+  const resolved_positive_ev_signals = resolveMarketConflicts(positive_ev_signals, match, poissonFeatures.score_probability_grid);
 
   let adjustedConfidence = Math.max(0, confidence_score - marketCalibration.market_confidence_penalty);
   if (match.timing.stage === MatchStage.LIVE && !physicalStatsFeatures.stats_available) {
@@ -508,37 +505,22 @@ export function calculateQuantitativeFeatures(
       spatioTemporalFeatures.live_threat_trinity.away.alignment_score
     ) - (spatioTemporalFeatures.goal_climax.post_goal_cooldown_active ? 0.20 : 0)
   )));
-  const validatedSignalProfiles = resolved_positive_ev_signals
-    .map((signal) => {
-      const market = toOosMarket(signal);
-      return { signal, profile: market === undefined ? undefined : resolveProfile(market) };
-    })
-    .filter((item): item is { signal: PositiveEVSignal; profile: ValidatedOosProfile } => hasValidatedOosProfile(item.profile));
-  
-  const sampleCount = validatedSignalProfiles.length;
-  const MATURE_THRESHOLD = 200;
-  const baseScore = Math.min(adjustedConfidence, dataQualityScore, modelStabilityScore);
-  
-  const historyScore = sampleCount > 0
-    ? Math.round(Math.max(0, Math.min(100,
-        Math.max(...validatedSignalProfiles.map(({ profile }) =>
-          (adjustedConfidence - profile.oos_brier_score * 100) * Math.min(1, profile.effective_sample_size / 1000)
-        ))
-      )))
-    : baseScore;
-
-  const maturityRatio = Math.min(1.0, sampleCount / MATURE_THRESHOLD);
-  const edgeConfidenceScore = Math.round((1 - maturityRatio) * baseScore + maturityRatio * historyScore);
-  const screeningIntegrityScore = baseScore;
-
-  const machineCandidateSignals =
-    !poissonFeatures.is_stoppage_time_unpriceable &&
-    (match.timing.stage !== MatchStage.LIVE || physicalStatsFeatures.stats_available) &&
-    dataQualityScore >= 80 &&
-    modelStabilityScore >= 70 &&
-    !matchState.has_evidence_conflict &&
-    !matchState.post_goal_cooldown_active
-    ? resolved_positive_ev_signals : [];
+  const candidatePipeline = evaluateCandidatePipeline({
+    rawSignals: resolved_positive_ev_signals,
+    resolveOosMarket: toOosMarket,
+    resolveOosProfile: resolveProfile,
+    adjustedConfidence,
+    dataQualityScore,
+    modelStabilityScore,
+    canPriceMarket: !poissonFeatures.is_stoppage_time_unpriceable,
+    liveStatsAvailable: physicalStatsFeatures.stats_available,
+    stage: match.timing.stage,
+    hasEvidenceConflict: matchState.has_evidence_conflict,
+    postGoalCooldownActive: matchState.post_goal_cooldown_active
+  });
+  const machineCandidateSignals = [...candidatePipeline.machine_candidate_signals];
+  const edgeConfidenceScore = candidatePipeline.edge_confidence_score;
+  const screeningIntegrityScore = Math.min(adjustedConfidence, dataQualityScore, modelStabilityScore);
 
   const finalRiskFlags = [...risk_flags];
   if (marketCalibration.market_stance === MarketStanceType.TRAP_INDUCEMENT) {
@@ -558,7 +540,11 @@ export function calculateQuantitativeFeatures(
   const productionGate = buildLayer03ProductionGate(
     match,
     dataAudit,
-    validatedSignalProfiles.length > 0
+    {
+      state: candidatePipeline.state,
+      machine_candidate_count: candidatePipeline.machine_candidate_signals.length,
+      blockers: candidatePipeline.blockers
+    }
   );
   const result: QuantitativeFeatures = Object.freeze({
     canonical_id: match.canonical_id,
@@ -584,7 +570,22 @@ export function calculateQuantitativeFeatures(
       edge_confidence_score: edgeConfidenceScore
     },
     data_audit: dataAudit,
-    production_gate: productionGate
+    production_gate: productionGate,
+    candidate_pipeline: Object.freeze({
+      state: candidatePipeline.state,
+      raw_signal_count: candidatePipeline.raw_signals.length,
+      oos_validated_count: candidatePipeline.oos_validated_signals.length,
+      machine_candidate_count: candidatePipeline.machine_candidate_signals.length,
+      validations: Object.freeze(candidatePipeline.validations.map((item) => Object.freeze({
+        market: item.market,
+        status: item.status,
+        effective_sample_size: item.effective_sample_size,
+        oos_brier_score: item.oos_brier_score,
+        blockers: item.blockers
+      }))),
+      blockers: candidatePipeline.blockers,
+      transitions: Object.freeze(candidatePipeline.transitions)
+    } as Layer03CandidatePipeline)
   });
 
   tracer?.info(

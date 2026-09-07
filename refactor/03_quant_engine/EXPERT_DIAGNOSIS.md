@@ -6566,3 +6566,10 @@ export function calculateQuantitativeFeatures(
 
   return result;
 }
+
+
+## 状态机重构后的最终契约
+
+修复后，`raw_positive_ev_signals` 与生产候选严格分轨。每条原始 +EV 必须逐条完成 OOS 校验；只有 `VALIDATED` 且 `effective_sample_size >= 200` 的信号才允许进入 machine candidate。无 OOS 时 `edge_confidence_score` 不再回退到 `baseScore`，而是锁定为 0。
+
+生产状态统一由 `candidate_pipeline` 驱动：`NO_POSITIVE_EV → OOS_LOCKED → DATA_LOCKED → PRODUCTION_UNLOCKED`。`production_gate` 不再单独推断 OOS 是否存在，而是消费同一候选状态机结果，从而消除 `machineCandidateSignals` 与 `candidate_status` 不一致的旁路。

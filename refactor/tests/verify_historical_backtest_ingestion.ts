@@ -8,10 +8,11 @@ function assert(condition: boolean, message: string): void {
 }
 
 const baseRecord: HistoricalBacktestRecord = Object.freeze({
-  settled_record_provenance: 'SETTLED_LEDGER_ADAPTER_V1',
   record_id: 'formal-settled-001',
   record_type: 'formal_ai_recommendation',
   formal_recommendation: true,
+  candidate_pipeline_state: 'PRODUCTION_UNLOCKED',
+  settled_record_provenance: 'SETTLED_LEDGER_ADAPTER_V1',
   model_version: 'layer03-v1',
   prediction_at: '2026-09-01T00:00:00.000Z',
   settled_at: '2026-09-02T00:00:00.000Z',
@@ -73,12 +74,13 @@ const settledLedgerRecord = {
   record_id: 'ledger-formal-001',
   record_type: 'formal_ai_recommendation',
   formal_recommendation: true,
+  candidate_pipeline_state: 'PRODUCTION_UNLOCKED',
   stage: 'LIVE',
   created_at_utc: '2026-09-01T00:00:00.000Z',
   match_id: 'match-001',
   kickoff_time: '2026-09-01T20:00:00+08:00',
   teams: { home: 'Home FC', away: 'Away FC' },
-  condition_snapshot: { match_minute: "LIVE 62'", current_score: '1 - 0', bdi: 0, goal_phase_alert: 'NONE', machine_candidate_count: 1 },
+  condition_snapshot: { match_minute: "LIVE 62'", current_score: '1 - 0', bdi: 0, goal_phase_alert: 'NONE', machine_candidate_count: 1, candidate_pipeline_state: 'PRODUCTION_UNLOCKED', score_verified: true, source: 'YBTY' },
   ai_assessment: { grade: 'B_GRADE' as any, confidence_score: 80, blind_spot_analysis: {} as any, internal_logical_audit: '', qualitative_summary: '' },
   leg: { market: 'TOTAL_GOALS_MAIN', selected_line: '2.5', current_odds: 1.9, minimum_acceptable_odds: 1.8, direction: 'OVER', basis: 'FULL_MATCH' },
   model_version: 'layer03-v1',
@@ -96,6 +98,14 @@ const settledLedgerRecord = {
   predicted_lambda: 1.2,
   settlement_outcome: 'WIN',
 } as SettledFormalLedgerRecord;
+
+const lockedLedger = adaptSettledFormalLedgerRecord({
+  ...settledLedgerRecord,
+  record_id: 'locked-ledger',
+  candidate_pipeline_state: 'OOS_LOCKED',
+  condition_snapshot: { ...settledLedgerRecord.condition_snapshot, candidate_pipeline_state: 'OOS_LOCKED' }
+} as SettledFormalLedgerRecord);
+assert(lockedLedger.accepted === false && lockedLedger.reason === HistoricalSampleRejectionReason.CANDIDATE_NOT_PRODUCTION_UNLOCKED, 'OOS_LOCKED formal records must never enter Layer 06 OOS ingestion.');
 const adapted = adaptSettledFormalLedgerRecord(settledLedgerRecord);
 assert(adapted.accepted && adapted.record.minute === 62, 'Complete settled Layer 05 record must map to Layer 06 with LIVE minute.');
 const directRecord = { ...baseRecord, settled_record_provenance: undefined } as unknown as HistoricalBacktestRecord;
@@ -111,25 +121,25 @@ assert(directIngestion.accepted_samples.length === 0 &&
   directIngestion.rejected_records[0]?.reason === HistoricalSampleRejectionReason.ADAPTER_INPUT_INCOMPLETE,
   'Direct normalized records without adapter provenance must not create OOS samples.');
 const incomplete = adaptSettledFormalLedgerRecord({ ...({} as SettledFormalLedgerRecord), record_id: 'incomplete' });
-assert(!incomplete.accepted && incomplete.reason === HistoricalSampleRejectionReason.ADAPTER_INPUT_INCOMPLETE, 'Incomplete settled records must be rejected without defaults.');
+assert(incomplete.accepted === false && incomplete.reason === HistoricalSampleRejectionReason.ADAPTER_INPUT_INCOMPLETE, 'Incomplete settled records must be rejected without defaults.');
 const malformedLedger = adaptSettledFormalLedgerRecord({
   ...settledLedgerRecord,
   record_id: 'malformed-ledger',
   teams: undefined
 } as unknown as SettledFormalLedgerRecord);
-assert(!malformedLedger.accepted && malformedLedger.reason === HistoricalSampleRejectionReason.ADAPTER_INPUT_INCOMPLETE, 'Malformed Layer 05 ledger structure must be rejected without throwing.');
+assert(malformedLedger.accepted === false && malformedLedger.reason === HistoricalSampleRejectionReason.ADAPTER_INPUT_INCOMPLETE, 'Malformed Layer 05 ledger structure must be rejected without throwing.');
 const rejectedGradeLedger = adaptSettledFormalLedgerRecord({
   ...settledLedgerRecord,
   record_id: 'rejected-grade-ledger',
   ai_assessment: { ...settledLedgerRecord.ai_assessment, grade: 'C_GRADE' }
 } as SettledFormalLedgerRecord);
-assert(!rejectedGradeLedger.accepted && rejectedGradeLedger.reason === HistoricalSampleRejectionReason.ADAPTER_INPUT_INCOMPLETE, 'C-grade ledger records must not enter settled OOS ingestion.');
+assert(rejectedGradeLedger.accepted === false && rejectedGradeLedger.reason === HistoricalSampleRejectionReason.ADAPTER_INPUT_INCOMPLETE, 'C-grade ledger records must not enter settled OOS ingestion.');
 const lowConfidenceLedger = adaptSettledFormalLedgerRecord({
   ...settledLedgerRecord,
   record_id: 'low-confidence-ledger',
   ai_assessment: { ...settledLedgerRecord.ai_assessment, confidence_score: 69 }
 } as SettledFormalLedgerRecord);
-assert(!lowConfidenceLedger.accepted && lowConfidenceLedger.reason === HistoricalSampleRejectionReason.ADAPTER_INPUT_INCOMPLETE, 'Low-confidence ledger records must not enter settled OOS ingestion.');
+assert(lowConfidenceLedger.accepted === false && lowConfidenceLedger.reason === HistoricalSampleRejectionReason.ADAPTER_INPUT_INCOMPLETE, 'Low-confidence ledger records must not enter settled OOS ingestion.');
 const nestedSettlementIgnored = adaptSettledFormalLedgerRecord({
   ...settledLedgerRecord,
   record_id: 'nested-settlement-ignored',
@@ -142,13 +152,13 @@ const mismatchedSettlement = adaptSettledFormalLedgerRecord({
   record_id: 'mismatched-settlement',
   settlement_market: 'ASIAN_HANDICAP_MAIN'
 } as SettledFormalLedgerRecord);
-assert(!mismatchedSettlement.accepted && mismatchedSettlement.reason === HistoricalSampleRejectionReason.SETTLEMENT_MARKET_MISMATCH, 'Settlement market mismatch must not produce a binary OOS label.');
+assert(mismatchedSettlement.accepted === false && mismatchedSettlement.reason === HistoricalSampleRejectionReason.SETTLEMENT_MARKET_MISMATCH, 'Settlement market mismatch must not produce a binary OOS label.');
 const mismatchedBasis = adaptSettledFormalLedgerRecord({
   ...settledLedgerRecord,
   record_id: 'mismatched-basis',
   settlement_basis: 'REMAINING_GOALS'
 } as SettledFormalLedgerRecord);
-assert(!mismatchedBasis.accepted && mismatchedBasis.reason === HistoricalSampleRejectionReason.SETTLEMENT_BASIS_MISMATCH, 'Settlement basis mismatch must not alter the OOS observation window.');
+assert(mismatchedBasis.accepted === false && mismatchedBasis.reason === HistoricalSampleRejectionReason.SETTLEMENT_BASIS_MISMATCH, 'Settlement basis mismatch must not alter the OOS observation window.');
 const prematchRecord: HistoricalBacktestRecord = {
   ...baseRecord,
   record_id: 'prematch-full-match',
@@ -188,7 +198,7 @@ const outsideWindow = ingestHistoricalBacktestRecords([{
   training_window_end_at: '2026-08-01T00:00:00.000Z',
   prediction_window_start_at: '2026-08-02T00:00:00.000Z',
   prediction_window_end_at: '2026-09-02T23:59:59.000Z'
-} as HistoricalBacktestRecord);
+});
 assert(outsideWindow.rejected_records[0]?.reason === HistoricalSampleRejectionReason.PREDICTION_OUTSIDE_WINDOW, 'Predictions outside the archive window must be rejected.');
 const settlementAfterGeneration = ingestHistoricalBacktestRecords([{
   ...baseRecord,

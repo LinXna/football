@@ -15,6 +15,12 @@ function rejectionFor(record: HistoricalBacktestRecord): HistoricalSampleRejecti
   if (record.record_type !== 'formal_ai_recommendation' || !record.formal_recommendation) {
     return { record_id: record.record_id, reason: HistoricalSampleRejectionReason.NOT_FORMAL_RECOMMENDATION };
   }
+  if (record.candidate_pipeline_state !== 'PRODUCTION_UNLOCKED') {
+    return { record_id: record.record_id, reason: HistoricalSampleRejectionReason.CANDIDATE_NOT_PRODUCTION_UNLOCKED };
+  }
+  if (record.settled_record_provenance !== 'SETTLED_LEDGER_ADAPTER_V1') {
+    return { record_id: record.record_id, reason: HistoricalSampleRejectionReason.ADAPTER_INPUT_INCOMPLETE };
+  }
   if (!record.score_verified) {
     return { record_id: record.record_id, reason: HistoricalSampleRejectionReason.SCORE_NOT_VERIFIED };
   }
@@ -97,10 +103,21 @@ export function ingestHistoricalBacktestRecords(
   const acceptedSamples: OosCalibrationSample[] = [];
   const rejectedRecords: HistoricalSampleRejection[] = [];
   const acceptedKeys = new Set<string>();
+  const acceptedIds = new Set<string>();
+  const predictionStart = Date.parse(archiveOptions.prediction_window_start_at);
+  const predictionEnd = Date.parse(archiveOptions.prediction_window_end_at);
+  const generatedAt = Date.parse(archiveOptions.generated_at);
   for (const record of records) {
     const rejection = rejectionFor(record);
     if (rejection !== undefined) {
       rejectedRecords.push(Object.freeze(rejection));
+    } else if (acceptedIds.has(record.record_id)) {
+      rejectedRecords.push(Object.freeze({ record_id: record.record_id, reason: HistoricalSampleRejectionReason.DUPLICATE_SAMPLE_ID }));
+    } else if (!Number.isFinite(predictionStart) || !Number.isFinite(predictionEnd) || !Number.isFinite(generatedAt) ||
+               Date.parse(record.prediction_at) < predictionStart || Date.parse(record.prediction_at) > predictionEnd) {
+      rejectedRecords.push(Object.freeze({ record_id: record.record_id, reason: HistoricalSampleRejectionReason.PREDICTION_OUTSIDE_WINDOW }));
+    } else if (Date.parse(record.settled_at) > generatedAt) {
+      rejectedRecords.push(Object.freeze({ record_id: record.record_id, reason: HistoricalSampleRejectionReason.SETTLEMENT_AFTER_GENERATION }));
     } else if (acceptedKeys.has(duplicateKey(record))) {
       rejectedRecords.push(Object.freeze({
         record_id: record.record_id,
@@ -108,6 +125,7 @@ export function ingestHistoricalBacktestRecords(
       }));
     } else {
       acceptedKeys.add(duplicateKey(record));
+      acceptedIds.add(record.record_id);
       acceptedSamples.push(toOosSample(record));
     }
   }
