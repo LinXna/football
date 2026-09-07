@@ -129,7 +129,7 @@ export function evaluateCandidatePipeline(input: {
   if (input.postGoalCooldownActive) dataBlockers.push('进球后冷却窗口仍处于锁定期。');
 
   const oosHistoryScores = validations
-    .filter((item): item is CandidateOosValidation & { status: 'VALIDATED'; profile: QuantCalibrationProfile } =>
+    .filter((item): item is CandidateOosValidation & { status: 'VALIDATED'; profile: QuantCalibrationProfile; oos_brier_score: number } =>
       item.status === 'VALIDATED' && item.profile !== undefined && item.oos_brier_score !== null)
     .map((item) => Math.max(0, Math.min(100,
       (input.adjustedConfidence - (item.oos_brier_score * 100)) * Math.min(1, item.effective_sample_size / 1000)

@@ -490,7 +490,7 @@ function parseGoalIntervals(raw?: number[][] | null): ParsedGoalInterval[] {
   return raw.map((item) => {
     // 原始格式: [进球数, 百分比%, 起始分钟, 结束分钟]
     const goals = safeNumber(item[0], 0);
-    const percentage = safeNumber(item[1], 0);
+    const percentage = safeNumber(item[1], 0) / 100.0;
     const startMinute = safeNumber(item[2], 0);
     const endMinute = safeNumber(item[3], 0);
     return {

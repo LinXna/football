@@ -427,7 +427,8 @@ export function identifyBookmakerPosture(
   spreadEV: SpreadEVAssessment | undefined,
   totalEV: TotalEVAssessment | undefined,
   overround: number,
-  shinZ: number
+  shinZ: number,
+  h2hDevig?: SingleMarketDevig
 ): BookmakerPosture {
   // 1. 庄家极度抽水防御或知情交易者重度介入
   if (shinZ >= 0.08) {
@@ -435,12 +436,25 @@ export function identifyBookmakerPosture(
   }
 
   // 2. 异常高赔诱盘陷阱 (赔率极诱人但理论胜率支撑不足)
+  // 亚洲让球盘口高赔陷阱
   if (spreadEV && ((spreadEV.home_ev < -0.08 && spreadEV.home_odds > 2.20) || (spreadEV.away_ev < -0.08 && spreadEV.away_odds > 2.20))) {
     return BookmakerPosture.TRAP_HIGH_ODDS;
   }
 
+  // 1X2 独赢高赔诱盘陷阱：极端高赔 (> 5.0) 且模型预测胜率过低 (< 20%)，或者严重负 EV
+  if (h2hDevig?.market_odds && h2hDevig.model_probabilities) {
+    const odds = h2hDevig.market_odds;
+    const probs = h2hDevig.model_probabilities;
+    // 检查是否有低胜率高赔率诱盘
+    for (let i = 0; i < 3; i++) {
+      if (odds[i] >= 5.0 && probs[i] < 0.20) {
+        return BookmakerPosture.TRAP_HIGH_ODDS;
+      }
+    }
+  }
+
   // 3. 抽水率偏高且无明确正 EV
-  if (overround > 1.10 && (!spreadEV || !spreadEV.is_positive_ev) && (!totalEV || !totalEV.is_positive_ev)) {
+  if (overround > 1.10 && (!spreadEV || !spreadEV.is_positive_ev) && (!totalEV || !totalEV.is_positive_ev) && (!h2hDevig || !h2hDevig.is_positive_ev)) {
     return BookmakerPosture.DISPERSED_UNCERTAIN;
   }
 
@@ -610,7 +624,7 @@ export function calculateDeviggedMarketFeatures(
   }
 
   // 4. 机构姿态识别
-  const posture = identifyBookmakerPosture(spreadMain, totalMain, h2hDevig?.raw_overround ?? 1.05, 0.02);
+  const posture = identifyBookmakerPosture(spreadMain, totalMain, h2hDevig?.raw_overround ?? 1.05, 0.02, h2hDevig);
 
   const activeTracer = tracer ?? Tracer.getInstance();
   activeTracer.log(

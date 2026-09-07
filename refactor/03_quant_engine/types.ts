@@ -60,6 +60,8 @@ export interface MarketCalibrationResult {
   implied_market_home_win_prob: number;  // 机构隐含主胜概率 (Shin去水后)
   implied_market_draw_prob: number;      // 机构隐含平局概率
   implied_market_away_win_prob: number;  // 机构隐含客胜概率
+  market_weight_applied: number;         // 实际生效的市场权重 [0.0 ~ 1.0]
+  theory_weight_applied: number;         // 实际生效的理论先验权重 [0.0 ~ 1.0]
 }
 
 export interface HistoricalMatchWeight {
@@ -476,7 +478,7 @@ export interface QuantCalibrationProfile {
   lambda_log_adjustment: number;
 }
 
-export type OosMarket = 'ASIAN_HANDICAP_MAIN' | 'TOTAL_GOALS_MAIN';
+export type OosMarket = 'ASIAN_HANDICAP_MAIN' | 'TOTAL_GOALS_MAIN' | 'MONEYLINE_1X2';
 
 /** 单条已结算、绝不参与同批模型拟合的 OOS 观测。 */
 export interface OosCalibrationSample {

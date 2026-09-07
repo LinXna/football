@@ -25,6 +25,7 @@ import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
 import { calculateAsianHandicapEV, calculateTotalGoalsEV, devigShin, formatAsianHandicapLine } from './devigCalculator.js';
 import { computePoisson1X2 } from './prematchPriorEngine.js';
+import { calculateBivariatePoissonGrid } from './poissonDecayModel.js';
 import { ParsedHandicapMarket, ParsedTotalMarket, ParsedWinnerMarket } from '../01_data_ingestion/leisu/types.js';
 
 interface MarketLambdaEstimate {
@@ -56,7 +57,10 @@ function proportionalFairOdds(firstOdds: number, secondOdds: number): readonly [
 function jointMarketLambdaEstimate(
   winner: ParsedWinnerMarket,
   total: ParsedTotalMarket | undefined,
-  handicap: ParsedHandicapMarket | undefined
+  handicap: ParsedHandicapMarket | undefined,
+  currentHomeScore: number,
+  currentAwayScore: number,
+  isInPlayMarket: boolean
 ): MarketLambdaEstimate {
   const winnerFair = devigShin([requiredOdds(winner.home_odds), requiredOdds(winner.draw_odds), requiredOdds(winner.away_odds)]).fair_probs;
   const totalFairOdds = total !== undefined && total.line !== null && hasValidOdds(total.over_odds, total.under_odds)
@@ -65,15 +69,47 @@ function jointMarketLambdaEstimate(
   const handicapFairOdds = handicap !== undefined && handicap.line !== null && hasValidOdds(handicap.home_odds, handicap.away_odds)
     ? proportionalFairOdds(requiredOdds(handicap.home_odds), requiredOdds(handicap.away_odds))
     : undefined;
+  const currentTotalGoals = isInPlayMarket ? currentHomeScore + currentAwayScore : 0;
   let best: MarketLambdaEstimate | undefined;
   let bestError = Number.POSITIVE_INFINITY;
   for (let home = 0.2; home <= 4; home += 0.05) {
     for (let away = 0.2; away <= 4; away += 0.05) {
-      const oneXTwo = computePoisson1X2(home, away);
-      let error = (oneXTwo.home_win - winnerFair[0]) ** 2 + (oneXTwo.draw - winnerFair[1]) ** 2 + (oneXTwo.away_win - winnerFair[2]) ** 2;
+      let pH = 0;
+      let pD = 0;
+      let pA = 0;
+
+      if (!isInPlayMarket || (currentHomeScore === 0 && currentAwayScore === 0)) {
+        const oneXTwo = computePoisson1X2(home, away);
+        pH = oneXTwo.home_win;
+        pD = oneXTwo.draw;
+        pA = oneXTwo.away_win;
+      } else {
+        // 滚球 1X2 机构赔率代表的是全场终态结果 (Full-Time Final Score)！
+        // 必须结合已有比分 [currentHomeScore, currentAwayScore] 与剩余进球网格求解全场终态胜平负概率
+        const bivariate = calculateBivariatePoissonGrid(home, away, 6);
+        const grid = bivariate.grid;
+        for (let h = 0; h < grid.length; h++) {
+          for (let a = 0; a < grid[h].length; a++) {
+            const prob = grid[h][a];
+            const finalH = currentHomeScore + h;
+            const finalA = currentAwayScore + a;
+            if (finalH > finalA) pH += prob;
+            else if (finalH === finalA) pD += prob;
+            else pA += prob;
+          }
+        }
+        const pSum = pH + pD + pA;
+        if (pSum > 0) {
+          pH /= pSum;
+          pD /= pSum;
+          pA /= pSum;
+        }
+      }
+
+      let error = (pH - winnerFair[0]) ** 2 + (pD - winnerFair[1]) ** 2 + (pA - winnerFair[2]) ** 2;
       const poisson = { lambda_home_rest: home, lambda_away_rest: away, expected_goals_rest: home + away };
       if (totalFairOdds !== undefined && total !== undefined && total.line !== null) {
-        const ev = calculateTotalGoalsEV(String(total.line), totalFairOdds[0], totalFairOdds[1], 0, poisson);
+        const ev = calculateTotalGoalsEV(String(total.line), totalFairOdds[0], totalFairOdds[1], currentTotalGoals, poisson);
         error += ev.over_ev ** 2 + ev.under_ev ** 2;
       }
       if (handicapFairOdds !== undefined && handicap !== undefined && handicap.line !== null) {
@@ -155,7 +191,9 @@ export function calibrateWithMarketOdds(
       market_confidence_penalty: 0,
       implied_market_home_win_prob: theoryPrior.prior_fair_home_win_prob,
       implied_market_draw_prob: theoryPrior.prior_fair_draw_prob,
-      implied_market_away_win_prob: theoryPrior.prior_fair_away_win_prob
+      implied_market_away_win_prob: theoryPrior.prior_fair_away_win_prob,
+      market_weight_applied: 0.0,
+      theory_weight_applied: 1.0
     });
   }
 
@@ -168,7 +206,16 @@ export function calibrateWithMarketOdds(
   const [pH_mkt, pD_mkt, pA_mkt] = shinRes.fair_probs;
 
   // 2. 联合最小化 1X2、公允亚洲让球与大小球的泊松定价误差；不使用经验比例或虚构盘口。
-  const marketLambda = jointMarketLambdaEstimate(winnerMarket, totalMarket, handicapMarket);
+  const currentHomeScore = isInPlayMarket ? (match.score.home_score ?? 0) : 0;
+  const currentAwayScore = isInPlayMarket ? (match.score.away_score ?? 0) : 0;
+  const marketLambda = jointMarketLambdaEstimate(
+    winnerMarket,
+    totalMarket,
+    handicapMarket,
+    currentHomeScore,
+    currentAwayScore,
+    isInPlayMarket
+  );
   const lambda_mkt_H = marketLambda.home;
   const lambda_mkt_A = marketLambda.away;
 
@@ -190,14 +237,24 @@ export function calibrateWithMarketOdds(
     penalty = 5;
   }
 
-  // 融合权重：一般情况下，博彩公司的赔率（市场）信息更优，但我们必须保持一定比例的独立理论模型，防止完全随波逐流
-  const marketWeight = 0.85;
-  const theoryWeight = 0.15;
+  // 融合权重：物理先验优先 (Physics-First Calibration)
+  // 赛前市场信息相对有效(60%机构/40%理论)；滚球阶段随时间推进，物理与场面证据增多，市场噪音与流量诱盘增加，
+  // 市场权重随比赛分钟单调衰减 (0.55 -> ~0.28)。当机构与理论偏差极大时，额外触发偏差惩罚进一步削弱市场权重。
+  const minute = match.timing.minute ?? 0;
+  const baseMarketWeight = isInPlayMarket
+    ? Math.max(0.30, 0.55 - minute * 0.003)
+    : 0.60;
+
+  // 偏差调制：理论与市场分歧越大，越不信任被庄家/投注流操控的市场盘口
+  const divergencePenalty = Math.min(0.15, absNetDelta * 0.20);
+  const finalMarketWeight = Number(Math.max(0.25, baseMarketWeight - divergencePenalty).toFixed(3));
+  const finalTheoryWeight = Number((1.0 - finalMarketWeight).toFixed(3));
+
   const theoryRemainingFactor = isInPlayMarket
-    ? Math.max(0, 1 - Math.min(90, Math.max(0, match.timing.minute ?? 0)) / 90)
+    ? Math.max(0, 1 - Math.min(90, Math.max(0, minute)) / 90)
     : 1;
-  const finalBaseH = (lambda_mkt_H * marketWeight) + (theoryPrior.lambda_home_theory * theoryRemainingFactor * theoryWeight);
-  const finalBaseA = (lambda_mkt_A * marketWeight) + (theoryPrior.lambda_away_theory * theoryRemainingFactor * theoryWeight);
+  const finalBaseH = (lambda_mkt_H * finalMarketWeight) + (theoryPrior.lambda_home_theory * theoryRemainingFactor * finalTheoryWeight);
+  const finalBaseA = (lambda_mkt_A * finalMarketWeight) + (theoryPrior.lambda_away_theory * theoryRemainingFactor * finalTheoryWeight);
 
   const result: MarketCalibrationResult = {
     lambda_base_home: Number(finalBaseH.toFixed(3)),
@@ -208,7 +265,9 @@ export function calibrateWithMarketOdds(
     market_confidence_penalty: penalty,
     implied_market_home_win_prob: Number(pH_mkt.toFixed(4)),
     implied_market_draw_prob: Number(pD_mkt.toFixed(4)),
-    implied_market_away_win_prob: Number(pA_mkt.toFixed(4))
+    implied_market_away_win_prob: Number(pA_mkt.toFixed(4)),
+    market_weight_applied: finalMarketWeight,
+    theory_weight_applied: finalTheoryWeight
   };
 
   tracer?.info(

@@ -1,18 +1,21 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260906-LAYER03-EV-LOGIC-FIX`
-- **当前状态 (Status)**: `DONE`
+- **任务编号 (Task)**: `SNAPSHOT-20260907-PHYSICS-FIRST-WEIGHT-CALIBRATION`
+- **当前状态 (Status)**: `IN_PROGRESS`
 - **任务目标 (Goal)**：
-  1. 修复量化推演引擎 (Layer 03) 中关于亚洲让球和大小球的 EV 偏好方选择逻辑，根除“只推大概率”的数学偏差，恢复真实+EV筛选，并修复 OOS 门禁穿透漏洞。
-  2. 排查并证实此前因为 EV 选择要求胜率 > 50%，导致前端面板虽然显示高价值正 EV，但未将其列入最佳候选，出现“界面推荐和+EV脱离设计”的问题。
+  1. 将 `marketDivergenceEngine.ts` 中固定的 `85% market + 15% theory` 权重反转为物理先验优先的动态权重（赛前 60/40，滚球随时间由 0.55 降至 0.28，并在市场理论偏差极大时额外扣减市场权重）。
+  2. 在 `types.ts` 中的 `MarketCalibrationResult` 增加 `market_weight_applied` 与 `theory_weight_applied` 可审计字段。
+  3. 更新测试套件 `verify_quant_engine.ts`，追加 Test 10 验证动态权重与极端偏差惩罚，确保深盘大热门等既有测试无衰退。
 - **影响文件 (Target Files)**：
-  `refactor/03_quant_engine/devigCalculator.ts`
-  `refactor/03_quant_engine/index.ts`
-- **完成结果 (Result)**：
-  - 修复 `devigCalculator.ts`，严格以 `homeEV > awayEV` 且 `EV >= minRequiredEV` 作为唯一判断依据，符合数学期望(Value Betting)本质。
-  - 修复 `index.ts`，强制只有具备 `validatedSignalProfiles.length > 0` (OOS验证档案) 的正 EV 信号才能转换为机器候选，否则返回空；`edge_confidence_score` 未经验证时强制为 0。
-  - 经过5场实时赛事的追踪排查，高价值(+EV)但小概率的方向（如博德鲁姆FK的+17.1% EV下盘）均能正确进入系统量化视野，不再因胜率未过半而被剔除。
-  - 全量单元测试 `verify_quant_engine.ts` 100% PASS。
+  `refactor/03_quant_engine/types.ts`
+  `refactor/03_quant_engine/marketDivergenceEngine.ts`
+  `refactor/tests/verify_quant_engine.ts`
+  `refactor/HANDOVER_AND_PROGRESS.md`
+- **完成结果 (Result)**：待自测验证通过后更新。
+
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260907-INPLAY-1X2-INVERSION-AND-OOS-GATE` (DONE)
+
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260906-LAYER03-EV-LOGIC-FIX` (DONE)
 
 - **历史任务 (Previous Task)**: `SNAPSHOT-20260905-QUANT-SERVER-SIDE-PRECOMPUTE`
 - **当前状态 (Status)**: `IN_PROGRESS`

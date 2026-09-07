@@ -162,6 +162,11 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
   const h2hMain = quant.devig.h2h_devig;
   const fullH2hMarket = match.markets.full_h2h;
 
+  // 机器候选门禁集合：只有通过 OOS 校验并进入 positive_ev_signals 的盘口才允许打上推荐标记
+  const machineCandidateMarkets = new Set(
+    quant.positive_ev_signals.map((signal) => signal.market)
+  );
+
   // 1. 全场独赢 EV 计算 (直接消费 Layer 03 底层纯数学结算结果)
   const fullH2hEval = (() => {
     if (!fullH2hMarket || !h2hMain) return null;
@@ -175,6 +180,9 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       : (homeEv >= drawEv && homeEv >= awayEv ? "home" : drawEv >= awayEv ? "draw" : "away");
 
     const maxEv = bestSide === "home" ? homeEv : bestSide === "draw" ? drawEv : awayEv;
+
+    const isPositiveEv = Boolean(h2hMain.is_positive_ev ?? (maxEv >= 0.035));
+    const isMachineCandidate = isPositiveEv && machineCandidateMarkets.has("MONEYLINE_1X2");
 
     const sideName =
       bestSide === "home"
@@ -204,7 +212,8 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       bestOdds,
       bestProb,
       maxEv,
-      isPositiveEv: h2hMain.is_positive_ev ?? (maxEv >= 0.035),
+      isPositiveEv,
+      isMachineCandidate,
       modelProbs,
     };
   })();
@@ -309,7 +318,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       });
     }
 
-    if (fullH2hEval) {
+    if (fullH2hEval && candidateMarkets.has("MONEYLINE_1X2")) {
       candidates.push({
         key: "FULL_H2H",
         ev: fullH2hEval.maxEv,
@@ -405,7 +414,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                   <div className="grid grid-cols-3 gap-1.5 text-center">
                     <div
                       className={`p-1.5 rounded border relative flex flex-col justify-between ${
-                        fullH2hEval?.bestSide === "home" && fullH2hEval?.isPositiveEv
+                        fullH2hEval?.bestSide === "home" && fullH2hEval?.isMachineCandidate
                           ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
                           : "bg-slate-950/80 border-slate-800 text-slate-300"
                       }`}
@@ -417,7 +426,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                           {((fullH2hEval?.modelProbs?.[0] ?? h2hMain.fair_probabilities[0]) * 100).toFixed(1)}%
                         </div>
                       </div>
-                      {fullH2hEval?.bestSide === "home" && fullH2hEval?.isPositiveEv && (
+                      {fullH2hEval?.bestSide === "home" && fullH2hEval?.isMachineCandidate && (
                         <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
                           <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
                             推荐
@@ -428,7 +437,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
 
                     <div
                       className={`p-1.5 rounded border relative flex flex-col justify-between ${
-                        fullH2hEval?.bestSide === "draw" && fullH2hEval?.isPositiveEv
+                        fullH2hEval?.bestSide === "draw" && fullH2hEval?.isMachineCandidate
                           ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
                           : "bg-slate-950/80 border-slate-800 text-slate-300"
                       }`}
@@ -440,7 +449,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                           {((fullH2hEval?.modelProbs?.[1] ?? h2hMain.fair_probabilities[1]) * 100).toFixed(1)}%
                         </div>
                       </div>
-                      {fullH2hEval?.bestSide === "draw" && fullH2hEval?.isPositiveEv && (
+                      {fullH2hEval?.bestSide === "draw" && fullH2hEval?.isMachineCandidate && (
                         <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
                           <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
                             推荐
@@ -451,7 +460,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
 
                     <div
                       className={`p-1.5 rounded border relative flex flex-col justify-between ${
-                        fullH2hEval?.bestSide === "away" && fullH2hEval?.isPositiveEv
+                        fullH2hEval?.bestSide === "away" && fullH2hEval?.isMachineCandidate
                           ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
                           : "bg-slate-950/80 border-slate-800 text-slate-300"
                       }`}
@@ -463,7 +472,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                           {((fullH2hEval?.modelProbs?.[2] ?? h2hMain.fair_probabilities[2]) * 100).toFixed(1)}%
                         </div>
                       </div>
-                      {fullH2hEval?.bestSide === "away" && fullH2hEval?.isPositiveEv && (
+                      {fullH2hEval?.bestSide === "away" && fullH2hEval?.isMachineCandidate && (
                         <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
                           <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
                             推荐

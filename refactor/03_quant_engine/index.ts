@@ -77,6 +77,7 @@ export function calculateBattlefieldDominanceIndex(
 function toOosMarket(signal: PositiveEVSignal | undefined): OosMarket | undefined {
   if (signal?.market === 'ASIAN_HANDICAP_MAIN') return 'ASIAN_HANDICAP_MAIN';
   if (signal?.market === 'TOTAL_GOALS_MAIN') return 'TOTAL_GOALS_MAIN';
+  if (signal?.market === 'MONEYLINE_1X2') return 'MONEYLINE_1X2';
   return undefined;
 }
 

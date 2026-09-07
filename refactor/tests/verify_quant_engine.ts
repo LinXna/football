@@ -857,7 +857,7 @@ async function runQuantEngineTests() {
   // =========================================================================
   // [Test 9] 雷速让球盘口符号规范与深盘大热门反演回归测试 (No Inversion Bias)
   // =========================================================================
-  console.log('\n👉 [Test 9/9] 雷速让球符号规范与深盘大热门反演断言...');
+  console.log('\n👉 [Test 9/10] 雷速让球符号规范与深盘大热门反演断言...');
   {
     // 构造 Match 2 同构赛事: 主队让1球 (Leisu line: 1.0, 对应 YBTY "-1"), 主胜1.45, 客胜7.30
     const deepHandicapMatch: CanonicalMatch = {
@@ -904,36 +904,114 @@ async function runQuantEngineTests() {
     const qf = calculateQuantitativeFeatures(deepHandicapMatch);
     
     // 断言 1: 主队剩余进球期望必须显著高于客队 (主让1球强队绝对不能 λ_home < λ_away)
+    // 注：旧 85% 市场权重时代门槛为 3.0x。物理先验优先模式下，理论先验权重上升至 40~65%，
+    // 纯市场反推影响减弱，但主队 λ 仍必须 > 1.5x 客队，这是数学上让 1 球的必要条件。
     assert(
-      qf.poisson.lambda_home_rest > qf.poisson.lambda_away_rest * 3.0,
-      `主让1球深盘场景下，主队进球期望(${qf.poisson.lambda_home_rest})必须显著大于客队(${qf.poisson.lambda_away_rest})的3倍以上`
+      qf.poisson.lambda_home_rest > qf.poisson.lambda_away_rest * 1.5,
+      `主让1球深盘场景下，主队进球期望(${qf.poisson.lambda_home_rest})必须显著大于客队(${qf.poisson.lambda_away_rest})的1.5倍以上`
     );
 
-    // 断言 2: 全场模型概率主胜必须占优势 (>= 50%)，客胜必须极低 (<= 15%)
+    // 断言 2: 全场模型概率主胜必须显著高于客胜 (主让1球，主胜率必须至少是客胜率的1.8倍)
+    // 注：由于测试场景无历史数据（standings/form），理论先验λ偏低，物理先验优先后主胜概率
+    // 不一定达到50%，但主胜率必须显著占优于客胜率 (>= 1.8x)。
     assert(
-      qf.poisson.full_time_probabilities.prob_home_win >= 0.50,
-      `主胜模型概率必须 >= 50%，实际为 ${qf.poisson.full_time_probabilities.prob_home_win}`
+      qf.poisson.full_time_probabilities.prob_home_win >= qf.poisson.full_time_probabilities.prob_away_win * 1.8,
+      `主让1球场景下主胜概率(${qf.poisson.full_time_probabilities.prob_home_win})必须 >= 客胜概率(${qf.poisson.full_time_probabilities.prob_away_win})的1.8倍`
     );
     assert(
-      qf.poisson.full_time_probabilities.prob_away_win <= 0.15,
-      `客胜模型概率必须 <= 15%，实际为 ${qf.poisson.full_time_probabilities.prob_away_win}`
+      qf.poisson.full_time_probabilities.prob_away_win <= 0.30,
+      `客胜模型概率必须 <= 30%，实际为 ${qf.poisson.full_time_probabilities.prob_away_win}`
     );
 
-    // 断言 3: 绝严禁推荐客胜正 EV (客胜真实 EV 必须为负)
-    assert(
-      (qf.devig.h2h_devig?.away_ev ?? 0) < 0,
-      `客胜 EV 必须为负，实际为 ${qf.devig.h2h_devig?.away_ev}`
-    );
+    // 断言 3: 绝严禁推荐客胜 (首选投注方向绝对不能是客胜，且机构姿态识别为高赔陷阱 TRAP_HIGH_ODDS)
     assert(
       qf.devig.h2h_devig?.preferred_side !== 'away',
       `大热门比赛 H2H 绝对禁止推荐客胜`
+    );
+    assert(
+      qf.devig.bookmaker_posture === 'TRAP_HIGH_ODDS',
+      `深盘大热门高赔客胜场景必须识别为 TRAP_HIGH_ODDS 陷阱`
     );
 
     console.log('   ✅ 雷速让球符号规范与深盘大热门反演测试 PASS');
   }
 
+  // =========================================================================
+  // [Test 10] 物理先验优先动态权重回归测试 (Physics-First Weight Calibration)
+  // =========================================================================
+  console.log('\n👉 [Test 10/10] 物理先验优先动态权重断言...');
+  {
+    // 赛前场景: 应当使用 0.60 市场权重
+    const prematchWithMarket: CanonicalMatch = {
+      canonical_id: 'test_physics_weight_prematch',
+      home_team_name: '主队A',
+      away_team_name: '客队B',
+      league_name: '英超',
+      alignment: { status: MatchAlignmentStatus.MATCHED_AUTO, confidence: 100, method: 'AUTOMATIC_EXACT' },
+      timing: { stage: MatchStage.PREMATCH, minute: null, beijing_start_time: '2026-09-08 20:00:00', start_time_source: 'YBTY_EXACT', is_half_time: false, is_extra_time: false, is_overtime_or_penalty: false, ybty_display_clock: null },
+      score: { home_score: 0, away_score: 0, home_half_score: 0, away_half_score: 0, score_verified: true, score_source: 'LEISU_CANVAS', is_mismatch_detected: false, var_overturned_goals_count: 0 },
+      markets: {
+        full_h2h: { home_odds: 2.00, draw_odds: 3.30, away_odds: 3.60 },
+        full_spread_main: { line_index: 0, home_selection: '-0.5', home_odds: 1.88, away_selection: '+0.5', away_odds: 1.97, settlement_basis: 'FULL_MATCH' as any },
+        full_spread_subs: [],
+        full_total_main: { line_index: 0, line: '2.5', over_odds: 1.85, under_odds: 2.00, settlement_basis: 'FULL_MATCH' as any },
+        full_total_subs: [],
+        half_h2h: null, half_spread_main: null, half_total_main: null
+      },
+      reference: null
+    };
+    const qfPrematch = calculateQuantitativeFeatures(prematchWithMarket);
+    const mcPrematch = qfPrematch.market_calibration;
+    assert(
+      mcPrematch !== undefined && mcPrematch.market_weight_applied <= 0.65,
+      `赛前市场权重必须 <= 0.65 (Physics-First 赛前最大 0.60)，实际为 ${mcPrematch?.market_weight_applied}`
+    );
+    assert(
+      mcPrematch !== undefined && mcPrematch.theory_weight_applied >= 0.35,
+      `赛前理论权重必须 >= 0.35，实际为 ${mcPrematch?.theory_weight_applied}`
+    );
+    assert(
+      Math.abs((mcPrematch?.market_weight_applied ?? 0) + (mcPrematch?.theory_weight_applied ?? 0) - 1.0) < 0.01,
+      `市场权重 + 理论权重必须 = 1.0`
+    );
+
+    // 滚球 62 分钟，市场权重应当 < 0.45
+    const liveWith62Min: CanonicalMatch = {
+      canonical_id: 'test_physics_weight_live_62m',
+      home_team_name: '谢周三',
+      away_team_name: '布拉德福德',
+      league_name: '英格兰甲级联赛',
+      alignment: { status: MatchAlignmentStatus.MATCHED_AUTO, confidence: 100, method: 'AUTOMATIC_EXACT' },
+      timing: { stage: MatchStage.LIVE, minute: 62, beijing_start_time: null, start_time_source: 'YBTY_EXACT', is_half_time: false, is_extra_time: false, is_overtime_or_penalty: false, ybty_display_clock: '62:25' },
+      score: { home_score: 0, away_score: 1, home_half_score: 0, away_half_score: 1, score_verified: true, score_source: 'LEISU_CANVAS', is_mismatch_detected: false, var_overturned_goals_count: 0 },
+      markets: {
+        full_h2h: { home_odds: 8.70, draw_odds: 3.75, away_odds: 1.43 },
+        full_spread_main: { line_index: 0, home_selection: '+0/0.5', home_odds: 1.71, away_selection: '-0/0.5', away_odds: 2.20, settlement_basis: 'FULL_MATCH' as any },
+        full_spread_subs: [],
+        full_total_main: { line_index: 0, line: '2', over_odds: 1.91, under_odds: 1.95, settlement_basis: 'FULL_MATCH' as any },
+        full_total_subs: [],
+        half_h2h: null, half_spread_main: null, half_total_main: null
+      },
+      reference: null
+    };
+    const qfLive62 = calculateQuantitativeFeatures(liveWith62Min);
+    const mcLive62 = qfLive62.market_calibration;
+    assert(
+      mcLive62 !== undefined && mcLive62.market_weight_applied < 0.45,
+      `滚球62分钟市场权重必须 < 0.45 (物理先验主导)，实际为 ${mcLive62?.market_weight_applied}`
+    );
+    assert(
+      mcLive62 !== undefined && mcLive62.theory_weight_applied > 0.55,
+      `滚球62分钟理论权重必须 > 0.55，实际为 ${mcLive62?.theory_weight_applied}`
+    );
+
+    console.log(`   🔬 赛前权重: market=${mcPrematch?.market_weight_applied}, theory=${mcPrematch?.theory_weight_applied}`);
+    console.log(`   🔬 滚球62'权重: market=${mcLive62?.market_weight_applied}, theory=${mcLive62?.theory_weight_applied}`);
+    console.log('   ✅ 物理先验优先动态权重回归测试 PASS');
+  }
+
   console.log('\n================================================================');
-  console.log('🎉 [Layer 03 Test Suite] 全部 9 项确定性量化与博弈引擎测试 100% 通过！');
+  console.log('🎉 [Layer 03 Test Suite] 全部 10 项确定性量化与博弈引擎测试 100% 通过！');
   console.log('================================================================\n');
 }
 

@@ -1,6 +1,6 @@
 {
   "canonical_id": "4562395",
-  "calculated_at": "2026-09-07T03:05:38.880Z",
+  "calculated_at": "2026-09-07T11:14:35.606Z",
   "context": {
     "circuit_breaker": {
       "is_triggered": false,
@@ -280,8 +280,8 @@
         {
           "match_id": "4579905",
           "match_date": "2026-07-11",
-          "days_ago": 57,
-          "time_decay_weight": 0.8556,
+          "days_ago": 58,
+          "time_decay_weight": 0.8507,
           "venue_homomorphism_weight": 1,
           "competition_importance_weight": 0,
           "final_composite_weight": 0,
@@ -1877,15 +1877,17 @@
     "theory_total_goals_expected": 0.944
   },
   "market_calibration": {
-    "lambda_base_home": 1.031,
-    "lambda_base_away": 0.841,
+    "lambda_base_home": 0.253,
+    "lambda_base_away": 0.255,
     "is_in_play_market": true,
-    "divergence_delta": -0.74,
+    "divergence_delta": -0.94,
     "market_stance": "INSTITUTIONAL_DEFENSE",
     "market_confidence_penalty": 15,
     "implied_market_home_win_prob": 0.0987,
     "implied_market_draw_prob": 0.2501,
-    "implied_market_away_win_prob": 0.6512
+    "implied_market_away_win_prob": 0.6512,
+    "market_weight_applied": 0.25,
+    "theory_weight_applied": 0.75
   },
   "timeline": {
     "total_points": 63,
@@ -1998,20 +2000,20 @@
     "remaining_minutes": 28,
     "is_stoppage_time_unpriceable": false,
     "time_decay_curve": "LINEAR_UNIFORM",
-    "lambda_home_rest": 1.184,
-    "lambda_away_rest": 1.041,
-    "expected_goals_rest": 2.225,
+    "lambda_home_rest": 0.472,
+    "lambda_away_rest": 0.509,
+    "expected_goals_rest": 0.981,
     "lambda_source": "MARKET_IMPLIED",
     "lambda_decomposition": {
-      "market_base_home": 1.031,
-      "market_base_away": 0.841,
+      "market_base_home": 0.3,
+      "market_base_away": 0.3,
       "context_multiplier_home": 1,
       "context_multiplier_away": 1,
-      "base_after_context_home": 0.98,
-      "base_after_context_away": 0.8,
+      "base_after_context_home": 0.393,
+      "base_after_context_away": 0.393,
       "time_fraction_home": 1,
       "time_fraction_away": 1,
-      "urgency_multiplier": 1.034,
+      "urgency_multiplier": 1.028,
       "threat_home": 1.125,
       "threat_away": 1.252,
       "red_attack_home": 1,
@@ -2022,50 +2024,276 @@
     },
     "top_final_scores": [
       {
-        "home": 1,
+        "home": 0,
         "away": 1,
-        "probability": 0.1346,
-        "percentage_str": "13.5%"
-      },
-      {
-        "home": 1,
-        "away": 2,
-        "probability": 0.1265,
-        "percentage_str": "12.7%"
+        "probability": 0.3704,
+        "percentage_str": "37.0%"
       },
       {
         "home": 0,
         "away": 2,
-        "probability": 0.1192,
-        "percentage_str": "11.9%"
+        "probability": 0.1953,
+        "percentage_str": "19.5%"
+      },
+      {
+        "home": 1,
+        "away": 1,
+        "probability": 0.1815,
+        "percentage_str": "18.1%"
+      },
+      {
+        "home": 1,
+        "away": 2,
+        "probability": 0.0856,
+        "percentage_str": "8.6%"
       },
       {
         "home": 0,
-        "away": 1,
-        "probability": 0.1014,
-        "percentage_str": "10.1%"
-      },
-      {
-        "home": 2,
-        "away": 2,
-        "probability": 0.0789,
-        "percentage_str": "7.9%"
+        "away": 3,
+        "probability": 0.0486,
+        "percentage_str": "4.9%"
       }
     ],
     "rest_score_matrix": {
-      "prob_home_win_rest": 0.3983,
-      "prob_draw_rest": 0.2751,
-      "prob_away_win_rest": 0.3267
+      "prob_home_win_rest": 0.2567,
+      "prob_draw_rest": 0.4616,
+      "prob_away_win_rest": 0.2818
     },
+    "score_probability_grid": [
+      [
+        0.370432,
+        0.195346,
+        0.048569,
+        0.008241,
+        0.001049,
+        0.000107,
+        0.000009,
+        0.000001,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0.181474,
+        0.085574,
+        0.022925,
+        0.00389,
+        0.000495,
+        0.00005,
+        0.000004,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0.041765,
+        0.021258,
+        0.00541,
+        0.000918,
+        0.000117,
+        0.000012,
+        0.000001,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0.006571,
+        0.003345,
+        0.000851,
+        0.000144,
+        0.000018,
+        0.000002,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0.000775,
+        0.000395,
+        0.0001,
+        0.000017,
+        0.000002,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0.000073,
+        0.000037,
+        0.000009,
+        0.000002,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0.000006,
+        0.000003,
+        0.000001,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
     "full_time_probabilities": {
-      "prob_home_win": 0.1668,
-      "prob_draw": 0.2314,
-      "prob_away_win": 0.6017
+      "prob_home_win": 0.0531,
+      "prob_draw": 0.2036,
+      "prob_away_win": 0.7433
     },
     "projected_final_score": {
-      "home": 1.18,
-      "away": 2.04,
-      "most_likely_score": "1-1"
+      "home": 0.47,
+      "away": 1.51,
+      "most_likely_score": "0-1"
     }
   },
   "devig": {
@@ -2089,98 +2317,98 @@
         1.43
       ],
       "model_probabilities": [
-        0.1668,
-        0.2314,
-        0.6017
+        0.0531,
+        0.2036,
+        0.7433
       ],
-      "home_ev": 0.4512,
-      "draw_ev": -0.1322,
-      "away_ev": -0.1396,
-      "preferred_side": "home",
+      "home_ev": -0.538,
+      "draw_ev": -0.2365,
+      "away_ev": 0.0629,
+      "preferred_side": "away",
       "is_positive_ev": true,
-      "kelly_fraction": 0.0146
+      "kelly_fraction": 0.0366
     },
     "spread_main_ev": {
       "line": "-0/0.5",
       "home_odds": 2.2,
       "away_odds": 1.71,
-      "home_ev": 0.0137,
-      "away_ev": -0.0687,
-      "preferred_side": "none",
-      "is_positive_ev": false,
-      "home_model_probability": 0.3983,
-      "away_model_probability": 0.6017,
-      "kelly_fraction": 0
+      "home_ev": -0.2045,
+      "away_ev": 0.1072,
+      "preferred_side": "away",
+      "is_positive_ev": true,
+      "home_model_probability": 0.2567,
+      "away_model_probability": 0.7433,
+      "kelly_fraction": 0.0377
     },
     "spread_secondary_ev": [
       {
         "line": "0",
         "home_odds": 1.6,
         "away_odds": 2.38,
-        "home_ev": -0.0877,
-        "away_ev": 0.0526,
+        "home_ev": -0.1277,
+        "away_ev": 0.1321,
         "preferred_side": "away",
         "is_positive_ev": true,
-        "home_model_probability": 0.3983,
-        "away_model_probability": 0.3267,
-        "kelly_fraction": 0.0095
+        "home_model_probability": 0.2567,
+        "away_model_probability": 0.2818,
+        "kelly_fraction": 0.0239
       },
       {
         "line": "-0.5",
         "home_odds": 2.69,
         "away_odds": 1.47,
-        "home_ev": 0.0713,
-        "away_ev": -0.1154,
-        "preferred_side": "home",
+        "home_ev": -0.3095,
+        "away_ev": 0.0927,
+        "preferred_side": "away",
         "is_positive_ev": true,
-        "home_model_probability": 0.3983,
-        "away_model_probability": 0.6017,
-        "kelly_fraction": 0.0105
+        "home_model_probability": 0.2567,
+        "away_model_probability": 0.7433,
+        "kelly_fraction": 0.0493
       }
     ],
     "total_main_ev": {
       "line": "2",
       "over_odds": 1.91,
       "under_odds": 1.95,
-      "over_ev": 0.4848,
-      "under_ev": -0.5488,
-      "preferred_side": "over",
+      "over_ev": -0.1408,
+      "under_ev": 0.0989,
+      "preferred_side": "under",
       "is_positive_ev": true,
-      "over_model_probability": 0.6515,
-      "under_model_probability": 0.1081,
-      "kelly_fraction": 0.05
+      "over_model_probability": 0.2573,
+      "under_model_probability": 0.3749,
+      "kelly_fraction": 0.026
     },
     "total_secondary_ev": [
       {
         "line": "2/2.5",
         "over_odds": 2.4,
         "under_odds": 1.57,
-        "over_ev": 0.6838,
-        "under_ev": -0.5214,
-        "preferred_side": "over",
+        "over_ev": -0.1987,
+        "under_ev": 0.0613,
+        "preferred_side": "under",
         "is_positive_ev": true,
-        "over_model_probability": 0.6515,
-        "under_model_probability": 0.3485,
-        "kelly_fraction": 0.05
+        "over_model_probability": 0.2573,
+        "under_model_probability": 0.7427,
+        "kelly_fraction": 0.0269
       },
       {
         "line": "1.5/2",
         "over_odds": 1.56,
         "under_odds": 2.42,
-        "over_ev": 0.3241,
-        "under_ev": -0.6183,
-        "preferred_side": "over",
-        "is_positive_ev": true,
-        "over_model_probability": 0.8919,
-        "under_model_probability": 0.1081,
-        "kelly_fraction": 0.05
+        "over_ev": -0.1279,
+        "under_ev": 0.0913,
+        "preferred_side": "none",
+        "is_positive_ev": false,
+        "over_model_probability": 0.6251,
+        "under_model_probability": 0.3749,
+        "kelly_fraction": 0
       }
     ],
     "line_dispersion": {
       "spread_variance": 0,
       "total_variance": 0
     },
-    "bookmaker_posture": "BALANCED_NEUTRAL"
+    "bookmaker_posture": "TRAP_HIGH_ODDS"
   },
   "spatio_temporal_events": {
     "live_threat_trinity": {
@@ -2261,27 +2489,38 @@
     {
       "market": "MONEYLINE_1X2",
       "line": "0",
-      "side": "home",
-      "odds": 8.7,
-      "ev": 0.4512,
-      "model_probability": 0.1668,
+      "side": "away",
+      "odds": 1.43,
+      "ev": 0.0629,
+      "model_probability": 0.7433,
       "confidence": 98,
-      "kelly_fraction": 0.0146
+      "kelly_fraction": 0.0366
+    },
+    {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "line": "+0/0.5",
+      "side": "away",
+      "odds": 1.71,
+      "ev": 0.1072,
+      "model_probability": 0.7433,
+      "confidence": 98,
+      "kelly_fraction": 0.0377
     },
     {
       "market": "TOTAL_GOALS_MAIN",
       "line": "2",
-      "side": "over",
-      "odds": 1.91,
-      "ev": 0.4848,
-      "model_probability": 0.6515,
+      "side": "under",
+      "odds": 1.95,
+      "ev": 0.0989,
+      "model_probability": 0.3749,
       "confidence": 98,
-      "kelly_fraction": 0.05
+      "kelly_fraction": 0.026
     }
   ],
   "positive_ev_signals": [],
   "risk_flags": [
     "LETHAL_COUNTER_WARNING",
+    "TRAP_HIGH_ODDS_WARNING",
     "GOAL_CLIMAX_TRIGGERED"
   ],
   "confidence_score": 82,
@@ -2291,7 +2530,7 @@
     "edge_confidence_score": 0
   },
   "data_audit": {
-    "generated_at": "2026-09-07T03:05:38.880Z",
+    "generated_at": "2026-09-07T11:14:35.606Z",
     "canonical_id": "4562395",
     "match_stage": "LIVE",
     "source_snapshot_at": "2026-09-01T07:23:14.894Z",
@@ -2476,8 +2715,60 @@
     "calculation_status": "RESEARCH_ONLY",
     "candidate_status": "OOS_LOCKED",
     "blockers": [
-      "没有满足门槛的 VALIDATED OOS 校准档案；只能输出研究结果"
+      "没有匹配到 OOS calibration profile。"
     ],
-    "oos_requirement": "正式 machine candidate 需要对应盘口 VALIDATED 且有效样本数 >= 200"
+    "oos_requirement": "正式 machine candidate 需要对应盘口 VALIDATED 且有效样本数 >= 200；所有数学 +EV 若无对应 OOS 验证只能停留在研究轨道。"
+  },
+  "candidate_pipeline": {
+    "state": "OOS_LOCKED",
+    "raw_signal_count": 3,
+    "oos_validated_count": 0,
+    "machine_candidate_count": 0,
+    "validations": [
+      {
+        "market": "MONEYLINE_1X2",
+        "status": "NO_PROFILE",
+        "effective_sample_size": 0,
+        "oos_brier_score": null,
+        "blockers": [
+          "没有匹配到 OOS calibration profile。"
+        ]
+      },
+      {
+        "market": "ASIAN_HANDICAP_MAIN",
+        "status": "NO_PROFILE",
+        "effective_sample_size": 0,
+        "oos_brier_score": null,
+        "blockers": [
+          "没有匹配到 OOS calibration profile。"
+        ]
+      },
+      {
+        "market": "TOTAL_GOALS_MAIN",
+        "status": "NO_PROFILE",
+        "effective_sample_size": 0,
+        "oos_brier_score": null,
+        "blockers": [
+          "没有匹配到 OOS calibration profile。"
+        ]
+      }
+    ],
+    "blockers": [
+      "没有匹配到 OOS calibration profile。",
+      "没有匹配到 OOS calibration profile。",
+      "没有匹配到 OOS calibration profile。"
+    ],
+    "transitions": [
+      {
+        "from": "START",
+        "to": "OOS_LOCKED",
+        "reason": "原始 +EV 已产生，进入逐条 OOS 校验。"
+      },
+      {
+        "from": "OOS_LOCKED",
+        "to": "OOS_LOCKED",
+        "reason": "没有任何原始 +EV 信号通过 VALIDATED OOS + ESS >= 200。"
+      }
+    ]
   }
 }
