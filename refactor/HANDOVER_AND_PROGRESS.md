@@ -1,28 +1,65 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260907-PHYSICS-FIRST-WEIGHT-CALIBRATION`
+- **任务编号 (Task)**: `SNAPSHOT-20260908-PHASE4-BOTTOM-TEXT-MULTILINE-CLAMP`
 - **当前状态 (Status)**: `DONE`
 - **任务目标 (Goal)**：
-  1. 将 `marketDivergenceEngine.ts` 中固定的 `85% market + 15% theory` 权重反转为物理先验优先的动态权重（赛前 60/40，滚球随时间由 0.55 降至 0.28，并在市场理论偏差极大时额外扣减市场权重）。
-  2. 在 `types.ts` 中的 `MarketCalibrationResult` 增加 `market_weight_applied` 与 `theory_weight_applied` 可审计字段。
-  3. 更新测试套件 `verify_quant_engine.ts`，追加 Test 10 验证动态权重与极端偏差惩罚，确保深盘大热门等既有测试无衰退。
+  1. 【用户需求 1 落地】：将三大玩法卡片底栏的“最佳推荐 / 综合评估”从单行强制截断（`truncate`）改造为“2行省略号”（`line-clamp-2 leading-snug break-words`）。
+  2. 【布局美观与防溢出】：保证在手机窄屏或三列密集栅格下，盘口、赔率、胜率与 EV 能完整跨两行舒适展示，若极长内容超限则在第 2 行末尾优雅展示省略号（`...`），同时外层统一配置 `min-h-[2.25rem]` 保证三张卡片底部绝对对齐，并附带原生 `title` 提示。
 - **影响文件 (Target Files)**：
-  `refactor/03_quant_engine/types.ts`
-  `refactor/03_quant_engine/marketDivergenceEngine.ts`
-  `refactor/tests/verify_quant_engine.ts`
+  `src/components/QuantBettingDecisionMatrix.tsx`
   `refactor/HANDOVER_AND_PROGRESS.md`
 - **完成结果 (Result)**：
-  - `marketDivergenceEngine.ts` 已使用 Physics-First 动态权重：赛前基础市场权重 `0.60`，滚球按分钟递减，并按 `abs(netDelta)` 最高扣减 `0.15`，实际权重下限 `0.25`。
-  - `MarketCalibrationResult` 已输出 `market_weight_applied` 与 `theory_weight_applied`，市场缺失分支也显式输出 `0/1`。
-  - `lambda_decomposition` 现同步输出实际市场/理论权重；`SYSTEM_ARCHITECTURE_AND_PIPELINE.md` 已同步删除旧 85%/15% 描述。
-  - `verify_quant_engine.ts` Test 10 已覆盖赛前公式、62 分钟物理先验主导和极端偏差额外惩罚；Test 9 已移除与 EV/盘口价格不相容的过时方向断言，保留深盘主队物理优势与陷阱姿态验证。
-- **验证结果**：
-  - `npx tsx refactor/tests/verify_quant_engine.ts`：10/10 通过。
-  - `npx tsx refactor/tests/verify_prematch_prior_and_market_divergence.ts`：通过。
-  - `npx tsc --noEmit`：通过。
-- **下一步**：继续执行交接记录中的正式台账读取端点与生产准入徽章验证；本任务不创建 `VALIDATED` OOS 档案。
+  - `QuantBettingDecisionMatrix.tsx`:
+    - 独赢卡片底栏：将 `truncate` 升级为 `line-clamp-2 leading-snug break-words`，搭配 `min-h-[2.25rem]` 与完整 `title` 提示；
+    - 大小球卡片底栏：同样应用 `line-clamp-2 leading-snug break-words`，大球/小球在主副盘切换时的超长说明能完整舒适显示；
+    - 让球卡片底栏：同样应用 `line-clamp-2 leading-snug break-words`，主副盘、让球方向、让球盘口、赔率、真实胜率及 EV 均完整显示，超出两行平滑折叠省略。
+  - **验证**：`tsc --noEmit` 0 警告 0 报错，`compile_applet` 成功构建。
+- **下一步规划 (Next Steps)**：
+  交付给用户体验并验收。
 
-- **历史任务 (Previous Task)**: `SNAPSHOT-20260907-INPLAY-1X2-INVERSION-AND-OOS-GATE` (DONE)
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260908-PHASE3-GLOBAL-OPTIMAL-RECOMMENDATION-AND-BADGES` (DONE)
+
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260908-PHASE2-SSOT-AND-HANDICAP-CONSISTENCY` (DONE)
+- **任务目标 (Goal)**：
+  1. 【问题 5 根治】：让球与大小球卡片默认激活项 100% 锁定官方法定主盘（`full_spread_main` / `full_total_main`），杜绝因副盘有微弱正 EV 而私自偷换默认视图导致显示“主 0 / 客 0”；副盘仅在用户主动点击切线按钮时切换查看，最优副盘打上“★最优副盘”高亮徽章。
+  2. 【问题 6 & 7 根治】：彻底铲除前端所有的 `(1 + ev) / odds` 私自倒算代码，胜率 100% 消费后端已下发的 `model_probability`（包括 `home_model_probability`、`away_model_probability`、`over_model_probability`、`under_model_probability`、`model_probabilities`），实现全系统胜率单一事实来源 (SSOT)。
+  3. 【问题 5 文本与假数据根治】：让球盘文字优先读取 YBTY 原始下发的法定选项名（`mkt.home_selection` / `away_selection`），彻底删除 `"半主 0"` 等无意义硬编码回退值。
+  4. 【问题 1 语义与隐患治理】：在大小球卡片清晰标识“完场总盘界线”与“模型剩余预期进球”，统一 +EV 推荐角标与底栏信号池判定门禁。
+- **影响文件 (Target Files)**：
+  `src/components/QuantBettingDecisionMatrix.tsx`
+  `refactor/HANDOVER_AND_PROGRESS.md`
+- **完成结果 (Result)**：
+  - `QuantBettingDecisionMatrix.tsx`:
+    - 盘口默认激活逻辑回正为 100% 锁定官方法定主盘（`mainSpreadOption` / `mainTotalOption`），彻底杜绝前端因为副盘微弱正 EV 自动偷换主盘视图而产生的“主 0 / 客 0”假象；
+    - 让球盘文字优先绑定 YBTY 官方下发的原始合法选项文本（如博德鲁姆FK实盘主盘正确显示 `主 +0/0.5 @1.73` 与 `客 -0/0.5 @2.09`），盘口切线池中副盘按钮打上 `★最优副盘`，点击即可平滑查看副盘详情；
+    - 彻底物理剔除全工程前端所有 `(1 + ev) / odds` 私自倒算胜率代码，胜率 100% 遵从 Layer 03 后端经过四分之一盘与泊松微积分求解的 `model_probability`，博德鲁姆FK主队模型概率严格锁定为 SSOT 的 65.2%，彻底消灭胜率双轨制；
+    - 大小球卡片清晰补充了“完场界线：X球 (剩余期望 λ=Y球)”语义说明，消除全场总界线与剩余进球建模口径的认知歧义；
+    - 半场让球彻底删除 `"半主 0"` 硬编码回退值，真实按盘口数据呈现。
+  - 验证结果：`lint_applet` 零警告零错误，`compile_applet` 一次性构建成功，Layer 03 确定性量化与博弈引擎 10/10 项自动化测试 100% 通过。
+- **下一步规划 (Next Steps)**：
+  汇报修复成果，交付给用户进行最终体验与验收。
+
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260908-PHASE1-MARKET-OPTIMIZATION-AND-UI` (DONE)
+- **任务目标 (Goal)**：
+  1. 【问题 2 优化】：在 `refactor/03_quant_engine/index.ts` 中，消除对副盘的人为忽略，将大小球和让球的所有合法主盘及副盘平铺纳入正 EV 候选评估序列，使最佳副盘也能作为合法信号进入评估体系。
+  2. 【问题 3 优化】：在 `src/components/QuantBettingDecisionMatrix.tsx` 中，独赢（1X2）的主胜、平局、客胜各自展示对应赔率、胜率及单项 EV，补齐单项期望收益信息层级。
+  3. 【问题 4 优化】：在 `src/components/QuantBettingDecisionMatrix.tsx` 中，重构独赢、大小球、让球卡片底部的“期望值: EV”纯数值显示，升级为明确具有主语指向的“最佳推荐选项 + 对应赔率 + EV”；若全向负期望则清晰提示无正期望投注项。
+  4. 【问题 2 前端看板】：在大小球与让球卡片中提供完整主副盘选择/展示，默认高亮并聚焦 EV 最佳盘口，标注“最优副盘推荐”或“⭐最佳推荐”。
+- **影响文件 (Target Files)**：
+  `refactor/03_quant_engine/index.ts`
+  `src/components/QuantBettingDecisionMatrix.tsx`
+  `refactor/HANDOVER_AND_PROGRESS.md`
+- **完成结果 (Result)**：
+  - `refactor/03_quant_engine/index.ts`: 遍历 `devig.spread_main_ev` + `devig.spread_secondary_ev`，以及 `devig.total_main_ev` + `devig.total_secondary_ev`，完整生成全部正 EV 候选信号，并标记 `ASIAN_HANDICAP_MAIN` / `ASIAN_HANDICAP_SECONDARY`、`TOTAL_GOALS_MAIN` / `TOTAL_GOALS_SECONDARY`；
+  - `QuantBettingDecisionMatrix.tsx`:
+    - 独赢卡片三向（主/平/客）各方独立展示赔率、胜率（来自 M3 概率联合分布公理求解）、单项 EV，且对正期望方向进行高亮标注；
+    - 独赢、大小球、让球三张卡片底栏由单纯的“期望值: EV: X%”统一升级为明确主语与投注项的“最佳选项: 🌟 最佳推荐: [方向/界线] @[赔率] (EV: +X%)”或“⚠️ 综合评估: 无正期望项”；
+    - 大小球和让球卡片集成多盘口切线池（主盘 + 全部副盘），支持点击切线切换盘口，自动计算并高亮 EV 最佳盘口，副盘优于主盘时打上“★ 最优副盘推荐”标签；
+  - 验证结果：`lint_applet` 零警告零错误，`compile_applet` 一次性构建成功，Layer 03 测试套件 10/10 100% 通过。
+- **下一步规划 (Next Steps)**：
+  进入第二批次：针对用户提出的【问题 5】（让球盘口错误显示为“主 0 / 客 0”）以及【问题 6 & 7】（前后端不一致、胜率双轨制破坏 SSOT）展开全链路排查并根治修复。
+
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260907-PHYSICS-FIRST-WEIGHT-CALIBRATION` (DONE)
 
 - **历史任务 (Previous Task)**: `SNAPSHOT-20260906-LAYER03-EV-LOGIC-FIX` (DONE)
 

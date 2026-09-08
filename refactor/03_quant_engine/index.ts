@@ -34,6 +34,8 @@ import {
   DeviggedMarketFeatures,
   BookmakerPosture,
   MarketStanceType,
+  SpreadEVAssessment,
+  TotalEVAssessment,
   Layer03OpId,
   Layer03FeatureId,
   Layer03CandidatePipeline
@@ -75,8 +77,8 @@ export function calculateBattlefieldDominanceIndex(
 }
 
 function toOosMarket(signal: PositiveEVSignal | undefined): OosMarket | undefined {
-  if (signal?.market === 'ASIAN_HANDICAP_MAIN') return 'ASIAN_HANDICAP_MAIN';
-  if (signal?.market === 'TOTAL_GOALS_MAIN') return 'TOTAL_GOALS_MAIN';
+  if (signal?.market === 'ASIAN_HANDICAP_MAIN' || signal?.market === 'ASIAN_HANDICAP_SECONDARY') return 'ASIAN_HANDICAP_MAIN';
+  if (signal?.market === 'TOTAL_GOALS_MAIN' || signal?.market === 'TOTAL_GOALS_SECONDARY') return 'TOTAL_GOALS_MAIN';
   if (signal?.market === 'MONEYLINE_1X2') return 'MONEYLINE_1X2';
   return undefined;
 }
@@ -262,43 +264,69 @@ export function calculateConfidenceAndAlerts(
     }));
   }
 
-  if (devig.spread_main_ev && devig.spread_main_ev.is_positive_ev && devig.spread_main_ev.preferred_side !== 'none') {
-    const side = devig.spread_main_ev.preferred_side;
-    const ev = side === 'home' ? devig.spread_main_ev.home_ev : devig.spread_main_ev.away_ev;
-    const odds = side === 'home' ? devig.spread_main_ev.home_odds : devig.spread_main_ev.away_odds;
-    const kelly = devig.spread_main_ev.kelly_fraction ?? 0.0;
-    const actualLine = side === 'away' ? invertHandicapString(devig.spread_main_ev.line) : devig.spread_main_ev.line;
-    positiveEVSignals.push(Object.freeze({
-      market: 'ASIAN_HANDICAP_MAIN',
-      line: actualLine,
-      side: side,
-      odds: odds,
-      ev: ev,
-      model_probability: side === 'home'
-        ? devig.spread_main_ev.home_model_probability
-        : devig.spread_main_ev.away_model_probability,
-      confidence: Math.max(50, score),
-      kelly_fraction: kelly
-    }));
+  // 2. 全场让球 (主盘 + 全部副盘)
+  const allSpreads: { assessment: SpreadEVAssessment; isMain: boolean }[] = [];
+  if (devig.spread_main_ev) {
+    allSpreads.push({ assessment: devig.spread_main_ev, isMain: true });
+  }
+  if (devig.spread_secondary_ev && Array.isArray(devig.spread_secondary_ev)) {
+    for (const sub of devig.spread_secondary_ev) {
+      if (sub) allSpreads.push({ assessment: sub, isMain: false });
+    }
   }
 
-  if (devig.total_main_ev && devig.total_main_ev.is_positive_ev && devig.total_main_ev.preferred_side !== 'none') {
-    const side = devig.total_main_ev.preferred_side;
-    const ev = side === 'over' ? devig.total_main_ev.over_ev : devig.total_main_ev.under_ev;
-    const odds = side === 'over' ? devig.total_main_ev.over_odds : devig.total_main_ev.under_odds;
-    const kelly = devig.total_main_ev.kelly_fraction ?? 0.0;
-    positiveEVSignals.push(Object.freeze({
-      market: 'TOTAL_GOALS_MAIN',
-      line: devig.total_main_ev.line,
-      side: side,
-      odds: odds,
-      ev: ev,
-      model_probability: side === 'over'
-        ? devig.total_main_ev.over_model_probability
-        : devig.total_main_ev.under_model_probability,
-      confidence: Math.max(50, score),
-      kelly_fraction: kelly
-    }));
+  for (const { assessment, isMain } of allSpreads) {
+    if (assessment.is_positive_ev && assessment.preferred_side !== 'none') {
+      const side = assessment.preferred_side;
+      const ev = side === 'home' ? assessment.home_ev : assessment.away_ev;
+      const odds = side === 'home' ? assessment.home_odds : assessment.away_odds;
+      const kelly = assessment.kelly_fraction ?? 0.0;
+      const actualLine = side === 'away' ? invertHandicapString(assessment.line) : assessment.line;
+      positiveEVSignals.push(Object.freeze({
+        market: isMain ? 'ASIAN_HANDICAP_MAIN' : 'ASIAN_HANDICAP_SECONDARY',
+        line: actualLine,
+        side: side,
+        odds: odds,
+        ev: ev,
+        model_probability: side === 'home'
+          ? assessment.home_model_probability
+          : assessment.away_model_probability,
+        confidence: Math.max(50, score),
+        kelly_fraction: kelly
+      }));
+    }
+  }
+
+  // 3. 全场大小球 (主盘 + 全部副盘)
+  const allTotals: { assessment: TotalEVAssessment; isMain: boolean }[] = [];
+  if (devig.total_main_ev) {
+    allTotals.push({ assessment: devig.total_main_ev, isMain: true });
+  }
+  if (devig.total_secondary_ev && Array.isArray(devig.total_secondary_ev)) {
+    for (const sub of devig.total_secondary_ev) {
+      if (sub) allTotals.push({ assessment: sub, isMain: false });
+    }
+  }
+
+  for (const { assessment, isMain } of allTotals) {
+    if (assessment.is_positive_ev && assessment.preferred_side !== 'none') {
+      const side = assessment.preferred_side;
+      const ev = side === 'over' ? assessment.over_ev : assessment.under_ev;
+      const odds = side === 'over' ? assessment.over_odds : assessment.under_odds;
+      const kelly = assessment.kelly_fraction ?? 0.0;
+      positiveEVSignals.push(Object.freeze({
+        market: isMain ? 'TOTAL_GOALS_MAIN' : 'TOTAL_GOALS_SECONDARY',
+        line: assessment.line,
+        side: side,
+        odds: odds,
+        ev: ev,
+        model_probability: side === 'over'
+          ? assessment.over_model_probability
+          : assessment.under_model_probability,
+        confidence: Math.max(50, score),
+        kelly_fraction: kelly
+      }));
+    }
   }
 
   return {
@@ -313,45 +341,53 @@ function resolveMarketConflicts(
   match: CanonicalMatch,
   poissonGrid?: number[][]
 ): PositiveEVSignal[] {
-  const spread = signals.find(s => s.market === 'ASIAN_HANDICAP_MAIN');
-  const total = signals.find(s => s.market === 'TOTAL_GOALS_MAIN');
+  const spreadSignals = signals.filter(s => s.market === 'ASIAN_HANDICAP_MAIN' || s.market === 'ASIAN_HANDICAP_SECONDARY');
+  const totalSignals = signals.filter(s => s.market === 'TOTAL_GOALS_MAIN' || s.market === 'TOTAL_GOALS_SECONDARY');
   
-  if (!spread || !total || !poissonGrid) return signals;
+  if (spreadSignals.length === 0 || totalSignals.length === 0 || !poissonGrid) return signals;
 
-  let bothWinProb = 0.0;
-  const spreadLineNum = parseAsianHandicapLine(spread.line);
-  const totalLineNum = parseAsianHandicapLine(total.line);
-  const currentHome = match.score?.home_score ?? 0;
-  const currentAway = match.score?.away_score ?? 0;
+  let currentSignals = [...signals];
 
-  for (let dH = 0; dH < poissonGrid.length; dH++) {
-    for (let dA = 0; dA < poissonGrid[dH].length; dA++) {
-      const prob = poissonGrid[dH][dA];
-      if (prob <= 0) continue;
+  for (const spread of spreadSignals) {
+    for (const total of totalSignals) {
+      if (!currentSignals.includes(spread) || !currentSignals.includes(total)) continue;
 
-      const netRest = spread.side === 'home' ? (dH - dA) : (dA - dH);
-      const isSpreadWin = (netRest + spreadLineNum) > 0;
+      let bothWinProb = 0.0;
+      const spreadLineNum = parseAsianHandicapLine(spread.line);
+      const totalLineNum = parseAsianHandicapLine(total.line);
+      const currentHome = match.score?.home_score ?? 0;
+      const currentAway = match.score?.away_score ?? 0;
 
-      const finalTotal = currentHome + currentAway + dH + dA;
-      const isTotalWin = total.side === 'over' 
-        ? finalTotal > totalLineNum 
-        : finalTotal < totalLineNum;
+      for (let dH = 0; dH < poissonGrid.length; dH++) {
+        for (let dA = 0; dA < poissonGrid[dH].length; dA++) {
+          const prob = poissonGrid[dH][dA];
+          if (prob <= 0) continue;
 
-      if (isSpreadWin && isTotalWin) {
-        bothWinProb += prob;
+          const netRest = spread.side === 'home' ? (dH - dA) : (dA - dH);
+          const isSpreadWin = (netRest + spreadLineNum) > 0;
+
+          const finalTotal = currentHome + currentAway + dH + dA;
+          const isTotalWin = total.side === 'over' 
+            ? finalTotal > totalLineNum 
+            : finalTotal < totalLineNum;
+
+          if (isSpreadWin && isTotalWin) {
+            bothWinProb += prob;
+          }
+        }
+      }
+
+      if (bothWinProb < 0.05) {
+        if (spread.ev >= total.ev) {
+          currentSignals = currentSignals.filter(s => s !== total);
+        } else {
+          currentSignals = currentSignals.filter(s => s !== spread);
+        }
       }
     }
   }
 
-  if (bothWinProb < 0.05) {
-    if (spread.ev >= total.ev) {
-      return signals.filter(s => s.market !== 'TOTAL_GOALS_MAIN');
-    } else {
-      return signals.filter(s => s.market !== 'ASIAN_HANDICAP_MAIN');
-    }
-  }
-
-  return signals;
+  return currentSignals;
 }
 
 /**

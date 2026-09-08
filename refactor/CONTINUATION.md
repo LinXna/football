@@ -47,10 +47,16 @@
 - Settlement/parlay acceptance fixed an obsolete `current_odds` field reference; parlay settlement now uses `ParlayLegResult.odds` and passes all 18 assertions.
 - Layer 03 now emits an explicit `production_gate` separating calculation readiness from formal candidate readiness. Calculation can be `PRODUCTION_READY`, `RESEARCH_ONLY`, or `BLOCKED`; formal candidates remain `OOS_LOCKED` until a matching VALIDATED profile exists.
 - The refactor system exposes isolated `GET /api/refactor/formal-ledger`; the obsolete manual `/api/refactor/formal-ledger/verified-score` endpoint was removed. LIVE score verification now passes when imported YBTY and Leisu scores agree, and each page match shows its Layer 03 production gate.
+- [2026-09-08 Batch 1 Complete]: 
+  - Q2: 盘口择优竞价池全面纳入大小球与让球的全部合法主副盘（`ASIAN_HANDICAP_MAIN/SECONDARY`, `TOTAL_GOALS_MAIN/SECONDARY`），副盘优于主盘时自动高亮为“最优副盘推荐”；前端界面支持切线切换与对比。
+  - Q3: 独赢三向（主胜/平局/客胜）独立呈现对应赔率、概率与单向 EV，正期望方向高亮展示。
+  - Q4: 玩法底栏由纯数值“期望值: EV”升级为具备明确主语指向的“最佳推荐选项 + 对应赔率 + EV”。
 
 ## Next Atomic Task
 
-Next, validate the formal-ledger read endpoint and per-match production-gate badges against imported LIVE/PREMATCH batches. Only after the calculation gate is production-ready should formal AI records and verified results be used for OOS calibration. Until then no `VALIDATED` calibration profile may be created.
+Next, execute Batch 2 (Q5, Q6 & Q7):
+- Q5: 彻底排查并修复让球盘口错误显示“主 0 / 客 0”的问题（如博德鲁姆FK实盘为“主 +0/0.5 / 客 -0/0.5”）。
+- Q6 & Q7: 全面排查并根除前端与后端 SSOT 不一致问题（前端私自倒算模型概率破坏 SSOT、胜率双轨制等），使前端纯粹消费后端 Layer 03 输出，确保数出一孔。
 
 After that, audit live-minute window semantics, red-card multipliers into M4, market timeline separation, and OOS backtesting one atomic issue at a time.
 

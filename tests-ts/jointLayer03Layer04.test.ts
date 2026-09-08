@@ -186,6 +186,7 @@ describe('Joint Layer 03 and Layer 04 Integration & Hardening Tests', () => {
           away: { recent_timeline: '样本充足', tactical_playstyle: '反击', market_performance: '赢盘' }
         },
         quant_features: {
+          candidate_pipeline: { state: 'PRODUCTION_UNLOCKED' },
           devig: {},
           bdi: 25.5,
           ev_signals: [],

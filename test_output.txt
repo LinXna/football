@@ -1,0 +1,1324 @@
+
+> test:ts
+> node --import tsx --test tests-ts/*.test.ts
+
+TAP version 13
+# Subtest: parseHandicapToFloat correctly parses various handicap formats without sign inversion
+ok 1 - parseHandicapToFloat correctly parses various handicap formats without sign inversion
+  ---
+  duration_ms: 1.149334
+  type: 'test'
+  ...
+# Subtest: verifyStatutoryAlignment passes valid AH and Over/Under legs
+not ok 2 - verifyStatutoryAlignment passes valid AH and Over/Under legs
+  ---
+  duration_ms: 3.906018
+  type: 'test'
+  location: '/app/applet/tests-ts/aiEvaluatorAlignment.test.ts:1:3461'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'RESEARCH'
+    - 'A_GRADE'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'A_GRADE'
+  actual: 'RESEARCH'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/app/applet/tests-ts/aiEvaluatorAlignment.test.ts:126:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: verifyStatutoryAlignment supports EURO_1X2 without false hallucination rejection
+not ok 3 - verifyStatutoryAlignment supports EURO_1X2 without false hallucination rejection
+  ---
+  duration_ms: 0.617837
+  type: 'test'
+  location: '/app/applet/tests-ts/aiEvaluatorAlignment.test.ts:1:3764'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'RESEARCH'
+    - 'A_GRADE'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'A_GRADE'
+  actual: 'RESEARCH'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/app/applet/tests-ts/aiEvaluatorAlignment.test.ts:147:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: verifyStatutoryAlignment rejects and overrides hallucinated odds or markets
+not ok 4 - verifyStatutoryAlignment rejects and overrides hallucinated odds or markets
+  ---
+  duration_ms: 0.330479
+  type: 'test'
+  location: '/app/applet/tests-ts/aiEvaluatorAlignment.test.ts:1:4303'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'RESEARCH'
+    - 'REJECTED'
+         ^
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'REJECTED'
+  actual: 'RESEARCH'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/app/applet/tests-ts/aiEvaluatorAlignment.test.ts:169:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: verifyStatutoryAlignment enforces data blind-spot hard gate
+not ok 5 - verifyStatutoryAlignment enforces data blind-spot hard gate
+  ---
+  duration_ms: 0.286607
+  type: 'test'
+  location: '/app/applet/tests-ts/aiEvaluatorAlignment.test.ts:1:4906'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'RESEARCH'
+    - 'B_GRADE'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'B_GRADE'
+  actual: 'RESEARCH'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/app/applet/tests-ts/aiEvaluatorAlignment.test.ts:184:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: verifyStatutoryAlignment enforces unverified score hard gate
+not ok 6 - verifyStatutoryAlignment enforces unverified score hard gate
+  ---
+  duration_ms: 0.288701
+  type: 'test'
+  location: '/app/applet/tests-ts/aiEvaluatorAlignment.test.ts:1:5599'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'RESEARCH'
+    - 'B_GRADE'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'B_GRADE'
+  actual: 'RESEARCH'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/app/applet/tests-ts/aiEvaluatorAlignment.test.ts:196:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: verifyStatutoryAlignment enforces Cup match unconfirmed lineup hard gate
+not ok 7 - verifyStatutoryAlignment enforces Cup match unconfirmed lineup hard gate
+  ---
+  duration_ms: 0.318124
+  type: 'test'
+  location: '/app/applet/tests-ts/aiEvaluatorAlignment.test.ts:1:6067'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'RESEARCH'
+    - 'C_GRADE'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'C_GRADE'
+  actual: 'RESEARCH'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/app/applet/tests-ts/aiEvaluatorAlignment.test.ts:209:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: HTTP API validates, deduplicates, synchronizes, and preserves protected data
+ok 8 - HTTP API validates, deduplicates, synchronizes, and preserves protected data
+  ---
+  duration_ms: 1868.654254
+  type: 'test'
+  ...
+# [2026-09-08T10:25:16.741Z][INFO][QUANT_03_SPATIO_TEMPORAL][SOLVED_SUCCESS][MATCH:test_joint_001] Spatio-Temporal Event Co-Evolution Solved. Minute: 65', Regime: DESPERATION_ASSAULT, Climax: 15 (DORMANT) {
+#   minute: 65,
+#   epi_home: 'LOW_ENGAGEMENT',
+#   epi_away: 'LOW_ENGAGEMENT',
+#   trinity_conflict: false,
+#   regime: 'DESPERATION_ASSAULT',
+#   climax_score: 15,
+#   attacking_side: 'none'
+# }
+# [2026-09-08T10:25:16.745Z][INFO][QUANT_03_POISSON_DECAY][SOLVED_SUCCESS][MATCH:test_joint_001] Solved Forward In-Play Poisson Decay. Minute: 65', Score: 1-0, LambdaRest: 0.261+0.275=0.536 {
+#   minute: 65,
+#   current_score: '1-0',
+#   lambda_home_rest: 0.261,
+#   lambda_away_rest: 0.275,
+#   expected_goals_rest: 0.536,
+#   curve: 'LINEAR_UNIFORM',
+#   top_scores: [ '1-0(58.3%)', '1-1(16.3%)', '2-0(15.5%)' ]
+# }
+# [2026-09-08T10:25:16.747Z][INFO][QUANT_03_DEVIG_CALCULATION][DEVIG_EV_COMPLETED][MATCH:test_joint_001] Devig and EV calculated for match test_joint_001 {
+#   posture: 'BALANCED_NEUTRAL',
+#   spread_main: {
+#     line: '-0.5',
+#     home_odds: 1.95,
+#     away_odds: 1.9,
+#     home_ev: -0.6438,
+#     away_ev: 0.553,
+#     preferred_side: 'away',
+#     is_positive_ev: true,
+#     home_model_probability: 0.1826,
+#     away_model_probability: 0.8173,
+#     kelly_fraction: 0.05
+#   },
+#   total_main: {
+#     line: '2.5',
+#     over_odds: 1.92,
+#     under_odds: 1.92,
+#     over_ev: -0.8055,
+#     under_ev: 0.7255,
+#     preferred_side: 'under',
+#     is_positive_ev: true,
+#     over_model_probability: 0.1013,
+#     under_model_probability: 0.8987,
+#     kelly_fraction: 0.05
+#   }
+# }
+# [2026-09-08T10:25:16.752Z][INFO][QUANT_03_SPATIO_TEMPORAL][SOLVED_SUCCESS][MATCH:test_joint_001] Spatio-Temporal Event Co-Evolution Solved. Minute: 65', Regime: DESPERATION_ASSAULT, Climax: 15 (DORMANT) {
+#   minute: 65,
+#   epi_home: 'LOW_ENGAGEMENT',
+#   epi_away: 'LOW_ENGAGEMENT',
+#   trinity_conflict: false,
+#   regime: 'DESPERATION_ASSAULT',
+#   climax_score: 15,
+#   attacking_side: 'none'
+# }
+# [2026-09-08T10:25:16.753Z][INFO][QUANT_03_POISSON_DECAY][SOLVED_SUCCESS][MATCH:test_joint_001] Solved Forward In-Play Poisson Decay. Minute: 65', Score: 1-0, LambdaRest: 0.235+0.247=0.482 {
+#   minute: 65,
+#   current_score: '1-0',
+#   lambda_home_rest: 0.235,
+#   lambda_away_rest: 0.247,
+#   expected_goals_rest: 0.482,
+#   curve: 'LINEAR_UNIFORM',
+#   top_scores: [ '1-0(61.6%)', '1-1(15.4%)', '2-0(14.7%)' ]
+# }
+# [2026-09-08T10:25:16.754Z][INFO][QUANT_03_DEVIG_CALCULATION][DEVIG_EV_COMPLETED][MATCH:test_joint_001] Devig and EV calculated for match test_joint_001 {
+#   posture: 'BALANCED_NEUTRAL',
+#   spread_main: {
+#     line: '-0.5',
+#     home_odds: 1.95,
+#     away_odds: 1.9,
+#     home_ev: -0.6685,
+#     away_ev: 0.577,
+#     preferred_side: 'away',
+#     is_positive_ev: true,
+#     home_model_probability: 0.17,
+#     away_model_probability: 0.83,
+#     kelly_fraction: 0.05
+#   },
+#   total_main: {
+#     line: '2.5',
+#     over_odds: 1.92,
+#     under_odds: 1.92,
+#     over_ev: -0.8372,
+#     under_ev: 0.7572,
+#     preferred_side: 'under',
+#     is_positive_ev: true,
+#     over_model_probability: 0.0848,
+#     under_model_probability: 0.9152,
+#     kelly_fraction: 0.05
+#   }
+# }
+# Subtest: Joint Layer 03 and Layer 04 Integration & Hardening Tests
+    # Subtest: 1. Quarter Handicap SSOT Parsing & Sign Inversion Prevention
+        # Subtest: should correctly parse all variations of quarter handicap without sign flip
+        ok 1 - should correctly parse all variations of quarter handicap without sign flip
+          ---
+          duration_ms: 1.239285
+          type: 'test'
+          ...
+        1..1
+    ok 1 - 1. Quarter Handicap SSOT Parsing & Sign Inversion Prevention
+      ---
+      duration_ms: 1.973513
+      type: 'suite'
+      ...
+    # Subtest: 2. Layer 03 to Layer 04 Data Pipeline & Exporter Synergy
+        # Subtest: should generate prompt with resilient ev_signals extracted from devig when machine candidates are empty
+        ok 1 - should generate prompt with resilient ev_signals extracted from devig when machine candidates are empty
+          ---
+          duration_ms: 16.093307
+          type: 'test'
+          ...
+        # Subtest: should inject narrative timeline events (goals, cards, substitutions) into live_physical_context
+        ok 2 - should inject narrative timeline events (goals, cards, substitutions) into live_physical_context
+          ---
+          duration_ms: 3.688916
+          type: 'test'
+          ...
+        1..2
+    ok 2 - 2. Layer 03 to Layer 04 Data Pipeline & Exporter Synergy
+      ---
+      duration_ms: 20.015851
+      type: 'suite'
+      ...
+    # Subtest: 3. Layer 04 Alignment Guard with Layer 03 Quant Alerts
+        # Subtest: should downgrade A_GRADE to B_GRADE when TRAP_HIGH_ODDS_WARNING is present in quant_features
+        not ok 1 - should downgrade A_GRADE to B_GRADE when TRAP_HIGH_ODDS_WARNING is present in quant_features
+          ---
+          duration_ms: 6.371659
+          type: 'test'
+          location: '/app/applet/tests-ts/jointLayer03Layer04.test.ts:1:7343'
+          failureType: 'testCodeFailure'
+          error: |-
+            Expected values to be strictly equal:
+            + actual - expected
+            
+            + 'RESEARCH'
+            - 'B_GRADE'
+            
+          code: 'ERR_ASSERTION'
+          name: 'AssertionError'
+          expected: 'B_GRADE'
+          actual: 'RESEARCH'
+          operator: 'strictEqual'
+          stack: |-
+            TestContext.<anonymous> (/app/applet/tests-ts/jointLayer03Layer04.test.ts:238:14)
+            Test.runInAsyncScope (node:async_hooks:214:14)
+            Test.run (node:internal/test_runner/test:1047:25)
+            Test.start (node:internal/test_runner/test:944:17)
+            node:internal/test_runner/test:1440:71
+            node:internal/per_context/primordials:466:82
+            new Promise (<anonymous>)
+            new SafePromise (node:internal/per_context/primordials:435:3)
+            node:internal/per_context/primordials:466:9
+            Array.map (<anonymous>)
+          ...
+        # Subtest: should correct tactical regime and downgrade A_GRADE when BARREN_DOMINANCE_WARNING is present
+        not ok 2 - should correct tactical regime and downgrade A_GRADE when BARREN_DOMINANCE_WARNING is present
+          ---
+          duration_ms: 0.950714
+          type: 'test'
+          location: '/app/applet/tests-ts/jointLayer03Layer04.test.ts:1:8293'
+          failureType: 'testCodeFailure'
+          error: |-
+            Expected values to be strictly equal:
+            + actual - expected
+            
+            + 'RESEARCH'
+            - 'B_GRADE'
+            
+          code: 'ERR_ASSERTION'
+          name: 'AssertionError'
+          expected: 'B_GRADE'
+          actual: 'RESEARCH'
+          operator: 'strictEqual'
+          stack: |-
+            TestContext.<anonymous> (/app/applet/tests-ts/jointLayer03Layer04.test.ts:271:14)
+            Test.runInAsyncScope (node:async_hooks:214:14)
+            Test.run (node:internal/test_runner/test:1047:25)
+            Suite.processPendingSubtests (node:internal/test_runner/test:744:18)
+            Test.postRun (node:internal/test_runner/test:1173:19)
+            Test.run (node:internal/test_runner/test:1101:12)
+            async Promise.all (index 0)
+            async Suite.run (node:internal/test_runner/test:1442:7)
+            async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+          ...
+        # Subtest: should cap grade at B_GRADE when RED_CARD_TACTICAL_COLLAPSE is triggered
+        not ok 3 - should cap grade at B_GRADE when RED_CARD_TACTICAL_COLLAPSE is triggered
+          ---
+          duration_ms: 0.411789
+          type: 'test'
+          location: '/app/applet/tests-ts/jointLayer03Layer04.test.ts:1:9326'
+          failureType: 'testCodeFailure'
+          error: |-
+            Expected values to be strictly equal:
+            + actual - expected
+            
+            + 'RESEARCH'
+            - 'B_GRADE'
+            
+          code: 'ERR_ASSERTION'
+          name: 'AssertionError'
+          expected: 'B_GRADE'
+          actual: 'RESEARCH'
+          operator: 'strictEqual'
+          stack: |-
+            TestContext.<anonymous> (/app/applet/tests-ts/jointLayer03Layer04.test.ts:304:14)
+            Test.runInAsyncScope (node:async_hooks:214:14)
+            Test.run (node:internal/test_runner/test:1047:25)
+            Suite.processPendingSubtests (node:internal/test_runner/test:744:18)
+            Test.postRun (node:internal/test_runner/test:1173:19)
+            Test.run (node:internal/test_runner/test:1101:12)
+            async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+          ...
+        1..3
+    not ok 3 - 3. Layer 04 Alignment Guard with Layer 03 Quant Alerts
+      ---
+      duration_ms: 8.351681
+      type: 'suite'
+      location: '/app/applet/tests-ts/jointLayer03Layer04.test.ts:1:6072'
+      failureType: 'subtestsFailed'
+      error: '3 subtests failed'
+      code: 'ERR_TEST_FAILURE'
+      ...
+    # Subtest: 5. Layer 03 EPI Multi-Scale Momentum Window Truncation Hardening
+        # Subtest: should NOT falsely classify as BARREN_DOMINANCE at 45m when a 27m goal occurred
+        ok 1 - should NOT falsely classify as BARREN_DOMINANCE at 45m when a 27m goal occurred
+          ---
+          duration_ms: 0.644896
+          type: 'test'
+          ...
+        # Subtest: should correctly classify genuine BARREN_DOMINANCE when high energy has ZERO event conversion across full match
+        ok 2 - should correctly classify genuine BARREN_DOMINANCE when high energy has ZERO event conversion across full match
+          ---
+          duration_ms: 0.295658
+          type: 'test'
+          ...
+        1..2
+    ok 4 - 5. Layer 03 EPI Multi-Scale Momentum Window Truncation Hardening
+      ---
+      duration_ms: 1.501042
+      type: 'suite'
+      ...
+    1..4
+not ok 9 - Joint Layer 03 and Layer 04 Integration & Hardening Tests
+  ---
+  duration_ms: 32.667861
+  type: 'suite'
+  location: '/app/applet/tests-ts/jointLayer03Layer04.test.ts:1:882'
+  failureType: 'subtestsFailed'
+  error: '1 subtest failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: normalizes extension interface fields into the CODEX Leisu import contract
+ok 10 - normalizes extension interface fields into the CODEX Leisu import contract
+  ---
+  duration_ms: 8.805876
+  type: 'test'
+  ...
+# Subtest: returns null for unrelated JSON and maps status 1 as prematch
+ok 11 - returns null for unrelated JSON and maps status 1 as prematch
+  ---
+  duration_ms: 0.492531
+  type: 'test'
+  ...
+# Subtest: all exported formal modules survive import and are referenced by prediction prompts
+ok 12 - all exported formal modules survive import and are referenced by prediction prompts
+  ---
+  duration_ms: 1.325905
+  type: 'test'
+  ...
+# Subtest: two selected matches only submit a valid 2-leg request
+ok 13 - two selected matches only submit a valid 2-leg request
+  ---
+  duration_ms: 2.498879
+  type: 'test'
+  ...
+# Subtest: hidden stale requests cannot enable or reach parlay generation
+ok 14 - hidden stale requests cannot enable or reach parlay generation
+  ---
+  duration_ms: 0.204551
+  type: 'test'
+  ...
+# Subtest: Anti-Fake Data Hardening: Scheme 1 - Team ID Anchoring in H2H & Recent Form
+ok 15 - Anti-Fake Data Hardening: Scheme 1 - Team ID Anchoring in H2H & Recent Form
+  ---
+  duration_ms: 2.479926
+  type: 'test'
+  ...
+# Subtest: Anti-Fake Data Hardening: Scheme 2 - Strict Date Gate (No Fake 45-Day Defaults)
+ok 16 - Anti-Fake Data Hardening: Scheme 2 - Strict Date Gate (No Fake 45-Day Defaults)
+  ---
+  duration_ms: 1.11075
+  type: 'test'
+  ...
+# Subtest: Anti-Fake Data Hardening: Scheme 3 - Zero-Sample Smoothing (valid_count === 0 returns 1.0)
+ok 17 - Anti-Fake Data Hardening: Scheme 3 - Zero-Sample Smoothing (valid_count === 0 returns 1.0)
+  ---
+  duration_ms: 2.051992
+  type: 'test'
+  ...
+# Subtest: Anti-Fake Data Hardening: Scheme 4 - Lineup Three-State Gate
+ok 18 - Anti-Fake Data Hardening: Scheme 4 - Lineup Three-State Gate
+  ---
+  duration_ms: 0.394164
+  type: 'test'
+  ...
+# Subtest: Anti-Fake Data Hardening: Scheme 5 - Dirichlet-Multinomial Bayesian Conjugate Smoothing
+ok 19 - Anti-Fake Data Hardening: Scheme 5 - Dirichlet-Multinomial Bayesian Conjugate Smoothing
+  ---
+  duration_ms: 0.498723
+  type: 'test'
+  ...
+# Subtest: Anti-Fake Data Hardening: Scheme 6 - Dynamic Percentile MUI & Cup Isolation
+ok 20 - Anti-Fake Data Hardening: Scheme 6 - Dynamic Percentile MUI & Cup Isolation
+  ---
+  duration_ms: 0.379547
+  type: 'test'
+  ...
+# Subtest: Machine Quant Prediction Engine v2.0 - Poisson Math Base
+ok 21 - Machine Quant Prediction Engine v2.0 - Poisson Math Base
+  ---
+  duration_ms: 1.125285
+  type: 'test'
+  ...
+# Subtest: Machine Quant Prediction Engine v2.5 - Dixon-Coles Tau & Matrix Correction
+ok 22 - Machine Quant Prediction Engine v2.5 - Dixon-Coles Tau & Matrix Correction
+  ---
+  duration_ms: 0.523282
+  type: 'test'
+  ...
+# Subtest: Machine Quant Prediction Engine v2.5 - Weighted H2H with Exponential Decay & Same-Venue Weight
+ok 23 - Machine Quant Prediction Engine v2.5 - Weighted H2H with Exponential Decay & Same-Venue Weight
+  ---
+  duration_ms: 0.353526
+  type: 'test'
+  ...
+# Subtest: Machine Quant Prediction Engine v2.5 - Two-Tier Recent Form Alpha with Home/Away Split
+ok 24 - Machine Quant Prediction Engine v2.5 - Two-Tier Recent Form Alpha with Home/Away Split
+  ---
+  duration_ms: 0.492873
+  type: 'test'
+  ...
+# Subtest: Machine Quant Prediction Engine v2.5 - Standings Traps Engine
+ok 25 - Machine Quant Prediction Engine v2.5 - Standings Traps Engine
+  ---
+  duration_ms: 0.243379
+  type: 'test'
+  ...
+# Subtest: Machine Quant Prediction Engine v2.5 - Data Completeness Tiering & EV Capping
+ok 26 - Machine Quant Prediction Engine v2.5 - Data Completeness Tiering & EV Capping
+  ---
+  duration_ms: 0.259665
+  type: 'test'
+  ...
+# Subtest: Machine Quant Prediction Engine v2.5 - Dynamic Half Ratio from Goal Distribution
+ok 27 - Machine Quant Prediction Engine v2.5 - Dynamic Half Ratio from Goal Distribution
+  ---
+  duration_ms: 0.262789
+  type: 'test'
+  ...
+# Subtest: Machine Quant Prediction Engine v2.0 - selectMainMarketLine (Main Line Selector)
+ok 28 - Machine Quant Prediction Engine v2.0 - selectMainMarketLine (Main Line Selector)
+  ---
+  duration_ms: 0.913044
+  type: 'test'
+  ...
+# Subtest: Machine Quant Prediction Engine v2.0 - selectMainMarketLine Total Goals
+ok 29 - Machine Quant Prediction Engine v2.0 - selectMainMarketLine Total Goals
+  ---
+  duration_ms: 0.505614
+  type: 'test'
+  ...
+# Subtest: Machine Quant Prediction Engine v2.0 - Prematch Quant Engine (Vancouver vs Dallas)
+ok 30 - Machine Quant Prediction Engine v2.0 - Prematch Quant Engine (Vancouver vs Dallas)
+  ---
+  duration_ms: 2.406333
+  type: 'test'
+  ...
+# Subtest: Machine Quant Prediction Engine v2.0 - Zero-Bias Fallback on Missing Data
+ok 31 - Machine Quant Prediction Engine v2.0 - Zero-Bias Fallback on Missing Data
+  ---
+  duration_ms: 1.037468
+  type: 'test'
+  ...
+# Subtest: Machine Quant Prediction Engine v2.0 - Live In-Play Mode Routing
+ok 32 - Machine Quant Prediction Engine v2.0 - Live In-Play Mode Routing
+  ---
+  duration_ms: 1.261707
+  type: 'test'
+  ...
+# [2026-09-08T10:25:19.098Z][INFO][QUANT_03_SPATIO_TEMPORAL][SOLVED_SUCCESS][MATCH:4562395] Spatio-Temporal Event Co-Evolution Solved. Minute: 62', Regime: NEUTRAL_EQUILIBRIUM, Climax: 81.5 (EXTREME_IMMINENT) {
+#   minute: 62,
+#   epi_home: 'LETHAL_SIEGE',
+#   epi_away: 'LETHAL_SIEGE',
+#   trinity_conflict: false,
+#   regime: 'NEUTRAL_EQUILIBRIUM',
+#   climax_score: 81.5,
+#   attacking_side: 'away'
+# }
+# [2026-09-08T10:25:19.102Z][INFO][QUANT_03_POISSON_DECAY][SOLVED_SUCCESS][MATCH:4562395] Solved Forward In-Play Poisson Decay. Minute: 62', Score: 0-1, LambdaRest: 0.472+0.509=0.981 {
+#   minute: 62,
+#   current_score: '0-1',
+#   lambda_home_rest: 0.472,
+#   lambda_away_rest: 0.509,
+#   expected_goals_rest: 0.981,
+#   curve: 'LINEAR_UNIFORM',
+#   top_scores: [ '0-1(37.0%)', '0-2(19.5%)', '1-1(18.1%)' ]
+# }
+# [2026-09-08T10:25:19.104Z][INFO][QUANT_03_DEVIG_CALCULATION][DEVIG_EV_COMPLETED][MATCH:4562395] Devig and EV calculated for match 4562395 {
+#   posture: 'TRAP_HIGH_ODDS',
+#   spread_main: {
+#     line: '-0/0.5',
+#     home_odds: 2.2,
+#     away_odds: 1.71,
+#     home_ev: -0.2045,
+#     away_ev: 0.1072,
+#     preferred_side: 'away',
+#     is_positive_ev: true,
+#     home_model_probability: 0.2567,
+#     away_model_probability: 0.7433,
+#     kelly_fraction: 0.0377
+#   },
+#   total_main: {
+#     line: '2',
+#     over_odds: 1.91,
+#     under_odds: 1.95,
+#     over_ev: -0.1408,
+#     under_ev: 0.0989,
+#     preferred_side: 'under',
+#     is_positive_ev: true,
+#     over_model_probability: 0.2573,
+#     under_model_probability: 0.3749,
+#     kelly_fraction: 0.026
+#   }
+# }
+# [2026-09-08T10:25:19.233Z][INFO][QUANT_03_SPATIO_TEMPORAL][SOLVED_SUCCESS][MATCH:4614026] Spatio-Temporal Event Co-Evolution Solved. Minute: 58', Regime: NEUTRAL_EQUILIBRIUM, Climax: 58.8 (HIGH_PRESSURE) {
+#   minute: 58,
+#   epi_home: 'LETHAL_SIEGE',
+#   epi_away: 'LETHAL_SIEGE',
+#   trinity_conflict: false,
+#   regime: 'NEUTRAL_EQUILIBRIUM',
+#   climax_score: 58.8,
+#   attacking_side: 'home'
+# }
+# [2026-09-08T10:25:19.234Z][INFO][QUANT_03_POISSON_DECAY][SOLVED_SUCCESS][MATCH:4614026] Solved Forward In-Play Poisson Decay. Minute: 58', Score: 2-1, LambdaRest: 1.808+0.473=2.281 {
+#   minute: 58,
+#   current_score: '2-1',
+#   lambda_home_rest: 1.808,
+#   lambda_away_rest: 0.473,
+#   expected_goals_rest: 2.281,
+#   curve: 'LINEAR_UNIFORM',
+#   top_scores: [ '3-1(18.9%)', '4-1(16.7%)', '5-1(10.1%)' ]
+# }
+# [2026-09-08T10:25:19.235Z][INFO][QUANT_03_DEVIG_CALCULATION][DEVIG_EV_COMPLETED][MATCH:4614026] Devig and EV calculated for match 4614026 {
+#   posture: 'TRAP_HIGH_ODDS',
+#   spread_main: {
+#     line: '-0.5',
+#     home_odds: 1.78,
+#     away_odds: 2.04,
+#     home_ev: 0.2541,
+#     away_ev: -0.3972,
+#     preferred_side: 'home',
+#     is_positive_ev: true,
+#     home_model_probability: 0.7045,
+#     away_model_probability: 0.2955,
+#     kelly_fraction: 0.05
+#   },
+#   total_main: {
+#     line: '4.5',
+#     over_odds: 1.96,
+#     under_odds: 1.84,
+#     over_ev: 0.3029,
+#     under_ev: -0.3831,
+#     preferred_side: 'over',
+#     is_positive_ev: true,
+#     over_model_probability: 0.6647,
+#     under_model_probability: 0.3353,
+#     kelly_fraction: 0.05
+#   }
+# }
+# [2026-09-08T10:25:19.238Z][INFO][QUANT_03_SPATIO_TEMPORAL][SOLVED_SUCCESS][MATCH:4608875] Spatio-Temporal Event Co-Evolution Solved. Minute: 58', Regime: GAME_CONTROL_DECELERATION, Climax: 75.7 (HIGH_PRESSURE) {
+#   minute: 58,
+#   epi_home: 'LETHAL_SIEGE',
+#   epi_away: 'CLINICAL_COUNTER',
+#   trinity_conflict: false,
+#   regime: 'GAME_CONTROL_DECELERATION',
+#   climax_score: 75.7,
+#   attacking_side: 'home'
+# }
+# [2026-09-08T10:25:19.238Z][INFO][QUANT_03_POISSON_DECAY][SOLVED_SUCCESS][MATCH:4608875] Solved Forward In-Play Poisson Decay. Minute: 58', Score: 3-1, LambdaRest: 0.75+0.257=1.007 {
+#   minute: 58,
+#   current_score: '3-1',
+#   lambda_home_rest: 0.75,
+#   lambda_away_rest: 0.257,
+#   expected_goals_rest: 1.007,
+#   curve: 'LINEAR_UNIFORM',
+#   top_scores: [ '3-1(36.2%)', '4-1(27.8%)', '5-1(10.3%)' ]
+# }
+# [2026-09-08T10:25:19.239Z][INFO][QUANT_03_DEVIG_CALCULATION][DEVIG_EV_COMPLETED][MATCH:4608875] Devig and EV calculated for match 4608875 {
+#   posture: 'BALANCED_NEUTRAL',
+#   spread_main: {
+#     line: '-1',
+#     home_odds: 1.83,
+#     away_odds: 2.05,
+#     home_ev: -0.4348,
+#     away_ev: 0.4383,
+#     preferred_side: 'away',
+#     is_positive_ev: true,
+#     home_model_probability: 0.1423,
+#     away_model_probability: 0.5529,
+#     kelly_fraction: 0.05
+#   },
+#   total_main: {
+#     line: '5.5',
+#     over_odds: 1.84,
+#     under_odds: 2.02,
+#     over_ev: -0.5091,
+#     under_ev: 0.481,
+#     preferred_side: 'under',
+#     is_positive_ev: true,
+#     over_model_probability: 0.2668,
+#     under_model_probability: 0.7332,
+#     kelly_fraction: 0.05
+#   }
+# }
+# [2026-09-08T10:25:20.224Z][INFO][QUANT_03_SPATIO_TEMPORAL][SOLVED_SUCCESS][MATCH:4565335] Spatio-Temporal Event Co-Evolution Solved. Minute: 58', Regime: NEUTRAL_EQUILIBRIUM, Climax: 79.1 (EXTREME_IMMINENT) {
+#   minute: 58,
+#   epi_home: 'LETHAL_SIEGE',
+#   epi_away: 'LETHAL_SIEGE',
+#   trinity_conflict: false,
+#   regime: 'NEUTRAL_EQUILIBRIUM',
+#   climax_score: 79.1,
+#   attacking_side: 'home'
+# }
+# [2026-09-08T10:25:20.225Z][INFO][QUANT_03_POISSON_DECAY][SOLVED_SUCCESS][MATCH:4565335] Solved Forward In-Play Poisson Decay. Minute: 58', Score: 1-0, LambdaRest: 0.446+0.558=1.004 {
+#   minute: 58,
+#   current_score: '1-0',
+#   lambda_home_rest: 0.446,
+#   lambda_away_rest: 0.558,
+#   expected_goals_rest: 1.004,
+#   curve: 'LINEAR_UNIFORM',
+#   top_scores: [ '1-0(36.2%)', '1-1(20.9%)', '2-0(16.8%)' ]
+# }
+# [2026-09-08T10:25:20.225Z][INFO][QUANT_03_DEVIG_CALCULATION][DEVIG_EV_COMPLETED][MATCH:4565335] Devig and EV calculated for match 4565335 {
+#   posture: 'TRAP_HIGH_ODDS',
+#   spread_main: {
+#     line: '+0/0.5',
+#     home_odds: 1.75,
+#     away_odds: 2.17,
+#     home_ev: 0.0363,
+#     away_ev: -0.0991,
+#     preferred_side: 'home',
+#     is_positive_ev: true,
+#     home_model_probability: 0.6895,
+#     away_model_probability: 0.3105,
+#     kelly_fraction: 0.0121
+#   },
+#   total_main: {
+#     line: '2',
+#     over_odds: 2.04,
+#     under_odds: 1.84,
+#     over_ev: -0.0901,
+#     under_ev: 0.0421,
+#     preferred_side: 'under',
+#     is_positive_ev: true,
+#     over_model_probability: 0.2657,
+#     under_model_probability: 0.3664,
+#     kelly_fraction: 0.0125
+#   }
+# }
+# [2026-09-08T10:25:21.265Z][INFO][QUANT_03_SPATIO_TEMPORAL][SOLVED_SUCCESS][MATCH:4480038] Spatio-Temporal Event Co-Evolution Solved. Minute: 47', Regime: NEUTRAL_EQUILIBRIUM, Climax: 64.6 (HIGH_PRESSURE) {
+#   minute: 47,
+#   epi_home: 'BARREN_DOMINANCE',
+#   epi_away: 'LETHAL_SIEGE',
+#   trinity_conflict: true,
+#   regime: 'NEUTRAL_EQUILIBRIUM',
+#   climax_score: 64.6,
+#   attacking_side: 'away'
+# }
+# [2026-09-08T10:25:21.266Z][INFO][QUANT_03_POISSON_DECAY][SOLVED_SUCCESS][MATCH:4480038] Solved Forward In-Play Poisson Decay. Minute: 47', Score: 0-0, LambdaRest: 0.696+1.431=2.127 {
+#   minute: 47,
+#   current_score: '0-0',
+#   lambda_home_rest: 0.696,
+#   lambda_away_rest: 1.431,
+#   expected_goals_rest: 2.127,
+#   curve: 'LINEAR_UNIFORM',
+#   top_scores: [ '0-1(17.7%)', '0-2(12.2%)', '0-0(11.3%)' ]
+# }
+# [2026-09-08T10:25:21.266Z][INFO][QUANT_03_DEVIG_CALCULATION][DEVIG_EV_COMPLETED][MATCH:4480038] Devig and EV calculated for match 4480038 {
+#   posture: 'TRAP_HIGH_ODDS',
+#   spread_main: {
+#     line: '+0.5/1',
+#     home_odds: 1.98,
+#     away_odds: 1.84,
+#     home_ev: 0.0228,
+#     away_ev: -0.0981,
+#     preferred_side: 'none',
+#     is_positive_ev: false,
+#     home_model_probability: 0.4466,
+#     away_model_probability: 0.5534,
+#     kelly_fraction: 0
+#   },
+#   total_main: {
+#     line: '2',
+#     over_odds: 1.79,
+#     under_odds: 2.01,
+#     over_ev: -0.0902,
+#     under_ev: 0.0188,
+#     preferred_side: 'none',
+#     is_positive_ev: false,
+#     over_model_probability: 0.3577,
+#     under_model_probability: 0.3727,
+#     kelly_fraction: 0
+#   }
+# }
+# [2026-09-08T10:25:22.295Z][INFO][QUANT_03_SPATIO_TEMPORAL][SOLVED_SUCCESS][MATCH:4614087] Spatio-Temporal Event Co-Evolution Solved. Minute: 20', Regime: NEUTRAL_EQUILIBRIUM, Climax: 62.3 (HIGH_PRESSURE) {
+#   minute: 20,
+#   epi_home: 'BALANCED_CONTEST',
+#   epi_away: 'BARREN_DOMINANCE',
+#   trinity_conflict: false,
+#   regime: 'NEUTRAL_EQUILIBRIUM',
+#   climax_score: 62.3,
+#   attacking_side: 'none'
+# }
+# [2026-09-08T10:25:22.295Z][INFO][QUANT_03_POISSON_DECAY][SOLVED_SUCCESS][MATCH:4614087] Solved Forward In-Play Poisson Decay. Minute: 20', Score: 0-0, LambdaRest: 1.795+0.399=2.194 {
+#   minute: 20,
+#   current_score: '0-0',
+#   lambda_home_rest: 1.795,
+#   lambda_away_rest: 0.399,
+#   expected_goals_rest: 2.194,
+#   curve: 'LINEAR_UNIFORM',
+#   top_scores: [ '1-0(20.4%)', '2-0(18.0%)', '0-0(10.7%)' ]
+# }
+# [2026-09-08T10:25:22.296Z][INFO][QUANT_03_DEVIG_CALCULATION][DEVIG_EV_COMPLETED][MATCH:4614087] Devig and EV calculated for match 4614087 {
+#   posture: 'TRAP_HIGH_ODDS',
+#   spread_main: {
+#     line: '-1',
+#     home_odds: 1.8,
+#     away_odds: 2.02,
+#     home_ev: 0.0718,
+#     away_ev: -0.1537,
+#     preferred_side: 'home',
+#     is_positive_ev: true,
+#     home_model_probability: 0.4372,
+#     away_model_probability: 0.278,
+#     kelly_fraction: 0.0224
+#   },
+#   total_main: {
+#     line: '2',
+#     over_odds: 1.83,
+#     under_odds: 1.97,
+#     over_ev: -0.0442,
+#     under_ev: -0.0303,
+#     preferred_side: 'none',
+#     is_positive_ev: false,
+#     over_model_probability: 0.3757,
+#     under_model_probability: 0.356,
+#     kelly_fraction: 0
+#   }
+# }
+# [2026-09-08T10:25:23.294Z][INFO][QUANT_03_SPATIO_TEMPORAL][SOLVED_SUCCESS][MATCH:4562395] Spatio-Temporal Event Co-Evolution Solved. Minute: 62', Regime: NEUTRAL_EQUILIBRIUM, Climax: 81.5 (EXTREME_IMMINENT) {
+#   minute: 62,
+#   epi_home: 'LETHAL_SIEGE',
+#   epi_away: 'LETHAL_SIEGE',
+#   trinity_conflict: false,
+#   regime: 'NEUTRAL_EQUILIBRIUM',
+#   climax_score: 81.5,
+#   attacking_side: 'away'
+# }
+# [2026-09-08T10:25:23.294Z][INFO][QUANT_03_POISSON_DECAY][SOLVED_SUCCESS][MATCH:4562395] Solved Forward In-Play Poisson Decay. Minute: 62', Score: 0-1, LambdaRest: 0.472+0.509=0.981 {
+#   minute: 62,
+#   current_score: '0-1',
+#   lambda_home_rest: 0.472,
+#   lambda_away_rest: 0.509,
+#   expected_goals_rest: 0.981,
+#   curve: 'LINEAR_UNIFORM',
+#   top_scores: [ '0-1(37.0%)', '0-2(19.5%)', '1-1(18.1%)' ]
+# }
+# [2026-09-08T10:25:23.294Z][INFO][QUANT_03_DEVIG_CALCULATION][DEVIG_EV_COMPLETED][MATCH:4562395] Devig and EV calculated for match 4562395 {
+#   posture: 'TRAP_HIGH_ODDS',
+#   spread_main: {
+#     line: '-0/0.5',
+#     home_odds: 2.2,
+#     away_odds: 1.71,
+#     home_ev: -0.2045,
+#     away_ev: 0.1072,
+#     preferred_side: 'away',
+#     is_positive_ev: true,
+#     home_model_probability: 0.2567,
+#     away_model_probability: 0.7433,
+#     kelly_fraction: 0.0377
+#   },
+#   total_main: {
+#     line: '2',
+#     over_odds: 1.91,
+#     under_odds: 1.95,
+#     over_ev: -0.1408,
+#     under_ev: 0.0989,
+#     preferred_side: 'under',
+#     is_positive_ev: true,
+#     over_model_probability: 0.2573,
+#     under_model_probability: 0.3749,
+#     kelly_fraction: 0.026
+#   }
+# }
+# [2026-09-08T10:25:23.403Z][INFO][QUANT_03_SPATIO_TEMPORAL][SOLVED_SUCCESS][MATCH:4614026] Spatio-Temporal Event Co-Evolution Solved. Minute: 58', Regime: NEUTRAL_EQUILIBRIUM, Climax: 58.8 (HIGH_PRESSURE) {
+#   minute: 58,
+#   epi_home: 'LETHAL_SIEGE',
+#   epi_away: 'LETHAL_SIEGE',
+#   trinity_conflict: false,
+#   regime: 'NEUTRAL_EQUILIBRIUM',
+#   climax_score: 58.8,
+#   attacking_side: 'home'
+# }
+# [2026-09-08T10:25:23.404Z][INFO][QUANT_03_POISSON_DECAY][SOLVED_SUCCESS][MATCH:4614026] Solved Forward In-Play Poisson Decay. Minute: 58', Score: 2-1, LambdaRest: 1.808+0.473=2.281 {
+#   minute: 58,
+#   current_score: '2-1',
+#   lambda_home_rest: 1.808,
+#   lambda_away_rest: 0.473,
+#   expected_goals_rest: 2.281,
+#   curve: 'LINEAR_UNIFORM',
+#   top_scores: [ '3-1(18.9%)', '4-1(16.7%)', '5-1(10.1%)' ]
+# }
+# [2026-09-08T10:25:23.404Z][INFO][QUANT_03_DEVIG_CALCULATION][DEVIG_EV_COMPLETED][MATCH:4614026] Devig and EV calculated for match 4614026 {
+#   posture: 'TRAP_HIGH_ODDS',
+#   spread_main: {
+#     line: '-0.5',
+#     home_odds: 1.78,
+#     away_odds: 2.04,
+#     home_ev: 0.2541,
+#     away_ev: -0.3972,
+#     preferred_side: 'home',
+#     is_positive_ev: true,
+#     home_model_probability: 0.7045,
+#     away_model_probability: 0.2955,
+#     kelly_fraction: 0.05
+#   },
+#   total_main: {
+#     line: '4.5',
+#     over_odds: 1.96,
+#     under_odds: 1.84,
+#     over_ev: 0.3029,
+#     under_ev: -0.3831,
+#     preferred_side: 'over',
+#     is_positive_ev: true,
+#     over_model_probability: 0.6647,
+#     under_model_probability: 0.3353,
+#     kelly_fraction: 0.05
+#   }
+# }
+# [2026-09-08T10:25:23.406Z][INFO][QUANT_03_SPATIO_TEMPORAL][SOLVED_SUCCESS][MATCH:4608875] Spatio-Temporal Event Co-Evolution Solved. Minute: 58', Regime: GAME_CONTROL_DECELERATION, Climax: 75.7 (HIGH_PRESSURE) {
+#   minute: 58,
+#   epi_home: 'LETHAL_SIEGE',
+#   epi_away: 'CLINICAL_COUNTER',
+#   trinity_conflict: false,
+#   regime: 'GAME_CONTROL_DECELERATION',
+#   climax_score: 75.7,
+#   attacking_side: 'home'
+# }
+# [2026-09-08T10:25:23.420Z][INFO][QUANT_03_POISSON_DECAY][SOLVED_SUCCESS][MATCH:4608875] Solved Forward In-Play Poisson Decay. Minute: 58', Score: 3-1, LambdaRest: 0.75+0.257=1.007 {
+#   minute: 58,
+#   current_score: '3-1',
+#   lambda_home_rest: 0.75,
+#   lambda_away_rest: 0.257,
+#   expected_goals_rest: 1.007,
+#   curve: 'LINEAR_UNIFORM',
+#   top_scores: [ '3-1(36.2%)', '4-1(27.8%)', '5-1(10.3%)' ]
+# }
+# [2026-09-08T10:25:23.420Z][INFO][QUANT_03_DEVIG_CALCULATION][DEVIG_EV_COMPLETED][MATCH:4608875] Devig and EV calculated for match 4608875 {
+#   posture: 'BALANCED_NEUTRAL',
+#   spread_main: {
+#     line: '-1',
+#     home_odds: 1.83,
+#     away_odds: 2.05,
+#     home_ev: -0.4348,
+#     away_ev: 0.4383,
+#     preferred_side: 'away',
+#     is_positive_ev: true,
+#     home_model_probability: 0.1423,
+#     away_model_probability: 0.5529,
+#     kelly_fraction: 0.05
+#   },
+#   total_main: {
+#     line: '5.5',
+#     over_odds: 1.84,
+#     under_odds: 2.02,
+#     over_ev: -0.5091,
+#     under_ev: 0.481,
+#     preferred_side: 'under',
+#     is_positive_ev: true,
+#     over_model_probability: 0.2668,
+#     under_model_probability: 0.7332,
+#     kelly_fraction: 0.05
+#   }
+# }
+# [2026-09-08T10:25:24.547Z][INFO][QUANT_03_SPATIO_TEMPORAL][SOLVED_SUCCESS][MATCH:4565335] Spatio-Temporal Event Co-Evolution Solved. Minute: 58', Regime: NEUTRAL_EQUILIBRIUM, Climax: 79.1 (EXTREME_IMMINENT) {
+#   minute: 58,
+#   epi_home: 'LETHAL_SIEGE',
+#   epi_away: 'LETHAL_SIEGE',
+#   trinity_conflict: false,
+#   regime: 'NEUTRAL_EQUILIBRIUM',
+#   climax_score: 79.1,
+#   attacking_side: 'home'
+# }
+# [2026-09-08T10:25:24.548Z][INFO][QUANT_03_POISSON_DECAY][SOLVED_SUCCESS][MATCH:4565335] Solved Forward In-Play Poisson Decay. Minute: 58', Score: 1-0, LambdaRest: 0.446+0.558=1.004 {
+#   minute: 58,
+#   current_score: '1-0',
+#   lambda_home_rest: 0.446,
+#   lambda_away_rest: 0.558,
+#   expected_goals_rest: 1.004,
+#   curve: 'LINEAR_UNIFORM',
+#   top_scores: [ '1-0(36.2%)', '1-1(20.9%)', '2-0(16.8%)' ]
+# }
+# [2026-09-08T10:25:24.548Z][INFO][QUANT_03_DEVIG_CALCULATION][DEVIG_EV_COMPLETED][MATCH:4565335] Devig and EV calculated for match 4565335 {
+#   posture: 'TRAP_HIGH_ODDS',
+#   spread_main: {
+#     line: '+0/0.5',
+#     home_odds: 1.75,
+#     away_odds: 2.17,
+#     home_ev: 0.0363,
+#     away_ev: -0.0991,
+#     preferred_side: 'home',
+#     is_positive_ev: true,
+#     home_model_probability: 0.6895,
+#     away_model_probability: 0.3105,
+#     kelly_fraction: 0.0121
+#   },
+#   total_main: {
+#     line: '2',
+#     over_odds: 2.04,
+#     under_odds: 1.84,
+#     over_ev: -0.0901,
+#     under_ev: 0.0421,
+#     preferred_side: 'under',
+#     is_positive_ev: true,
+#     over_model_probability: 0.2657,
+#     under_model_probability: 0.3664,
+#     kelly_fraction: 0.0125
+#   }
+# }
+# [2026-09-08T10:25:25.598Z][INFO][QUANT_03_SPATIO_TEMPORAL][SOLVED_SUCCESS][MATCH:4480038] Spatio-Temporal Event Co-Evolution Solved. Minute: 47', Regime: NEUTRAL_EQUILIBRIUM, Climax: 64.6 (HIGH_PRESSURE) {
+#   minute: 47,
+#   epi_home: 'BARREN_DOMINANCE',
+#   epi_away: 'LETHAL_SIEGE',
+#   trinity_conflict: true,
+#   regime: 'NEUTRAL_EQUILIBRIUM',
+#   climax_score: 64.6,
+#   attacking_side: 'away'
+# }
+# [2026-09-08T10:25:25.598Z][INFO][QUANT_03_POISSON_DECAY][SOLVED_SUCCESS][MATCH:4480038] Solved Forward In-Play Poisson Decay. Minute: 47', Score: 0-0, LambdaRest: 0.696+1.431=2.127 {
+#   minute: 47,
+#   current_score: '0-0',
+#   lambda_home_rest: 0.696,
+#   lambda_away_rest: 1.431,
+#   expected_goals_rest: 2.127,
+#   curve: 'LINEAR_UNIFORM',
+#   top_scores: [ '0-1(17.7%)', '0-2(12.2%)', '0-0(11.3%)' ]
+# }
+# [2026-09-08T10:25:25.599Z][INFO][QUANT_03_DEVIG_CALCULATION][DEVIG_EV_COMPLETED][MATCH:4480038] Devig and EV calculated for match 4480038 {
+#   posture: 'TRAP_HIGH_ODDS',
+#   spread_main: {
+#     line: '+0.5/1',
+#     home_odds: 1.98,
+#     away_odds: 1.84,
+#     home_ev: 0.0228,
+#     away_ev: -0.0981,
+#     preferred_side: 'none',
+#     is_positive_ev: false,
+#     home_model_probability: 0.4466,
+#     away_model_probability: 0.5534,
+#     kelly_fraction: 0
+#   },
+#   total_main: {
+#     line: '2',
+#     over_odds: 1.79,
+#     under_odds: 2.01,
+#     over_ev: -0.0902,
+#     under_ev: 0.0188,
+#     preferred_side: 'none',
+#     is_positive_ev: false,
+#     over_model_probability: 0.3577,
+#     under_model_probability: 0.3727,
+#     kelly_fraction: 0
+#   }
+# }
+# [2026-09-08T10:25:26.604Z][INFO][QUANT_03_SPATIO_TEMPORAL][SOLVED_SUCCESS][MATCH:4614087] Spatio-Temporal Event Co-Evolution Solved. Minute: 20', Regime: NEUTRAL_EQUILIBRIUM, Climax: 62.3 (HIGH_PRESSURE) {
+#   minute: 20,
+#   epi_home: 'BALANCED_CONTEST',
+#   epi_away: 'BARREN_DOMINANCE',
+#   trinity_conflict: false,
+#   regime: 'NEUTRAL_EQUILIBRIUM',
+#   climax_score: 62.3,
+#   attacking_side: 'none'
+# }
+# [2026-09-08T10:25:26.605Z][INFO][QUANT_03_POISSON_DECAY][SOLVED_SUCCESS][MATCH:4614087] Solved Forward In-Play Poisson Decay. Minute: 20', Score: 0-0, LambdaRest: 1.795+0.399=2.194 {
+#   minute: 20,
+#   current_score: '0-0',
+#   lambda_home_rest: 1.795,
+#   lambda_away_rest: 0.399,
+#   expected_goals_rest: 2.194,
+#   curve: 'LINEAR_UNIFORM',
+#   top_scores: [ '1-0(20.4%)', '2-0(18.0%)', '0-0(10.7%)' ]
+# }
+# [2026-09-08T10:25:26.606Z][INFO][QUANT_03_DEVIG_CALCULATION][DEVIG_EV_COMPLETED][MATCH:4614087] Devig and EV calculated for match 4614087 {
+#   posture: 'TRAP_HIGH_ODDS',
+#   spread_main: {
+#     line: '-1',
+#     home_odds: 1.8,
+#     away_odds: 2.02,
+#     home_ev: 0.0718,
+#     away_ev: -0.1537,
+#     preferred_side: 'home',
+#     is_positive_ev: true,
+#     home_model_probability: 0.4372,
+#     away_model_probability: 0.278,
+#     kelly_fraction: 0.0224
+#   },
+#   total_main: {
+#     line: '2',
+#     over_odds: 1.83,
+#     under_odds: 1.97,
+#     over_ev: -0.0442,
+#     under_ev: -0.0303,
+#     preferred_side: 'none',
+#     is_positive_ev: false,
+#     over_model_probability: 0.3757,
+#     under_model_probability: 0.356,
+#     kelly_fraction: 0
+#   }
+# }
+# Subtest: Server-Side Quant Precomputation: assembleMatchesForMode automatically computes Layer 03 features
+ok 33 - Server-Side Quant Precomputation: assembleMatchesForMode automatically computes Layer 03 features
+  ---
+  duration_ms: 8619.679526
+  type: 'test'
+  ...
+# Subtest: import preview renders normalized Leisu score objects as text
+ok 34 - import preview renders normalized Leisu score objects as text
+  ---
+  duration_ms: 1.248415
+  type: 'test'
+  ...
+# Subtest: provider objects are rendered safely in timelines, evidence, and lineups
+ok 35 - provider objects are rendered safely in timelines, evidence, and lineups
+  ---
+  duration_ms: 1.735712
+  type: 'test'
+  ...
+# Subtest: mixed parlay candidates retain live versus prematch scoring rules
+ok 36 - mixed parlay candidates retain live versus prematch scoring rules
+  ---
+  duration_ms: 0.190966
+  type: 'test'
+  ...
+# Subtest: prompt export chunks by serialized data size instead of match count alone
+ok 37 - prompt export chunks by serialized data size instead of match count alone
+  ---
+  duration_ms: 0.240616
+  type: 'test'
+  ...
+# Subtest: slim prompt payload removes mirrors, audits, weather, and non-key commentary
+ok 38 - slim prompt payload removes mirrors, audits, weather, and non-key commentary
+  ---
+  duration_ms: 14.840955
+  type: 'test'
+  ...
+# Subtest: key incident filter keeps betting-relevant events and drops greetings
+ok 39 - key incident filter keeps betting-relevant events and drops greetings
+  ---
+  duration_ms: 0.482535
+  type: 'test'
+  ...
+# Subtest: key incident filter removes duplicated minute prefixes and semantic duplicates
+ok 40 - key incident filter removes duplicated minute prefixes and semantic duplicates
+  ---
+  duration_ms: 0.212494
+  type: 'test'
+  ...
+# Subtest: unverified live score blocks real recommendations but not predictions
+ok 41 - unverified live score blocks real recommendations but not predictions
+  ---
+  duration_ms: 0.308594
+  type: 'test'
+  ...
+# Subtest: prompt export includes new interface fields and honest live efficiency
+ok 42 - prompt export includes new interface fields and honest live efficiency
+  ---
+  duration_ms: 1.195598
+  type: 'test'
+  ...
+# Subtest: compact prompt keeps the complete formal payload once and replaces duplicate modules with paths
+ok 43 - compact prompt keeps the complete formal payload once and replaces duplicate modules with paths
+  ---
+  duration_ms: 0.643459
+  type: 'test'
+  ...
+# Subtest: market labels normalize provider keys
+ok 44 - market labels normalize provider keys
+  ---
+  duration_ms: 0.20497
+  type: 'test'
+  ...
+# Subtest: Beijing time derives countdown from captured UTC time
+ok 45 - Beijing time derives countdown from captured UTC time
+  ---
+  duration_ms: 0.394492
+  type: 'test'
+  ...
+# Subtest: Beijing time converts zoned ISO values and combines hour-minute countdowns
+ok 46 - Beijing time converts zoned ISO values and combines hour-minute countdowns
+  ---
+  duration_ms: 0.473048
+  type: 'test'
+  ...
+# Subtest: alias resolver matches canonical, alias, and rejects unrelated teams
+ok 47 - alias resolver matches canonical, alias, and rejects unrelated teams
+  ---
+  duration_ms: 1.797358
+  type: 'test'
+  ...
+# Subtest: recommendation direction guard covers totals and handicaps
+ok 48 - recommendation direction guard covers totals and handicaps
+  ---
+  duration_ms: 0.735409
+  type: 'test'
+  ...
+# Subtest: live total settlement respects the explicit provider basis
+ok 49 - live total settlement respects the explicit provider basis
+  ---
+  duration_ms: 1.233034
+  type: 'test'
+  ...
+# Subtest: handicap direction is recognized when the team name is stored in line
+ok 50 - handicap direction is recognized when the team name is stored in line
+  ---
+  duration_ms: 0.311383
+  type: 'test'
+  ...
+# Subtest: AI market line and odds must exactly match a verified YBTY option
+ok 51 - AI market line and odds must exactly match a verified YBTY option
+  ---
+  duration_ms: 0.861243
+  type: 'test'
+  ...
+# Subtest: YBTY option id locks direction, line and odds instead of trusting AI copies
+ok 52 - YBTY option id locks direction, line and odds instead of trusting AI copies
+  ---
+  duration_ms: 0.35231
+  type: 'test'
+  ...
+# Subtest: repeated YBTY market lines receive unique option ids and lock the intended line
+ok 53 - repeated YBTY market lines receive unique option ids and lock the intended line
+  ---
+  duration_ms: 0.339339
+  type: 'test'
+  ...
+# Subtest: parlay legs can only use odds from the candidate YBTY whitelist
+ok 54 - parlay legs can only use odds from the candidate YBTY whitelist
+  ---
+  duration_ms: 0.523631
+  type: 'test'
+  ...
+# Subtest: score validation rejects missing, negative, fractional, and impossible scores
+ok 55 - score validation rejects missing, negative, fractional, and impossible scores
+  ---
+  duration_ms: 0.404084
+  type: 'test'
+  ...
+# Subtest: matching YBTY and Leisu API scores upgrade live score verification
+ok 56 - matching YBTY and Leisu API scores upgrade live score verification
+  ---
+  duration_ms: 4.172332
+  type: 'test'
+  ...
+# [JsonStore] Recovered /tmp/codex-json-recovery-SWENzy/recoverable.json from its validated backup; corrupt copy: /tmp/codex-json-recovery-SWENzy/recoverable.json.corrupt-2026-09-08T10-25-27-936Z.json
+# Subtest: JSON store serializes concurrent cross-process increments without lost updates
+ok 57 - JSON store serializes concurrent cross-process increments without lost updates
+  ---
+  duration_ms: 992.510183
+  type: 'test'
+  ...
+# Subtest: prediction calibration uses only settled formal records with explicit probabilities
+ok 58 - prediction calibration uses only settled formal records with explicit probabilities
+  ---
+  duration_ms: 11.456752
+  type: 'test'
+  ...
+# Subtest: interface feature calibration is chronological, leakage-safe, and disabled with insufficient samples
+ok 59 - interface feature calibration is chronological, leakage-safe, and disabled with insufficient samples
+  ---
+  duration_ms: 11.667551
+  type: 'test'
+  ...
+# Subtest: corrupted JSON is quarantined and recovered from backup or fails closed
+ok 60 - corrupted JSON is quarantined and recovered from backup or fails closed
+  ---
+  duration_ms: 6.925965
+  type: 'test'
+  ...
+# Subtest: extractFocusedIncidents extracts red cards, card/corner tallies, and match events
+ok 61 - extractFocusedIncidents extracts red cards, card/corner tallies, and match events
+  ---
+  duration_ms: 0.547223
+  type: 'test'
+  ...
+# Subtest: buildAttackPressureSummary combines possession, shots, danger attacks, corners, yellows
+ok 62 - buildAttackPressureSummary combines possession, shots, danger attacks, corners, yellows
+  ---
+  duration_ms: 0.173396
+  type: 'test'
+  ...
+# Subtest: normalizeMatchPredictionsAndAssessments keeps only 5 core real betting markets and filters predictions
+ok 63 - normalizeMatchPredictionsAndAssessments keeps only 5 core real betting markets and filters predictions
+  ---
+  duration_ms: 2.105955
+  type: 'test'
+  ...
+# Subtest: parseModelJson repairs JSON with missing commas and trailing commas from LLMs
+ok 64 - parseModelJson repairs JSON with missing commas and trailing commas from LLMs
+  ---
+  duration_ms: 0.859969
+  type: 'test'
+  ...
+# Subtest: quarter line parsing and formatting correctly preserves deep negative handicap lines without sign inversion
+ok 65 - quarter line parsing and formatting correctly preserves deep negative handicap lines without sign inversion
+  ---
+  duration_ms: 0.352346
+  type: 'test'
+  ...
+1..65
+# tests 72
+# suites 5
+# pass 63
+# fail 9
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 13785.658507

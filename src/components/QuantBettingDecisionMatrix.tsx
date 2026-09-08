@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useMemo } from "react";
 import {
   Target,
   Percent,
@@ -10,7 +10,13 @@ import {
 import { CanonicalMatch, MatchStage } from "../../refactor/02_canonical_model";
 import {
   QuantitativeFeatures,
+  TotalEVAssessment,
+  SpreadEVAssessment,
 } from "../../refactor/03_quant_engine/types";
+import {
+  parseAsianHandicapLine,
+  formatAsianHandicapLine,
+} from "../../refactor/03_quant_engine/devigCalculator";
 import { formatAsianLine } from "../lib/quarterSettlement";
 
 export interface QuantBettingDecisionMatrixProps {
@@ -85,7 +91,7 @@ export function formatSpreadSideInfo(
 } {
   const isHome = side !== "away";
   const teamName = isHome ? homeTeam : awayTeam;
-  const numLine = Number(lineStr) || 0;
+  const numLine = parseAsianHandicapLine(lineStr);
   const effectiveLine = isHome ? numLine : -numLine;
 
   const absLine = Math.abs(effectiveLine);
@@ -218,46 +224,201 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
     };
   })();
 
-  // 2. 全场大小球 EV 计算
-  const fullTotalEval = (() => {
-    if (!totalMain) return null;
-    const isOver = totalMain.preferred_side === "over";
-    const odds = isOver ? totalMain.over_odds : totalMain.under_odds;
-    const ev = isOver ? totalMain.over_ev : totalMain.under_ev;
-    const estimatedProb = odds > 0 ? (1 + ev) / odds : 0.5;
+  // 汇总所有大小球盘口 (主盘 + 全部副盘)
+  const allTotalOptions = useMemo(() => {
+    const list: { assessment: TotalEVAssessment; isMain: boolean }[] = [];
+    if (quant.devig.total_main_ev) {
+      list.push({ assessment: quant.devig.total_main_ev, isMain: true });
+    }
+    if (quant.devig.total_secondary_ev && Array.isArray(quant.devig.total_secondary_ev)) {
+      for (const sub of quant.devig.total_secondary_ev) {
+        if (sub && !list.some((x) => x.assessment.line === sub.line)) {
+          list.push({ assessment: sub, isMain: false });
+        }
+      }
+    }
+    return list;
+  }, [quant.devig.total_main_ev, quant.devig.total_secondary_ev]);
+
+  // 计算大小球全局综合最优选项 (跨主盘 + 全部副盘综合推演，不受切线切换影响)
+  const globalBestTotal = useMemo(() => {
+    if (allTotalOptions.length === 0) return null;
+    let bestOpt = allTotalOptions[0];
+    let bestSide: "over" | "under" = bestOpt.assessment.over_ev >= bestOpt.assessment.under_ev ? "over" : "under";
+    let maxEv = bestSide === "over" ? bestOpt.assessment.over_ev : bestOpt.assessment.under_ev;
+
+    for (const opt of allTotalOptions) {
+      if (opt.assessment.over_ev > maxEv) {
+        maxEv = opt.assessment.over_ev;
+        bestOpt = opt;
+        bestSide = "over";
+      }
+      if (opt.assessment.under_ev > maxEv) {
+        maxEv = opt.assessment.under_ev;
+        bestOpt = opt;
+        bestSide = "under";
+      }
+    }
+
+    const isOver = bestSide === "over";
+    const odds = isOver ? bestOpt.assessment.over_odds : bestOpt.assessment.under_odds;
+    const prob = isOver
+      ? (bestOpt.assessment.over_model_probability ?? 0.5)
+      : (bestOpt.assessment.under_model_probability ?? 0.5);
+
     return {
-      line: totalMain.line,
+      line: bestOpt.assessment.line,
+      isMain: bestOpt.isMain,
+      side: bestSide,
+      label: isOver ? `大球 (>${bestOpt.assessment.line})` : `小球 (<${bestOpt.assessment.line})`,
+      odds,
+      ev: maxEv,
+      prob,
+      isPositiveEv: maxEv > 0,
+    };
+  }, [allTotalOptions]);
+
+  // 计算大小球最优盘口项 (用于盘口切线高亮)
+  const bestTotalOption = useMemo(() => {
+    if (!globalBestTotal) return null;
+    return allTotalOptions.find((o) => o.assessment.line === globalBestTotal.line) ?? null;
+  }, [allTotalOptions, globalBestTotal]);
+
+  const [selectedTotalLine, setSelectedTotalLine] = useState<string | null>(null);
+  const mainTotalOption = allTotalOptions.find((o) => o.isMain) ?? allTotalOptions[0] ?? null;
+  const activeTotalOption =
+    (selectedTotalLine ? allTotalOptions.find((o) => o.assessment.line === selectedTotalLine) : null) ??
+    mainTotalOption;
+
+  // 2. 全场大小球 EV 计算 (消费当前选中的盘口)
+  const fullTotalEval = useMemo(() => {
+    if (!activeTotalOption) return null;
+    const totalItem = activeTotalOption.assessment;
+    const isOver = totalItem.preferred_side === "over";
+    const odds = isOver ? totalItem.over_odds : totalItem.under_odds;
+    const ev = isOver ? totalItem.over_ev : totalItem.under_ev;
+    // 严格遵从 SSOT：胜率 100% 消费 Layer 03 泊松大小球模型概率，彻底杜绝前端私自倒算
+    const overProb = totalItem.over_model_probability ?? 0.5;
+    const underProb = totalItem.under_model_probability ?? 0.5;
+    const prob = isOver ? overProb : underProb;
+
+    return {
+      line: totalItem.line,
+      isMain: activeTotalOption.isMain,
+      isBest: bestTotalOption?.assessment.line === totalItem.line,
       isOver,
-      sideName: isOver ? `大球 (> ${totalMain.line})` : `小球 (< ${totalMain.line})`,
+      sideName: isOver ? `大球 (> ${totalItem.line})` : `小球 (< ${totalItem.line})`,
       odds,
       ev,
-      prob: estimatedProb,
-      isPositiveEv: totalMain.is_positive_ev,
-      overOdds: totalMain.over_odds,
-      underOdds: totalMain.under_odds,
-      overEv: totalMain.over_ev,
-      underEv: totalMain.under_ev,
-      overProb: totalMain.over_odds > 0 ? (1 + totalMain.over_ev) / totalMain.over_odds : 0.5,
-      underProb: totalMain.under_odds > 0 ? (1 + totalMain.under_ev) / totalMain.under_odds : 0.5,
+      prob,
+      isPositiveEv: totalItem.is_positive_ev,
+      overOdds: totalItem.over_odds,
+      underOdds: totalItem.under_odds,
+      overEv: totalItem.over_ev,
+      underEv: totalItem.under_ev,
+      overProb,
+      underProb,
     };
-  })();
+  }, [activeTotalOption, bestTotalOption]);
 
-  // 3. 全场让球 EV 计算
-  const fullSpreadEval = (() => {
-    if (!spreadMain) return null;
-    const isHome = spreadMain.preferred_side === "home";
-    const odds = isHome ? spreadMain.home_odds : spreadMain.away_odds;
-    const ev = isHome ? spreadMain.home_ev : spreadMain.away_ev;
-    const estimatedProb = odds > 0 ? (1 + ev) / odds : 0.5;
+  // 汇总所有让球盘口 (主盘 + 全部副盘)
+  const allSpreadOptions = useMemo(() => {
+    const list: { assessment: SpreadEVAssessment; isMain: boolean }[] = [];
+    if (quant.devig.spread_main_ev) {
+      list.push({ assessment: quant.devig.spread_main_ev, isMain: true });
+    }
+    if (quant.devig.spread_secondary_ev && Array.isArray(quant.devig.spread_secondary_ev)) {
+      for (const sub of quant.devig.spread_secondary_ev) {
+        if (sub && !list.some((x) => x.assessment.line === sub.line)) {
+          list.push({ assessment: sub, isMain: false });
+        }
+      }
+    }
+    return list;
+  }, [quant.devig.spread_main_ev, quant.devig.spread_secondary_ev]);
+
+  // 计算让球全局综合最优选项 (跨主盘 + 全部副盘综合推演，不受切线切换影响)
+  const globalBestSpread = useMemo(() => {
+    if (allSpreadOptions.length === 0) return null;
+    let bestOpt = allSpreadOptions[0];
+    let bestSide: "home" | "away" = bestOpt.assessment.home_ev >= bestOpt.assessment.away_ev ? "home" : "away";
+    let maxEv = bestSide === "home" ? bestOpt.assessment.home_ev : bestOpt.assessment.away_ev;
+
+    for (const opt of allSpreadOptions) {
+      if (opt.assessment.home_ev > maxEv) {
+        maxEv = opt.assessment.home_ev;
+        bestOpt = opt;
+        bestSide = "home";
+      }
+      if (opt.assessment.away_ev > maxEv) {
+        maxEv = opt.assessment.away_ev;
+        bestOpt = opt;
+        bestSide = "away";
+      }
+    }
+
+    const isHome = bestSide === "home";
+    const odds = isHome ? bestOpt.assessment.home_odds : bestOpt.assessment.away_odds;
+    const prob = isHome
+      ? (bestOpt.assessment.home_model_probability ?? 0.5)
+      : (bestOpt.assessment.away_model_probability ?? 0.5);
+
     const spreadInfo = formatSpreadSideInfo(
-      spreadMain.line,
-      spreadMain.preferred_side,
+      bestOpt.assessment.line,
+      bestSide,
       match.home_team_name,
       match.away_team_name
     );
 
     return {
-      line: spreadMain.line,
+      line: bestOpt.assessment.line,
+      isMain: bestOpt.isMain,
+      side: bestSide,
+      isHome,
+      sideTeamName: spreadInfo.sideTeamName,
+      lineNotation: spreadInfo.lineNotation,
+      odds,
+      ev: maxEv,
+      prob,
+      isPositiveEv: maxEv > 0,
+    };
+  }, [allSpreadOptions, match.home_team_name, match.away_team_name]);
+
+  // 计算让球最优盘口项 (用于盘口切线高亮)
+  const bestSpreadOption = useMemo(() => {
+    if (!globalBestSpread) return null;
+    return allSpreadOptions.find((o) => o.assessment.line === globalBestSpread.line) ?? null;
+  }, [allSpreadOptions, globalBestSpread]);
+
+  const [selectedSpreadLine, setSelectedSpreadLine] = useState<string | null>(null);
+  const mainSpreadOption = allSpreadOptions.find((o) => o.isMain) ?? allSpreadOptions[0] ?? null;
+  const activeSpreadOption =
+    (selectedSpreadLine ? allSpreadOptions.find((o) => o.assessment.line === selectedSpreadLine) : null) ??
+    mainSpreadOption;
+
+  // 3. 全场让球 EV 计算 (消费当前选中的盘口)
+  const fullSpreadEval = useMemo(() => {
+    if (!activeSpreadOption) return null;
+    const spreadItem = activeSpreadOption.assessment;
+    const isHome = spreadItem.preferred_side === "home";
+    const odds = isHome ? spreadItem.home_odds : spreadItem.away_odds;
+    const ev = isHome ? spreadItem.home_ev : spreadItem.away_ev;
+    // 严格遵从 SSOT：胜率 100% 消费 Layer 03 泊松四分之一盘模型概率，彻底杜绝前端私自倒算
+    const homeProb = spreadItem.home_model_probability ?? 0.5;
+    const awayProb = spreadItem.away_model_probability ?? 0.5;
+    const prob = isHome ? homeProb : awayProb;
+
+    const spreadInfo = formatSpreadSideInfo(
+      spreadItem.line,
+      spreadItem.preferred_side,
+      match.home_team_name,
+      match.away_team_name
+    );
+
+    return {
+      line: spreadItem.line,
+      isMain: activeSpreadOption.isMain,
+      isBest: bestSpreadOption?.assessment.line === spreadItem.line,
       isHome,
       sideTeamName: spreadInfo.sideTeamName,
       lineNotation: spreadInfo.lineNotation,
@@ -266,16 +427,16 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       riskRule: spreadInfo.riskSettlementRule,
       odds,
       ev,
-      prob: estimatedProb,
-      isPositiveEv: spreadMain.is_positive_ev,
-      homeOdds: spreadMain.home_odds,
-      awayOdds: spreadMain.away_odds,
-      homeEv: spreadMain.home_ev,
-      awayEv: spreadMain.away_ev,
-      homeProb: spreadMain.home_odds > 0 ? (1 + spreadMain.home_ev) / spreadMain.home_odds : 0.5,
-      awayProb: spreadMain.away_odds > 0 ? (1 + spreadMain.away_ev) / spreadMain.away_odds : 0.5,
+      prob,
+      isPositiveEv: spreadItem.is_positive_ev,
+      homeOdds: spreadItem.home_odds,
+      awayOdds: spreadItem.away_odds,
+      homeEv: spreadItem.home_ev,
+      awayEv: spreadItem.away_ev,
+      homeProb,
+      awayProb,
     };
-  })();
+  }, [activeSpreadOption, bestSpreadOption, match.home_team_name, match.away_team_name]);
 
   // 4. 半场盘口数据是否存在 (若没有任何半场盘口数据则不渲染第二行)
   const hasHalfMarkets = Boolean(
@@ -283,7 +444,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
   );
 
   // 5. 测算全局最佳推荐下注选项 (Primary Best Bet)
-  const bestBetMarket = (() => {
+  const bestBetMarket = useMemo(() => {
     if (quant.context.circuit_breaker.is_triggered || quant.confidence_score === 0) {
       return null;
     }
@@ -300,21 +461,27 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       quant.positive_ev_signals.map((signal) => signal.market),
     );
 
-    if (fullSpreadEval && candidateMarkets.has("ASIAN_HANDICAP_MAIN")) {
+    if (
+      globalBestSpread &&
+      (candidateMarkets.has("ASIAN_HANDICAP_MAIN") || candidateMarkets.has("ASIAN_HANDICAP_SECONDARY"))
+    ) {
       candidates.push({
         key: "FULL_SPREAD",
-        ev: fullSpreadEval.ev,
-        isPositive: fullSpreadEval.isPositiveEv,
-        scoreWeight: fullSpreadEval.ev + (fullSpreadEval.isPositiveEv ? 0.05 : 0),
+        ev: globalBestSpread.ev,
+        isPositive: globalBestSpread.isPositiveEv,
+        scoreWeight: globalBestSpread.ev + (globalBestSpread.isPositiveEv ? 0.05 : 0),
       });
     }
 
-    if (fullTotalEval && candidateMarkets.has("TOTAL_GOALS_MAIN")) {
+    if (
+      globalBestTotal &&
+      (candidateMarkets.has("TOTAL_GOALS_MAIN") || candidateMarkets.has("TOTAL_GOALS_SECONDARY"))
+    ) {
       candidates.push({
         key: "FULL_TOTAL",
-        ev: fullTotalEval.ev,
-        isPositive: fullTotalEval.isPositiveEv,
-        scoreWeight: fullTotalEval.ev + (fullTotalEval.isPositiveEv ? 0.05 : 0),
+        ev: globalBestTotal.ev,
+        isPositive: globalBestTotal.isPositiveEv,
+        scoreWeight: globalBestTotal.ev + (globalBestTotal.isPositiveEv ? 0.05 : 0),
       });
     }
 
@@ -332,7 +499,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
 
     positiveCandidates.sort((a, b) => b.scoreWeight - a.scoreWeight);
     return positiveCandidates[0].key;
-  })();
+  }, [quant, globalBestSpread, globalBestTotal, fullH2hEval]);
 
   const isLiveMatch = match.timing.stage === MatchStage.LIVE;
 
@@ -410,7 +577,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
 
               {fullH2hMarket && h2hMain ? (
                 <div className="space-y-2 font-mono text-xs">
-                  {/* 3 栏赔率与公允概率 */}
+                  {/* 3 栏赔率与公允概率及三向独立 EV */}
                   <div className="grid grid-cols-3 gap-1.5 text-center">
                     <div
                       className={`p-1.5 rounded border relative flex flex-col justify-between ${
@@ -423,7 +590,19 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                         <div className="text-[10px] text-slate-400 truncate">主胜</div>
                         <div className="text-xs font-bold text-slate-200">@{fullH2hMarket.home_odds}</div>
                         <div className="text-[10px] text-blue-400">
-                          {((fullH2hEval?.modelProbs?.[0] ?? h2hMain.fair_probabilities[0]) * 100).toFixed(1)}%
+                          胜率 {((fullH2hEval?.modelProbs?.[0] ?? h2hMain.fair_probabilities[0]) * 100).toFixed(1)}%
+                        </div>
+                        <div
+                          className={`text-[10px] font-mono ${
+                            fullH2hEval && fullH2hEval.homeEv > 0
+                              ? "text-emerald-400 font-bold"
+                              : "text-slate-500"
+                          }`}
+                        >
+                          EV{" "}
+                          {fullH2hEval && fullH2hEval.homeEv > 0
+                            ? `+${(fullH2hEval.homeEv * 100).toFixed(1)}%`
+                            : `${((fullH2hEval?.homeEv ?? 0) * 100).toFixed(1)}%`}
                         </div>
                       </div>
                       {fullH2hEval?.bestSide === "home" && fullH2hEval?.isMachineCandidate && (
@@ -446,7 +625,19 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                         <div className="text-[10px] text-slate-400 truncate">平局</div>
                         <div className="text-xs font-bold text-slate-200">@{fullH2hMarket.draw_odds}</div>
                         <div className="text-[10px] text-amber-400">
-                          {((fullH2hEval?.modelProbs?.[1] ?? h2hMain.fair_probabilities[1]) * 100).toFixed(1)}%
+                          胜率 {((fullH2hEval?.modelProbs?.[1] ?? h2hMain.fair_probabilities[1]) * 100).toFixed(1)}%
+                        </div>
+                        <div
+                          className={`text-[10px] font-mono ${
+                            fullH2hEval && fullH2hEval.drawEv > 0
+                              ? "text-emerald-400 font-bold"
+                              : "text-slate-500"
+                          }`}
+                        >
+                          EV{" "}
+                          {fullH2hEval && fullH2hEval.drawEv > 0
+                            ? `+${(fullH2hEval.drawEv * 100).toFixed(1)}%`
+                            : `${((fullH2hEval?.drawEv ?? 0) * 100).toFixed(1)}%`}
                         </div>
                       </div>
                       {fullH2hEval?.bestSide === "draw" && fullH2hEval?.isMachineCandidate && (
@@ -469,7 +660,19 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                         <div className="text-[10px] text-slate-400 truncate">客胜</div>
                         <div className="text-xs font-bold text-slate-200">@{fullH2hMarket.away_odds}</div>
                         <div className="text-[10px] text-purple-400">
-                          {((fullH2hEval?.modelProbs?.[2] ?? h2hMain.fair_probabilities[2]) * 100).toFixed(1)}%
+                          胜率 {((fullH2hEval?.modelProbs?.[2] ?? h2hMain.fair_probabilities[2]) * 100).toFixed(1)}%
+                        </div>
+                        <div
+                          className={`text-[10px] font-mono ${
+                            fullH2hEval && fullH2hEval.awayEv > 0
+                              ? "text-emerald-400 font-bold"
+                              : "text-slate-500"
+                          }`}
+                        >
+                          EV{" "}
+                          {fullH2hEval && fullH2hEval.awayEv > 0
+                            ? `+${(fullH2hEval.awayEv * 100).toFixed(1)}%`
+                            : `${((fullH2hEval?.awayEv ?? 0) * 100).toFixed(1)}%`}
                         </div>
                       </div>
                       {fullH2hEval?.bestSide === "away" && fullH2hEval?.isMachineCandidate && (
@@ -492,19 +695,24 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
             {/* 底部量化指标 */}
             <div className="mt-2.5 pt-2 border-t border-slate-800/80 text-[11px]">
               {fullH2hEval ? (
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">期望值:</span>
-                  <span className="font-mono text-slate-300">
-                    EV:{" "}
-                    <strong
-                      className={
-                        fullH2hEval.maxEv > 0 ? "text-emerald-400 font-bold" : "text-slate-400"
-                      }
-                    >
-                      {fullH2hEval.maxEv > 0
-                        ? `+${(fullH2hEval.maxEv * 100).toFixed(1)}%`
-                        : `${(fullH2hEval.maxEv * 100).toFixed(1)}%`}
-                    </strong>
+                <div className="flex items-center min-h-[2.25rem]">
+                  <span
+                    className="font-mono text-slate-300 line-clamp-2 leading-snug w-full break-words"
+                    title={
+                      fullH2hEval.maxEv > 0
+                        ? `🌟 最佳推荐: ${fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} @${fullH2hEval.bestOdds} (胜率 ${(fullH2hEval.bestProb * 100).toFixed(1)}% | EV: +${(fullH2hEval.maxEv * 100).toFixed(1)}%)`
+                        : `⚠️ 综合评估: 全盘无正期望项 (最高: ${fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} EV ${(fullH2hEval.maxEv * 100).toFixed(1)}%)`
+                    }
+                  >
+                    {fullH2hEval.maxEv > 0 ? (
+                      <span className="text-emerald-400 font-bold">
+                        🌟 最佳推荐: {fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} @{fullH2hEval.bestOdds} (胜率 {(fullH2hEval.bestProb * 100).toFixed(1)}% | EV: +{(fullH2hEval.maxEv * 100).toFixed(1)}%)
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">
+                        ⚠️ 综合评估: 全盘无正期望项 (最高: {fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} EV ${(fullH2hEval.maxEv * 100).toFixed(1)}%)
+                      </span>
+                    )}
                   </span>
                 </div>
               ) : (
@@ -532,16 +740,47 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                     <Sparkles className="w-3 h-3 text-emerald-400" />
                     ⭐ 最佳推荐
                   </span>
+                ) : fullTotalEval?.isBest && !fullTotalEval?.isMain ? (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-400 flex items-center gap-1">
+                    ★ 最优盘推荐
+                  </span>
                 ) : fullTotalEval?.isPositiveEv ? (
                   <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700/60">
                     +EV 价值
                   </span>
                 ) : (
                   <span className="text-[10px] text-slate-400 font-mono">
-                    {totalMain ? `${totalMain.line}球` : "界线"}
+                    {fullTotalEval ? `${fullTotalEval.isMain ? "主盘" : "副盘"} ${fullTotalEval.line}球` : "界线"}
                   </span>
                 )}
               </div>
+
+              {/* 多盘口切线选择池 (主盘 + 全部副盘) */}
+              {allTotalOptions.length > 1 && (
+                <div className="flex items-center gap-1 overflow-x-auto pb-1 pt-0.5">
+                  <span className="text-[10px] text-slate-500 shrink-0">盘口切线:</span>
+                  {allTotalOptions.map((opt) => {
+                    const isSelected = activeTotalOption?.assessment.line === opt.assessment.line;
+                    const isBest = bestTotalOption?.assessment.line === opt.assessment.line;
+                    return (
+                      <button
+                        key={opt.assessment.line}
+                        type="button"
+                        onClick={() => setSelectedTotalLine(opt.assessment.line)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors flex items-center gap-0.5 cursor-pointer ${
+                          isSelected
+                            ? "bg-emerald-500 text-slate-950 font-bold shadow-xs"
+                            : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+                        }`}
+                      >
+                        <span>{opt.assessment.line}</span>
+                        {opt.isMain && <span className="text-[9px] opacity-75">(主)</span>}
+                        {isBest && <span className="text-[9px] text-amber-300 font-bold">★最优盘</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               {fullTotalEval ? (
                 <div className="space-y-2 font-mono text-xs">
@@ -601,8 +840,8 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                   </div>
 
                   <div className="text-[10px] text-slate-400 space-y-1 px-0.5">
-                    <div className="flex justify-between">
-                      <span>剩余期望 λ={quant.poisson?.expected_goals_rest != null ? quant.poisson.expected_goals_rest.toFixed(2) : "0.00"}球</span>
+                    <div className="flex justify-between flex-wrap gap-1">
+                      <span>完场界线: <strong className="text-emerald-300 font-mono">{fullTotalEval.line}球</strong> (剩余期望 λ={quant.poisson?.expected_goals_rest != null ? quant.poisson.expected_goals_rest.toFixed(2) : "0.00"}球)</span>
                       <span>最可能: <strong className="text-purple-300 font-mono">{quant.poisson?.projected_final_score?.most_likely_score ?? "-"}</strong></span>
                     </div>
                     {quant.poisson.top_final_scores && quant.poisson.top_final_scores.length > 0 && (
@@ -626,20 +865,25 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
 
             {/* 底部量化指标 */}
             <div className="mt-2.5 pt-2 border-t border-slate-800/80 text-[11px]">
-              {fullTotalEval ? (
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">期望值:</span>
-                  <span className="font-mono text-slate-300">
-                    EV:{" "}
-                    <strong
-                      className={
-                        fullTotalEval.ev > 0 ? "text-emerald-400 font-bold" : "text-slate-400"
-                      }
-                    >
-                      {fullTotalEval.ev > 0
-                        ? `+${(fullTotalEval.ev * 100).toFixed(1)}%`
-                        : `${(fullTotalEval.ev * 100).toFixed(1)}%`}
-                    </strong>
+              {globalBestTotal ? (
+                <div className="flex items-center min-h-[2.25rem]">
+                  <span
+                    className="font-mono text-slate-300 line-clamp-2 leading-snug w-full break-words"
+                    title={
+                      globalBestTotal.ev > 0
+                        ? `🌟 最佳推荐: ${globalBestTotal.isMain ? "主盘" : "副盘"} ${globalBestTotal.label} @${globalBestTotal.odds} (胜率 ${(globalBestTotal.prob * 100).toFixed(1)}% | EV: +${(globalBestTotal.ev * 100).toFixed(1)}%)`
+                        : `⚠️ 综合评估: 全盘无正期望项 (最高: ${globalBestTotal.isMain ? "主盘" : "副盘"} ${globalBestTotal.label} EV ${(globalBestTotal.ev * 100).toFixed(1)}%)`
+                    }
+                  >
+                    {globalBestTotal.ev > 0 ? (
+                      <span className="text-emerald-400 font-bold">
+                        🌟 最佳推荐: {globalBestTotal.isMain ? "主盘" : "副盘"} {globalBestTotal.label} @{globalBestTotal.odds} (胜率 {(globalBestTotal.prob * 100).toFixed(1)}% | EV: +{(globalBestTotal.ev * 100).toFixed(1)}%)
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">
+                        ⚠️ 综合评估: 全盘无正期望项 (最高: {globalBestTotal.isMain ? "主盘" : "副盘"} {globalBestTotal.label} EV {(globalBestTotal.ev * 100).toFixed(1)}%)
+                      </span>
+                    )}
                   </span>
                 </div>
               ) : (
@@ -667,34 +911,76 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                     <Sparkles className="w-3 h-3 text-emerald-400" />
                     ⭐ 最佳推荐
                   </span>
+                ) : fullSpreadEval?.isBest && !fullSpreadEval?.isMain ? (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-400 flex items-center gap-1">
+                    ★ 最优盘推荐
+                  </span>
                 ) : fullSpreadEval?.isPositiveEv ? (
                   <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700/60">
                     +EV 价值
                   </span>
                 ) : (
                   <span className="text-[10px] text-slate-400 font-mono">
-                    {spreadMain ? formatAsianLine(Number(spreadMain.line) || 0) : "让球"}
+                    {fullSpreadEval ? `${fullSpreadEval.isMain ? "主盘" : "副盘"} ${fullSpreadEval.line}` : "让球"}
                   </span>
                 )}
               </div>
 
+              {/* 多盘口切线选择池 (主盘 + 全部副盘) */}
+              {allSpreadOptions.length > 1 && (
+                <div className="flex items-center gap-1 overflow-x-auto pb-1 pt-0.5">
+                  <span className="text-[10px] text-slate-500 shrink-0">盘口切线:</span>
+                  {allSpreadOptions.map((opt) => {
+                    const isSelected = activeSpreadOption?.assessment.line === opt.assessment.line;
+                    const isBest = bestSpreadOption?.assessment.line === opt.assessment.line;
+                    const lineVal = parseAsianHandicapLine(opt.assessment.line);
+                    const displayLine = formatAsianHandicapLine(lineVal);
+                    return (
+                      <button
+                        key={opt.assessment.line}
+                        type="button"
+                        onClick={() => setSelectedSpreadLine(opt.assessment.line)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors flex items-center gap-0.5 cursor-pointer ${
+                          isSelected
+                            ? "bg-blue-500 text-white font-bold shadow-xs"
+                            : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+                        }`}
+                      >
+                        <span>{displayLine}</span>
+                        {opt.isMain && <span className="text-[9px] opacity-75">(主)</span>}
+                        {isBest && <span className="text-[9px] text-amber-300 font-bold">★最优盘</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {fullSpreadEval ? (
                 <div className="space-y-2 font-mono text-xs">
-                  {/* 主队让球 vs 客队让球对比 (纯净盘口展示，不展示冗余队名) */}
+                  {/* 主队让球 vs 客队让球对比 (纯净盘口展示，优先消费 YBTY 官方下发合法选项名称) */}
                   {(() => {
-                    const spreadNum = Number(spreadMain?.line) || 0;
-                    const homeLineLabel =
-                      spreadNum > 0
-                        ? `主 +${formatAsianLine(spreadNum)}`
-                        : spreadNum < 0
-                        ? `主 -${formatAsianLine(Math.abs(spreadNum))}`
-                        : "主 0";
-                    const awayLineLabel =
-                      spreadNum > 0
-                        ? `客 -${formatAsianLine(spreadNum)}`
-                        : spreadNum < 0
-                        ? `客 +${formatAsianLine(Math.abs(spreadNum))}`
-                        : "客 0";
+                    const matchingSpreadMarket = fullSpreadEval.isMain
+                      ? match.markets.full_spread_main
+                      : match.markets.full_spread_subs?.find(
+                          (s) => s.home_selection === fullSpreadEval.line || String(s.line_index) === fullSpreadEval.line
+                        ) ?? null;
+
+                    const spreadNum = parseAsianHandicapLine(fullSpreadEval.line);
+                    const homeLineLabel = matchingSpreadMarket?.home_selection
+                      ? (matchingSpreadMarket.home_selection.startsWith("主")
+                          ? matchingSpreadMarket.home_selection
+                          : `主 ${matchingSpreadMarket.home_selection}`)
+                      : spreadNum === 0
+                      ? "主 0 (平手)"
+                      : `主 ${formatAsianHandicapLine(spreadNum)}`;
+
+                    const awayLineLabel = matchingSpreadMarket?.away_selection
+                      ? (matchingSpreadMarket.away_selection.startsWith("客")
+                          ? matchingSpreadMarket.away_selection
+                          : `客 ${matchingSpreadMarket.away_selection}`)
+                      : spreadNum === 0
+                      ? "客 0 (平手)"
+                      : `客 ${formatAsianHandicapLine(-spreadNum)}`;
 
                     return (
                       <div className="grid grid-cols-2 gap-2 text-center">
@@ -771,20 +1057,25 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
 
             {/* 底部量化指标 */}
             <div className="mt-2.5 pt-2 border-t border-slate-800/80 text-[11px]">
-              {fullSpreadEval ? (
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">期望值:</span>
-                  <span className="font-mono text-slate-300">
-                    EV:{" "}
-                    <strong
-                      className={
-                        fullSpreadEval.ev > 0 ? "text-emerald-400 font-bold" : "text-slate-400"
-                      }
-                    >
-                      {fullSpreadEval.ev > 0
-                        ? `+${(fullSpreadEval.ev * 100).toFixed(1)}%`
-                        : `${(fullSpreadEval.ev * 100).toFixed(1)}%`}
-                    </strong>
+              {globalBestSpread ? (
+                <div className="flex items-center min-h-[2.25rem]">
+                  <span
+                    className="font-mono text-slate-300 line-clamp-2 leading-snug w-full break-words"
+                    title={
+                      globalBestSpread.ev > 0
+                        ? `🌟 最佳推荐: ${globalBestSpread.isMain ? "主盘" : "副盘"} ${globalBestSpread.isHome ? "主队" : "客队"} ${globalBestSpread.lineNotation} @${globalBestSpread.odds} (胜率 ${(globalBestSpread.prob * 100).toFixed(1)}% | EV: +${(globalBestSpread.ev * 100).toFixed(1)}%)`
+                        : `⚠️ 综合评估: 全盘无正期望项 (最高: ${globalBestSpread.isMain ? "主盘" : "副盘"} ${globalBestSpread.isHome ? "主队" : "客队"} ${globalBestSpread.lineNotation} EV ${(globalBestSpread.ev * 100).toFixed(1)}%)`
+                    }
+                  >
+                    {globalBestSpread.ev > 0 ? (
+                      <span className="text-emerald-400 font-bold">
+                        🌟 最佳推荐: {globalBestSpread.isMain ? "主盘" : "副盘"} {globalBestSpread.isHome ? "主队" : "客队"} {globalBestSpread.lineNotation} @{globalBestSpread.odds} (胜率 {(globalBestSpread.prob * 100).toFixed(1)}% | EV: +{(globalBestSpread.ev * 100).toFixed(1)}%)
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">
+                        ⚠️ 综合评估: 全盘无正期望项 (最高: {globalBestSpread.isMain ? "主盘" : "副盘"} ${globalBestSpread.isHome ? "主队" : "客队"} ${globalBestSpread.lineNotation} EV ${(globalBestSpread.ev * 100).toFixed(1)}%)
+                      </span>
+                    )}
                   </span>
                 </div>
               ) : (
@@ -911,10 +1202,18 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                 {match.markets.half_spread_main ? (
                   <div className="space-y-2 font-mono text-xs">
                     {(() => {
-                      const rawHome = match.markets.half_spread_main.home_selection || "半主 0";
-                      const rawAway = match.markets.half_spread_main.away_selection || "半客 0";
-                      const halfHomeLineLabel = rawHome.startsWith("半") ? rawHome : `半${rawHome}`;
-                      const halfAwayLineLabel = rawAway.startsWith("半") ? rawAway : `半${rawAway}`;
+                      const rawHome = match.markets.half_spread_main.home_selection
+                        ? (match.markets.half_spread_main.home_selection.startsWith("半")
+                            ? match.markets.half_spread_main.home_selection
+                            : `半主 ${match.markets.half_spread_main.home_selection}`)
+                        : "半主 -";
+                      const rawAway = match.markets.half_spread_main.away_selection
+                        ? (match.markets.half_spread_main.away_selection.startsWith("半")
+                            ? match.markets.half_spread_main.away_selection
+                            : `半客 ${match.markets.half_spread_main.away_selection}`)
+                        : "半客 -";
+                      const halfHomeLineLabel = rawHome;
+                      const halfAwayLineLabel = rawAway;
 
                       return (
                         <div className="grid grid-cols-2 gap-2 text-center">

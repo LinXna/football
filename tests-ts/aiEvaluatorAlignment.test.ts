@@ -50,6 +50,7 @@ function createBasePayload(): EvaluatorPayload {
       away: { recent_timeline: '有效样本数: 5场', tactical_playstyle: '危攻: 48', market_performance: '赢盘率: 50%' }
     },
     quant_features: {
+      candidate_pipeline: { state: 'PRODUCTION_UNLOCKED' },
       devig: {},
       bdi: 1.2,
       ev_signals: [],
