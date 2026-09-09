@@ -553,7 +553,8 @@ export function calculateQuantitativeFeatures(
     liveStatsAvailable: physicalStatsFeatures.stats_available,
     stage: match.timing.stage,
     hasEvidenceConflict: matchState.has_evidence_conflict,
-    postGoalCooldownActive: matchState.post_goal_cooldown_active
+    postGoalCooldownActive: matchState.post_goal_cooldown_active,
+    permissiveOosMode: options?.permissive_oos_mode ?? true
   });
   const machineCandidateSignals = [...candidatePipeline.machine_candidate_signals];
   const edgeConfidenceScore = candidatePipeline.edge_confidence_score;

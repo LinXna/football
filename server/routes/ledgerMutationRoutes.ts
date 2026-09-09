@@ -1,3 +1,4 @@
+import { evaluateQuarterSettlement, parseAsianLine, QuarterMarketCategory } from "../../refactor/06_settlement_audit/settlementEngine.js";
 import type express from 'express';
 import crypto from 'crypto';
 import { DATA_FILES } from '../dataFiles';
@@ -18,6 +19,36 @@ export interface LedgerMutationDependencies {
  * Low-risk ledger mutations. Multi-file review/archive workflows remain in the
  * legacy composition root until their transaction rules are moved as a unit.
  */
+
+function detectQuarterCategory(item: any): QuarterMarketCategory {
+  const market = String(item.recommendation?.market || "").toLowerCase();
+  const scope = String(item.recommendation?.scope || "").toLowerCase();
+  const rawDirection = String(item.recommendation?.direction || item.direction || "").toLowerCase();
+  
+  if (market.includes("大") || market.includes("over") || scope.includes("over") || rawDirection.includes("over")) {
+    return "TOTAL_OVER";
+  }
+  if (market.includes("小") || market.includes("under") || scope.includes("under") || rawDirection.includes("under")) {
+    return "TOTAL_UNDER";
+  }
+  if (market.includes("平") || market.includes("draw") || rawDirection.includes("draw")) {
+    return "H2H_DRAW";
+  }
+  if (market.includes("让") || market.includes("handicap") || market.includes("ah") || (item.recommendation?.line !== 0 && item.recommendation?.line !== "0")) {
+    if (market.includes("客") || market.includes("away") || scope.includes("away") || rawDirection.includes("away")) {
+      return "SPREAD_AWAY";
+    }
+    return "SPREAD_HOME";
+  }
+  if (market.includes("客") || market.includes("away") || scope.includes("away") || rawDirection.includes("away")) {
+    return "H2H_AWAY";
+  }
+  if (market.includes("主") || market.includes("home") || scope.includes("home") || rawDirection.includes("home")) {
+    return "H2H_HOME";
+  }
+  return "UNKNOWN_DIRECTION";
+}
+
 export function registerLedgerMutationRoutes(app: express.Express, deps: LedgerMutationDependencies): void {
   app.post('/api/ledger/delete', (req, res) => {
     try {
@@ -386,7 +417,47 @@ export function registerLedgerMutationRoutes(app: express.Express, deps: LedgerM
           if (syncSameMatch ? deps.areSameMatch(reference, item) : item.id === id) {
             updatedCount++;
             item.review = item.review || {};
-            if (validFinalScore) { item.review.final_score = validFinalScore; item.review.status = 'reviewed'; }
+            if (validFinalScore) {
+              item.review.final_score = validFinalScore;
+              item.review.status = "reviewed";
+              
+              // 自动执行 Layer 06 确定性四分之一盘核销算法
+              const marketCategory = detectQuarterCategory(item);
+              const rawLine = item.recommendation?.line ?? 0;
+              const numericLine = parseAsianLine(rawLine);
+              const numericOdds = Number(item.recommendation?.odds || 1.90);
+              const recScore = item.score_at_recommendation && typeof item.score_at_recommendation === "object"
+                ? { home: Number(item.score_at_recommendation.home || 0), away: Number(item.score_at_recommendation.away || 0) }
+                : { home: 0, away: 0 };
+              const isLive = Number(item.minute || 0) > 0;
+              const settlementBasis = item.recommendation?.basis || (isLive ? "REMAINING_GOALS" : "FULL_MATCH");
+
+              const settlementRes = evaluateQuarterSettlement({
+                market_category: marketCategory,
+                line: numericLine,
+                odds: numericOdds,
+                is_live: isLive,
+                basis: settlementBasis,
+                score_at_rec: recScore,
+                final_score: validFinalScore,
+                score_verified: score_verified !== false
+              });
+
+              item.settlement = {
+                is_settled: true,
+                settled_at: new Date().toISOString(),
+                outcome: settlementRes.outcome,
+                final_score_verified: `${validFinalScore.home}-${validFinalScore.away}`,
+                final_score_source: "manual_user_verification",
+                final_score_verified_at: new Date().toISOString(),
+                profit_loss: settlementRes.net_profit_unit
+              };
+
+              if (settlementRes.outcome !== "INVALID" && settlementRes.outcome !== "PENDING") {
+                item.review.outcome = settlementRes.outcome.toLowerCase();
+                item.review.settlement_explanation = settlementRes.explanation;
+              }
+            }
             if (validHalfTimeScore) { item.review.ht_score = validHalfTimeScore; item.review.status = 'reviewed'; }
             if (outcome && item.id === id) {
               item.review.outcome_history = Array.isArray(item.review.outcome_history) ? item.review.outcome_history : [];

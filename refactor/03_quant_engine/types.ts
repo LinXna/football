@@ -31,6 +31,7 @@ export interface QuantEngineOptions {
   late_game_urgency_minute_threshold?: number;
   calibration_profile?: QuantCalibrationProfile;
   calibration_archive?: OosCalibrationArchive;
+  permissive_oos_mode?: boolean;
 }
 
 /**

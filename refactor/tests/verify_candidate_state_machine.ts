@@ -14,22 +14,45 @@ const common = {
   hasEvidenceConflict: false, postGoalCooldownActive: false
 };
 
-const cases = [
-  ['NO_POSITIVE_EV', evaluateCandidatePipeline({ ...common, rawSignals: [] })],
-  ['OOS_LOCKED_NO_PROFILE', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => undefined })],
-  ['OOS_LOCKED_THIN', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => ({ ...profile, effective_sample_size: 120 }) })],
-  ['DATA_LOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal], dataQualityScore: 70 })],
-  ['PRODUCTION_UNLOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal] })]
+// 1. 严格硬门禁模式校验 (permissiveOosMode: false)
+const strictCases = [
+  ['STRICT_NO_POSITIVE_EV', evaluateCandidatePipeline({ ...common, rawSignals: [], permissiveOosMode: false })],
+  ['STRICT_OOS_LOCKED_NO_PROFILE', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => undefined, permissiveOosMode: false })],
+  ['STRICT_OOS_LOCKED_THIN', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => ({ ...profile, effective_sample_size: 120 }), permissiveOosMode: false })],
+  ['STRICT_DATA_LOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal], dataQualityScore: 70, permissiveOosMode: false })],
+  ['STRICT_PRODUCTION_UNLOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal], permissiveOosMode: false })]
 ] as const;
 
-const expected = ['NO_POSITIVE_EV', 'OOS_LOCKED', 'OOS_LOCKED', 'DATA_LOCKED', 'PRODUCTION_UNLOCKED'];
-for (let i = 0; i < cases.length; i += 1) {
-  const [name, result] = cases[i];
-  if (result.state !== expected[i]) throw new Error(`${name}: unexpected state ${result.state}`);
+const strictExpected = ['NO_POSITIVE_EV', 'OOS_LOCKED', 'OOS_LOCKED', 'DATA_LOCKED', 'PRODUCTION_UNLOCKED'];
+for (let i = 0; i < strictCases.length; i += 1) {
+  const [name, result] = strictCases[i];
+  if (result.state !== strictExpected[i]) throw new Error(`${name}: unexpected state ${result.state}`);
 }
-if (cases[1][1].machine_candidate_signals.length !== 0) throw new Error('No-profile signal escaped OOS lock');
-if (cases[2][1].machine_candidate_signals.length !== 0) throw new Error('Thin OOS signal escaped OOS lock');
-if (cases[3][1].machine_candidate_signals.length !== 0) throw new Error('Data-locked signal escaped data gate');
-if (cases[4][1].machine_candidate_signals.length !== 1) throw new Error('Validated signal failed to become machine candidate');
-if (cases[0][1].edge_confidence_score !== 0 || cases[1][1].edge_confidence_score !== 0) throw new Error('Unvalidated OOS received non-zero edge confidence');
-console.log('verify_candidate_state_machine: PASS');
+if (strictCases[1][1].machine_candidate_signals.length !== 0) throw new Error('Strict: No-profile signal escaped OOS lock');
+if (strictCases[2][1].machine_candidate_signals.length !== 0) throw new Error('Strict: Thin OOS signal escaped OOS lock');
+if (strictCases[3][1].machine_candidate_signals.length !== 0) throw new Error('Strict: Data-locked signal escaped data gate');
+if (strictCases[4][1].machine_candidate_signals.length !== 1) throw new Error('Strict: Validated signal failed to become machine candidate');
+if (strictCases[0][1].edge_confidence_score !== 0 || strictCases[1][1].edge_confidence_score !== 0) throw new Error('Strict: Unvalidated OOS received non-zero edge confidence');
+
+// 2. 样本累积期宽容软门禁模式校验 (permissiveOosMode: true / 默认行为)
+const permissiveCases = [
+  ['PERMISSIVE_NO_POSITIVE_EV', evaluateCandidatePipeline({ ...common, rawSignals: [] })],
+  ['PERMISSIVE_UNLOCKED_NO_PROFILE', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => undefined })],
+  ['PERMISSIVE_UNLOCKED_THIN', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => ({ ...profile, effective_sample_size: 120 }) })],
+  ['PERMISSIVE_DATA_LOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal], dataQualityScore: 70 })],
+  ['PERMISSIVE_PRODUCTION_UNLOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal] })],
+  ['PERMISSIVE_UNSUPPORTED_MARKET_LOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosMarket: () => undefined })]
+] as const;
+
+const permissiveExpected = ['NO_POSITIVE_EV', 'PRODUCTION_UNLOCKED', 'PRODUCTION_UNLOCKED', 'DATA_LOCKED', 'PRODUCTION_UNLOCKED', 'OOS_LOCKED'];
+for (let i = 0; i < permissiveCases.length; i += 1) {
+  const [name, result] = permissiveCases[i];
+  if (result.state !== permissiveExpected[i]) throw new Error(`${name}: unexpected state ${result.state}`);
+}
+if (permissiveCases[1][1].machine_candidate_signals.length !== 1) throw new Error('Permissive: No-profile signal failed to be soft-promoted to machine candidate');
+if (permissiveCases[2][1].machine_candidate_signals.length !== 1) throw new Error('Permissive: Thin OOS signal failed to be soft-promoted to machine candidate');
+if (permissiveCases[3][1].machine_candidate_signals.length !== 0) throw new Error('Permissive: Data-locked signal escaped data quality gate');
+if (permissiveCases[4][1].machine_candidate_signals.length !== 1) throw new Error('Permissive: Validated signal failed to become machine candidate');
+if (permissiveCases[5][1].machine_candidate_signals.length !== 0) throw new Error('Permissive: Unsupported market escaped lock');
+
+console.log('verify_candidate_state_machine: PASS (both strict and permissive modes verified)');

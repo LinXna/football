@@ -120,6 +120,22 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
               <span>{decision.badge}</span>
             </div>
             <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{decision.description}</p>
+            {quant.candidate_pipeline?.state && (
+              <div className="flex items-center gap-1 mt-1 text-[10px] font-mono">
+                <span className="text-slate-500">OOS校准门禁:</span>
+                <span
+                  className={
+                    quant.candidate_pipeline.state === "PRODUCTION_UNLOCKED"
+                      ? "text-emerald-400 font-semibold"
+                      : "text-amber-400"
+                  }
+                >
+                  {quant.candidate_pipeline.state === "PRODUCTION_UNLOCKED"
+                    ? "✔ 已解锁 (VALIDATED)"
+                    : quant.candidate_pipeline.state}
+                </span>
+              </div>
+            )}
           </div>
           <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
             <div

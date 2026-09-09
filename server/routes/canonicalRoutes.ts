@@ -18,6 +18,7 @@ import {
 import { ParsedLeisuMatch } from "../../refactor/01_data_ingestion/leisu/types";
 import { calculateQuantitativeFeatures } from "../../refactor/03_quant_engine";
 import { QuantitativeFeatures } from "../../refactor/03_quant_engine/types";
+import { getLoadedOosArchive, getOosStatus, ensureOosArchiveInitialized, reseedOosArchiveFromLeisu } from "../services/oosArchiveService.js";
 import {
   systemAlertBus,
   commonEnumRegistry,
@@ -85,7 +86,7 @@ function persistRuntimeBatch(
     for (const match of result.canonicalMatches) {
       if (!quantitativeFeatures[match.canonical_id]) {
         try {
-          quantitativeFeatures[match.canonical_id] = calculateQuantitativeFeatures(match);
+          quantitativeFeatures[match.canonical_id] = calculateQuantitativeFeatures(match, { calibration_archive: getLoadedOosArchive(), permissive_oos_mode: true });
         } catch (err: any) {
           console.error(`[CanonicalRoutes] Error computing quant for match ${match.canonical_id}:`, err);
         }
@@ -283,7 +284,7 @@ export function assembleMatchesForMode(mode: "live" | "prematch"): {
   const quantitativeFeatures: Record<string, QuantitativeFeatures> = {};
   for (const match of canonicalMatches) {
     try {
-      quantitativeFeatures[match.canonical_id] = calculateQuantitativeFeatures(match);
+      quantitativeFeatures[match.canonical_id] = calculateQuantitativeFeatures(match, { calibration_archive: getLoadedOosArchive(), permissive_oos_mode: true });
     } catch (err: any) {
       console.error(`[CanonicalRoutes] Error computing quant for match ${match.canonical_id}:`, err);
     }
@@ -318,6 +319,25 @@ export function registerCanonicalRoutes(app: express.Express): void {
    * GET /api/refactor/canonical-matches
    * 查询当前重构系统的标准赛事列表与预计算量化特征
    */
+    app.get("/api/refactor/oos-status", (_req, res) => {
+    try {
+      const status = getOosStatus();
+      res.json({ ok: true, status });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e?.message });
+    }
+  });
+
+  app.post("/api/refactor/oos-seed", (_req, res) => {
+    try {
+      const { archive, samples } = reseedOosArchiveFromLeisu();
+      const status = getOosStatus();
+      res.json({ ok: true, status, archive, sample_count: samples.length });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e?.message });
+    }
+  });
+
   app.get("/api/refactor/canonical-matches", (req, res) => {
     try {
       const mode = (req.query.mode as string) === "prematch" ? "prematch" : "live";
@@ -335,7 +355,7 @@ export function registerCanonicalRoutes(app: express.Express): void {
         const quantitativeFeatures: Record<string, QuantitativeFeatures> = {};
         for (const match of runtimeBatch.matches) {
           try {
-            quantitativeFeatures[match.canonical_id] = calculateQuantitativeFeatures(match);
+            quantitativeFeatures[match.canonical_id] = calculateQuantitativeFeatures(match, { calibration_archive: getLoadedOosArchive(), permissive_oos_mode: true });
           } catch (err: any) {
             console.error(`[CanonicalRoutes] Upgrade quant error for ${match.canonical_id}:`, err);
           }
@@ -561,7 +581,7 @@ export function registerCanonicalRoutes(app: express.Express): void {
           selectedQuant[match.canonical_id] = assembled.quantitativeFeatures[match.canonical_id];
         } else {
           try {
-            selectedQuant[match.canonical_id] = calculateQuantitativeFeatures(match);
+            selectedQuant[match.canonical_id] = calculateQuantitativeFeatures(match, { calibration_archive: getLoadedOosArchive(), permissive_oos_mode: true });
           } catch (e) {
             console.error(`[CanonicalRoutes] Error computing quant for ${match.canonical_id}:`, e);
           }

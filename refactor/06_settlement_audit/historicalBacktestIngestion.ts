@@ -58,7 +58,7 @@ function rejectionFor(record: HistoricalBacktestRecord): HistoricalSampleRejecti
   return undefined;
 }
 
-function toOosSample(record: HistoricalBacktestRecord): OosCalibrationSample {
+export function toOosSample(record: HistoricalBacktestRecord): OosCalibrationSample {
   const observedGoals = record.stage === 'LIVE'
     ? record.final_score.home + record.final_score.away - record.score_at_recommendation.home - record.score_at_recommendation.away
     : record.final_score.home + record.final_score.away;

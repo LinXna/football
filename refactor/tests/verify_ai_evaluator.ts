@@ -25,6 +25,17 @@ parsingTests.forEach(pt => {
 
 // --- Test 2: Alignment Guard with Float Equivalents ---
 console.log("\n=== RUNNING ALIGNMENT GUARD ===");
+const unlockedPipeline = {
+  state: 'PRODUCTION_UNLOCKED' as const,
+  raw_signals: [],
+  oos_validated_signals: [],
+  machine_candidate_signals: [],
+  validations: [],
+  blockers: [],
+  transitions: [],
+  edge_confidence_score: 80
+};
+
 const mockPayload: EvaluatorPayload = {
   ai_brief: {
     match_id: '12345',
@@ -52,6 +63,7 @@ const mockPayload: EvaluatorPayload = {
     goal_phase_alert: 'IMMINENT_GOAL',
     raw_positive_ev_count: 1,
     machine_candidate_count: 1,
+    candidate_pipeline: unlockedPipeline,
     raw_mathematical_ev_signals: [{
       market: 'ASIAN_HANDICAP_MAIN',
       line: '-0/0.5',
@@ -81,7 +93,6 @@ const mockPayload: EvaluatorPayload = {
 
 // Valid AI response using float format '-0.25'
 const validAiResult: AiEvaluationResult = {
-  candidate_pipeline: unlockedPipeline,
   match_id: '12345',
   evaluation_time: new Date().toISOString(),
   blind_spot_analysis: {

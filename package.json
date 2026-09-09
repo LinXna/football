@@ -7,6 +7,7 @@
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "lint": "tsc --noEmit",
+    "oos:seed": "tsx scripts/seed_oos_from_leisu.ts",
     "test:ts": "node --import tsx --test tests-ts/*.test.ts"
   },
   "dependencies": {

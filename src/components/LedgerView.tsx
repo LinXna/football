@@ -565,7 +565,7 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
           setLedger(data.ledger);
           setEditingId(null);
           const count = data.updatedCount || 1;
-          setSyncToast(`✅ 成功录入完场比分 ${final_score.home}-${final_score.away}，并同步自动核算同场 ${count} 条推荐玩法！`);
+          setSyncToast(`✅ 成功录入完场比分 ${final_score.home}-${final_score.away}，自动核算同场 ${count} 条推荐！`);
           setTimeout(() => setSyncToast(null), 4000);
         }
       }

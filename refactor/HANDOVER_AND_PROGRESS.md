@@ -1,25 +1,37 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260908-OOS-PERMISSIVE-MODE-AND-AI-EVAL-ACTIVATION`
+- **任务编号 (Task)**: `SNAPSHOT-20260909-REAUDIT-SCHEME1-SCHEME2-LEGACY-DECOUPLING`
 - **当前状态 (Status)**: `IN_PROGRESS`
 - **任务目标 (Goal)**：
-  1. 【治理 OOS 样本硬阻断失衡】：针对当前处于系统研发实盘演进期、历史样本外回测库（>200样本）尚未全面建仓的实际痛点，将 OOS 门禁从“硬性阻断锁死（Hard Blocker）”优化为“分阶段宽容模式（Permissive Mode）”。
-  2. 【释放 AI 评估与正期望推荐资格】：
-     - 在样本库完善前，数学泊松模型推导出的合格 +EV 信号（EV >= +3.5%）在通过基础数据质量（比分核验、无进球冷却锁、数据评分合格）后，正常放行晋升至候选池（`machine_candidate_signals` / `positive_ev_signals`）；
-     - 将 OOS 样本状态保留为软性状态标示（如 `INSUFFICIENT_EVIDENCE` 标注或实盘验证期提示），但不再无差别一票否决；
-     - 彻底激活后续 AI 评估的最终裁决权，只要 AI 评估核验通过，候选信号直接落定为正式推荐项。
-  3. 【界面与测试完全闭环】：
-     - 前端决策矩阵卡片正常接收到 `positive_ev_signals`，直接点亮推荐高亮方格、徽章与底部最佳推荐文案；
-     - 维护并更新所有单元测试，确保类型系统与回归测试 100% 绿灯。
+  1. 【全面重排查】：针对用户明确指出的“方案一和方案二全部都涉及到旧系统，你要重新排查一遍”，彻底普查方案 1（雷速历史数据导入与冷启动编译）与方案 2（赛后比分核销与实盘自增闭环）在代码、存储路径、API 路由、前端视图层对旧系统的全部触点；
+  2. 【彻底解耦斩断污染】：
+     - 将 OOS 归档与样本文件从旧系统 `output/` 目录彻底迁移至重构规范运行时目录 `refactor/runtime/`；
+     - 清理 `server/dataFiles.ts` 中的全局混淆注册，杜绝旧系统直接持有重构 OOS 资产；
+     - 修复 `server/services/oosArchiveService.ts` 与 `scripts/seed_oos_from_leisu.ts`，禁止私自扫描或读取旧系统 `output/` 目录，统一使用 `refactor/fixtures/` 及重构标准 Ingress 数据源；
+     - 彻底清除旧系统台账修改路由 `server/routes/ledgerMutationRoutes.ts` 中被私自注入的 OOS 样本生成逻辑，恢复旧系统路由的纯净边界；
+     - 彻底清除旧系统前端视图 `src/components/LedgerView.tsx` 中的 OOS 看板及核销增量代码，杜绝新旧系统视图逻辑混淆；
+     - 强化重构台账路由 `server/routes/refactorLedgerRoutes.ts`，确保核销严格经过 Layer 06 的 `convertFormalLedgerRecords` 与 `ingestHistoricalBacktestRecords`，严格服从 `PRODUCTION_UNLOCKED` 准入门禁，结果纯净沉淀于 `refactor/runtime/`。
+  3. 【闭环验证与汇报】：
+     - 运行系统构建与单测，确保重构系统（`refactor/`）与旧系统各自自洽、零越界、零语法错误。
 - **影响文件 (Target Files)**：
-  `refactor/03_quant_engine/candidateStateMachine.ts`
-  `refactor/tests/verify_candidate_state_machine.ts`
+  `server/dataFiles.ts`
+  `server/services/oosArchiveService.ts`
+  `scripts/seed_oos_from_leisu.ts`
+  `server/routes/ledgerMutationRoutes.ts`
+  `src/components/LedgerView.tsx`
+  `server/routes/refactorLedgerRoutes.ts`
   `refactor/HANDOVER_AND_PROGRESS.md`
 - **执行步骤 (Action Plan)**：
-  1. 在 `candidateStateMachine.ts` 中引入 OOS 宽容模式（支持配置或默认宽容，当样本库在积累期时，记录软性提示但不拦截信号进入 `machine_candidate_signals`）；
-  2. 同步更新 `verify_candidate_state_machine.ts` 适配宽容模式及阶段切换逻辑；
-  3. 运行 `lint_applet`、`compile_applet` 以及 `npm run test:ts` 验证；
-  4. 验证通过后更新快照状态为 `DONE`。
+  1. 排查并修正 `server/dataFiles.ts` 与 `server/services/oosArchiveService.ts`：将 OOS 存储路径指向 `refactor/runtime/`，移除对 `output/` 的依赖与扫描；
+  2. 排查并修正 `scripts/seed_oos_from_leisu.ts`：输入源限定为 `refactor/fixtures/`，产物写入 `refactor/runtime/`；
+  3. 净化 `server/routes/ledgerMutationRoutes.ts`：移除在旧系统台账核销中调用的 OOS 自增代码，消除伪造 OOS 样本的隐患；
+  4. 净化 `src/components/LedgerView.tsx`：移除重构系统的 OOS 看板与自增 Toast，保持旧系统台账界面专注纯粹；
+  5. 规范 `server/routes/refactorLedgerRoutes.ts`：统一走 `formalLedgerAdapter.ts` 契约，确保只有 `PRODUCTION_UNLOCKED` 的正式推荐沉淀为 OOS；
+  6. 执行 `compile_applet` 和验证，更新快照为 `DONE` 并向用户提供详尽透明的排查报告。
+
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260909-LEISU-OOS-SEEDER-AND-MANUAL-SETTLEMENT` (DONE)
+
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260908-OOS-PERMISSIVE-MODE-AND-AI-EVAL-ACTIVATION` (DONE)
 
 - **历史任务 (Previous Task)**: `SNAPSHOT-20260908-PHASE4-BOTTOM-TEXT-MULTILINE-CLAMP` (DONE)
 - **任务目标 (Goal)**：

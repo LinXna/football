@@ -1,0 +1,63 @@
+[
+  {
+    "record_type": "formal_ai_recommendation",
+    "formal_recommendation": true,
+    "record_id": "f1f366d4-b781-4bee-b1b4-5972da87c1a7",
+    "stage": "PREMATCH",
+    "created_at_utc": "2026-09-09T08:01:22.563Z",
+    "match_id": "match_1",
+    "kickoff_time": "2026-09-04T16:00:00Z",
+    "league_key": "TEST",
+    "teams": {
+      "home": "A",
+      "away": "B"
+    },
+    "condition_snapshot": {
+      "match_minute": "PREMATCH",
+      "current_score": "0 - 0",
+      "bdi": 0,
+      "goal_phase_alert": "NONE",
+      "machine_candidate_count": 1,
+      "candidate_pipeline_state": "PRODUCTION_UNLOCKED",
+      "score_verified": true,
+      "source": "YBTY"
+    },
+    "candidate_pipeline_state": "PRODUCTION_UNLOCKED",
+    "ai_assessment": {
+      "grade": "B_GRADE",
+      "confidence_score": 80,
+      "blind_spot_analysis": {},
+      "internal_logical_audit": "",
+      "qualitative_summary": ""
+    },
+    "leg": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selected_line": "-0.5",
+      "current_odds": 1.9,
+      "minimum_acceptable_odds": 1.8,
+      "direction": "HOME",
+      "basis": ""
+    },
+    "prediction_snapshot": {
+      "model_version": "test",
+      "prediction_at": "2026-09-04T16:10:00Z",
+      "market": "ASIAN_HANDICAP_MAIN",
+      "line": "-0.5",
+      "odds": 1.9,
+      "model_probability": 0.55,
+      "predicted_lambda": {
+        "home": 1.2,
+        "away": 0.8
+      },
+      "minute": null,
+      "score_at_recommendation": "0 - 0",
+      "score_verified": true,
+      "score_source": "canonical_score_verification",
+      "red_card_state": "NONE"
+    },
+    "settlement": {
+      "is_settled": false,
+      "outcome": "PENDING"
+    }
+  }
+]
