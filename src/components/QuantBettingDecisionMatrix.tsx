@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Target,
   Percent,
@@ -168,10 +168,33 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
   const h2hMain = quant.devig.h2h_devig;
   const fullH2hMarket = match.markets.full_h2h;
 
-  // 机器候选门禁集合：只有通过 OOS 校验并进入 positive_ev_signals 的盘口才允许打上推荐标记
-  const machineCandidateMarkets = new Set(
-    quant.positive_ev_signals.map((signal) => signal.market)
-  );
+  // 100% SSOT 信号门禁：严格消费 Layer 03 经由 OOS 校验与置信度门禁下发的 positive_ev_signals
+  // 彻底废除前端基于 ev >= 0.035 或 is_positive_ev 的局部双轨制自决
+  const h2hSignal = useMemo(() => {
+    return quant.positive_ev_signals.find((s) => s.market === "MONEYLINE_1X2") ?? null;
+  }, [quant.positive_ev_signals]);
+
+  const totalSignals = useMemo(() => {
+    return quant.positive_ev_signals.filter(
+      (s) => s.market === "TOTAL_GOALS_MAIN" || s.market === "TOTAL_GOALS_SECONDARY"
+    );
+  }, [quant.positive_ev_signals]);
+
+  const bestTotalSignal = useMemo(() => {
+    if (totalSignals.length === 0) return null;
+    return totalSignals.reduce((best, s) => (s.ev > best.ev ? s : best), totalSignals[0]);
+  }, [totalSignals]);
+
+  const spreadSignals = useMemo(() => {
+    return quant.positive_ev_signals.filter(
+      (s) => s.market === "ASIAN_HANDICAP_MAIN" || s.market === "ASIAN_HANDICAP_SECONDARY"
+    );
+  }, [quant.positive_ev_signals]);
+
+  const bestSpreadSignal = useMemo(() => {
+    if (spreadSignals.length === 0) return null;
+    return spreadSignals.reduce((best, s) => (s.ev > best.ev ? s : best), spreadSignals[0]);
+  }, [spreadSignals]);
 
   // 1. 全场独赢 EV 计算 (直接消费 Layer 03 底层纯数学结算结果)
   const fullH2hEval = (() => {
@@ -181,14 +204,18 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
     const drawEv = h2hMain.draw_ev ?? (fullH2hMarket.draw_odds * modelProbs[1] - 1);
     const awayEv = h2hMain.away_ev ?? (fullH2hMarket.away_odds * modelProbs[2] - 1);
 
-    const bestSide: "home" | "draw" | "away" = (h2hMain.preferred_side && h2hMain.preferred_side !== "none")
+    // 推荐方向优先匹配 h2hSignal；若无推荐信号，则按数学最大 EV 显示对比项
+    const bestSide: "home" | "draw" | "away" = h2hSignal
+      ? (h2hSignal.side as "home" | "draw" | "away")
+      : (h2hMain.preferred_side && h2hMain.preferred_side !== "none")
       ? h2hMain.preferred_side
       : (homeEv >= drawEv && homeEv >= awayEv ? "home" : drawEv >= awayEv ? "draw" : "away");
 
     const maxEv = bestSide === "home" ? homeEv : bestSide === "draw" ? drawEv : awayEv;
 
-    const isPositiveEv = Boolean(h2hMain.is_positive_ev ?? (maxEv >= 0.035));
-    const isMachineCandidate = isPositiveEv && machineCandidateMarkets.has("MONEYLINE_1X2");
+    // 严禁双轨制：只有在 h2hSignal 真实存在时，才认定为具有推荐资格的 +EV 候选
+    const isMachineCandidate = Boolean(h2hSignal);
+    const isPositiveEv = isMachineCandidate;
 
     const sideName =
       bestSide === "home"
@@ -221,6 +248,9 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       isPositiveEv,
       isMachineCandidate,
       modelProbs,
+      isHomeRecommended: Boolean(h2hSignal && h2hSignal.side === "home"),
+      isDrawRecommended: Boolean(h2hSignal && h2hSignal.side === "draw"),
+      isAwayRecommended: Boolean(h2hSignal && h2hSignal.side === "away"),
     };
   })();
 
@@ -243,6 +273,24 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
   // 计算大小球全局综合最优选项 (跨主盘 + 全部副盘综合推演，不受切线切换影响)
   const globalBestTotal = useMemo(() => {
     if (allTotalOptions.length === 0) return null;
+
+    // 若存在官方推荐信号，以最高 EV 的官方推荐信号为基准呈现
+    if (bestTotalSignal) {
+      const isMain = bestTotalSignal.market === "TOTAL_GOALS_MAIN";
+      const isOver = bestTotalSignal.side === "over";
+      return {
+        line: bestTotalSignal.line,
+        isMain,
+        side: bestTotalSignal.side as "over" | "under",
+        label: isOver ? `大球 (>${bestTotalSignal.line})` : `小球 (<${bestTotalSignal.line})`,
+        odds: bestTotalSignal.odds,
+        ev: bestTotalSignal.ev,
+        prob: bestTotalSignal.model_probability ?? 0.5,
+        isMachineCandidate: true,
+      };
+    }
+
+    // 若无官方推荐信号，寻找数学最高 EV 项供客观分析
     let bestOpt = allTotalOptions[0];
     let bestSide: "over" | "under" = bestOpt.assessment.over_ev >= bestOpt.assessment.under_ev ? "over" : "under";
     let maxEv = bestSide === "over" ? bestOpt.assessment.over_ev : bestOpt.assessment.under_ev;
@@ -274,21 +322,30 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       odds,
       ev: maxEv,
       prob,
-      isPositiveEv: maxEv > 0,
+      isMachineCandidate: false,
     };
-  }, [allTotalOptions]);
+  }, [allTotalOptions, bestTotalSignal]);
 
-  // 计算大小球最优盘口项 (用于盘口切线高亮)
+  // 计算大小球最优盘口项 (用于盘口切线高亮与择优)
   const bestTotalOption = useMemo(() => {
     if (!globalBestTotal) return null;
     return allTotalOptions.find((o) => o.assessment.line === globalBestTotal.line) ?? null;
   }, [allTotalOptions, globalBestTotal]);
 
+  // 全盘口平等竞优：优先选择官方门禁推荐信号 (bestTotalSignal) 所在切线；
+  // 若无门禁信号，则默认直接聚焦于全盘数学 EV 最高的切线 (bestTotalOption)；最后保底为主盘
+  const defaultOptimalTotalOption = useMemo(() => {
+    if (bestTotalSignal) {
+      const sigMatched = allTotalOptions.find((o) => o.assessment.line === bestTotalSignal.line);
+      if (sigMatched) return sigMatched;
+    }
+    return bestTotalOption ?? (allTotalOptions.find((o) => o.isMain) ?? allTotalOptions[0] ?? null);
+  }, [bestTotalSignal, allTotalOptions, bestTotalOption]);
+
   const [selectedTotalLine, setSelectedTotalLine] = useState<string | null>(null);
-  const mainTotalOption = allTotalOptions.find((o) => o.isMain) ?? allTotalOptions[0] ?? null;
   const activeTotalOption =
     (selectedTotalLine ? allTotalOptions.find((o) => o.assessment.line === selectedTotalLine) : null) ??
-    mainTotalOption;
+    defaultOptimalTotalOption;
 
   // 2. 全场大小球 EV 计算 (消费当前选中的盘口)
   const fullTotalEval = useMemo(() => {
@@ -302,6 +359,14 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
     const underProb = totalItem.under_model_probability ?? 0.5;
     const prob = isOver ? overProb : underProb;
 
+    // 匹配当前正在查看盘口行上是否存在官方推荐信号
+    const isOverRecommended = totalSignals.some(
+      (s) => s.line === totalItem.line && s.side === "over"
+    );
+    const isUnderRecommended = totalSignals.some(
+      (s) => s.line === totalItem.line && s.side === "under"
+    );
+
     return {
       line: totalItem.line,
       isMain: activeTotalOption.isMain,
@@ -311,7 +376,9 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       odds,
       ev,
       prob,
-      isPositiveEv: totalItem.is_positive_ev,
+      isPositiveEv: isOverRecommended || isUnderRecommended,
+      isOverRecommended,
+      isUnderRecommended,
       overOdds: totalItem.over_odds,
       underOdds: totalItem.under_odds,
       overEv: totalItem.over_ev,
@@ -319,7 +386,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       overProb,
       underProb,
     };
-  }, [activeTotalOption, bestTotalOption]);
+  }, [activeTotalOption, bestTotalOption, totalSignals]);
 
   // 汇总所有让球盘口 (主盘 + 全部副盘)
   const allSpreadOptions = useMemo(() => {
@@ -340,6 +407,28 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
   // 计算让球全局综合最优选项 (跨主盘 + 全部副盘综合推演，不受切线切换影响)
   const globalBestSpread = useMemo(() => {
     if (allSpreadOptions.length === 0) return null;
+
+    // 若存在官方让球推荐信号，以最高 EV 的官方推荐信号为基准呈现
+    if (bestSpreadSignal) {
+      const isMain = bestSpreadSignal.market === "ASIAN_HANDICAP_MAIN";
+      const isHome = bestSpreadSignal.side === "home";
+      const signalLineNum = parseAsianHandicapLine(bestSpreadSignal.line);
+      const lineNotation = formatAsianHandicapLine(signalLineNum);
+      return {
+        line: bestSpreadSignal.line,
+        isMain,
+        side: bestSpreadSignal.side as "home" | "away",
+        isHome,
+        sideTeamName: isHome ? match.home_team_name : match.away_team_name,
+        lineNotation,
+        odds: bestSpreadSignal.odds,
+        ev: bestSpreadSignal.ev,
+        prob: bestSpreadSignal.model_probability ?? 0.5,
+        isMachineCandidate: true,
+      };
+    }
+
+    // 若无官方推荐信号，寻找数学最高 EV 项供客观分析
     let bestOpt = allSpreadOptions[0];
     let bestSide: "home" | "away" = bestOpt.assessment.home_ev >= bestOpt.assessment.away_ev ? "home" : "away";
     let maxEv = bestSide === "home" ? bestOpt.assessment.home_ev : bestOpt.assessment.away_ev;
@@ -380,21 +469,54 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       odds,
       ev: maxEv,
       prob,
-      isPositiveEv: maxEv > 0,
+      isMachineCandidate: false,
     };
-  }, [allSpreadOptions, match.home_team_name, match.away_team_name]);
+  }, [allSpreadOptions, bestSpreadSignal, match.home_team_name, match.away_team_name]);
 
-  // 计算让球最优盘口项 (用于盘口切线高亮)
+  // 计算让球最优盘口项 (用于盘口切线高亮与择优)
   const bestSpreadOption = useMemo(() => {
     if (!globalBestSpread) return null;
-    return allSpreadOptions.find((o) => o.assessment.line === globalBestSpread.line) ?? null;
+    const targetLine = parseAsianHandicapLine(globalBestSpread.line);
+    return (
+      allSpreadOptions.find((o) => {
+        const oLine = parseAsianHandicapLine(o.assessment.line);
+        return (
+          o.assessment.line === globalBestSpread.line ||
+          Math.abs(oLine - targetLine) < 0.001 ||
+          Math.abs(oLine - (-targetLine)) < 0.001
+        );
+      }) ?? null
+    );
   }, [allSpreadOptions, globalBestSpread]);
 
+  // 全盘口平等竞优：优先选择官方门禁推荐信号 (bestSpreadSignal) 所在切线；
+  // 若无门禁信号，则默认直接聚焦于全盘数学 EV 最高的切线 (bestSpreadOption)；最后保底为主盘
+  const defaultOptimalSpreadOption = useMemo(() => {
+    if (bestSpreadSignal) {
+      const targetLine = parseAsianHandicapLine(bestSpreadSignal.line);
+      const sigMatched = allSpreadOptions.find((o) => {
+        const oLine = parseAsianHandicapLine(o.assessment.line);
+        return (
+          o.assessment.line === bestSpreadSignal.line ||
+          Math.abs(oLine - targetLine) < 0.001 ||
+          Math.abs(oLine - (-targetLine)) < 0.001
+        );
+      });
+      if (sigMatched) return sigMatched;
+    }
+    return bestSpreadOption ?? (allSpreadOptions.find((o) => o.isMain) ?? allSpreadOptions[0] ?? null);
+  }, [bestSpreadSignal, allSpreadOptions, bestSpreadOption]);
+
   const [selectedSpreadLine, setSelectedSpreadLine] = useState<string | null>(null);
-  const mainSpreadOption = allSpreadOptions.find((o) => o.isMain) ?? allSpreadOptions[0] ?? null;
   const activeSpreadOption =
     (selectedSpreadLine ? allSpreadOptions.find((o) => o.assessment.line === selectedSpreadLine) : null) ??
-    mainSpreadOption;
+    defaultOptimalSpreadOption;
+
+  // 当比赛变更时，重置用户手动切线状态，自动聚焦于当前比赛的最优出票切线
+  useEffect(() => {
+    setSelectedTotalLine(null);
+    setSelectedSpreadLine(null);
+  }, [match.canonical_id]);
 
   // 3. 全场让球 EV 计算 (消费当前选中的盘口)
   const fullSpreadEval = useMemo(() => {
@@ -415,6 +537,23 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       match.away_team_name
     );
 
+    const optLineNum = parseAsianHandicapLine(spreadItem.line);
+    const isHomeRecommended = spreadSignals.some((s) => {
+      if (s.side !== "home") return false;
+      const sLineNum = parseAsianHandicapLine(s.line);
+      return s.line === spreadItem.line || Math.abs(sLineNum - optLineNum) < 0.001;
+    });
+
+    const isAwayRecommended = spreadSignals.some((s) => {
+      if (s.side !== "away") return false;
+      const sLineNum = parseAsianHandicapLine(s.line);
+      return (
+        s.line === spreadItem.line ||
+        Math.abs(sLineNum - (-optLineNum)) < 0.001 ||
+        Math.abs(sLineNum - optLineNum) < 0.001
+      );
+    });
+
     return {
       line: spreadItem.line,
       isMain: activeSpreadOption.isMain,
@@ -428,7 +567,9 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       odds,
       ev,
       prob,
-      isPositiveEv: spreadItem.is_positive_ev,
+      isPositiveEv: isHomeRecommended || isAwayRecommended,
+      isHomeRecommended,
+      isAwayRecommended,
       homeOdds: spreadItem.home_odds,
       awayOdds: spreadItem.away_odds,
       homeEv: spreadItem.home_ev,
@@ -436,7 +577,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       homeProb,
       awayProb,
     };
-  }, [activeSpreadOption, bestSpreadOption, match.home_team_name, match.away_team_name]);
+  }, [activeSpreadOption, bestSpreadOption, spreadSignals, match.home_team_name, match.away_team_name]);
 
   // 4. 半场盘口数据是否存在 (若没有任何半场盘口数据则不渲染第二行)
   const hasHalfMarkets = Boolean(
@@ -450,56 +591,43 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
     }
 
     type Candidate = {
-      key: "FULL_SPREAD" | "FULL_TOTAL" | "FULL_H2H" | "HALF_SPREAD" | "HALF_TOTAL" | "HALF_H2H";
+      key: "FULL_SPREAD" | "FULL_TOTAL" | "FULL_H2H";
       ev: number;
-      isPositive: boolean;
       scoreWeight: number;
     };
 
     const candidates: Candidate[] = [];
-    const candidateMarkets = new Set(
-      quant.positive_ev_signals.map((signal) => signal.market),
-    );
 
-    if (
-      globalBestSpread &&
-      (candidateMarkets.has("ASIAN_HANDICAP_MAIN") || candidateMarkets.has("ASIAN_HANDICAP_SECONDARY"))
-    ) {
+    // 严禁双轨制：只有在 quant.positive_ev_signals 中真实存在合法推荐信号时，才允许进入候选池
+    if (bestSpreadSignal) {
       candidates.push({
         key: "FULL_SPREAD",
-        ev: globalBestSpread.ev,
-        isPositive: globalBestSpread.isPositiveEv,
-        scoreWeight: globalBestSpread.ev + (globalBestSpread.isPositiveEv ? 0.05 : 0),
+        ev: bestSpreadSignal.ev,
+        scoreWeight: bestSpreadSignal.ev + 0.05,
       });
     }
 
-    if (
-      globalBestTotal &&
-      (candidateMarkets.has("TOTAL_GOALS_MAIN") || candidateMarkets.has("TOTAL_GOALS_SECONDARY"))
-    ) {
+    if (bestTotalSignal) {
       candidates.push({
         key: "FULL_TOTAL",
-        ev: globalBestTotal.ev,
-        isPositive: globalBestTotal.isPositiveEv,
-        scoreWeight: globalBestTotal.ev + (globalBestTotal.isPositiveEv ? 0.05 : 0),
+        ev: bestTotalSignal.ev,
+        scoreWeight: bestTotalSignal.ev + 0.05,
       });
     }
 
-    if (fullH2hEval && candidateMarkets.has("MONEYLINE_1X2")) {
+    if (h2hSignal) {
       candidates.push({
         key: "FULL_H2H",
-        ev: fullH2hEval.maxEv,
-        isPositive: fullH2hEval.isPositiveEv,
-        scoreWeight: fullH2hEval.maxEv + (fullH2hEval.isPositiveEv ? 0.03 : 0),
+        ev: h2hSignal.ev,
+        scoreWeight: h2hSignal.ev + 0.03,
       });
     }
 
-    const positiveCandidates = candidates.filter((c) => c.isPositive && c.ev > 0);
-    if (positiveCandidates.length === 0) return null;
+    if (candidates.length === 0) return null;
 
-    positiveCandidates.sort((a, b) => b.scoreWeight - a.scoreWeight);
-    return positiveCandidates[0].key;
-  }, [quant, globalBestSpread, globalBestTotal, fullH2hEval]);
+    candidates.sort((a, b) => b.scoreWeight - a.scoreWeight);
+    return candidates[0].key;
+  }, [quant, bestSpreadSignal, bestTotalSignal, h2hSignal]);
 
   const isLiveMatch = match.timing.stage === MatchStage.LIVE;
 
@@ -564,11 +692,12 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                 {bestBetMarket === "FULL_H2H" ? (
                   <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-400 flex items-center gap-1">
                     <Sparkles className="w-3 h-3 text-emerald-400" />
-                    ⭐ 最佳推荐
+                    ⭐ 最佳投注
                   </span>
                 ) : fullH2hEval?.isPositiveEv ? (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700/60">
-                    +EV 价值
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-emerald-400" />
+                    ★ 推荐投注
                   </span>
                 ) : (
                   <span className="text-[10px] text-slate-500 font-mono">Shin去水</span>
@@ -581,7 +710,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                   <div className="grid grid-cols-3 gap-1.5 text-center">
                     <div
                       className={`p-1.5 rounded border relative flex flex-col justify-between ${
-                        fullH2hEval?.bestSide === "home" && fullH2hEval?.isMachineCandidate
+                        fullH2hEval?.isHomeRecommended
                           ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
                           : "bg-slate-950/80 border-slate-800 text-slate-300"
                       }`}
@@ -605,7 +734,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                             : `${((fullH2hEval?.homeEv ?? 0) * 100).toFixed(1)}%`}
                         </div>
                       </div>
-                      {fullH2hEval?.bestSide === "home" && fullH2hEval?.isMachineCandidate && (
+                      {fullH2hEval?.isHomeRecommended && (
                         <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
                           <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
                             推荐
@@ -616,7 +745,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
 
                     <div
                       className={`p-1.5 rounded border relative flex flex-col justify-between ${
-                        fullH2hEval?.bestSide === "draw" && fullH2hEval?.isMachineCandidate
+                        fullH2hEval?.isDrawRecommended
                           ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
                           : "bg-slate-950/80 border-slate-800 text-slate-300"
                       }`}
@@ -640,7 +769,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                             : `${((fullH2hEval?.drawEv ?? 0) * 100).toFixed(1)}%`}
                         </div>
                       </div>
-                      {fullH2hEval?.bestSide === "draw" && fullH2hEval?.isMachineCandidate && (
+                      {fullH2hEval?.isDrawRecommended && (
                         <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
                           <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
                             推荐
@@ -651,7 +780,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
 
                     <div
                       className={`p-1.5 rounded border relative flex flex-col justify-between ${
-                        fullH2hEval?.bestSide === "away" && fullH2hEval?.isMachineCandidate
+                        fullH2hEval?.isAwayRecommended
                           ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
                           : "bg-slate-950/80 border-slate-800 text-slate-300"
                       }`}
@@ -675,7 +804,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                             : `${((fullH2hEval?.awayEv ?? 0) * 100).toFixed(1)}%`}
                         </div>
                       </div>
-                      {fullH2hEval?.bestSide === "away" && fullH2hEval?.isMachineCandidate && (
+                      {fullH2hEval?.isAwayRecommended && (
                         <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
                           <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
                             推荐
@@ -699,18 +828,24 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                   <span
                     className="font-mono text-slate-300 line-clamp-2 leading-snug w-full break-words"
                     title={
-                      fullH2hEval.maxEv > 0
+                      fullH2hEval.isMachineCandidate
                         ? `🌟 最佳推荐: ${fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} @${fullH2hEval.bestOdds} (胜率 ${(fullH2hEval.bestProb * 100).toFixed(1)}% | EV: +${(fullH2hEval.maxEv * 100).toFixed(1)}%)`
+                        : fullH2hEval.maxEv > 0
+                        ? `⚠️ 综合评估: 正期望但未达推荐门禁 (最高: ${fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} EV +${(fullH2hEval.maxEv * 100).toFixed(1)}%)`
                         : `⚠️ 综合评估: 全盘无正期望项 (最高: ${fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} EV ${(fullH2hEval.maxEv * 100).toFixed(1)}%)`
                     }
                   >
-                    {fullH2hEval.maxEv > 0 ? (
+                    {fullH2hEval.isMachineCandidate ? (
                       <span className="text-emerald-400 font-bold">
                         🌟 最佳推荐: {fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} @{fullH2hEval.bestOdds} (胜率 {(fullH2hEval.bestProb * 100).toFixed(1)}% | EV: +{(fullH2hEval.maxEv * 100).toFixed(1)}%)
                       </span>
+                    ) : fullH2hEval.maxEv > 0 ? (
+                      <span className="text-amber-400/90">
+                        ⚠️ 综合评估: 正期望但未达推荐门禁 (最高: {fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} EV +{(fullH2hEval.maxEv * 100).toFixed(1)}%)
+                      </span>
                     ) : (
                       <span className="text-slate-400">
-                        ⚠️ 综合评估: 全盘无正期望项 (最高: {fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} EV ${(fullH2hEval.maxEv * 100).toFixed(1)}%)
+                        ⚠️ 综合评估: 全盘无正期望项 (最高: {fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} EV {(fullH2hEval.maxEv * 100).toFixed(1)}%)
                       </span>
                     )}
                   </span>
@@ -738,15 +873,16 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                 {bestBetMarket === "FULL_TOTAL" ? (
                   <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-400 flex items-center gap-1">
                     <Sparkles className="w-3 h-3 text-emerald-400" />
-                    ⭐ 最佳推荐
-                  </span>
-                ) : fullTotalEval?.isBest && !fullTotalEval?.isMain ? (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-400 flex items-center gap-1">
-                    ★ 最优盘推荐
+                    ⭐ 最佳投注 {!activeTotalOption?.isMain ? "(副盘)" : "(主盘)"}
                   </span>
                 ) : fullTotalEval?.isPositiveEv ? (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700/60">
-                    +EV 价值
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-emerald-400" />
+                    ★ 推荐投注 {!activeTotalOption?.isMain ? "(副盘)" : "(主盘)"}
+                  </span>
+                ) : bestTotalSignal ? (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/60 flex items-center gap-1">
+                    ★ 推荐见切线池 ({bestTotalSignal.line})
                   </span>
                 ) : (
                   <span className="text-[10px] text-slate-400 font-mono">
@@ -755,13 +891,14 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                 )}
               </div>
 
-              {/* 多盘口切线选择池 (主盘 + 全部副盘) */}
+              {/* 多盘口切线选择池 (全盘口平等竞优：主盘 + 全部副盘) */}
               {allTotalOptions.length > 1 && (
                 <div className="flex items-center gap-1 overflow-x-auto pb-1 pt-0.5">
                   <span className="text-[10px] text-slate-500 shrink-0">盘口切线:</span>
                   {allTotalOptions.map((opt) => {
                     const isSelected = activeTotalOption?.assessment.line === opt.assessment.line;
-                    const isBest = bestTotalOption?.assessment.line === opt.assessment.line;
+                    const isRecommended = totalSignals.some((s) => s.line === opt.assessment.line);
+                    const isTopMathEv = bestTotalOption?.assessment.line === opt.assessment.line;
                     return (
                       <button
                         key={opt.assessment.line}
@@ -769,13 +906,19 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                         onClick={() => setSelectedTotalLine(opt.assessment.line)}
                         className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors flex items-center gap-0.5 cursor-pointer ${
                           isSelected
-                            ? "bg-emerald-500 text-slate-950 font-bold shadow-xs"
+                            ? "bg-emerald-500 text-slate-950 font-bold shadow-xs ring-1 ring-emerald-300/50"
+                            : isRecommended
+                            ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/60 hover:bg-emerald-900/80"
                             : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
                         }`}
                       >
                         <span>{opt.assessment.line}</span>
-                        {opt.isMain && <span className="text-[9px] opacity-75">(主)</span>}
-                        {isBest && <span className="text-[9px] text-amber-300 font-bold">★最优盘</span>}
+                        <span className="text-[9px] opacity-75">{opt.isMain ? "(主)" : "(副)"}</span>
+                        {isRecommended ? (
+                          <span className={`text-[9px] font-bold ${isSelected ? "text-slate-950" : "text-emerald-300"}`}>★推荐</span>
+                        ) : isTopMathEv ? (
+                          <span className={`text-[9px] font-bold ${isSelected ? "text-slate-950" : "text-amber-300"}`}>★高EV</span>
+                        ) : null}
                       </button>
                     );
                   })}
@@ -788,7 +931,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                   <div className="grid grid-cols-2 gap-2 text-center">
                     <div
                       className={`p-1.5 rounded border relative flex flex-col justify-between ${
-                        fullTotalEval.isOver && fullTotalEval.isPositiveEv
+                        fullTotalEval.isOverRecommended
                           ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
                           : "bg-slate-950/80 border-slate-800 text-slate-300"
                       }`}
@@ -803,7 +946,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                           </span>
                         </div>
                       </div>
-                      {fullTotalEval.isOver && fullTotalEval.isPositiveEv && (
+                      {fullTotalEval.isOverRecommended && (
                         <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
                           <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
                             推荐
@@ -814,7 +957,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
 
                     <div
                       className={`p-1.5 rounded border relative flex flex-col justify-between ${
-                        !fullTotalEval.isOver && fullTotalEval.isPositiveEv
+                        fullTotalEval.isUnderRecommended
                           ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
                           : "bg-slate-950/80 border-slate-800 text-slate-300"
                       }`}
@@ -829,7 +972,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                           </span>
                         </div>
                       </div>
-                      {!fullTotalEval.isOver && fullTotalEval.isPositiveEv && (
+                      {fullTotalEval.isUnderRecommended && (
                         <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
                           <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
                             推荐
@@ -870,14 +1013,20 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                   <span
                     className="font-mono text-slate-300 line-clamp-2 leading-snug w-full break-words"
                     title={
-                      globalBestTotal.ev > 0
-                        ? `🌟 最佳推荐: ${globalBestTotal.isMain ? "主盘" : "副盘"} ${globalBestTotal.label} @${globalBestTotal.odds} (胜率 ${(globalBestTotal.prob * 100).toFixed(1)}% | EV: +${(globalBestTotal.ev * 100).toFixed(1)}%)`
+                      bestTotalSignal
+                        ? `🌟 最佳推荐: ${bestTotalSignal.market === "TOTAL_GOALS_MAIN" ? "主盘" : "副盘"} ${bestTotalSignal.side === "over" ? `大球 (>${bestTotalSignal.line})` : `小球 (<${bestTotalSignal.line})`} @${bestTotalSignal.odds} (胜率 ${((bestTotalSignal.model_probability ?? 0.5) * 100).toFixed(1)}% | EV: +${(bestTotalSignal.ev * 100).toFixed(1)}%)`
+                        : globalBestTotal.ev > 0
+                        ? `⚠️ 综合评估: 正期望但未达推荐门禁 (最高: ${globalBestTotal.isMain ? "主盘" : "副盘"} ${globalBestTotal.label} EV +${(globalBestTotal.ev * 100).toFixed(1)}%)`
                         : `⚠️ 综合评估: 全盘无正期望项 (最高: ${globalBestTotal.isMain ? "主盘" : "副盘"} ${globalBestTotal.label} EV ${(globalBestTotal.ev * 100).toFixed(1)}%)`
                     }
                   >
-                    {globalBestTotal.ev > 0 ? (
+                    {bestTotalSignal ? (
                       <span className="text-emerald-400 font-bold">
-                        🌟 最佳推荐: {globalBestTotal.isMain ? "主盘" : "副盘"} {globalBestTotal.label} @{globalBestTotal.odds} (胜率 {(globalBestTotal.prob * 100).toFixed(1)}% | EV: +{(globalBestTotal.ev * 100).toFixed(1)}%)
+                        🌟 最佳推荐: {bestTotalSignal.market === "TOTAL_GOALS_MAIN" ? "主盘" : "副盘"} {bestTotalSignal.side === "over" ? `大球 (>${bestTotalSignal.line})` : `小球 (<${bestTotalSignal.line})`} @${bestTotalSignal.odds} (胜率 {((bestTotalSignal.model_probability ?? 0.5) * 100).toFixed(1)}% | EV: +{(bestTotalSignal.ev * 100).toFixed(1)}%)
+                      </span>
+                    ) : globalBestTotal.ev > 0 ? (
+                      <span className="text-amber-400/90">
+                        ⚠️ 综合评估: 正期望但未达推荐门禁 (最高: {globalBestTotal.isMain ? "主盘" : "副盘"} {globalBestTotal.label} EV +{(globalBestTotal.ev * 100).toFixed(1)}%)
                       </span>
                     ) : (
                       <span className="text-slate-400">
@@ -909,15 +1058,16 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                 {bestBetMarket === "FULL_SPREAD" ? (
                   <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-400 flex items-center gap-1">
                     <Sparkles className="w-3 h-3 text-emerald-400" />
-                    ⭐ 最佳推荐
-                  </span>
-                ) : fullSpreadEval?.isBest && !fullSpreadEval?.isMain ? (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-400 flex items-center gap-1">
-                    ★ 最优盘推荐
+                    ⭐ 最佳投注 {!activeSpreadOption?.isMain ? "(副盘)" : "(主盘)"}
                   </span>
                 ) : fullSpreadEval?.isPositiveEv ? (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700/60">
-                    +EV 价值
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-emerald-400" />
+                    ★ 推荐投注 {!activeSpreadOption?.isMain ? "(副盘)" : "(主盘)"}
+                  </span>
+                ) : bestSpreadSignal ? (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/60 flex items-center gap-1">
+                    ★ 推荐见切线池 ({bestSpreadSignal.line})
                   </span>
                 ) : (
                   <span className="text-[10px] text-slate-400 font-mono">
@@ -926,15 +1076,23 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                 )}
               </div>
 
-              {/* 多盘口切线选择池 (主盘 + 全部副盘) */}
+              {/* 多盘口切线选择池 (全盘口平等竞优：主盘 + 全部副盘) */}
               {allSpreadOptions.length > 1 && (
                 <div className="flex items-center gap-1 overflow-x-auto pb-1 pt-0.5">
                   <span className="text-[10px] text-slate-500 shrink-0">盘口切线:</span>
                   {allSpreadOptions.map((opt) => {
                     const isSelected = activeSpreadOption?.assessment.line === opt.assessment.line;
-                    const isBest = bestSpreadOption?.assessment.line === opt.assessment.line;
                     const lineVal = parseAsianHandicapLine(opt.assessment.line);
                     const displayLine = formatAsianHandicapLine(lineVal);
+                    const isRecommended = spreadSignals.some((s) => {
+                      const sNum = parseAsianHandicapLine(s.line);
+                      return (
+                        s.line === opt.assessment.line ||
+                        Math.abs(sNum - lineVal) < 0.001 ||
+                        Math.abs(sNum - (-lineVal)) < 0.001
+                      );
+                    });
+                    const isTopMathEv = bestSpreadOption?.assessment.line === opt.assessment.line;
                     return (
                       <button
                         key={opt.assessment.line}
@@ -942,13 +1100,19 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                         onClick={() => setSelectedSpreadLine(opt.assessment.line)}
                         className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors flex items-center gap-0.5 cursor-pointer ${
                           isSelected
-                            ? "bg-blue-500 text-white font-bold shadow-xs"
+                            ? "bg-blue-500 text-white font-bold shadow-xs ring-1 ring-blue-300/50"
+                            : isRecommended
+                            ? "bg-blue-950/80 text-blue-300 border border-blue-500/60 hover:bg-blue-900/80"
                             : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
                         }`}
                       >
                         <span>{displayLine}</span>
-                        {opt.isMain && <span className="text-[9px] opacity-75">(主)</span>}
-                        {isBest && <span className="text-[9px] text-amber-300 font-bold">★最优盘</span>}
+                        <span className="text-[9px] opacity-75">{opt.isMain ? "(主)" : "(副)"}</span>
+                        {isRecommended ? (
+                          <span className={`text-[9px] font-bold ${isSelected ? "text-white" : "text-emerald-300"}`}>★推荐</span>
+                        ) : isTopMathEv ? (
+                          <span className={`text-[9px] font-bold ${isSelected ? "text-white" : "text-amber-300"}`}>★高EV</span>
+                        ) : null}
                       </button>
                     );
                   })}
@@ -959,13 +1123,19 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                 <div className="space-y-2 font-mono text-xs">
                   {/* 主队让球 vs 客队让球对比 (纯净盘口展示，优先消费 YBTY 官方下发合法选项名称) */}
                   {(() => {
+                    const spreadNum = parseAsianHandicapLine(fullSpreadEval.line);
                     const matchingSpreadMarket = fullSpreadEval.isMain
                       ? match.markets.full_spread_main
-                      : match.markets.full_spread_subs?.find(
-                          (s) => s.home_selection === fullSpreadEval.line || String(s.line_index) === fullSpreadEval.line
-                        ) ?? null;
+                      : match.markets.full_spread_subs?.find((s) => {
+                          const sHomeNum = parseAsianHandicapLine(s.home_selection);
+                          return (
+                            s.home_selection === fullSpreadEval.line ||
+                            Math.abs(sHomeNum - spreadNum) < 0.001 ||
+                            Math.abs(sHomeNum - (-spreadNum)) < 0.001 ||
+                            String(s.line_index) === fullSpreadEval.line
+                          );
+                        }) ?? null;
 
-                    const spreadNum = parseAsianHandicapLine(fullSpreadEval.line);
                     const homeLineLabel = matchingSpreadMarket?.home_selection
                       ? (matchingSpreadMarket.home_selection.startsWith("主")
                           ? matchingSpreadMarket.home_selection
@@ -986,7 +1156,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                       <div className="grid grid-cols-2 gap-2 text-center">
                         <div
                           className={`p-1.5 rounded border relative flex flex-col justify-between ${
-                            fullSpreadEval.isHome && fullSpreadEval.isPositiveEv
+                            fullSpreadEval.isHomeRecommended
                               ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
                               : "bg-slate-950/80 border-slate-800 text-slate-300"
                           }`}
@@ -1003,7 +1173,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                               </span>
                             </div>
                           </div>
-                          {fullSpreadEval.isHome && fullSpreadEval.isPositiveEv && (
+                          {fullSpreadEval.isHomeRecommended && (
                             <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
                               <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
                                 推荐
@@ -1014,7 +1184,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
 
                         <div
                           className={`p-1.5 rounded border relative flex flex-col justify-between ${
-                            !fullSpreadEval.isHome && fullSpreadEval.isPositiveEv
+                            fullSpreadEval.isAwayRecommended
                               ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
                               : "bg-slate-950/80 border-slate-800 text-slate-300"
                           }`}
@@ -1031,7 +1201,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                               </span>
                             </div>
                           </div>
-                          {!fullSpreadEval.isHome && fullSpreadEval.isPositiveEv && (
+                          {fullSpreadEval.isAwayRecommended && (
                             <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
                               <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
                                 推荐
@@ -1062,14 +1232,20 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                   <span
                     className="font-mono text-slate-300 line-clamp-2 leading-snug w-full break-words"
                     title={
-                      globalBestSpread.ev > 0
-                        ? `🌟 最佳推荐: ${globalBestSpread.isMain ? "主盘" : "副盘"} ${globalBestSpread.isHome ? "主队" : "客队"} ${globalBestSpread.lineNotation} @${globalBestSpread.odds} (胜率 ${(globalBestSpread.prob * 100).toFixed(1)}% | EV: +${(globalBestSpread.ev * 100).toFixed(1)}%)`
+                      bestSpreadSignal
+                        ? `🌟 最佳推荐: ${bestSpreadSignal.market === "ASIAN_HANDICAP_MAIN" ? "主盘" : "副盘"} ${bestSpreadSignal.side === "home" ? match.home_team_name : match.away_team_name} ${bestSpreadSignal.line} @${bestSpreadSignal.odds} (胜率 ${((bestSpreadSignal.model_probability ?? 0.5) * 100).toFixed(1)}% | EV: +${(bestSpreadSignal.ev * 100).toFixed(1)}%)`
+                        : globalBestSpread.ev > 0
+                        ? `⚠️ 综合评估: 正期望但未达推荐门禁 (最高: ${globalBestSpread.isMain ? "主盘" : "副盘"} ${globalBestSpread.isHome ? "主队" : "客队"} ${globalBestSpread.lineNotation} EV +${(globalBestSpread.ev * 100).toFixed(1)}%)`
                         : `⚠️ 综合评估: 全盘无正期望项 (最高: ${globalBestSpread.isMain ? "主盘" : "副盘"} ${globalBestSpread.isHome ? "主队" : "客队"} ${globalBestSpread.lineNotation} EV ${(globalBestSpread.ev * 100).toFixed(1)}%)`
                     }
                   >
-                    {globalBestSpread.ev > 0 ? (
+                    {bestSpreadSignal ? (
                       <span className="text-emerald-400 font-bold">
-                        🌟 最佳推荐: {globalBestSpread.isMain ? "主盘" : "副盘"} {globalBestSpread.isHome ? "主队" : "客队"} {globalBestSpread.lineNotation} @{globalBestSpread.odds} (胜率 {(globalBestSpread.prob * 100).toFixed(1)}% | EV: +{(globalBestSpread.ev * 100).toFixed(1)}%)
+                        🌟 最佳推荐: {bestSpreadSignal.market === "ASIAN_HANDICAP_MAIN" ? "主盘" : "副盘"} {bestSpreadSignal.side === "home" ? match.home_team_name : match.away_team_name} {bestSpreadSignal.line} @${bestSpreadSignal.odds} (胜率 {((bestSpreadSignal.model_probability ?? 0.5) * 100).toFixed(1)}% | EV: +{(bestSpreadSignal.ev * 100).toFixed(1)}%)
+                      </span>
+                    ) : globalBestSpread.ev > 0 ? (
+                      <span className="text-amber-400/90">
+                        ⚠️ 综合评估: 正期望但未达推荐门禁 (最高: {globalBestSpread.isMain ? "主盘" : "副盘"} {globalBestSpread.isHome ? "主队" : "客队"} {globalBestSpread.lineNotation} EV +{(globalBestSpread.ev * 100).toFixed(1)}%)
                       </span>
                     ) : (
                       <span className="text-slate-400">

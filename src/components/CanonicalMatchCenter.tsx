@@ -57,7 +57,6 @@ import {
 import { QuantBettingDecisionMatrix } from "./QuantBettingDecisionMatrix";
 import { TimelineIncidentLegend, parseIncidentMeta, ProMatchEventIcon } from "./TimelineIncidentBadge";
 import { GenericTimelineEventPin } from "./IncidentIconsHelper";
-import { calculateQuantitativeFeatures } from "../../refactor/03_quant_engine";
 import { QuantitativeFeatures } from "../../refactor/03_quant_engine/types";
 
 function getMarketsSummary(mkts?: CleanMarketsGroup | null) {
@@ -213,20 +212,10 @@ export const CanonicalMatchCenter: React.FC = () => {
   const [aiBriefs, setAiBriefs] = useState<AiEvaluationBrief[]>([]);
   const [leisuPool, setLeisuPool] = useState<LeisuCandidateItem[]>([]);
 
-  // 统一量化特征映射：优先从服务端预计算读取（零开销、零延迟），客户端仅作为容错 Fallback 并在内存中记忆化
+  // 统一量化特征映射：100% 遵从服务端预计算单一事实来源 (SSOT)，彻底杜绝客户端执行环境时钟偏差与重复运算
   const quantFeaturesMap = useMemo(() => {
-    const map: Record<string, QuantitativeFeatures> = { ...serverQuantFeatures };
-    for (const m of matches) {
-      if (!map[m.canonical_id]) {
-        try {
-          map[m.canonical_id] = calculateQuantitativeFeatures(m);
-        } catch (err: any) {
-          console.error(`Client fallback quant calculation failed for ${m.canonical_id}:`, err);
-        }
-      }
-    }
-    return map;
-  }, [matches, serverQuantFeatures]);
+    return serverQuantFeatures || {};
+  }, [serverQuantFeatures]);
   const [metadata, setMetadata] = useState<any>(null);
   const [refactorBatchId, setRefactorBatchId] = useState<string | null>(null);
   const [refactorImportedAt, setRefactorImportedAt] = useState<string | null>(null);

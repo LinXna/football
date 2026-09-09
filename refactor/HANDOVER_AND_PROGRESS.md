@@ -1,7 +1,27 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260908-PHASE4-BOTTOM-TEXT-MULTILINE-CLAMP`
-- **当前状态 (Status)**: `DONE`
+- **任务编号 (Task)**: `SNAPSHOT-20260908-OOS-PERMISSIVE-MODE-AND-AI-EVAL-ACTIVATION`
+- **当前状态 (Status)**: `IN_PROGRESS`
+- **任务目标 (Goal)**：
+  1. 【治理 OOS 样本硬阻断失衡】：针对当前处于系统研发实盘演进期、历史样本外回测库（>200样本）尚未全面建仓的实际痛点，将 OOS 门禁从“硬性阻断锁死（Hard Blocker）”优化为“分阶段宽容模式（Permissive Mode）”。
+  2. 【释放 AI 评估与正期望推荐资格】：
+     - 在样本库完善前，数学泊松模型推导出的合格 +EV 信号（EV >= +3.5%）在通过基础数据质量（比分核验、无进球冷却锁、数据评分合格）后，正常放行晋升至候选池（`machine_candidate_signals` / `positive_ev_signals`）；
+     - 将 OOS 样本状态保留为软性状态标示（如 `INSUFFICIENT_EVIDENCE` 标注或实盘验证期提示），但不再无差别一票否决；
+     - 彻底激活后续 AI 评估的最终裁决权，只要 AI 评估核验通过，候选信号直接落定为正式推荐项。
+  3. 【界面与测试完全闭环】：
+     - 前端决策矩阵卡片正常接收到 `positive_ev_signals`，直接点亮推荐高亮方格、徽章与底部最佳推荐文案；
+     - 维护并更新所有单元测试，确保类型系统与回归测试 100% 绿灯。
+- **影响文件 (Target Files)**：
+  `refactor/03_quant_engine/candidateStateMachine.ts`
+  `refactor/tests/verify_candidate_state_machine.ts`
+  `refactor/HANDOVER_AND_PROGRESS.md`
+- **执行步骤 (Action Plan)**：
+  1. 在 `candidateStateMachine.ts` 中引入 OOS 宽容模式（支持配置或默认宽容，当样本库在积累期时，记录软性提示但不拦截信号进入 `machine_candidate_signals`）；
+  2. 同步更新 `verify_candidate_state_machine.ts` 适配宽容模式及阶段切换逻辑；
+  3. 运行 `lint_applet`、`compile_applet` 以及 `npm run test:ts` 验证；
+  4. 验证通过后更新快照状态为 `DONE`。
+
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260908-PHASE4-BOTTOM-TEXT-MULTILINE-CLAMP` (DONE)
 - **任务目标 (Goal)**：
   1. 【用户需求 1 落地】：将三大玩法卡片底栏的“最佳推荐 / 综合评估”从单行强制截断（`truncate`）改造为“2行省略号”（`line-clamp-2 leading-snug break-words`）。
   2. 【布局美观与防溢出】：保证在手机窄屏或三列密集栅格下，盘口、赔率、胜率与 EV 能完整跨两行舒适展示，若极长内容超限则在第 2 行末尾优雅展示省略号（`...`），同时外层统一配置 `min-h-[2.25rem]` 保证三张卡片底部绝对对齐，并附带原生 `title` 提示。
