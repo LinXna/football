@@ -71,10 +71,45 @@ function hasMachineCandidate(leg: AiEvaluationResult['recommended_legs'][number]
 }
 
 /**
+ * P1-07: Finds the first legally valid, open, and verifiable signal from raw mathematical signals.
+ * Excludes mathematically closed lines (e.g. Over/Under 1.5 at 2-0), unverifiable quarter lines,
+ * and signals with missing baseline data (market, line, odds <= 1.0).
+ */
+export function findFirstLegallyVerifiableSignal(
+  rawSignals: any[],
+  currentTotalGoals: number,
+  isLiveMatch: boolean
+): any | null {
+  if (!Array.isArray(rawSignals) || rawSignals.length === 0) return null;
+
+  for (const sig of rawSignals) {
+    if (!sig || !sig.market || sig.line == null || !sig.odds || sig.odds <= 1.0) {
+      continue;
+    }
+    // Check line-specific mathematical closure for total goals
+    if (isLiveMatch && (sig.market === 'TOTAL_GOALS_MAIN' || sig.market === 'TOTAL_GOALS_SECONDARY')) {
+      const lineStr = String(sig.line).split('/')[0];
+      const lineNum = parseFloat(lineStr);
+      if (!isNaN(lineNum) && lineNum <= currentTotalGoals) {
+        // Mathematically closed line, cannot be selected
+        continue;
+      }
+    }
+    // Baseline data check passed
+    return sig;
+  }
+  return null;
+}
+
+/**
  * Alignment Guard: Prevents AI hallucination of betting markets and odds.
  * Also enforces strict system-level risk overrides (Data Blind-Spot, Unverified Score).
  */
 export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: EvaluatorPayload): AiEvaluationResult {
+  const scoreParts = (payload.ai_brief.score_verification?.current_score ?? '0 - 0').split('-').map(s => parseInt(s.trim(), 10));
+  const currentTotalGoals = (isNaN(scoreParts[0]) ? 0 : scoreParts[0]) + (isNaN(scoreParts[1]) ? 0 : scoreParts[1]);
+  const isLiveMatch = (payload.ai_brief.status_summary ?? '').includes('LIVE');
+
   const candidatePipeline = payload.quant_features?.candidate_pipeline;
   const candidateState = candidatePipeline?.state ?? 'OOS_LOCKED';
   const statutoryMarkets = payload.ai_brief.core_markets || {};
@@ -84,27 +119,48 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
   if (candidateState !== 'PRODUCTION_UNLOCKED') {
     let lockedMarketScan = result.market_scan;
     if (lockedMarketScan) {
-      const hasRaw = (payload.quant_features?.raw_mathematical_ev_signals ?? []).length > 0;
-      if ((lockedMarketScan.market === 'NONE' || lockedMarketScan.selected_line === 'NONE') && hasRaw) {
-        const fallback = payload.quant_features!.raw_mathematical_ev_signals![0];
-        lockedMarketScan = {
-          ...lockedMarketScan,
-          market: fallback.market,
-          selected_line: String(fallback.line),
-          direction: (fallback.side ?? 'HOME').toUpperCase() as any,
-          current_odds: fallback.odds ?? 0,
-          minimum_acceptable_odds: 0,
-          raw_ev: fallback.ev ?? 0,
-          risk_adjusted_ev: 0,
-          risk_adjustment_status: 'QUALITATIVE_ONLY',
-          actionable: false,
-          market_status: 'VALID_BUT_BLOCKED',
-          rejection_reason: `EXECUTION_LOCKED: candidate_pipeline.state=${candidateState}`
-        };
+      if (lockedMarketScan.market === 'NONE' || lockedMarketScan.selected_line === 'NONE' || lockedMarketScan.selected_line === '') {
+        const fallback = findFirstLegallyVerifiableSignal(
+          payload.quant_features?.raw_mathematical_ev_signals ?? [],
+          currentTotalGoals,
+          isLiveMatch
+        );
+        if (fallback) {
+          const hasEngineEv = typeof (fallback as any).risk_adjusted_ev === 'number';
+          lockedMarketScan = {
+            ...lockedMarketScan,
+            market: fallback.market,
+            selected_line: String(fallback.line),
+            direction: (fallback.side ?? 'HOME').toUpperCase() as any,
+            current_odds: fallback.odds ?? 0,
+            minimum_acceptable_odds: 0,
+            raw_ev: fallback.ev ?? 0,
+            risk_adjusted_ev: hasEngineEv ? (fallback as any).risk_adjusted_ev : 0,
+            risk_adjustment_status: hasEngineEv ? 'ENGINE_PROVIDED' : 'QUALITATIVE_ONLY',
+            actionable: false,
+            market_status: 'VALID_BUT_BLOCKED',
+            rejection_reason: `EXECUTION_LOCKED: candidate_pipeline.state=${candidateState}`
+          };
+        } else {
+          lockedMarketScan = {
+            ...lockedMarketScan,
+            market: 'NONE',
+            selected_line: 'NONE',
+            direction: 'NONE',
+            market_status: 'NO_VALID_MARKET',
+            current_odds: 0,
+            minimum_acceptable_odds: 0,
+            raw_ev: 0,
+            risk_adjusted_ev: 0,
+            risk_adjustment_status: 'QUALITATIVE_ONLY',
+            actionable: false,
+            rejection_reason: lockedMarketScan.rejection_reason || `NO VALID MARKET: No legally verifiable open line found (candidate_pipeline.state=${candidateState})`
+          };
+        }
       } else {
         lockedMarketScan = {
           ...lockedMarketScan,
-          market_status: (lockedMarketScan.market === 'NONE' || lockedMarketScan.selected_line === 'NONE') ? 'NO_VALID_MARKET' : 'VALID_BUT_BLOCKED',
+          market_status: 'VALID_BUT_BLOCKED',
           actionable: false,
           rejection_reason: lockedMarketScan.rejection_reason || `EXECUTION_LOCKED: candidate_pipeline.state=${candidateState}`
         };
@@ -233,38 +289,6 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
     additionalWarnings.push("SYSTEM HARD GATE (P1-10): Actionable recommendation grade (A/B) must not have empty recommended legs.");
   }
 
-  // Step 1: TEMPORAL_INTEGRITY_CHECK (P0-05, P1-02, P1-04)
-  const isLiveMatch = (payload.ai_brief.status_summary ?? '').includes('LIVE');
-  const kickoffStr = payload.ai_brief.kickoff_time ?? '';
-  const predictionAtStr = (payload.quant_features as any)?.prediction_snapshot?.prediction_at ?? (payload.quant_features as any)?.prediction_at ?? result.evaluation_time ?? '';
-  let temporalConflict = false;
-  if (kickoffStr && predictionAtStr) {
-    const kTime = new Date(kickoffStr).getTime();
-    const pTime = new Date(predictionAtStr).getTime();
-    if (!isNaN(kTime) && !isNaN(pTime)) {
-      if (isLiveMatch && kTime >= pTime) {
-        temporalConflict = true;
-      }
-    }
-  }
-  if (temporalConflict) {
-    if (enforcedGrade === RecommendationGrade.A_GRADE || enforcedGrade === RecommendationGrade.B_GRADE) {
-      enforcedGrade = RecommendationGrade.WATCH;
-    }
-    enforcedConfidence = Math.min(enforcedConfidence, 40);
-    additionalWarnings.push("SYSTEM HARD GATE (P0-05 / P1-02 / P1-04): 触发时间完整性硬门禁 (TEMPORAL_INTEGRITY_CHECK) - kickoff_time 与 prediction_at 存在严重时序倒挂，判定 live data = UNTRUSTED，强制降级为 WATCH");
-    // 强制战术态势服从时序完整性：剥夺不可信实时攻防数据的强结论证据力
-    if (result.blind_spot_analysis) {
-      const currentRegime = result.blind_spot_analysis.tactical_regime_evaluation;
-      if (currentRegime === TacticalRegimeEvaluation.GENUINE_DOMINANCE ||
-          currentRegime === TacticalRegimeEvaluation.BARREN_DOMINANCE ||
-          currentRegime === TacticalRegimeEvaluation.RECIPROCAL_CHAOS) {
-        result.blind_spot_analysis.tactical_regime_evaluation = TacticalRegimeEvaluation.TACTICAL_STALEMATE;
-        additionalWarnings.push("SYSTEM HARD GATE (P1-02 / P1-04): 时间完整性失败导致 live data = UNTRUSTED，剥夺实时攻防统计证据力，战术态势强制重置为 TACTICAL_STALEMATE");
-      }
-    }
-  }
-
   // Step 2: 比分未经校验时：绝对不得给 A 级推荐
   const isScoreVerified = payload.ai_brief.score_verification?.is_verified ?? true;
   if (!isScoreVerified && enforcedGrade === RecommendationGrade.A_GRADE) {
@@ -375,8 +399,6 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
 
   // Step 5, 10, 11: 四分之一盘五态真实结算及滚球已结算盘口审查 (P0-01, P0-02, P0-03, P0-04, P1-04, P1-12)
   const auditedRecommendedLegs: typeof result.recommended_legs = [];
-  const scoreParts = (payload.ai_brief.score_verification?.current_score ?? '0 - 0').split('-').map(s => parseInt(s.trim(), 10));
-  const currentTotalGoals = (isNaN(scoreParts[0]) ? 0 : scoreParts[0]) + (isNaN(scoreParts[1]) ? 0 : scoreParts[1]);
 
   // P0-01: 实际盘口结构强制优先于 metadata is_quarter_line
   const rawIsQuarter = result.market_scan?.is_quarter_line ?? false;
@@ -462,11 +484,15 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
 
     // P1-01 / P0-04: 无有效市场时的合法 NONE 状态
     const isNoValidMarket = synchronizedMarketScan.market === 'NONE' || synchronizedMarketScan.selected_line === 'NONE' || synchronizedMarketScan.selected_line === '';
-    const hasRawSignals = (payload.quant_features?.raw_mathematical_ev_signals ?? []).length > 0;
+    const fallbackSignal = findFirstLegallyVerifiableSignal(
+      payload.quant_features?.raw_mathematical_ev_signals ?? [],
+      currentTotalGoals,
+      isLiveMatch
+    );
 
-    if (isNoValidMarket && hasRawSignals) {
+    if (isNoValidMarket && fallbackSignal) {
       // 规则 2 纠正：有效盘口被执行门禁阻止时，不得写成 market = NONE，必须保留最佳扫描盘口并标记 VALID_BUT_BLOCKED
-      const fallbackSignal = payload.quant_features!.raw_mathematical_ev_signals![0];
+      const hasEngineEv = typeof (fallbackSignal as any).risk_adjusted_ev === 'number';
       synchronizedMarketScan = {
         ...synchronizedMarketScan,
         market: fallbackSignal.market,
@@ -475,8 +501,8 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
         current_odds: fallbackSignal.odds ?? 0,
         minimum_acceptable_odds: 0,
         raw_ev: fallbackSignal.ev ?? 0,
-        risk_adjusted_ev: 0,
-        risk_adjustment_status: 'QUALITATIVE_ONLY',
+        risk_adjusted_ev: hasEngineEv ? (fallbackSignal as any).risk_adjusted_ev : 0,
+        risk_adjustment_status: hasEngineEv ? 'ENGINE_PROVIDED' : 'QUALITATIVE_ONLY',
         actionable: false,
         market_status: 'VALID_BUT_BLOCKED',
         rejection_reason: synchronizedMarketScan.rejection_reason && synchronizedMarketScan.rejection_reason !== 'NO VALID MARKET'
@@ -494,8 +520,9 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
         minimum_acceptable_odds: 0,
         raw_ev: 0,
         risk_adjusted_ev: 0,
+        risk_adjustment_status: 'QUALITATIVE_ONLY',
         actionable: false,
-        rejection_reason: synchronizedMarketScan.rejection_reason || 'NO VALID MARKET'
+        rejection_reason: synchronizedMarketScan.rejection_reason || 'NO VALID MARKET: No legally verifiable open lines pass baseline gates'
       };
     } else if (isQuarter && quarterLineUnverifiable) {
       synchronizedMarketScan = {
@@ -516,18 +543,10 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
         mathematically_closed: true,
         rejection_reason: `MATHEMATICALLY_CLOSED: Match total (${currentTotalGoals}) already reached or exceeded line (${synchronizedMarketScan.selected_line})`
       };
-    } else if (temporalConflict) {
-      synchronizedMarketScan = {
-        ...synchronizedMarketScan,
-        market_status: 'VALID_BUT_BLOCKED',
-        actionable: false,
-        rejection_reason: "TEMPORAL_INTEGRITY_FAILURE: Live data untrusted due to chronological inversion"
-      };
     } else {
       const isActuallyActionable = finalRecommendedLegs.length > 0 &&
         (enforcedGrade === RecommendationGrade.A_GRADE || enforcedGrade === RecommendationGrade.B_GRADE) &&
         enforcedConfidence >= 70 &&
-        !temporalConflict &&
         candidateState === 'PRODUCTION_UNLOCKED';
 
       const blockerReason = !isActuallyActionable
@@ -544,19 +563,22 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
       };
     }
 
-    // 确定 risk_adjustment_status (P0-02)
-    if (!synchronizedMarketScan.risk_adjustment_status) {
-      const hasEngineEv = (payload.quant_features?.machine_candidate_signals ?? []).some(
-        c => c.line === synchronizedMarketScan?.selected_line && c.market === synchronizedMarketScan?.market
-      );
-      synchronizedMarketScan.risk_adjustment_status = hasEngineEv ? 'ENGINE_PROVIDED' : 'QUALITATIVE_ONLY';
-    }
+    // P1-04: Engine-Provided risk_adjusted_ev 必须拥有绝对优先级
+    const candidateSignal = (payload.quant_features?.machine_candidate_signals ?? []).find(
+      c => String(c.line) === String(synchronizedMarketScan?.selected_line) && c.market === synchronizedMarketScan?.market
+    );
+    const engineEvVal = (candidateSignal && typeof (candidateSignal as any).risk_adjusted_ev === 'number')
+      ? (candidateSignal as any).risk_adjusted_ev
+      : (typeof (payload.quant_features as any)?.risk_adjusted_ev === 'number' ? (payload.quant_features as any).risk_adjusted_ev : null);
 
-    // P1-02: QUALITATIVE_ONLY 状态下禁止伪造精确 risk_adjusted_ev，数值必须为 0
-    if (synchronizedMarketScan.risk_adjustment_status === 'QUALITATIVE_ONLY') {
+    if (engineEvVal !== null) {
+      synchronizedMarketScan.risk_adjustment_status = 'ENGINE_PROVIDED';
+      synchronizedMarketScan.risk_adjusted_ev = engineEvVal;
+    } else {
+      synchronizedMarketScan.risk_adjustment_status = 'QUALITATIVE_ONLY';
       if (synchronizedMarketScan.risk_adjusted_ev !== 0) {
         synchronizedMarketScan.risk_adjusted_ev = 0;
-        additionalWarnings.push("SYSTEM QUANT WARNING (P1-02): QUALITATIVE_ONLY 状态下禁止伪造精确 risk_adjusted_ev，数值已强制重置为 0");
+        additionalWarnings.push("SYSTEM QUANT WARNING (P1-02 / P1-04): QUALITATIVE_ONLY 状态下禁止伪造精确 risk_adjusted_ev，数值已强制重置为 0");
       }
     }
   }

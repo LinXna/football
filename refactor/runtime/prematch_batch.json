@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "batch_id": "refactor-prematch-1789061835730",
+  "imported_at": "2026-09-10T17:37:15.730Z",
+  "mode": "prematch",
+  "matches": [],
+  "ai_briefs": [],
+  "quantitative_features": {},
+  "metadata": {
+    "mode": "prematch",
+    "ybtySource": "refactor/fixtures/ybty_v2.8.0_prematch_2026-08-23T01-04-18-978Z.json",
+    "leisuSource": "refactor/fixtures/active_prematch_leisu.json",
+    "ybtyMatchCount": 2,
+    "leisuMatchCount": 6,
+    "alignedCount": 0
+  }
+}

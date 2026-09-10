@@ -294,13 +294,14 @@ if (!closedLineResult.market_scan?.mathematically_closed || closedLineResult.mar
 }
 console.log("[OK] Line-specific 1.5 is mathematically_closed at 2-0 without affecting other lines.");
 
-// --- Test 5: Temporal Integrity Check Prioritization and Tactical Suppression ---
-console.log("\n=== TESTING TEMPORAL INTEGRITY CHECK & TACTICAL SUPPRESSION ===");
-const temporalConflictPayload: EvaluatorPayload = {
+// --- Test 5: Live Match Robustness & Tactical Integrity Preservation ---
+console.log("\n=== TESTING LIVE MATCH ROBUSTNESS & TACTICAL PRESERVATION ===");
+const liveMatchPayload: EvaluatorPayload = {
   ...mockPayload,
   ai_brief: {
     ...mockPayload.ai_brief,
-    kickoff_time: '2026-09-02T20:00:00Z', // Kickoff is AFTER prediction_at
+    status_summary: "LIVE 65'",
+    kickoff_time: '20:00', // Real-world Leisu/YBTY format (local time-only)
   },
   quant_features: {
     ...mockPayload.quant_features,
@@ -310,32 +311,26 @@ const temporalConflictPayload: EvaluatorPayload = {
   } as any
 };
 
-const suppressedResult = verifyStatutoryAlignment(
+const preservedResult = verifyStatutoryAlignment(
   {
     ...validAiResult,
-    grade: RecommendationGrade.A_GRADE,
-    confidence_score: 95,
+    grade: RecommendationGrade.B_GRADE,
+    confidence_score: 75,
     blind_spot_analysis: {
       ...validAiResult.blind_spot_analysis!,
       tactical_regime_evaluation: TacticalRegimeEvaluation.GENUINE_DOMINANCE
     }
   },
-  temporalConflictPayload
+  liveMatchPayload
 );
 
-if (suppressedResult.grade !== RecommendationGrade.WATCH) {
-  throw new Error(`[FAIL] Temporal conflict must downgrade grade to WATCH, got ${suppressedResult.grade}`);
+if (preservedResult.blind_spot_analysis?.tactical_regime_evaluation !== TacticalRegimeEvaluation.GENUINE_DOMINANCE) {
+  throw new Error(`[FAIL] Live match tactical regime must be preserved, got ${preservedResult.blind_spot_analysis?.tactical_regime_evaluation}`);
 }
-if (suppressedResult.confidence_score > 40) {
-  throw new Error(`[FAIL] Temporal conflict must cap confidence at 40, got ${suppressedResult.confidence_score}`);
+if (preservedResult.grade !== RecommendationGrade.B_GRADE) {
+  throw new Error(`[FAIL] Live match grade must not be falsely downgraded, got ${preservedResult.grade}`);
 }
-if (suppressedResult.blind_spot_analysis?.tactical_regime_evaluation !== TacticalRegimeEvaluation.TACTICAL_STALEMATE) {
-  throw new Error(`[FAIL] Temporal conflict must suppress GENUINE_DOMINANCE to TACTICAL_STALEMATE, got ${suppressedResult.blind_spot_analysis?.tactical_regime_evaluation}`);
-}
-if (suppressedResult.recommended_legs.length !== 0) {
-  throw new Error('[FAIL] Temporal conflict must clear recommended_legs!');
-}
-console.log("[OK] Temporal conflict suppressed tactical dominance to TACTICAL_STALEMATE and downgraded to WATCH.");
+console.log("[OK] Live match tactical evaluation preserved without false string clock degradation.");
 
 console.log("\n[OK] All Advanced Refactoring and Inviolable Laws Verified Successfully.");
 

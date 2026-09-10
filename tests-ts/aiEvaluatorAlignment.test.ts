@@ -502,3 +502,89 @@ test('verifyStatutoryAlignment enforces P1-02 QUALITATIVE_ONLY risk_adjusted_ev 
   assert.ok(verified.risk_warnings.some(w => w.includes('P1-02')));
 });
 
+test('verifyStatutoryAlignment does NOT falsely reject live match or alter tactical regime due to kickoff_time vs prediction_at string differences', () => {
+  const payload = createBasePayload();
+  payload.ai_brief.status_summary = 'LIVE 65\'';
+  payload.ai_brief.kickoff_time = '20:00'; // 典型雷速/YBTY 仅有时分格式
+  (payload.quant_features as any).prediction_snapshot = {
+    prediction_at: '2026-09-10T14:30:00Z' // UTC ISO
+  };
+
+  const result = createBaseResult(RecommendationGrade.B_GRADE, 78);
+  result.blind_spot_analysis = {
+    "1_global_motivation": "High",
+    "2_asian_handicap_reality": "Valid",
+    "3_total_goals_reality": "Valid",
+    tactical_regime_evaluation: TacticalRegimeEvaluation.GENUINE_DOMINANCE
+  };
+  result.internal_logical_audit = "Tactical assessment confirms genuine live dominance.";
+
+  const verified = verifyStatutoryAlignment(result, payload);
+  // 不应因字符串格式或时区差异被误判降级，保留战术态势
+  assert.equal(verified.blind_spot_analysis?.tactical_regime_evaluation, TacticalRegimeEvaluation.GENUINE_DOMINANCE);
+  assert.equal(verified.grade, RecommendationGrade.B_GRADE);
+  assert.equal(verified.confidence_score, 78);
+  assert.ok(!verified.risk_warnings.some(w => w.includes('TEMPORAL_INTEGRITY_CHECK')));
+});
+
+test('verifyStatutoryAlignment enforces P1-04: engine-provided risk_adjusted_ev has absolute priority', () => {
+  const payload = createBasePayload();
+  (payload.quant_features as any).risk_adjusted_ev = 0.042;
+
+  const result = createBaseResult(RecommendationGrade.B_GRADE, 78);
+  result.market_scan = {
+    selected_line: '-0.5',
+    market: 'ASIAN_HANDICAP_MAIN',
+    direction: 'HOME',
+    current_odds: 1.95,
+    minimum_acceptable_odds: 1.88,
+    raw_ev: 0.06,
+    risk_adjusted_ev: 0.015, // AI 尝试自行给出的数值
+    risk_adjustment_status: 'QUALITATIVE_ONLY',
+    is_quarter_line: false,
+    actionable: true,
+    rejection_reason: 'N/A'
+  };
+
+  const verified = verifyStatutoryAlignment(result, payload);
+  // 必须以 Engine 提供的 0.042 为准，状态对齐为 ENGINE_PROVIDED
+  assert.equal(verified.market_scan?.risk_adjusted_ev, 0.042);
+  assert.equal(verified.market_scan?.risk_adjustment_status, 'ENGINE_PROVIDED');
+});
+
+test('verifyStatutoryAlignment enforces P1-07: selected_line fallback never selects mathematically closed lines', () => {
+  const payload = createBasePayload();
+  payload.ai_brief.status_summary = 'LIVE 70\'';
+  payload.ai_brief.score_verification = {
+    current_score: '2 - 0',
+    is_verified: true,
+    score_source: 'CANONICAL_AUDITED'
+  };
+  // 提供包含已闭盘的盘口 (Under 1.5 在 2-0 时已进2球，必闭盘) 以及合法未闭盘盘口 (Under 2.5)
+  (payload.quant_features as any).raw_mathematical_ev_signals = [
+    { market: 'TOTAL_GOALS_MAIN', line: '1.5', side: 'under', odds: 1.90, ev: 0.08 }, // 闭盘！
+    { market: 'TOTAL_GOALS_MAIN', line: '2.5', side: 'under', odds: 2.10, ev: 0.05 }  // 合法未闭盘
+  ];
+
+  const result = createBaseResult(RecommendationGrade.WATCH, 50);
+  result.market_scan = {
+    market: 'NONE',
+    selected_line: 'NONE',
+    direction: 'NONE',
+    current_odds: 0,
+    minimum_acceptable_odds: 0,
+    raw_ev: 0,
+    risk_adjusted_ev: 0,
+    is_quarter_line: false,
+    actionable: false,
+    market_status: 'NO_VALID_MARKET'
+  };
+
+  const verified = verifyStatutoryAlignment(result, payload);
+  // 回退逻辑必须跳过 1.5 闭盘线，准确回退为 2.5 线，并标记为 VALID_BUT_BLOCKED (P1-06)
+  assert.equal(verified.market_scan?.selected_line, '2.5');
+  assert.equal(verified.market_scan?.market_status, 'VALID_BUT_BLOCKED');
+  assert.equal(verified.market_scan?.actionable, false);
+});
+
+

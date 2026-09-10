@@ -420,6 +420,52 @@ function resolveMarketConflicts(
 }
 
 /**
+ * 纯函数：判断赛事是否满足进入 Layer 03 量化定价的硬性准入门禁
+ * 严格服从 SYSTEM_ARCHITECTURE_AND_PIPELINE.md 契约：
+ * 1. 赛事对齐状态必须是 MATCHED_BY_ALIAS 或 MATCHED_AUTO；
+ * 2. 滚球时钟必须有效；
+ * 3. 比分必须经过可信交叉校验。
+ */
+export function isMatchQuantEligible(match: CanonicalMatch): { eligible: boolean; reason?: string } {
+  const alignmentStatus = match.alignment?.status;
+  if (
+    alignmentStatus !== MatchAlignmentStatus.MATCHED_BY_ALIAS &&
+    alignmentStatus !== MatchAlignmentStatus.MATCHED_AUTO
+  ) {
+    return {
+      eligible: false,
+      reason: `赛事对齐状态未确认 (${alignmentStatus || 'UNKNOWN'})，等待人工审核或别名绑定`,
+    };
+  }
+
+  if (
+    match.timing?.stage === MatchStage.LIVE &&
+    (match.timing.minute === null || match.timing.minute === undefined)
+  ) {
+    return {
+      eligible: false,
+      reason: '滚球比赛缺少有效进行分钟数，暂不能进行量化定价',
+    };
+  }
+
+  if (
+    (match.timing?.stage === MatchStage.LIVE || match.timing?.stage === MatchStage.FINISHED) &&
+    (match.score?.home_score === null ||
+      match.score?.home_score === undefined ||
+      match.score?.away_score === null ||
+      match.score?.away_score === undefined ||
+      !match.score?.score_verified)
+  ) {
+    return {
+      eligible: false,
+      reason: '比分尚未经过可靠交叉校验，暂不能进行量化定价',
+    };
+  }
+
+  return { eligible: true };
+}
+
+/**
  * Layer 03 统一主调度入口：计算全量确定性量化博弈特征
  * @param match CanonicalMatch 标准赛事
  * @param options 可选配置

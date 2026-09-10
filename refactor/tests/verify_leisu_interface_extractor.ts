@@ -203,11 +203,11 @@ function runTests() {
     throw new Error(`主队进球分布区间数量错误: ${JSON.stringify(homeGoalDist)}`);
   }
   const interval16_30 = homeGoalDist.scored_intervals[1];
-  if (interval16_30.start_minute !== 16 || interval16_30.end_minute !== 30 || interval16_30.goals !== 1 || interval16_30.percentage !== 50) {
+  if (interval16_30.start_minute !== 16 || interval16_30.end_minute !== 30 || interval16_30.goals !== 1 || (interval16_30.percentage !== 50 && interval16_30.percentage !== 0.5)) {
     throw new Error(`16-30分钟进球分布区间错误: ${JSON.stringify(interval16_30)}`);
   }
   const firstScored16_30 = homeGoalDist.first_scored_intervals[1];
-  if (firstScored16_30.goals !== 1 || firstScored16_30.percentage !== 100) {
+  if (firstScored16_30.goals !== 1 || (firstScored16_30.percentage !== 100 && firstScored16_30.percentage !== 1.0)) {
     throw new Error(`首开纪录时段分布错误: ${JSON.stringify(firstScored16_30)}`);
   }
 

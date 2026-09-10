@@ -5,4 +5,3 @@ export * from './settlementEngine.js';
 export * from './parlayEngine.js';
 export * from './ledgerRecordAdapter.js';
 export * from './formalLedgerAdapter.js';
-export * from './leisuHistoricalSeeder.js';

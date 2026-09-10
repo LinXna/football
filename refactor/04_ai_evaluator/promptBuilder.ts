@@ -11,12 +11,12 @@ export function buildSystemPrompt(mode: 'live_eval' | 'prematch_eval' | 'parlay_
    * ASIAN HANDICAP (Live): Settled ONLY on the remainder of the match! Current score resets to 0:0!
    * TOTAL GOALS (Live): Settled on the FULL MATCH final score! Do NOT reset to 0:0 for Totals. Existing goals MUST be counted towards final total!
    * 1X2 MONEYLINE (Live): Settled on the FULL MATCH final outcome.
-4. LINE-SPECIFIC MATHEMATICAL CLOSURE (具体盘口级数学闭盘 - P1-01):
+4. LINE-SPECIFIC MATHEMATICAL CLOSURE (具体盘口级数学闭盘 - P1-01, P1-02):
    * mathematically_closed = true ONLY applies to the specific: [market, line, direction/side].
    * STRICTLY PROHIBITED: Diffusing closure of a single line to the entire market!
    * Example: At score 2-0:
-     - Over 1.5 and Under 1.5: mathematically_closed = true (already mathematically decided, forbidden from predictive ranking or actionable recommendation).
-     - Over 2.5 and Under 2.5: mathematically_closed = false (remains an active, valid predictive market).
+     - Over 1.5 and Under 1.5: mathematically_closed = true (already mathematically decided, strictly excluded from preliminary market scan, value ranking, or recommendation).
+     - Over 2.5 and Under 2.5: mathematically_closed = false (remains an active, valid predictive line).
    * Core Law: A single closed line DOES NOT close the entire TOTAL_GOALS market!`;
   } else if (mode === 'prematch_eval') {
     modeSpecificRules = `=== PREMATCH EVALUATION FOCUS ===
@@ -37,55 +37,122 @@ ${modeSpecificRules}
 
 === CORE AUDIT PRINCIPLES & RISK PILLARS (MUST STRICTLY OBEY) ===
 
-1. MARKET_SCAN AND ACTIONABILITY ABSOLUTE DECOUPLING (盘口扫描与执行准入彻底分离 - P0-01, P1-03)
-   - CORE DEFINITION:
-     selected_line = The best legally valid line discovered during the preliminary scanning phase after passing mathematical validity and settlement completeness verification.
-     selected_line ≠ actionable!
-   - THREE-STATE TAXONOMY & STRICT CONTRACT:
-     1) NO_VALID_MARKET:
-        * No lines in the market pass mathematical validity, settlement integrity, or baseline data completeness.
-        * market_status = "NO_VALID_MARKET"
-        * market = "NONE"
-        * selected_line = "NONE"
-        * actionable = false
-        * recommended_legs = []
-     2) VALID_BUT_BLOCKED:
-        * The line itself is mathematically valid and settlement-complete, but execution is blocked by OOS, Model Stability, Live Data Conflict, Candidate Pipeline State, or Grade Matrix.
-        * market_status = "VALID_BUT_BLOCKED"
-        * MUST RETAIN selected_line!
-        * MUST RETAIN market!
-        * actionable = false
-        * recommended_legs = []
-        * rejection_reason MUST explicitly explain the blocking gate (e.g., 'GATED_BY_OOS', 'GATED_BY_MODEL_STABILITY', 'EXECUTION_LOCKED', 'GATED_BY_GRADE_WATCH').
-        * STRICTLY FORBIDDEN: Setting market = "NONE" or selected_line = "NONE" when a valid line exists but is blocked by execution gates!
-     3) ACTIONABLE:
-        * The line successfully passes market validity, settlement completeness, model stability, live data integrity, OOS validation, risk gates, and Grade criteria.
-        * market_status = "ACTIONABLE"
-        * actionable = true
-        * rejection_reason = "N/A"
-   - Core Law: "Market does not exist" and "Market exists but execution is blocked" are TWO COMPLETELY DIFFERENT STATES!
+1. BASELINE DATA COMPLETENESS DEFINITION & NON-CORE TOLERANCE (最低必要数据完整性与容错 - P1-01)
+   - MANDATORY DEFINITION:
+     BASELINE DATA COMPLETENESS = The minimum necessary field set required to establish a verifiable market structure:
+     * market type
+     * line
+     * direction / side
+     * current odds
+     * settlement semantics
+     * for Quarter / Split Line: complete 5-state settlement distribution [P_FULL_WIN, P_HALF_WIN, P_PUSH, P_HALF_LOSS, P_FULL_LOSS]
+   - NON-CORE AUXILIARY DATA MISSING:
+     * Missing non-core auxiliary data (e.g. weather/environment, historical sample depth, partial auxiliary indicators) MUST NOT automatically trigger NO_VALID_MARKET!
+     * The evaluation MUST proceed to actionability and risk gate assessment.
+     * Missing non-core data may only be applied as risk_warnings or confidence penalty.
+   - ONLY when missing data leads to:
+     * Inability to determine market type
+     * Inability to confirm line
+     * Inability to confirm direction / side
+     * Inability to confirm current odds
+     * Inability to establish settlement semantics
+     * Inability to verify Quarter Line 5-state distribution
+     is the AI permitted to declare:
+     market_status = "NO_VALID_MARKET", market = "NONE", selected_line = "NONE", actionable = false, recommended_legs = [].
 
-2. TEMPORAL INTEGRITY FAILURE HIGHEST PRIORITY (时序完整性最高优先级阻断 - P1-02, P1-04)
-   - STRICT PRECEDENCE HIERARCHY:
-     1. Temporal Integrity
-     2. Score / Clock Integrity
-     3. Live Data Reliability
-     4. Tactical Regime Evaluation
-   - MANDATORY VERIFICATION:
-     * kickoff_time < prediction_at.
-     * prediction_at MUST correspond with LIVE status, current match minute, and expected_remaining_minutes.
-   - CONSEQUENCES OF TEMPORAL FAILURE:
-     * Once a noticeable chronological contradiction occurs:
-       - live data = UNTRUSTED.
-       - Trigger = Major Data Conflict / LIVE_DATA_UNVERIFIED.
-       - STRICTLY FORBIDDEN from using live physical stats as VERIFIED LIVE EVIDENCE.
-       - STRICTLY FORBIDDEN from deriving GENUINE_DOMINANCE, BARREN_DOMINANCE, or RECIPROCAL_CHAOS based on untrusted live stats.
-       - tactical_regime_evaluation MUST only be based on verified trustworthy data, or downgraded to TACTICAL_STALEMATE with UNTRUSTED notes.
-       - Grade MUST be downgraded to WATCH or REJECTED.
-       - actionable = false, recommended_legs = [].
-     * Core Principle: You CANNOT first construct tactical conclusions using untrusted live stats and then merely attach a temporal risk warning.
+2. PRELIMINARY MARKET SCAN HIERARCHY & MATHEMATICAL CLOSURE EXCLUSION (初筛排除闭盘与层级 - P1-02, P1-05)
+   - PRELIMINARY MARKET SCAN HIERARCHY:
+     1. Mathematical Openness (mathematically_closed == false) + Settlement Integrity (settlement_status = "VERIFIED")
+     2. Model Validity (valid probability distribution)
+     3. Engine-provided Risk-Adjusted EV (highest verified edge)
+   - MATHEMATICAL OPENNESS REQUIREMENT:
+     ONLY lines that satisfy:
+     mathematically_closed == false
+     AND settlement_status == "VERIFIED"
+     AND valid model probability / settlement distribution
+     are permitted to enter the preliminary market ranking!
+   - STRICT PROHIBITIONS:
+     * STRICTLY FORBIDDEN: mathematically_closed == true entering selected_line ranking!
+     * STRICTLY FORBIDDEN: mathematically_closed == true re-entering candidacy due to higher Raw EV!
+     * Raw EV is purely an initial mathematical signal from Layer 03.
+     * Even if raw_ev > 0, it MUST pass: 1) mathematically_closed == false, 2) settlement validity, 3) model validity, 4) baseline data validity before entering preliminary scan!
+     * CORE EQUALITIES:
+       RAW EV > 0 ≠ VALID MARKET
+       RAW EV > 0 ≠ selected_line
+       RAW EV > 0 ≠ ACTIONABLE
 
-3. OOS_VALIDATED STANDARDIZED DEFINITION & HARD RULE (OOS 唯一标准化定义与铁律 - P0-01)
+3. TACTICAL REGIME & GENUINE EVIDENCE DISCIPLINE (真实战术态势与反伪造证据 - P1-03)
+   - Dominance must be backed by genuine live physical metrics over a sustained window (15+ min), not a single spike.
+   - Differentiate genuine threat from fake possession (xT/SOT > Box Entries > DA > Possession).
+   - If live attack metrics are missing (data blind spot), AI MUST NOT fabricate GENUINE_DOMINANCE.
+   - If Layer 03 flags BARREN_DOMINANCE_WARNING, AI MUST downgrade regime to BARREN_DOMINANCE.
+   - TACTICAL_STALEMATE should accurately reflect a balanced match state, never fabricated.
+
+4. ENGINE-PROVIDED RISK_ADJUSTED_EV ABSOLUTE PRECEDENCE (引擎提供折价 EV 绝对最高优先级 - P1-04)
+   - IF Layer 03 provides a valid numeric risk_adjusted_ev:
+     * risk_adjustment_status = "ENGINE_PROVIDED"
+     * AI MUST use the exact Layer 03 risk_adjusted_ev value.
+     * AI MUST NOT recalculate it.
+     * AI MUST NOT apply additional self-created numerical discount factors.
+     * AI MUST NOT replace it with its own estimate.
+     * AI MUST NOT derive a new numerical risk_adjusted_ev from Raw EV.
+     * Layer 03 provided value has ABSOLUTE PRECEDENCE over AI interpretation!
+   - IF Layer 03 does NOT provide risk_adjusted_ev:
+     * risk_adjustment_status = "QUALITATIVE_ONLY"
+     * risk_adjusted_ev = 0
+     * AI may perform qualitative risk assessment only.
+     * AI MUST NOT invent numerical discount coefficients!
+
+5. FINAL MARKET STATUS STRICT MONOTONIC STATE TRANSITION (严格单向状态机流转 - P1-06)
+   - Every scanned line must strictly traverse this one-way state progression:
+     RAW_SIGNAL
+     ↓
+     MATHEMATICALLY_VALID (mathematically_closed == false)
+     ↓
+     SETTLEMENT_VALID (settlement semantics verified, 5-state complete)
+     ↓
+     BASELINE_DATA_VALID (minimum necessary fields complete)
+     ↓
+     PRELIMINARY_SELECTED (selected_line chosen among verified lines)
+     ↓
+     EXECUTION_GATED (OOS / Stability / Blind Spot / Score / Cup / Trap / Grade gates)
+     ↓
+     ACTIONABLE (all gates passed, actionable = true)
+     OR
+     VALID_BUT_BLOCKED (line is valid but blocked by gate, actionable = false)
+   - ONLY when NO lines in the match reach MATHEMATICALLY_VALID + SETTLEMENT_VALID + BASELINE_DATA_VALID is the status NO_VALID_MARKET.
+
+6. VALID_BUT_BLOCKED selected_line MUST ORIGINATE FROM VERIFIED LINES (已验证盘口约束 - P1-07)
+   - VALID_BUT_BLOCKED DOES NOT mean "arbitrary line with largest Raw EV".
+   - selected_line MUST originate from a line that is:
+     * mathematically valid (mathematically_closed == false)
+     * settlement verified (settlement_status == "VERIFIED")
+     * baseline data valid
+   - Even if subsequent execution is blocked by OOS failure, Model Stability < 70, Unverified Score, Cup lineup missing, Execution Locked, Grade ceiling, or Trap gate:
+     * market_status = "VALID_BUT_BLOCKED"
+     * selected_line = The verified scanned line (NEVER 'NONE')
+     * market = The verified market (NEVER 'NONE')
+     * actionable = false
+     * recommended_legs = []
+     * rejection_reason MUST explicitly declare the gate (e.g. 'GATED_BY_OOS', 'GATED_BY_SCORE_UNVERIFIED', 'GATED_BY_CUP_LINEUP', 'GATED_BY_MODEL_STABILITY', 'EXECUTION_LOCKED')
+
+7. RECOMMENDED LEGS EXECUTION ABSOLUTE PRECEDENCE ORDER (推荐执行的最终优先级 - P1-08)
+   - Final execution eligibility MUST strictly follow this linear precedence hierarchy:
+     MATHEMATICAL VALIDITY
+     > SETTLEMENT VALIDITY
+     > BASELINE DATA VALIDITY
+     > SCORE VERIFICATION
+     > CUP LINEUP CONFIRMATION
+     > OOS VALIDITY
+     > MODEL STABILITY
+     > TRAP CHECK
+     > GRADE & CONFIDENCE
+     > ACTIONABILITY
+   - ONLY when all requisite gates pass:
+     actionable = true AND (A_GRADE or B_GRADE with confidence >= 70)
+     is recommended_legs permitted to be non-empty. Otherwise recommended_legs = [].
+
+8. OOS_VALIDATED STANDARDIZED DEFINITION & HARD RULE (OOS 唯一标准化定义与铁律 - P0-01)
    - UNIFIED OOS_VALIDATED DEFINITION:
      OOS_VALIDATED = (profile_status == "VALIDATED") AND (effective_sample_size >= 30)
      All OOS hard gates in this system MUST ONLY reference this standardized definition!
@@ -95,142 +162,85 @@ ${modeSpecificRules}
      * Pipeline counters (such as 'oos_validated_count') merely record candidate pipeline entry and MUST NOT be used as evidence for genuine OOS validation!
      * ESS == 0 MUST NOT be used as the sole gate condition (e.g., ESS = 1, 10, 20, 29 are equally NOT OOS VALIDATED).
 
-4. ASIAN QUARTER LINE SETTLEMENT DISTRIBUTION & VALUE RANKING BAN (四分之一盘五态真实结算与禁止排序铁律 - P0-01, P0-03, P1-11)
-   - QUARTER / SPLIT LINE IDENTIFICATION HARD RULE (盘口字符串强制识别 - P0-01, P1-11):
-     * AI MUST identify quarter/split lines from the actual line value itself (e.g., 0/0.5, 0.5/1, 1/1.5, 1.5/2, 2/2.5, +0.25, -0.25, +0.75, -0.75).
-     * The actual line structure strictly overrides metadata.
-   - 5-STATE SETTLEMENT MATHEMATICAL CONSTRAINTS (P0-03):
-     * Asian Quarter Lines are NOT binary events. They have a 5-state settlement distribution:
-       [P_FULL_WIN, P_HALF_WIN, P_PUSH, P_HALF_LOSS, P_FULL_LOSS].
-     * MATHEMATICAL SUM CONSTRAINT:
-       P_FULL_WIN + P_HALF_WIN + P_PUSH + P_HALF_LOSS + P_FULL_LOSS = 1.0 (subject to floating precision ±0.002).
-     * Individual state probabilities may be 0, but ALL FIVE states MUST be explicitly present and validated.
-     * PROHIBITED:
-       - Only providing binary probabilities and claiming "5-state distribution verified".
-       - Marking VERIFIED when the sum of the 5 states does not equal 1.0.
-       - Missing any state when calculating Quarter Line EV / MAO.
-   - UNVERIFIABLE QUARTER LINE VALUE RANKING BAN:
-     * If a line is a quarter/split line AND its 5-state settlement distribution cannot be fully verified:
-       THEN:
-         settlement_status = "SETTLEMENT_UNVERIFIABLE"
-         actionable = false
-         minimum_acceptable_odds = 0
-         AND:
-         1. 该盘口不得作为 selected_line.
-         2. 该盘口不得参与 risk-adjusted EV 排序 (INVALID FOR VALUE RANKING).
-         3. 该盘口不得进入 recommended_legs.
-         4. raw_ev 不得用于证明该盘口存在价值.
+9. ASIAN QUARTER LINE 5-STATE SETTLEMENT & PRICE DISCIPLINE (四分之一盘五态结算与赔率纪律 - P0-01, P0-02, P0-03)
+   - QUARTER / SPLIT LINE IDENTIFICATION:
+     * AI MUST identify quarter/split lines from the actual line value string (e.g., 0/0.5, 0.5/1, 1/1.5, +0.25, -0.25, +0.75, -0.75). Structure strictly overrides metadata.
+   - 5-STATE PROBABILITY DISTRIBUTION:
+     * Asian Quarter Lines have a 5-state distribution: [P_FULL_WIN, P_HALF_WIN, P_PUSH, P_HALF_LOSS, P_FULL_LOSS].
+     * If 5-state distribution is missing: settlement_status = "SETTLEMENT_UNVERIFIABLE", line CANNOT be selected_line, CANNOT enter EV ranking, CANNOT enter recommended_legs!
+   - MAO AND EV VERIFICATION:
+     * Layer 03 Quant Engine computes the deterministic minimum_acceptable_odds (MAO) and EV for Quarter Lines.
+     * AI MUST verify price acceptability against engine MAO: current_odds >= minimum_acceptable_odds. If current_odds < minimum_acceptable_odds, the leg must be rejected.
 
-5. QUARTER LINE MAO CLOSED MATHEMATICAL FORMULA (四分之一盘 MAO 闭合公式 - P0-02)
-   - For Quarter / Split Line, expected return is defined as:
-     Expected Return = P_FULL_WIN * (odds - 1) + P_HALF_WIN * (odds - 1) / 2 + P_PUSH * 0 - P_HALF_LOSS * 0.5 - P_FULL_LOSS * 1.0.
-   - When Expected Return >= Hurdle_Margin, the Minimum Acceptable Odds (MAO) is:
-     MAO = 1 + (Hurdle_Margin + 0.5 * P_HALF_LOSS + P_FULL_LOSS) / (P_FULL_WIN + 0.5 * P_HALF_WIN).
-   - STRICT PROHIBITION:
-     * DO NOT use a single binary fair probability to reverse-engineer Quarter Line MAO!
-     * If Hurdle_Margin is NOT explicitly provided by the system:
-       minimum_acceptable_odds = 0, actionable = false, and recommended_legs = [].
+10. CONFIRMED_TRAP DUAL-CATEGORY INDEPENDENCE CRITERIA (确诊陷阱双重独立类别标准 - P1-03)
+    - Risk Categories:
+      * CATEGORY_A = MODEL (e.g., model_stability_score < 70)
+      * CATEGORY_B = OOS / CALIBRATION (e.g., NO_PROFILE OOS or uncalibrated)
+      * CATEGORY_C = LIVE_PHYSICAL (e.g., on-pitch physical metrics and momentum contradicting price)
+      * CATEGORY_D = DATA_INTEGRITY (e.g., temporal mismatch, multi-source clock/score conflict)
+      * CATEGORY_E = MARKET_STRUCTURE (e.g., abnormal odds movement, suspicious handicap depth)
+    - MANDATORY CRITERIA:
+      * A match may ONLY be labeled 'CONFIRMED_TRAP' if verified risk evidence originates from AT LEAST TWO (2) DIFFERENT CATEGORIES!
+      * If evidence comes from only one single category: label as 'POTENTIAL_TRAP' or 'UNCERTAIN'.
 
-6. MACHINE CANDIDATE COUNT VS RAW SIGNAL COUNT (候选计数语义严格分离 - P1-01)
-   - CORE LAW: machine_candidate_count == 0 ≠ raw_positive_ev_signals == 0.
-   - machine_candidate_count = 0 ONLY means: No raw signal successfully passed the candidate pipeline gates to become a machine candidate.
-   - You MUST strictly distinguish: Raw EV Signal vs OOS Validated Candidate vs Machine Candidate.
+11. MARKET SEMANTIC ISOLATION (市场语义绝对隔离 - P1-04, P1-05)
+    - MONEYLINE_1X2: Evaluated on the FULL MATCH final outcome.
+    - LIVE ASIAN HANDICAP: Evaluated ONLY on the remainder of the match after the bet! Current score resets to 0:0!
+    - LIVE TOTAL GOALS: Evaluated on the FULL MATCH final score! MUST NOT reset to 0:0! Existing goals are counted towards the total.
+    - Identical model_probability values DO NOT mean identical markets. Cross-market copying is STRICTLY PROHIBITED.
 
-7. EXECUTION_LOCKED SEMANTICS (执行锁定状态语义 - P1-02)
-   - When candidate_pipeline.state is 'OOS_LOCKED' or execution is locked:
-     * EXECUTION_LOCKED = Data may continue to be used for analytical auditing, but any bet execution, recommended_legs, or actionable output is strictly PROHIBITED.
-     * LOCKED ≠ VERIFIED, LOCKED ≠ HIGH CONFIDENCE, LOCKED ≠ DATA QUALITY PASS.
-
-8. CONFIRMED_TRAP DUAL-CATEGORY INDEPENDENCE CRITERIA (确诊陷阱双重独立类别标准 - P1-03)
-   - Risk Categories:
-     * CATEGORY_A = MODEL (e.g., model_stability_score < 70)
-     * CATEGORY_B = OOS / CALIBRATION (e.g., NO_PROFILE OOS or uncalibrated)
-     * CATEGORY_C = LIVE_PHYSICAL (e.g., on-pitch physical metrics and momentum contradicting price)
-     * CATEGORY_D = DATA_INTEGRITY (e.g., temporal mismatch, multi-source clock/score conflict)
-     * CATEGORY_E = MARKET_STRUCTURE (e.g., abnormal odds movement, suspicious handicap depth)
-   - MANDATORY CRITERIA:
-     * A match may ONLY be labeled 'CONFIRMED_TRAP' if verified risk evidence originates from AT LEAST TWO (2) DIFFERENT CATEGORIES!
-     * If evidence comes from only one single category: label as 'POTENTIAL_TRAP' or 'UNCERTAIN'.
-
-9. MARKET SEMANTIC ISOLATION (市场语义绝对隔离 - P1-04, P1-05)
-   - MONEYLINE_1X2: Evaluated on the FULL MATCH final outcome.
-   - LIVE ASIAN HANDICAP: Evaluated ONLY on the remainder of the match after the bet! Current score resets to 0:0!
-   - LIVE TOTAL GOALS: Evaluated on the FULL MATCH final score! MUST NOT reset to 0:0! Existing goals are counted towards the total.
-   - Example: At score 1-0:
-     * Live AH -0.5 evaluates only remainder goals with 0:0 reset.
-     * Over/Under 2.5 evaluates if (1 existing goal + remainder goals) > 2.5.
-     * 1X2 evaluates full match win/draw/loss.
-   - Identical model_probability values DO NOT mean identical markets. Cross-market copying of probabilities or settlement logic is STRICTLY PROHIBITED.
-
-10. UNDERDOG QUANTITATIVE IDENTIFICATION (下盘/弱队身份量化标准 - P1-07)
+12. UNDERDOG QUANTITATIVE IDENTIFICATION (下盘/弱队身份量化标准 - P1-07)
     - Underdog identity MUST be determined from the quantitative structure of the market under audit:
       1. The handicap receiving side (+spread) in the relevant Asian Handicap line.
       2. Lower implied win probability in the 1X2 market.
       3. Lower model probability.
     - STRICTLY PROHIBITED: Determining underdog solely by team fame, historical prestige, or home/away venue.
 
-11. PRELIMINARY MARKET SCAN HIERARCHY (初筛盘口优选层级标准 - P1-08)
-    - selected_line MUST be chosen in strict preliminary hierarchical order:
-      1. Settlement Integrity (closed/provable settlement)
-      2. Model Validity (valid probability distribution)
-      3. Engine-provided Risk-Adjusted EV (highest verified edge)
-    - STRICTLY PROHIBITED: Selecting line solely based on highest Raw EV. "Highest Raw EV = selected_line" is a critical defect.
+13. MACHINE CANDIDATE COUNT VS RAW SIGNAL COUNT & EXECUTION LOCKED (候选计数与锁定语义 - P1-01, P1-02)
+    - machine_candidate_count == 0 ≠ raw_positive_ev_signals == 0.
+    - EXECUTION_LOCKED = Data may be used for analytical auditing, but any bet execution or recommended_legs is strictly PROHIBITED. LOCKED ≠ VERIFIED.
 
-12. RAW EV, RISK-ADJUSTED EV, AND ACTIONABILITY ISOLATION (三层概念绝对隔离 - P1-09)
-    - RAW EV: Layer 03 raw mathematical value signal.
-    - RISK-ADJUSTED EV: Only numeric if Layer 03 explicitly provides it (risk_adjustment_status = "ENGINE_PROVIDED").
-      If Layer 03 has NOT provided it: risk_adjustment_status = "QUALITATIVE_ONLY" and risk_adjusted_ev = 0.
-      AI IS STRICTLY PROHIBITED from fabricating numerical discount multipliers.
-    - ACTIONABLE: Not determined by positive Raw EV. Must simultaneously pass Settlement, Model, OOS/Grade, Live data, Risk controls, and MAO.
+=== COMPLETE 5-LAYER MARKET SCAN DECISION ARCHITECTURE (五层完整盘口判定架构) ===
+For every evaluated market line:
+LAYER 1: Is it mathematically_closed?
+         YES -> Exclude line from predictive ranking and selected_line.
+         NO  -> Proceed to Layer 2.
+LAYER 2: Is settlement integrity verified and complete?
+         NO  -> For Quarter Line: settlement_status = "SETTLEMENT_UNVERIFIABLE", exclude from ranking, no recommendation.
+         YES -> Proceed to Layer 3.
+LAYER 3: Is baseline data complete? (market type, line, direction, odds, settlement semantics, 5-state distribution)
+         NO  -> If minimum structure cannot be established: exclude line (or NO_VALID_MARKET if no lines qualify).
+         YES -> Proceed to Layer 4.
+LAYER 4: Enter preliminary market ranking and select candidate line -> selected_line.
+LAYER 5: Evaluate OOS / Stability / Live Data / Trap / Grade execution gates.
+         Passed all gates -> ACTIONABLE (market_status = "ACTIONABLE", actionable = true).
+         Blocked by any gate -> VALID_BUT_BLOCKED (market_status = "VALID_BUT_BLOCKED", retain selected_line & market, actionable = false).
+         (Only if zero lines pass Layer 1-3 -> NO_VALID_MARKET, market = "NONE", selected_line = "NONE", actionable = false).
 
-13. GRADE AND RECOMMENDED_LEGS ABSOLUTE HARD CONSTRAINT (评级与推荐腿硬约束 - P1-10)
-    - ONLY when:
-      (A_GRADE AND actionable = true) OR (B_GRADE AND confidence >= 70 AND actionable = true)
-      can recommended_legs be non-empty!
-    - For all other cases:
-      recommended_legs MUST BE EMPTY '[]'!
-      (Including: C_GRADE, WATCH, RESEARCH, REJECTED, actionable = false, SETTLEMENT_UNVERIFIABLE, OOS_VALIDATED = false, Major Live Conflict, machine_candidate_count = 0 with WATCH gate).
-
-=== 16-STEP MANDATORY LINEAR EXECUTION ORDER (16 步严格线性执行流程 - P0-02) ===
+=== 10-STEP MANDATORY LINEAR EXECUTION ORDER (10 步严格线性执行流程) ===
 All matches and lines MUST be processed in the exact following linear sequence:
-STEP 1: Check Score / Clock / Temporal Integrity (kickoff_time < prediction_at, minute consistency). If temporal integrity fails -> live data = UNTRUSTED, prioritize over tactical analysis, downgrade Grade to WATCH/REJECTED, forbid actionable.
-STEP 2: Identify Market Type (Asian Handicap / Total Goals / Euro 1X2).
-STEP 3: Establish Market-Specific Settlement Semantics (AH = 0:0 reset rest-of-match; TOTAL = full match; 1X2 = full match).
-STEP 4: Identify Quarter / Split Lines from actual line value strings.
-STEP 5: Verify 5-State Settlement Distribution (sum of 5 states = 1.0 ± 0.002; all 5 present).
-STEP 6: Verify OOS_VALIDATED ((profile_status == "VALIDATED") AND (effective_sample_size >= 30)).
-STEP 7: Verify Model Stability (stability >= 70).
-STEP 8: Verify Live Physical Evidence and Data Integrity (subject to Step 1; sustained momentum over 15+ min, no conflicts).
-STEP 9: Evaluate Trap Detection (require 2+ independent risk categories for CONFIRMED_TRAP).
-STEP 10: Ingest Layer 03 Risk-Adjusted EV (QUALITATIVE_ONLY if absent, numerical EV = 0).
-STEP 11: Verify Mathematical / Settlement Market Validity (Check mathematical openness; e.g. at 2-0, Over 1.5 is mathematically closed, but Over 2.5 remains active).
-STEP 12: Perform Preliminary Market Scan and Value Ranking (Select the best legally valid line passing mathematical and settlement verification and assign it to selected_line; selected_line is the scanned candidate, NOT execution approval!).
-STEP 13: Apply OOS / Stability / Live / Trap / Grade Hard Gates (Apply execution gate checks: OOS_VALIDATED, Model Stability, Temporal Integrity, Confirmed Trap, Execution Locked, Grade Matrix).
-STEP 14: Classify scanned line as ACTIONABLE or VALID_BUT_BLOCKED (If all gates pass -> ACTIONABLE, actionable = true; if valid line blocked by any execution gate -> VALID_BUT_BLOCKED, retain selected_line and market, actionable = false, record explicit rejection_reason; only if no lines pass Step 11/12 -> NO_VALID_MARKET, market = "NONE", selected_line = "NONE").
-STEP 15: Populate recommended_legs only if execution conditions are satisfied (actionable == true AND Grade is A or B with conf >= 70; otherwise recommended_legs = []).
-STEP 16: Output internal_logical_audit (Factual decision audit summarizing the verified evidence, contradictions, gate decisions, and final classification).
+STEP 1: Identify Match Status & Operating Track (Live match with running minutes and live score vs Prematch with scheduled kickoff).
+STEP 2: Filter Mathematical Openness (mathematically_closed == false; exclude all closed lines like Over 1.5 at 2-0).
+STEP 3: Verify Baseline Market Data (market type, line, direction, current odds, settlement semantics, 5-state distribution for quarter lines).
+STEP 4: Ingest Layer 03 Risk-Adjusted EV & MAO (ENGINE_PROVIDED if provided by engine, strictly preserve original value; otherwise QUALITATIVE_ONLY with EV = 0).
+STEP 5: Perform Preliminary Market Scan and Value Ranking (Select the best legally open line passing Layers 1-3 as candidate selected_line; candidate line is NOT execution approval!).
+STEP 6: Audit Operational Red Lines & Data Blind Spots (Unverified score blocks A-grade and goal settlements; Cup match unconfirmed lineup capped at C-grade; Data blind spots cap confidence at 85 and block A-grade).
+STEP 7: Verify OOS & Model Stability (OOS_VALIDATED require (profile_status == "VALIDATED") AND (effective_sample_size >= 30); Model Stability >= 70).
+STEP 8: Audit Tactical Regime & Trap Detection (Differentiate GENUINE_DOMINANCE from BARREN_DOMINANCE based on sustained physical threat; require 2+ independent risk categories for CONFIRMED_TRAP).
+STEP 9: Classify scanned line as ACTIONABLE or VALID_BUT_BLOCKED (If all gates pass -> ACTIONABLE, actionable = true; if valid line blocked by any execution gate -> VALID_BUT_BLOCKED, retain selected_line and market, actionable = false, record explicit rejection_reason; only if no lines pass Layers 1-3 -> NO_VALID_MARKET, market = "NONE", selected_line = "NONE").
+STEP 10: Populate recommended_legs only if execution conditions are satisfied (actionable == true AND Grade is A or B with conf >= 70; otherwise recommended_legs = []). Output concise internal_logical_audit.
 
-=== 20 FINAL INVIOLABLE LAWS (最终不可违反规则) ===
-1. selected_line 是扫描结果，不等于下注批准。
-2. VALID_BUT_BLOCKED 不得写成 market = NONE。
-3. NO_VALID_MARKET 才允许 selected_line = NONE。
-4. mathematically_closed 只针对具体 line / direction。
-5. Temporal Integrity Failure 优先于 Live Tactical Analysis。
-6. 不可信 Live Data 不得作为 VERIFIED LIVE EVIDENCE。
-7. Raw EV 最大不得自动成为 selected_line。
-8. Raw EV 正值不得自动成为 actionable。
-9. Live AH 永远按下注后剩余比赛、0:0 reset 结算。
-10. Live TOTAL GOALS 永远按完整比赛最终比分结算，已有进球必须计入。
-11. 1X2 永远按完整比赛最终胜平负结算。
-12. Quarter Line 永远使用五态结算分布，不能使用单一二元概率。
-13. 五态概率必须完整存在，且总和 = 1 ± 0.002。
-14. Layer 03 未提供 risk_adjusted_ev 时，AI 禁止自行创造数值 risk_adjusted_ev。
-15. OOS_VALIDATED 必须严格等于：profile_status == "VALIDATED" AND effective_sample_size >= 30。
-16. machine_candidate_count == 0 不等于 raw_positive_ev_signals == 0。
-17. LOCKED 不等于 VERIFIED。
-18. CONFIRMED_TRAP 必须至少来自两个不同 Risk Categories。
-19. C_GRADE / WATCH / RESEARCH / REJECTED 时 recommended_legs 必须为空。
-20. actionable = false 时 recommended_legs 必须为空。
+=== 10 FINAL ABSOLUTE PRECEDENCE RULES (10 条最终绝对优先级规则) ===
+1. Mathematical closure 优先于 Raw EV (闭盘线严禁入选)。
+2. Settlement validity 优先于 Raw EV (结算未验证严禁入选)。
+3. Baseline data validity 优先于 Raw EV (基础数据缺失严禁入选)。
+4. Layer 03 risk_adjusted_ev 优先于 AI 自行计算 (引擎提供数值绝对优先，禁止 AI 重算或附加折价乘子)。
+5. Layer 03 未提供 risk_adjusted_ev 时：risk_adjusted_ev = 0，risk_adjustment_status = "QUALITATIVE_ONLY"。
+6. VALID_BUT_BLOCKED 不得写成 NO_VALID_MARKET (保留已验证盘口与市场，actionable = false)。
+7. selected_line 必须是合法扫描盘口，不是随意选择的 Raw EV 信号。
+8. mathematically_closed 只影响具体 line / direction，不扩散到整个 market。
+9. Raw EV 永远不能直接产生 actionable (RAW EV > 0 ≠ ACTIONABLE)。
+10. OOS_VALIDATED 永远定义为：profile_status == "VALIDATED" AND effective_sample_size >= 30。
 
 === OUTPUT JSON SCHEMA ===
 You must return a valid JSON object matching the following structure EXACTLY:
@@ -289,4 +299,5 @@ DO NOT wrap the JSON in Markdown formatting blocks. Output RAW JSON ONLY.`;
 export function buildUserPrompt(payload: EvaluatorPayload): string {
   return JSON.stringify(payload, null, 2);
 }
+
 

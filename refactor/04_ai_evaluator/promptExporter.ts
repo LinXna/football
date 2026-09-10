@@ -1,7 +1,7 @@
 import { CanonicalMatch } from '../02_canonical_model/types.js';
 import { MatchStage } from '../02_canonical_model/enums.js';
 import { extractAiEvaluationBrief } from '../02_canonical_model/canonicalMatchAssembler.js';
-import { calculateQuantitativeFeatures } from '../03_quant_engine/index.js';
+import { calculateQuantitativeFeatures, isMatchQuantEligible } from '../03_quant_engine/index.js';
 import { buildSystemPrompt } from './promptBuilder.js';
 import { EvaluatorPayload, EvaluatorLineupMatrix, EvaluatorTeamProfiling } from './types.js';
 
@@ -12,7 +12,18 @@ export function generateRefactoredPrompt(
   const validPayloads: EvaluatorPayload[] = [];
   
   for (const match of canonicalMatches) {
-    const quantFeatures = calculateQuantitativeFeatures(match);
+    const eligibility = isMatchQuantEligible(match);
+    if (!eligibility.eligible) {
+      console.warn(`[PromptExporter] Skipping match ${match.canonical_id}: ${eligibility.reason}`);
+      continue;
+    }
+    let quantFeatures;
+    try {
+      quantFeatures = calculateQuantitativeFeatures(match);
+    } catch (err: any) {
+      console.warn(`[PromptExporter] Failed to compute quant for match ${match.canonical_id}:`, err?.message || err);
+      continue;
+    }
     const aiBrief = extractAiEvaluationBrief(match);
 
     const tactical_phase_transitions: string[] = [];
@@ -265,6 +276,7 @@ export function generateRefactoredPrompt(
       quant_features: {
         mathematical_ev_signals: quantFeatures.raw_positive_ev_signals,
         raw_positive_ev_signals: quantFeatures.raw_positive_ev_signals,
+        raw_mathematical_ev_signals: quantFeatures.raw_positive_ev_signals,
         machine_candidate_signals: quantFeatures.positive_ev_signals,
         candidate_pipeline: quantFeatures.candidate_pipeline,
         bdi: quantFeatures.battlefield_dominance_index,

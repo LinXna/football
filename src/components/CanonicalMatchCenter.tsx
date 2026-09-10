@@ -1942,6 +1942,7 @@ export const CanonicalMatchCenter: React.FC = () => {
             const quant: QuantitativeFeatures | null = quantFeaturesMap[m.canonical_id] || null;
             let quantDecision: any = null;
             let quantError: string | null = null;
+            let isAlignmentPending = false;
             if (quant) {
               try {
                 quantDecision = getQuantScreeningDecision(quant);
@@ -1949,7 +1950,21 @@ export const CanonicalMatchCenter: React.FC = () => {
                 quantError = err.message || String(err);
               }
             } else {
-              quantError = "量化特征未就绪";
+              const alignStatus = m.alignment?.status;
+              if (alignStatus === MatchAlignmentStatus.NEEDS_MANUAL_SELECTION) {
+                isAlignmentPending = true;
+                quantError = "赛事处于待人工确认对齐状态 (NEEDS_MANUAL_SELECTION)。请在上方“待核验对齐”面板确认匹配或在别名管理建立映射，确认后系统将激活 Layer 03 确定性量化特征计算。";
+              } else if (alignStatus === MatchAlignmentStatus.SWAPPED_HOME_AWAY || m.alignment?.is_swapped_suspected) {
+                quantError = "⚠️ 严重警报：检测到主客场颠倒！已触发物理安全熔断，强制阻断量化与推荐。";
+              } else if (alignStatus === MatchAlignmentStatus.UNMATCHED) {
+                quantError = "赛事未匹配到雷速数据源，缺少必要攻防数据与物理统计支撑，量化定价已安全阻断。";
+              } else if (m.timing?.stage === MatchStage.LIVE && (m.timing.minute === null || m.timing.minute === undefined)) {
+                quantError = "滚球赛事缺少有效进行分钟数，阻断时间衰减泊松定价。";
+              } else if ((m.timing?.stage === MatchStage.LIVE || m.timing?.stage === MatchStage.FINISHED) && (!m.score?.score_verified)) {
+                quantError = "滚球比分未通过一致性核验，阻断量化定价。";
+              } else {
+                quantError = "量化特征未就绪";
+              }
             }
 
             return (
@@ -2669,7 +2684,7 @@ export const CanonicalMatchCenter: React.FC = () => {
                           {quant.positive_ev_signals.length}项+EV
                         </span>
                       ) : (
-                        <span className="text-slate-500 text-[10px]">{quant ? '无+EV' : '阻断'}</span>
+                        <span className="text-slate-500 text-[10px]">{quant ? '无+EV' : (isAlignmentPending ? '待核验对齐' : '门禁拦截')}</span>
                       )}
                     </span>
                   </div>
@@ -2803,10 +2818,20 @@ export const CanonicalMatchCenter: React.FC = () => {
                     {/* TAB 0: ⚡ 03 机器量化评估与最优投注 (Machine Quant Evaluation Panel) */}
                     {(activeTabByMatch[m.canonical_id] || "quant") === "quant" && (
                       quantError ? (
-                        <div className="p-6 bg-red-900/20 border border-red-500/30 rounded-xl text-red-200">
-                          <h4 className="font-semibold text-red-400 mb-2">模型计算被强行阻断</h4>
+                        <div className={`p-6 rounded-xl border ${
+                          isAlignmentPending
+                            ? "bg-amber-950/20 border-amber-500/30 text-amber-200"
+                            : "bg-red-900/20 border-red-500/30 text-red-200"
+                        }`}>
+                          <h4 className={`font-semibold mb-2 ${isAlignmentPending ? "text-amber-400" : "text-red-400"}`}>
+                            {isAlignmentPending ? "⏳ 赛事待核验对齐" : "模型计算被前置门禁拦截"}
+                          </h4>
                           <p className="text-sm font-mono opacity-80">{quantError}</p>
-                          <p className="text-xs opacity-60 mt-4">数据严重缺失导致无法评估，强行估算会引发严重偏差，故停止对该场比赛进行博弈分析。</p>
+                          <p className="text-xs opacity-60 mt-4">
+                            {isAlignmentPending
+                              ? "根据系统安全契约，低置信度匹配候选必须先由分析师核验确认，避免错误实体关联导致量化定价与战术推演失真。"
+                              : "核心定价要素缺失或触发风控熔断，强行估算会引发严重偏差，故停止对该场比赛进行博弈分析。"}
+                          </p>
                         </div>
                       ) : (
                         <MachineQuantEvaluationPanel match={m} quant={quant} />

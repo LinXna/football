@@ -9,6 +9,11 @@ import { Layer03CandidatePipeline } from '../03_quant_engine/types.js';
 
 console.log("=== TESTING PORTFOLIO RISK FILTERS ===");
 
+const persistenceLedgerPath = path.join(process.cwd(), 'output', 'recommendation_ledger_prematch.json');
+if (fs.existsSync(persistenceLedgerPath)) {
+  fs.unlinkSync(persistenceLedgerPath);
+}
+
 const unlockedPipeline: Layer03CandidatePipeline = { state: 'PRODUCTION_UNLOCKED', raw_signal_count: 1, oos_validated_count: 1, machine_candidate_count: 1, validations: [], blockers: [], transitions: [] };
 const lockedPipeline: Layer03CandidatePipeline = { state: 'OOS_LOCKED', raw_signal_count: 1, oos_validated_count: 0, machine_candidate_count: 0, validations: [], blockers: ['OOS'], transitions: [] };
 
@@ -101,9 +106,10 @@ if (!eligibleResult.is_approved || eligibleResult.approved_legs.length !== 1) {
 }
 console.log("[OK] Eligible B_GRADE recommendation remains approved.");
 
+const testMatchId = `match_persist_test_${Date.now()}`;
 const persistencePayload = {
   ai_brief: {
-    match_id: 'match_1',
+    match_id: testMatchId,
     kickoff_time: '2026-09-04T16:00:00Z',
     league: 'TEST',
     teams: { home: 'A', away: 'B' },
@@ -134,11 +140,14 @@ const persistencePayload = {
     }
   }
 } as any;
+
+const incomingPersistBGrade = { ...incomingBGrade, match_id: testMatchId };
+
 try {
   LedgerPersistence.appendApprovedLegs(
     persistencePayload,
-    { ...incomingBGrade, grade: RecommendationGrade.REJECTED },
-    incomingBGrade.recommended_legs,
+    { ...incomingPersistBGrade, grade: RecommendationGrade.REJECTED },
+    incomingPersistBGrade.recommended_legs,
     'PREMATCH'
   );
   throw new Error('[FAIL] Rejected AI evaluation must never be persisted to the formal ledger.');
@@ -157,8 +166,8 @@ try {
         candidate_pipeline: lockedPipeline
       }
     },
-    { ...incomingBGrade, candidate_pipeline: lockedPipeline },
-    incomingBGrade.recommended_legs,
+    { ...incomingPersistBGrade, candidate_pipeline: lockedPipeline },
+    incomingPersistBGrade.recommended_legs,
     'PREMATCH'
   );
   throw new Error('[FAIL] AI leg without matching Layer 03 candidates must never be persisted.');
@@ -169,8 +178,8 @@ console.log("[OK] AI leg without matching Layer 03 candidate was blocked before 
 
 const acceptedPersistence = LedgerPersistence.appendApprovedLegs(
   persistencePayload,
-  incomingBGrade,
-  incomingBGrade.recommended_legs,
+  incomingPersistBGrade,
+  incomingPersistBGrade.recommended_legs,
   'PREMATCH'
 );
 if (
@@ -182,9 +191,13 @@ if (
   throw new Error('[FAIL] Accepted persistence must retain formal provenance and the approved machine-candidate leg.');
 }
 console.log("[OK] Accepted machine-candidate leg retained formal provenance in the ledger record.");
-const persistenceLedgerPath = path.join(process.cwd(), 'output', 'recommendation_ledger_prematch.json');
-if (fs.existsSync(persistenceLedgerPath)) {
-  fs.unlinkSync(persistenceLedgerPath);
+
+// Clean up test entry from formal ledger
+const formalPrematchLedgerPath = path.join(process.cwd(), 'refactor', 'runtime', 'formal_ledger_prematch.json');
+if (fs.existsSync(formalPrematchLedgerPath)) {
+  const currentRecords = JSON.parse(fs.readFileSync(formalPrematchLedgerPath, 'utf8'));
+  const cleaned = currentRecords.filter((r: any) => r.match_id !== testMatchId);
+  fs.writeFileSync(formalPrematchLedgerPath, JSON.stringify(cleaned, null, 2), 'utf8');
 }
 
 console.log("\n[OK] Layer 05 Risk Filters Compiled and Tested Successfully.");

@@ -405,7 +405,8 @@ export function calculateInPlayPoissonFeatures(
     : Math.min(90, Math.max(0, match.timing.minute as number));
   const remainingMinutes = isPrematch ? 90 : calculateExpectedRemainingMinutesIncludingStoppage(match.timing);
   const isFinished = match.timing.stage === MatchStage.FINISHED;
-  const isUnpriceableStoppageTime = !isFinished && match.timing.stage === MatchStage.LIVE && remainingMinutes <= 0;
+  const isUnpriceableStoppageTime = !isFinished && match.timing.stage === MatchStage.LIVE &&
+    (remainingMinutes <= 0 || (match.timing.minute !== null && match.timing.minute !== undefined && match.timing.minute >= 90));
   const currentHomeScore = isPrematch ? 0 : match.score.home_score as number;
   const currentAwayScore = isPrematch ? 0 : match.score.away_score as number;
   const scoreDiff = currentHomeScore - currentAwayScore;
@@ -556,6 +557,13 @@ export function calculateInPlayPoissonFeatures(
   // 红牌同时改变本方进攻能力和对手面对的防守漏洞；缺失或未验证时乘数保持 1.0。
   let lambdaHomeRest = baseHomeLambda * remainingFactorHome * redAttackHome * redLeakAway * regimeMultiplierHome * threatDampingHome * postGoalCooldownMultiplier;
   let lambdaAwayRest = baseAwayLambda * remainingFactorAway * redAttackAway * redLeakHome * regimeMultiplierAway * threatDampingAway * postGoalCooldownMultiplier;
+
+  // 5.1 注入已验证的 OOS 样本校准调整 (OOS Shrinkage Calibration)
+  if (oosCalibration?.status === 'VALIDATED' && typeof oosCalibration.lambda_log_adjustment === 'number' && Number.isFinite(oosCalibration.lambda_log_adjustment)) {
+    const oosMultiplier = Math.exp(oosCalibration.lambda_log_adjustment);
+    lambdaHomeRest *= oosMultiplier;
+    lambdaAwayRest *= oosMultiplier;
+  }
 
   // 极值安全钳位
   lambdaHomeRest = Math.max(0.01, Math.min(3.50, Number(lambdaHomeRest.toFixed(3))));

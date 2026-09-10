@@ -16,7 +16,7 @@ import {
   AiEvaluationBrief,
 } from "../../refactor/02_canonical_model/types";
 import { ParsedLeisuMatch } from "../../refactor/01_data_ingestion/leisu/types";
-import { calculateQuantitativeFeatures } from "../../refactor/03_quant_engine";
+import { calculateQuantitativeFeatures, isMatchQuantEligible } from "../../refactor/03_quant_engine";
 import { QuantitativeFeatures } from "../../refactor/03_quant_engine/types";
 import { getLoadedOosArchive, getOosStatus, ensureOosArchiveInitialized } from "../services/oosArchiveService.js";
 import {
@@ -81,14 +81,19 @@ function persistRuntimeBatch(
     ...(result.quantitativeFeatures || {}),
   };
 
-  // 保证每场赛事都有一份服务端预计算的 Layer 03 特征集
+  // 保证每场符合准入条件的赛事都有一份服务端预计算的 Layer 03 特征集
   if (Object.keys(quantitativeFeatures).length < result.canonicalMatches.length) {
     for (const match of result.canonicalMatches) {
       if (!quantitativeFeatures[match.canonical_id]) {
+        const eligibility = isMatchQuantEligible(match);
+        if (!eligibility.eligible) {
+          // 预期业务门禁（如待人工确认对齐 NEEDS_MANUAL_SELECTION 或比分未核验），优雅跳过
+          continue;
+        }
         try {
           quantitativeFeatures[match.canonical_id] = calculateQuantitativeFeatures(match, { calibration_archive: getLoadedOosArchive(), permissive_oos_mode: true });
         } catch (err: any) {
-          console.error(`[CanonicalRoutes] Error computing quant for match ${match.canonical_id}:`, err);
+          console.warn(`[CanonicalRoutes] Quant computation deferred for match ${match.canonical_id}:`, err?.message || err);
         }
       }
     }
@@ -283,10 +288,15 @@ export function assembleMatchesForMode(mode: "live" | "prematch"): {
   // 5. Layer 03: 服务端统一预计算确定性量化特征集 (Precompute Layer 03 Quant Features)
   const quantitativeFeatures: Record<string, QuantitativeFeatures> = {};
   for (const match of canonicalMatches) {
+    const eligibility = isMatchQuantEligible(match);
+    if (!eligibility.eligible) {
+      // 未满足对齐或时钟/比分准入条件的赛事，不盲目调用量化引擎，等待人工确认或数据补齐
+      continue;
+    }
     try {
       quantitativeFeatures[match.canonical_id] = calculateQuantitativeFeatures(match, { calibration_archive: getLoadedOosArchive(), permissive_oos_mode: true });
     } catch (err: any) {
-      console.error(`[CanonicalRoutes] Error computing quant for match ${match.canonical_id}:`, err);
+      console.warn(`[CanonicalRoutes] Quant computation deferred for match ${match.canonical_id}:`, err?.message || err);
     }
   }
 
@@ -363,10 +373,14 @@ export function registerCanonicalRoutes(app: express.Express): void {
         // 增量自动升级已有历史批次，预计算 Layer 03 特征集并更新磁盘持久化
         const quantitativeFeatures: Record<string, QuantitativeFeatures> = {};
         for (const match of runtimeBatch.matches) {
+          const eligibility = isMatchQuantEligible(match);
+          if (!eligibility.eligible) {
+            continue;
+          }
           try {
             quantitativeFeatures[match.canonical_id] = calculateQuantitativeFeatures(match, { calibration_archive: getLoadedOosArchive(), permissive_oos_mode: true });
           } catch (err: any) {
-            console.error(`[CanonicalRoutes] Upgrade quant error for ${match.canonical_id}:`, err);
+            console.warn(`[CanonicalRoutes] Upgrade quant deferred for ${match.canonical_id}:`, err?.message || err);
           }
         }
         runtimeBatch.quantitative_features = quantitativeFeatures;
@@ -589,10 +603,14 @@ export function registerCanonicalRoutes(app: express.Express): void {
         if (assembled.quantitativeFeatures[match.canonical_id]) {
           selectedQuant[match.canonical_id] = assembled.quantitativeFeatures[match.canonical_id];
         } else {
+          const eligibility = isMatchQuantEligible(match);
+          if (!eligibility.eligible) {
+            continue;
+          }
           try {
             selectedQuant[match.canonical_id] = calculateQuantitativeFeatures(match, { calibration_archive: getLoadedOosArchive(), permissive_oos_mode: true });
-          } catch (e) {
-            console.error(`[CanonicalRoutes] Error computing quant for ${match.canonical_id}:`, e);
+          } catch (e: any) {
+            console.warn(`[CanonicalRoutes] Quant computation deferred for ${match.canonical_id}:`, e?.message || e);
           }
         }
       }

@@ -40,8 +40,10 @@ export interface EvaluatorQuantFeatures {
   machine_candidate_count?: number;
   /** Canonical Layer 03 tracks; raw is research-only, machine candidates are OOS/data gated. */
   raw_positive_ev_signals?: readonly PositiveEVSignal[];
+  raw_mathematical_ev_signals?: readonly PositiveEVSignal[];
   machine_candidate_signals?: readonly PositiveEVSignal[];
   candidate_pipeline?: Layer03CandidatePipeline;
+  risk_adjusted_ev?: number;
   risk_flags?: QuantAlert[];
   poisson_expected_goals?: string;
   prediction_snapshot?: {

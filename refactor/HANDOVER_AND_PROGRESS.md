@@ -1,36 +1,103 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260910-MARKET-SCAN-ACTIONABILITY-DECOUPLING-AND-16-STEP-REFACTOR`
-- **当前状态 (Status)**: `IN_PROGRESS`
+- **任务编号 (Task)**: `SNAPSHOT-20260910-FIX-UNCONFIRMED-ALIGNMENT-QUANT-GATE`
+- **当前状态 (Status)**: `DONE`
 - **任务目标 (Goal)**：
-  严格根据用户最新《AI Prompt 核心问题与硬门禁深化规范（进阶修正版）》彻底解决语义冲突与逻辑循环：
-  1. 【P0-01 MARKET_SCAN 与 ACTIONABILITY 语义彻底分离】：
-     - `selected_line` = 扫描阶段发现的、通过数学有效性与结算完整性验证后的最佳合法盘口，`selected_line ≠ actionable`。
-     - `NO_VALID_MARKET`: 没有任何合法盘口通过数学/结算完整性验证，`market_status="NO_VALID_MARKET"`, `market="NONE"`, `selected_line="NONE"`, `actionable=false`。
-     - `VALID_BUT_BLOCKED`: 盘口数学有效、结算有效，但被 OOS/Stability/Live/Grade 门禁阻止。必须保留 `selected_line` 和 `market`，`actionable=false`，`recommended_legs=[]`，`rejection_reason` 明确指出阻塞原因。严禁因门禁拦截将有效盘口改写为 `market="NONE"`！
-     - `ACTIONABLE`: 全部执行门禁均通过，`market_status="ACTIONABLE"`, `actionable=true`, `rejection_reason="N/A"`。
-  2. 【P0-02 消除逻辑循环，构建 16 步严格线性执行流程】：
-     - 解耦 Market Scan（盘口初步扫描与排序，STEP 11-12）与 Grade/Execution Hard-Gates（执行门禁与分类，STEP 13-15），彻底消除“Market Scan 需依赖后续 Grade”的逻辑顺序循环。
-  3. 【P1-01 mathematically_closed 精确针对具体盘口，禁止扩散至整个市场】：
-     - `mathematically_closed=true` 仅针对具体 `market + line + direction`（如 2-0 下 Over/Under 1.5 闭盘，但 Over/Under 2.5 仍然 active）。
-  4. 【P1-02 TEMPORAL INTEGRITY FAILURE 拥有最高阻断优先级】：
-     - 时间完整性失败优先于任何 Tactical / Momentum 解释。时序冲突立即标记 `live data = UNTRUSTED`，严禁依据不可信 live stats 得出强战术结论，强制降级为 WATCH 或 REJECTED，`actionable=false`，`recommended_legs=[]`。
-  5. 【P1-03 明确 selected_line 为“扫描最佳”而非“下注最佳”】。
-  6. 【P1-04 Live Tactical Regime 必须严格服从 Temporal Integrity】。
-  7. 严格落地 20 条最终不可违反红线。
+  根治应用中上报的 `[CanonicalRoutes] Error computing quant for match 4639285: Error: MATCH_ALIGNMENT_FAILED: Match 4639285 has unconfirmed alignment status NEEDS_MANUAL_SELECTION` 错误：
+  1. 【统一收敛量化定价前置准入门禁】：在 `refactor/03_quant_engine/index.ts` 导出纯函数守卫 `isMatchQuantEligible`，明确对齐状态门禁与比分/时钟门禁；
+  2. 【服务端预计算链路治理】：在 `server/routes/canonicalRoutes.ts` 中前置调用准入门禁，未确认对齐的比赛（如 `NEEDS_MANUAL_SELECTION`）等待用户确认或别名建立，不再盲目调用 `calculateQuantitativeFeatures`，彻底消除 `console.error` 误报；
+  3. 【Prompt 导出端安全守卫】：在 `refactor/04_ai_evaluator/promptExporter.ts` 同样前置准入门禁，跳过未对齐赛事；
+  4. 【前端友好提示升级】：在 `src/components/CanonicalMatchCenter.tsx` 针对待确认对齐状态提供清晰引导（“待核验对齐/等待人工确认”），提升交互体验。
+- **改动文件清单 (Target Files)**：
+  - `refactor/03_quant_engine/index.ts`
+  - `server/routes/canonicalRoutes.ts`
+  - `refactor/04_ai_evaluator/promptExporter.ts`
+  - `src/components/CanonicalMatchCenter.tsx`
+- **交付物与成果 (Deliverables)**：
+  - `refactor/03_quant_engine/index.ts`: 导出 `isMatchQuantEligible(match)` 准入判断函数，严格遵循系统契约（仅 `MATCHED_BY_ALIAS` 与 `MATCHED_AUTO` 允许进入量化定价，且核验滚球时钟与比分）。
+  - `server/routes/canonicalRoutes.ts`: 在批次持久化、批次汇聚、增量历史升级与数据导入四大环节前置 `isMatchQuantEligible` 准入判断，未确认对齐的赛事优雅跳过，彻底消除了未捕获异常与控制台误报。
+  - `refactor/04_ai_evaluator/promptExporter.ts`: 增加 `isMatchQuantEligible` 门禁过滤，防止未对齐赛事在 Prompt 构建时发生阻断异常。
+  - `src/components/CanonicalMatchCenter.tsx`: 细化量化面板状态分支，针对 `NEEDS_MANUAL_SELECTION` 渲染金色友好状态卡片，明确引导分析师在“待核验对齐”面板进行确认。
+  - **测试验证**：`npm run test:ts` 84 项测试全部绿灯通过；`lint_applet` 零警告零报错；`compile_applet` 编译与打包完全成功。
+- **任务目标 (Goal)**：
+  贯彻用户针对系统实际数据流与工程边界的指令，彻底清除脱离真实业务流程的过度设计与冗余约束，并完成全链路彻底排查与自测：
+  1. 【物理删除时钟倒挂虚假判定】：
+     - 彻底移除 `kickoff_time < prediction_at` 的脆弱时间戳解析比对（因北京时间与 UTC 时区差异极易误判）；
+     - 尊重用户真实业务流：滚球天然自带进行中分钟数与比分，赛前天然自带开赛时间，状态在 Layer 01/02 摄取时已确定；
+     - 移除由此衍生出的 `[AUDIT DISCLAIMER]` 模板套话与强行重置 TACTICAL_STALEMATE。
+  2. 【物理删除不存在的 Hurdle_Margin 破坏性门禁】：
+     - 移除 Prompt 中对未提供 `Hurdle_Margin` 即阻断四分之一盘的虚假规则，恢复底层 Layer 03 已计算好的真实 MAO 与 EV。
+  3. 【精简 Prompt，清晰划分代码与 AI 职责】：
+     - 移除要求 LLM 在文本中手算浮点数加法与套公式的代码级伪指令，浮点数精确校验完全由 TypeScript 代码层负责；
+     - 聚焦 AI 真正的核心使命：比分可靠性、杯赛阵容轮换战意、虚假控球假繁荣识别、庄家诱盘排查与跨串相关性风控。
+  4. 【底层引擎全链路深度排查与自测回归】：
+     - 修复 `poissonDecayModel.ts` 对已验证 OOS calibration 的 lambda 缩放乘子注入，以及 LIVE 90+ 补时态的 `is_stoppage_time_unpriceable` 正确标定；
+     - 物理删除已废弃的旧数据生成器残余引用（`leisuHistoricalSeeder`）；
+     - 修复 `verify_candidate_state_machine.ts`、`verify_portfolio_risk.ts`、`verify_leisu_interface_extractor.ts` 与 `verify_real_snapshot_oos_audit.ts` 中的边界断言。
+- **交付物与成果 (Deliverables)**：
+  - `refactor/04_ai_evaluator/alignmentGuard.ts`: 物理删除 `temporalConflict` 逻辑分支，不再用非标准时间字符串比对拦截正常比赛；移除强制套话 disclaimer 注入。
+  - `refactor/04_ai_evaluator/promptBuilder.ts`: 移除时钟倒挂/时序污染虚假假设与 disclaimer 模板，移除 `Hurdle_Margin` 阻塞门禁，将臃肿的 16 步精简为直击本质的 10 步线性执行流程与 10 条绝对优先级规则。
+  - `refactor/03_quant_engine/poissonDecayModel.ts`: 补齐 OOS 样本校准乘子注入逻辑；90+ 补时阶段准确置标 `is_stoppage_time_unpriceable = true`。
+  - `refactor/06_settlement_audit/index.ts`: 物理移除已废弃的 `leisuHistoricalSeeder` 导出，清除死代码。
+  - 全套验证测试 100% 通过：
+    - `npm run test:ts`: 84 项测试全部通过（pass 84, fail 0）。
+    - `refactor/tests/verify_quant_engine.ts`: 全部 10 项量化与博弈引擎测试 100% 通过。
+    - `refactor/tests/verify_full_pipeline_00_03.ts`: 滚球/赛前双轨端到端集成测试 100% 通过。
+    - `refactor/tests/verify_ai_evaluator.ts`: 对齐门禁与战术评估保护 100% 通过。
+    - `refactor/tests/verify_candidate_state_machine.ts`: 严格/宽容模式双重状态机测试 100% 通过。
+    - `refactor/tests/verify_canonical_match_assembler.ts`: 真实赛事组装与熔断测试 100% 通过。
+    - `refactor/tests/verify_portfolio_risk.ts`: 投资组合风控过滤与台账幂等持久化测试 100% 通过。
+    - `refactor/tests/verify_settlement_engine.ts`: 18/18 项结算与串关断言 100% 通过。
+  - `compile_applet` & `lint_applet`: 编译通过，TypeScript 零错误。
+- **下一步 (Next Step)**：
+  - 系统处于高可靠、轻负担、纯粹遵循足球实战与量化严谨性的生产就绪状态。随时响应用户进一步的真实数据导入、推荐生成与复盘任务。
+- **任务目标 (Goal)**：
+  严格按照用户提出的《P1-01至P1-09 盘口扫描与绝对优先级规则》对 `promptBuilder.ts`、`promptExporter.ts` 与 `alignmentGuard.ts` 进行全面强化：
+  1. 【P1-01 BASELINE DATA COMPLETENESS 明确最低必要定义】：
+     - 最低必要字段包括：market type, line, direction / side, current odds, settlement semantics, Quarter/Split Line 完整五态 settlement distribution。
+     - 缺失非核心辅助数据（环境、历史样本、部分辅助指标等）不得自动判定为 NO_VALID_MARKET，继续进行门禁评估，作为 risk_warning / confidence penalty。
+     - 只有缺失上述核心必要字段导致无法确认结构或无法验证结算时，才允许 `NO_VALID_MARKET`。
+  2. 【P1-02 PRELIMINARY MARKET SCAN 优先排除 MATHEMATICALLY_CLOSED】：
+     - 必须将 Mathematical Openness (`mathematically_closed == false`) + Settlement Integrity 作为初筛第 1 优先级。
+     - 严禁 `mathematically_closed == true` 的盘口进入 preliminary ranking 或 selected_line。
+  3. 【P1-03 TEMPORAL FAILURE 时禁止伪造 TACTICAL_STALEMATE】：
+     - 时间完整性失败时，严禁臆测 GENUINE_DOMINANCE / BARREN_DOMINANCE / RECIPROCAL_CHAOS，严禁伪造战术态势。
+     - TACTICAL_STALEMATE 仅在有可靠数据支持或 Schema 缺乏 UNKNOWN 表达时的保守 fallback。
+     - fallback 时 `internal_logical_audit` 必须明确说明：“TACTICAL_STALEMATE is a conservative fallback caused by unavailable/untrusted live tactical evidence, NOT evidence-proven tactical stalemate.”
+     - 恪守：`UNTRUSTED LIVE DATA ≠ PROVEN TACTICAL STALEMATE`。
+  4. 【P1-04 ENGINE-PROVIDED RISK_ADJUSTED_EV 绝对优先级】：
+     - Layer 03 提供数值时：`risk_adjustment_status = "ENGINE_PROVIDED"`，AI 必须使用原值，严禁重算、修改、替换或附加自创折价乘子。
+     - Layer 03 未提供时：`risk_adjustment_status = "QUALITATIVE_ONLY"`，`risk_adjusted_ev = 0`，严禁自创数值折价系数。
+  5. 【P1-05 RAW EV 不得绕过 mathematically_closed / settlement gate】：
+     - Raw EV 必须先通过 mathematically_closed == false、settlement validity、model validity、baseline data validity 四道门禁。
+     - 恪守核心等式：`RAW EV > 0 ≠ VALID MARKET`，`RAW EV > 0 ≠ selected_line`，`RAW EV > 0 ≠ ACTIONABLE`。
+  6. 【P1-06 FINAL MARKET STATUS 严格单向状态机流转】：
+     - `RAW_SIGNAL → MATHEMATICALLY_VALID → SETTLEMENT_VALID → BASELINE_DATA_VALID → PRELIMINARY_SELECTED → EXECUTION_GATED → ACTIONABLE / VALID_BUT_BLOCKED`。
+     - 仅当没有任何盘口通过前三道验证时才允许 `NO_VALID_MARKET`。
+  7. 【P1-07 VALID_BUT_BLOCKED 的 selected_line 必须来自“已验证盘口”】：
+     - `selected_line` 必须来自通过数学、结算、基础数据验证且未闭盘的合法扫描盘口。
+     - 修复 `alignmentGuard.ts` 回退机制，严禁将闭盘或未验证盘口作为 fallback `selected_line`。
+  8. 【P1-08 推荐执行的最终绝对优先级链】：
+     - 固化全局优先级：`MATHEMATICAL VALIDITY > SETTLEMENT VALIDITY > MODEL VALIDITY > TEMPORAL / DATA VALIDITY > OOS VALIDITY > MODEL STABILITY > LIVE RISK > TRAP CHECK > GRADE > ACTIONABILITY`。
+  9. 【P1-09 TEMPORAL INTEGRITY 污染阻断律】：
+     - Temporal Failure 时，所有依赖时间轴的实时物理指标 (xT / SOT / DA / Box Entries / Momentum / Possession) 视为 UNTRUSTED，不得作为 VERIFIED LIVE EVIDENCE，不得据此产生强方向性战术态势，不得证明 Raw EV 是否为真实价值，必须在 `risk_warnings` 与 `internal_logical_audit` 记录。
+  10. 完整固化【完整五层判定架构】与【15 条最终绝对优先级规则】。
 - **影响文件 (Target Files)**：
   - `refactor/04_ai_evaluator/promptBuilder.ts`
   - `refactor/04_ai_evaluator/alignmentGuard.ts`
+  - `refactor/04_ai_evaluator/promptExporter.ts`
   - `refactor/04_ai_evaluator/types.ts`
+  - `tests-ts/aiEvaluatorAlignment.test.ts`
   - `refactor/HANDOVER_AND_PROGRESS.md`
 - **执行步骤 (Action Plan)**：
-  1. 在 `refactor/HANDOVER_AND_PROGRESS.md` 登记快照 (IN_PROGRESS)；
-  2. 升级 `promptBuilder.ts`：将 15 步线性执行链重构为无循环的 16 步严格线性流程，明确 `selected_line` 为“扫描最佳”、三态解耦、具体盘口级 `mathematically_closed`、Temporal Integrity 拥有最高优先级、20 条不可违反规则；
-  3. 升级 `alignmentGuard.ts`：严格对齐三态解耦逻辑，当盘口合法但受门禁阻止时保留 `market` 与 `selected_line`（设为 `VALID_BUT_BLOCKED`），仅在真正无合法盘口时设为 `NO_VALID_MARKET`；落实盘口级 `mathematically_closed` 与 Temporal Integrity 对 Live Tactical 的前置清空/降级；
-  4. 运行单测与全量测试套件，验证 16 步流程与全部硬门禁；
-  5. 更新 `HANDOVER_AND_PROGRESS.md` 归档为 DONE。
+  1. 在 `refactor/HANDOVER_AND_PROGRESS.md` 登记 Active Snapshot (IN_PROGRESS)；
+  2. 升级 `promptBuilder.ts`：系统性强化 P1-01 至 P1-09 规则，注入五层判定架构与 15 条最终绝对优先级原则；
+  3. 升级 `alignmentGuard.ts`：修复 `selected_line` 兜底逻辑（过滤闭盘与未验证盘口）、强化 TACTICAL_STALEMATE fallback 说明审计；
+  4. 检查 `promptExporter.ts` 并保持一致性；
+  5. 运行 TypeScript linter 与单元测试，确保 100% 通过；
+  6. 更新 `HANDOVER_AND_PROGRESS.md` 归档为 DONE。
 
-- **历史任务 (Previous Task)**: `SNAPSHOT-20260910-AI-PROMPT-DEEP-HARDENING-P0-P1` (DONE)
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260910-MARKET-SCAN-ACTIONABILITY-DECOUPLING-AND-16-STEP-REFACTOR` (DONE)
 - **任务目标 (Goal)**：
   严格根据用户最新《AI Prompt 核心问题与硬门禁深化规范》（P0-01 至 P1-12 及 15 步最终硬性执行顺序）彻底闭环 Prompt / Schema / 后置风控对齐逻辑：
   1. 【P0-01 OOS_VALIDATED 唯一标准化定义】：统一且唯一绑定 `(profile_status == "VALIDATED") AND (effective_sample_size >= 30)`，废除以 ESS==0 为唯一条件的漏洞，明确 pipeline oos_validated_count 不得作为验证证据，OOS_VALIDATED=false 绝对禁止 A_GRADE，封顶 B_GRADE。

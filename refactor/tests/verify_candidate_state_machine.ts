@@ -18,7 +18,7 @@ const common = {
 const strictCases = [
   ['STRICT_NO_POSITIVE_EV', evaluateCandidatePipeline({ ...common, rawSignals: [], permissiveOosMode: false })],
   ['STRICT_OOS_LOCKED_NO_PROFILE', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => undefined, permissiveOosMode: false })],
-  ['STRICT_OOS_LOCKED_THIN', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => ({ ...profile, effective_sample_size: 120 }), permissiveOosMode: false })],
+  ['STRICT_OOS_LOCKED_THIN', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => ({ ...profile, effective_sample_size: 20 }), permissiveOosMode: false })],
   ['STRICT_DATA_LOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal], dataQualityScore: 70, permissiveOosMode: false })],
   ['STRICT_PRODUCTION_UNLOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal], permissiveOosMode: false })]
 ] as const;
@@ -38,7 +38,7 @@ if (strictCases[0][1].edge_confidence_score !== 0 || strictCases[1][1].edge_conf
 const permissiveCases = [
   ['PERMISSIVE_NO_POSITIVE_EV', evaluateCandidatePipeline({ ...common, rawSignals: [] })],
   ['PERMISSIVE_UNLOCKED_NO_PROFILE', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => undefined })],
-  ['PERMISSIVE_UNLOCKED_THIN', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => ({ ...profile, effective_sample_size: 120 }) })],
+  ['PERMISSIVE_UNLOCKED_THIN', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => ({ ...profile, effective_sample_size: 20 }) })],
   ['PERMISSIVE_DATA_LOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal], dataQualityScore: 70 })],
   ['PERMISSIVE_PRODUCTION_UNLOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal] })],
   ['PERMISSIVE_UNSUPPORTED_MARKET_LOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosMarket: () => undefined })]
