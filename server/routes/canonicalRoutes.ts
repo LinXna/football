@@ -18,7 +18,7 @@ import {
 import { ParsedLeisuMatch } from "../../refactor/01_data_ingestion/leisu/types";
 import { calculateQuantitativeFeatures } from "../../refactor/03_quant_engine";
 import { QuantitativeFeatures } from "../../refactor/03_quant_engine/types";
-import { getLoadedOosArchive, getOosStatus, ensureOosArchiveInitialized, reseedOosArchiveFromLeisu } from "../services/oosArchiveService.js";
+import { getLoadedOosArchive, getOosStatus, ensureOosArchiveInitialized } from "../services/oosArchiveService.js";
 import {
   systemAlertBus,
   commonEnumRegistry,
@@ -319,20 +319,10 @@ export function registerCanonicalRoutes(app: express.Express): void {
    * GET /api/refactor/canonical-matches
    * 查询当前重构系统的标准赛事列表与预计算量化特征
    */
-    app.get("/api/refactor/oos-status", (_req, res) => {
+  app.get("/api/refactor/oos-status", (_req, res) => {
     try {
       const status = getOosStatus();
       res.json({ ok: true, status });
-    } catch (e: any) {
-      res.status(500).json({ ok: false, error: e?.message });
-    }
-  });
-
-  app.post("/api/refactor/oos-seed", (_req, res) => {
-    try {
-      const { archive, samples } = reseedOosArchiveFromLeisu();
-      const status = getOosStatus();
-      res.json({ ok: true, status, archive, sample_count: samples.length });
     } catch (e: any) {
       res.status(500).json({ ok: false, error: e?.message });
     }

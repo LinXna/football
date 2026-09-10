@@ -57,6 +57,19 @@ function createBasePayload(): EvaluatorPayload {
       risk_flags: [],
       goal_alert: 'NONE',
       confidence: 88,
+      oos_semantic_status: {
+        profile_status: 'VALIDATED',
+        is_oos_validated: true,
+        effective_sample_size: 45,
+        audit_rule: 'Validated profile present'
+      },
+      stability_and_blockers: {
+        model_stability_score: 85,
+        has_major_live_conflict: false,
+        blocker_count: 0,
+        blockers: [],
+        hard_gate_ceiling: 'A_GRADE'
+      },
       machine_candidate_signals: [
         {
           market: 'ASIAN_HANDICAP_MAIN',
@@ -210,3 +223,160 @@ test('verifyStatutoryAlignment enforces Cup match unconfirmed lineup hard gate',
   assert.equal(verified.grade, RecommendationGrade.C_GRADE);
   assert.ok(verified.risk_warnings.some(w => w.includes('杯赛/友谊赛官方首发未确认，最高维持 C 级观察')));
 });
+
+test('verifyStatutoryAlignment enforces P0-01 OOS NO_PROFILE hard gate (blocks A_GRADE)', () => {
+  const payload = createBasePayload();
+  payload.quant_features.oos_semantic_status = {
+    profile_status: 'NO_PROFILE',
+    is_oos_validated: false,
+    effective_sample_size: 0,
+    audit_rule: 'NO_PROFILE forbids A_GRADE'
+  };
+
+  const result = createBaseResult(RecommendationGrade.A_GRADE, 90);
+  const verified = verifyStatutoryAlignment(result, payload);
+  assert.equal(verified.grade, RecommendationGrade.B_GRADE);
+  assert.ok(verified.confidence_score <= 80);
+  assert.ok(verified.risk_warnings.some(w => w.includes('P0-01')));
+});
+
+test('verifyStatutoryAlignment enforces P1-03 CONFIRMED_TRAP hard gate (forces REJECTED)', () => {
+  const payload = createBasePayload();
+  const result = createBaseResult(RecommendationGrade.B_GRADE, 80);
+  result.blind_spot_analysis.trap_detection_result = TrapDetectionResult.CONFIRMED_TRAP;
+
+  const verified = verifyStatutoryAlignment(result, payload);
+  assert.equal(verified.grade, RecommendationGrade.REJECTED);
+  assert.equal(verified.confidence_score, 0);
+  assert.equal(verified.recommended_legs.length, 0);
+  assert.ok(verified.risk_warnings.some(w => w.includes('CONFIRMED_TRAP')));
+});
+
+test('verifyStatutoryAlignment enforces P1-04 live mathematically closed total line gate', () => {
+  const payload = createBasePayload();
+  payload.ai_brief.status_summary = 'LIVE 70 (2-0)';
+  payload.ai_brief.score_verification = { is_verified: true, current_score: '2 - 0' };
+  payload.ai_brief.core_markets.ou_main = {
+    line: '1.5',
+    under_odds: 1.95,
+    over_odds: 1.85
+  };
+  payload.quant_features.machine_candidate_signals = [
+    {
+      market: 'TOTAL_GOALS_MAIN',
+      line: '1.5',
+      side: 'under',
+      odds: 1.95,
+      ev: 0.05,
+      confidence: 80,
+      kelly_fraction: 0.02
+    }
+  ];
+
+  // AI 试图推荐已结清的 Under 1.5 盘口
+  const result = createBaseResult(RecommendationGrade.B_GRADE, 75);
+  result.recommended_legs = [
+    {
+      market: 'TOTAL_GOALS_MAIN',
+      selected_line: '1.5',
+      current_odds: 1.95,
+      minimum_acceptable_odds: 1.85,
+      direction: 'UNDER',
+      basis: 'Erroneous evaluation of past goals'
+    }
+  ];
+
+  const verified = verifyStatutoryAlignment(result, payload);
+  // 已结清盘口必须被剔除，空推荐腿导致最终非 A/B 级或推荐腿为空
+  assert.equal(verified.recommended_legs.length, 0);
+  assert.ok(verified.risk_warnings.some(w => w.includes('P1-04')));
+});
+
+test('verifyStatutoryAlignment enforces P0-02 quarter line settlement verification gate', () => {
+  const payload = createBasePayload();
+  payload.ai_brief.core_markets.ah_main = {
+    handicap: '-0/0.5',
+    home_odds: 1.95,
+    away_odds: 1.90
+  };
+  payload.quant_features.machine_candidate_signals = [
+    {
+      market: 'ASIAN_HANDICAP_MAIN',
+      line: '-0/0.5',
+      side: 'home',
+      odds: 1.95,
+      ev: 0.05,
+      confidence: 80,
+      kelly_fraction: 0.02
+    }
+  ];
+
+  const result = createBaseResult(RecommendationGrade.B_GRADE, 75);
+  result.recommended_legs = [
+    {
+      market: 'ASIAN_HANDICAP_MAIN',
+      selected_line: '-0/0.5',
+      current_odds: 1.95,
+      minimum_acceptable_odds: 1.85,
+      direction: 'HOME',
+      basis: 'Quarter line pick'
+    }
+  ];
+  result.market_scan = {
+    selected_line: '-0/0.5',
+    market: 'ASIAN_HANDICAP_MAIN',
+    direction: 'HOME',
+    current_odds: 1.95,
+    minimum_acceptable_odds: 1.85,
+    raw_ev: 0.08,
+    risk_adjusted_ev: 0.05,
+    is_quarter_line: true,
+    quarter_line_settlement_distribution: {
+      p_full_win: 0.4,
+      p_half_win: 0.2,
+      p_push: 0.0,
+      p_half_loss: 0.2,
+      p_full_loss: 0.2,
+      settlement_status: 'SETTLEMENT_UNVERIFIABLE'
+    },
+    actionable: true,
+    rejection_reason: 'N/A'
+  };
+
+  const verified = verifyStatutoryAlignment(result, payload);
+  // 缺乏五态真实分布时，四分之一盘不得入选正式推荐腿
+  assert.equal(verified.recommended_legs.length, 0);
+  assert.ok(verified.risk_warnings.some(w => w.includes('P0-04')));
+  assert.equal(verified.market_scan?.actionable, false);
+  assert.equal(verified.market_scan?.rejection_reason, 'UNVERIFIABLE QUARTER LINE: INVALID FOR VALUE RANKING');
+});
+
+test('verifyStatutoryAlignment enforces P0-01 ESS < 30 gate (blocks A_GRADE even if PROFILE_AVAILABLE)', () => {
+  const payload = createBasePayload();
+  // Validated profile exists, but ESS is 25 (< 30)
+  payload.quant_features.oos_semantic_status = {
+    profile_status: 'VALIDATED',
+    is_oos_validated: true,
+    effective_sample_size: 25,
+    audit_rule: 'ESS < 30 forbids A_GRADE'
+  };
+
+  const result = createBaseResult(RecommendationGrade.A_GRADE, 90);
+  const verified = verifyStatutoryAlignment(result, payload);
+  assert.equal(verified.grade, RecommendationGrade.B_GRADE);
+  assert.ok(verified.confidence_score <= 80);
+  assert.ok(verified.risk_warnings.some(w => w.includes('P0-01')));
+  assert.ok(verified.risk_warnings.some(w => w.includes('<30')));
+});
+
+test('verifyStatutoryAlignment enforces P0-03 MAO gate (rejects leg if current_odds < minimum_acceptable_odds)', () => {
+  const payload = createBasePayload();
+  const result = createBaseResult(RecommendationGrade.A_GRADE, 85);
+  // Current odds 1.95, but MAO is 2.05 (negative value after hurdle)
+  result.recommended_legs[0].minimum_acceptable_odds = 2.05;
+
+  const verified = verifyStatutoryAlignment(result, payload);
+  assert.equal(verified.recommended_legs.length, 0);
+  assert.ok(verified.risk_warnings.some(w => w.includes('P0-03')));
+});
+

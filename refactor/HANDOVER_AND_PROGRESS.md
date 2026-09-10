@@ -1,33 +1,82 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260909-REAUDIT-SCHEME1-SCHEME2-LEGACY-DECOUPLING`
+- **任务编号 (Task)**: `SNAPSHOT-20260909-AI-PROMPT-REMAINING-ISSUES`
 - **当前状态 (Status)**: `IN_PROGRESS`
 - **任务目标 (Goal)**：
-  1. 【全面重排查】：针对用户明确指出的“方案一和方案二全部都涉及到旧系统，你要重新排查一遍”，彻底普查方案 1（雷速历史数据导入与冷启动编译）与方案 2（赛后比分核销与实盘自增闭环）在代码、存储路径、API 路由、前端视图层对旧系统的全部触点；
-  2. 【彻底解耦斩断污染】：
-     - 将 OOS 归档与样本文件从旧系统 `output/` 目录彻底迁移至重构规范运行时目录 `refactor/runtime/`；
-     - 清理 `server/dataFiles.ts` 中的全局混淆注册，杜绝旧系统直接持有重构 OOS 资产；
-     - 修复 `server/services/oosArchiveService.ts` 与 `scripts/seed_oos_from_leisu.ts`，禁止私自扫描或读取旧系统 `output/` 目录，统一使用 `refactor/fixtures/` 及重构标准 Ingress 数据源；
-     - 彻底清除旧系统台账修改路由 `server/routes/ledgerMutationRoutes.ts` 中被私自注入的 OOS 样本生成逻辑，恢复旧系统路由的纯净边界；
-     - 彻底清除旧系统前端视图 `src/components/LedgerView.tsx` 中的 OOS 看板及核销增量代码，杜绝新旧系统视图逻辑混淆；
-     - 强化重构台账路由 `server/routes/refactorLedgerRoutes.ts`，确保核销严格经过 Layer 06 的 `convertFormalLedgerRecords` 与 `ingestHistoricalBacktestRecords`，严格服从 `PRODUCTION_UNLOCKED` 准入门禁，结果纯净沉淀于 `refactor/runtime/`。
-  3. 【闭环验证与汇报】：
-     - 运行系统构建与单测，确保重构系统（`refactor/`）与旧系统各自自洽、零越界、零语法错误。
+  严格根据《AI PROMPT 剩余问题修复规范》修复 Prompt / Schema / 数据约束中的剩余未闭环问题：
+  1. 【P0-01 OOS ESS 门禁统一】：
+     - 明确 `NO_PROFILE` 或 `ESS < 30` 均算作未通过 OOS 验证；
+     - 门禁规则统一修改为 `NO_PROFILE OR ESS < 30 → MAX B_GRADE → A_GRADE PROHIBITED`，禁止使用 `ESS == 0` 作为唯一门禁；
+     - 明确 `oos_validated_count` 不得作为 genuine OOS validation 证据。
+  2. 【P0-02 Risk-Adjusted EV 规则闭环】：
+     - 明确折减必须覆盖 OOS、稳定性、实时数据冲突、战术一致性、结算完整性、四分之一盘风险；
+     - 禁止 AI 自行发明未定义折扣系数；
+     - Layer 03 提供的 `risk_adjusted_ev` 优先使用；未提供时 AI 仅能进行 QUALITATIVE 调整，严禁伪造具体数值；
+     - 新增 `risk_adjustment_status: "ENGINE_PROVIDED" | "QUALITATIVE_ONLY" | "UNAVAILABLE"` 字段。
+  3. 【P0-03 MAO 变量来源明确与反向凑合禁止】：
+     - `Risk_Adjusted_Fair_Prob` 必须源自 Layer 03 或经校验的五态结算分布，严禁主观捏造；
+     - `Hurdle_Margin` 必须有明确系统来源，未提供时禁止 AI 假设，`minimum_acceptable_odds = 0`，`actionable = false`，`recommended_legs = []`；
+     - 严禁为了凑推荐反推 MAO。
+  4. 【P0-04 Quarter Line 彻底禁止错误 EV 参与排序】：
+     - 四分之一盘口若缺乏完整五态结算分布，标记为 `SETTLEMENT_UNVERIFIABLE`；
+     - 强制规则：不得作为 actionable line，不得参与 risk-adjusted EV 排序，不得作为 `market_scan.selected_line`，不得进入 `recommended_legs`，`raw_ev` 不得用于证明价值。
+     - 确立原则：`# UNVERIFIABLE QUARTER LINE: INVALID FOR VALUE RANKING`。
+  5. 【P1-01 internal_logical_audit 消除 CoT 要求】：
+     - 修改描述为："Concise decision audit summarizing the verified evidence, contradictions, risk adjustments, settlement checks, gate decisions, and final market selection. Do not expose hidden chain-of-thought."
+     - 说明 11 项决策依据摘要，禁止要求 AI 输出隐藏推理过程。
 - **影响文件 (Target Files)**：
-  `server/dataFiles.ts`
-  `server/services/oosArchiveService.ts`
-  `scripts/seed_oos_from_leisu.ts`
-  `server/routes/ledgerMutationRoutes.ts`
-  `src/components/LedgerView.tsx`
-  `server/routes/refactorLedgerRoutes.ts`
+  `refactor/04_ai_evaluator/types.ts`
+  `refactor/04_ai_evaluator/promptBuilder.ts`
+  `refactor/04_ai_evaluator/promptExporter.ts`
+  `refactor/04_ai_evaluator/aiCaller.ts`
+  `refactor/04_ai_evaluator/alignmentGuard.ts`
+  `tests-ts/aiEvaluatorAlignment.test.ts`
+
+  `refactor/04_ai_evaluator/types.ts`
+  `refactor/04_ai_evaluator/alignmentGuard.ts`
+  `refactor/04_ai_evaluator/aiCaller.ts`
+  `server/routes/aiReadRoutes.ts`
+  `src/components/CanonicalMatchCenter.tsx`
   `refactor/HANDOVER_AND_PROGRESS.md`
 - **执行步骤 (Action Plan)**：
-  1. 排查并修正 `server/dataFiles.ts` 与 `server/services/oosArchiveService.ts`：将 OOS 存储路径指向 `refactor/runtime/`，移除对 `output/` 的依赖与扫描；
-  2. 排查并修正 `scripts/seed_oos_from_leisu.ts`：输入源限定为 `refactor/fixtures/`，产物写入 `refactor/runtime/`；
-  3. 净化 `server/routes/ledgerMutationRoutes.ts`：移除在旧系统台账核销中调用的 OOS 自增代码，消除伪造 OOS 样本的隐患；
-  4. 净化 `src/components/LedgerView.tsx`：移除重构系统的 OOS 看板与自增 Toast，保持旧系统台账界面专注纯粹；
-  5. 规范 `server/routes/refactorLedgerRoutes.ts`：统一走 `formalLedgerAdapter.ts` 契约，确保只有 `PRODUCTION_UNLOCKED` 的正式推荐沉淀为 OOS；
-  6. 执行 `compile_applet` 和验证，更新快照为 `DONE` 并向用户提供详尽透明的排查报告。
+  1. 登记快照至 `refactor/HANDOVER_AND_PROGRESS.md`；
+  2. 升级 `refactor/04_ai_evaluator/types.ts`：定义 `MarketScanResult` 并在 `AiEvaluationResult` 中引入；
+  3. 升级 `refactor/04_ai_evaluator/promptBuilder.ts`：系统级注入 11 项规则与 Grade Hard-Gate Matrix、更新 JSON Schema 与输出格式；
+  4. 升级 `refactor/04_ai_evaluator/promptExporter.ts`：明确 Payload 中 OOS 的真实语义、注入盘口结算属性和数学已结算标记；
+  5. 升级 `refactor/04_ai_evaluator/alignmentGuard.ts` 与 `aiCaller.ts`：保持对新结构与硬门禁的严密校验；
+  6. 适配 `server/routes/aiReadRoutes.ts` 与前端 `src/components/CanonicalMatchCenter.tsx`；
+  7. 执行语法检查、全量编译与回归测试，归档快照为 `DONE`。
+
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260909-FORMAL-LEDGER-PERSISTENCE-AND-OOS-CLOSED-LOOP` (DONE)
+- **任务目标 (Goal)**：
+  1. 【切除违规与虚假数据代码】：
+     - 彻底从 `CanonicalMatchCenter.tsx` 中剔除“方案 1 + 方案 2 核心监控看板”及生硬拼接的假数据展示；
+     - 物理删除伪造常数概率（0.505）与常数进球（2.50）的 `refactor/06_settlement_audit/leisuHistoricalSeeder.ts` 与 `scripts/seed_oos_from_leisu.ts`；
+     - 清理 `refactor/runtime/` 下虚假的 OOS 编译档案与样本，还原为合规透明的 `PENDING_CALIBRATION` 状态。
+  2. 【打通重构正式台账持久化通道 (Formal Ledger Persistence API)】：
+     - 在 `server/routes/refactorLedgerRoutes.ts` 新增标准接口 `POST /api/refactor/formal-ledger/append`；
+     - 接收比赛 ID、玩法市场、盘口、赔率及 AI 评估输出（A/B 级），严格校验并提取 Layer 03 冻结预测快照（真实 `model_probability`、`predicted_lambda`、`score_at_recommendation`、`score_verified`）；
+     - 原子化写入 `refactor/runtime/formal_ledger_live.json` 或 `formal_ledger_prematch.json`。
+  3. 【升级重构正式台账与核销审计中心 (Settlement & Real OOS Closed-Loop)】：
+     - 重构 `server/routes/refactorLedgerRoutes.ts` 中的结算核销逻辑：输入真实完赛比分与核验来源后，调用 Layer 06 `evaluateQuarterSettlement` 执行四分之一盘精确结算；
+     - 结算完成后，自动调用标准适配器 `convertFormalLedgerRecords` 与 `toOosSample`，仅抽取二元 WIN/LOSE 记录沉淀为真实 OOS 校准样本（采用预测快照中真实的概率与 Lambda，零伪造），自动重构校准档案并更新真实 Brier 得分；
+     - 在前端 `CanonicalMatchCenter.tsx` 构建规范典雅的【重构正式推荐台账与核销审计中心】：
+       * 在赛事卡片上提供【写入重构正式台账】合规动作；
+       * 底部/面板提供清晰的正式台账清单（待核销 / 已核销），支持比分输入、核验来源确认、一键合规结算；
+       * 真实展示 OOS 实盘累积进度（如：真实样本数、有效统计量 ESS、当前门禁状态）。
+- **影响文件 (Target Files)**：
+  `refactor/HANDOVER_AND_PROGRESS.md`
+  `server/routes/refactorLedgerRoutes.ts`
+  `server/services/oosArchiveService.ts`
+  `src/components/CanonicalMatchCenter.tsx`
+  `package.json`
+- **执行步骤 (Action Plan)**：
+  1. 登记本活动工作快照；
+  2. 物理删除 `refactor/06_settlement_audit/leisuHistoricalSeeder.ts` 与 `scripts/seed_oos_from_leisu.ts`，从 `package.json` 移除 `oos:seed`；
+  3. 重构 `server/services/oosArchiveService.ts`，剥离对 `leisuHistoricalSeeder` 的伪造依赖，使 OOS 服务具备空库安全防护及基于真实样本的重新编译能力；
+  4. 升级 `server/routes/refactorLedgerRoutes.ts`，新增 `/api/refactor/formal-ledger/append` 并规范 `/api/refactor/formal-ledger/settle` 的标准闭环；
+  5. 升级 `src/components/CanonicalMatchCenter.tsx`，物理清理假看板，增加卡片台账沉淀按钮与规范的重构正式推荐台账核销面板；
+  6. 执行 `compile_applet` 和全套自动化测试套件验证，更新快照为 `DONE`。
 
 - **历史任务 (Previous Task)**: `SNAPSHOT-20260909-LEISU-OOS-SEEDER-AND-MANUAL-SETTLEMENT` (DONE)
 

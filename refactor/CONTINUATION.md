@@ -51,12 +51,15 @@
   - Q2: 盘口择优竞价池全面纳入大小球与让球的全部合法主副盘（`ASIAN_HANDICAP_MAIN/SECONDARY`, `TOTAL_GOALS_MAIN/SECONDARY`），副盘优于主盘时自动高亮为“最优副盘推荐”；前端界面支持切线切换与对比。
   - Q3: 独赢三向（主胜/平局/客胜）独立呈现对应赔率、概率与单向 EV，正期望方向高亮展示。
   - Q4: 玩法底栏由纯数值“期望值: EV”升级为具备明确主语指向的“最佳推荐选项 + 对应赔率 + EV”。
+- [2026-09-09 Formal Ledger & OOS Clean Architecture Complete]:
+  - 彻底清理旧系统违规侵蚀的伪造数据与“方案1+方案2”旧监控看板，删除伪造数据生成器（`leisuHistoricalSeeder.ts`）；
+  - 实现重构正式台账持久化服务闭环（`GET /api/refactor/formal-ledger`, `POST /api/refactor/formal-ledger/append`, `POST /api/refactor/formal-ledger/settle`）；
+  - 实现真实完赛比分输入、四分之一盘精确结算以及沉淀真实 OOS 样本/重构真实 Brier 得分的完整闭环；
+  - 在前端重构页面实现了符合重构架构的 OOS 自增监控面板、正式推荐台账与完赛核销中心，以及赛事卡片与详情页的一键入账/AI评估入口。
 
 ## Next Atomic Task
 
-Next, execute Batch 2 (Q5, Q6 & Q7):
-- Q5: 彻底排查并修复让球盘口错误显示“主 0 / 客 0”的问题（如博德鲁姆FK实盘为“主 +0/0.5 / 客 -0/0.5”）。
-- Q6 & Q7: 全面排查并根除前端与后端 SSOT 不一致问题（前端私自倒算模型概率破坏 SSOT、胜率双轨制等），使前端纯粹消费后端 Layer 03 输出，确保数出一孔。
+交付用户体验与实盘验证。如有新增比赛，可通过 AI 评估导入自动或手动写入正式台账，赛后录入全场真实比分与核验来源执行核销，驱动真实的 OOS 校准档案自增。
 
 After that, audit live-minute window semantics, red-card multipliers into M4, market timeline separation, and OOS backtesting one atomic issue at a time.
 

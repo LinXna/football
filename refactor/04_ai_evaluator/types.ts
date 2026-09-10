@@ -52,6 +52,21 @@ export interface EvaluatorQuantFeatures {
     signals: readonly PositiveEVSignal[];
   };
   market_divergence_insights?: string;
+  /** Explicit OOS Semantic Status to prevent NO_PROFILE vs VALIDATED confusion */
+  oos_semantic_status?: {
+    profile_status: 'NO_PROFILE' | 'PROFILE_AVAILABLE' | 'VALIDATED';
+    is_oos_validated: boolean;
+    effective_sample_size: number;
+    audit_rule: string;
+  };
+  /** Explicit Model Stability & Pipeline Hard Gate Bounds */
+  stability_and_blockers?: {
+    model_stability_score: number;
+    has_major_live_conflict: boolean;
+    blocker_count: number;
+    blockers: string[];
+    hard_gate_ceiling: 'A_GRADE' | 'B_GRADE' | 'WATCH' | 'REJECTED';
+  };
 }
 
 export interface LivePhysicalContext {
@@ -80,6 +95,30 @@ export interface EvaluatorPayload {
   lineup_value_matrix?: EvaluatorLineupMatrix | string;
   quant_features?: EvaluatorQuantFeatures;
   oos_context?: OosHistoricalContext;
+}
+
+export interface QuarterLineSettlementDistribution {
+  p_full_win?: number;
+  p_half_win?: number;
+  p_push?: number;
+  p_half_loss?: number;
+  p_full_loss?: number;
+  settlement_status?: 'VERIFIED' | 'SETTLEMENT_UNVERIFIABLE';
+}
+
+export interface MarketScanResult {
+  selected_line: string;
+  market: string;
+  direction: 'HOME' | 'AWAY' | 'OVER' | 'UNDER' | 'DRAW' | 'NONE';
+  current_odds: number;
+  minimum_acceptable_odds: number;
+  raw_ev: number;
+  risk_adjusted_ev: number;
+  risk_adjustment_status?: 'ENGINE_PROVIDED' | 'QUALITATIVE_ONLY' | 'UNAVAILABLE';
+  is_quarter_line: boolean;
+  quarter_line_settlement_distribution?: QuarterLineSettlementDistribution;
+  actionable: boolean;
+  rejection_reason?: string;
 }
 
 export interface RecommendedLeg {
@@ -117,5 +156,8 @@ export interface AiEvaluationResult {
   qualitative_summary: string;
   risk_warnings: string[];
   
+  /** Separated market scan discovery: records best scanned line regardless of actionability */
+  market_scan?: MarketScanResult;
+
   recommended_legs: RecommendedLeg[];
 }

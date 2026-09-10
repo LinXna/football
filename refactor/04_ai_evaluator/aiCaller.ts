@@ -56,12 +56,40 @@ export class AiEvaluatorService {
           type: Type.ARRAY,
           items: { type: Type.STRING }
         },
+        market_scan: {
+          type: Type.OBJECT,
+          properties: {
+            selected_line: { type: Type.STRING },
+            market: { type: Type.STRING },
+            direction: { type: Type.STRING, enum: ['HOME', 'AWAY', 'OVER', 'UNDER', 'DRAW', 'NONE'] },
+            current_odds: { type: Type.NUMBER },
+            minimum_acceptable_odds: { type: Type.NUMBER },
+            raw_ev: { type: Type.NUMBER },
+            risk_adjusted_ev: { type: Type.NUMBER },
+            risk_adjustment_status: { type: Type.STRING, enum: ['ENGINE_PROVIDED', 'QUALITATIVE_ONLY', 'UNAVAILABLE'] },
+            is_quarter_line: { type: Type.BOOLEAN },
+            quarter_line_settlement_distribution: {
+              type: Type.OBJECT,
+              properties: {
+                p_full_win: { type: Type.NUMBER },
+                p_half_win: { type: Type.NUMBER },
+                p_push: { type: Type.NUMBER },
+                p_half_loss: { type: Type.NUMBER },
+                p_full_loss: { type: Type.NUMBER },
+                settlement_status: { type: Type.STRING, enum: ['VERIFIED', 'SETTLEMENT_UNVERIFIABLE'] }
+              }
+            },
+            actionable: { type: Type.BOOLEAN },
+            rejection_reason: { type: Type.STRING }
+          },
+          required: ['selected_line', 'market', 'direction', 'current_odds', 'minimum_acceptable_odds', 'raw_ev', 'risk_adjusted_ev', 'is_quarter_line', 'actionable']
+        },
         recommended_legs: {
           type: Type.ARRAY,
           items: {
             type: Type.OBJECT,
             properties: {
-              market: { type: Type.STRING, enum: ['ASIAN_HANDICAP_MAIN', 'TOTAL_GOALS_MAIN', 'EURO_1X2'] },
+              market: { type: Type.STRING },
               selected_line: { type: Type.STRING },
               current_odds: { type: Type.NUMBER },
               minimum_acceptable_odds: { type: Type.NUMBER },
@@ -192,6 +220,7 @@ function validateAiResponse(raw: unknown, payload: EvaluatorPayload): AiEvaluati
     confidence_score: raw.confidence_score,
     qualitative_summary: raw.qualitative_summary,
     risk_warnings: raw.risk_warnings,
+    market_scan: isRecord(raw.market_scan) ? (raw.market_scan as unknown as MarketScanResult) : undefined,
     recommended_legs: recommendedLegs
   };
 }

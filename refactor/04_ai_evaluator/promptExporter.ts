@@ -151,18 +151,79 @@ export function generateRefactoredPrompt(
       data_blind_spot_warning = `【系统最高级别警告】本场比赛存在严重的客观数据盲区: [${blindSpots.join('、')}]。AI 绝对禁止依此凭空捏造实力差距或控场优势。必须将 100% 评估权重转移至已有真实数据 (如可用盘口资金动量)，必须标注 [高波动/盲盒风险]，且最高置信度上限强制锁定在 85 以下，绝对禁止给出 A_GRADE 评级。`;
     }
 
+    // 辅助检查四分之一盘与滚球数学已结算状态
+    const currentHomeScore = match.score?.home_score ?? 0;
+    const currentAwayScore = match.score?.away_score ?? 0;
+    const currentTotalGoals = currentHomeScore + currentAwayScore;
+    const isLive = match.timing?.stage === MatchStage.LIVE;
+
+    const checkQuarterLine = (lineStr: any): boolean => {
+      if (!lineStr) return false;
+      const s = String(lineStr);
+      return s.includes('/') || s.includes('.25') || s.includes('.75');
+    };
+
+    const annotateOuMarket = (marketItem: any) => {
+      if (!marketItem) return marketItem;
+      const rawLine = marketItem.line ?? marketItem.total_line ?? marketItem.total ?? '';
+      const numLine = parseFloat(String(rawLine).split('/')[0]);
+      const isQuarter = checkQuarterLine(rawLine);
+      const isClosed = isLive && !isNaN(numLine) && numLine <= currentTotalGoals;
+      return {
+        ...marketItem,
+        is_quarter_line: isQuarter,
+        quarter_line_warning: isQuarter ? "四分之一盘具五态结算[全赢/半赢/走/半输/全输]。若无完整五态真实结算分布，settlement_status为SETTLEMENT_UNVERIFIABLE，严禁作为selected_line、不得参与EV排序、不得推荐！(UNVERIFIABLE QUARTER LINE: INVALID FOR VALUE RANKING)" : undefined,
+        mathematical_settlement_state: isClosed ? "MATHEMATICALLY_CLOSED" : "ACTIVE_UNSETTLED",
+        settlement_notice: isClosed ? `当前已产生 ${currentTotalGoals} 进球，此盘口(<= ${currentTotalGoals})已结出数学事实(大球必赢/小球必输)，禁止作为未来概率预测推荐！` : undefined
+      };
+    };
+
+    const annotateAhMarket = (marketItem: any) => {
+      if (!marketItem) return marketItem;
+      const rawLine = marketItem.handicap ?? marketItem.line ?? '';
+      const isQuarter = checkQuarterLine(rawLine);
+      return {
+        ...marketItem,
+        is_quarter_line: isQuarter,
+        quarter_line_warning: isQuarter ? "四分之一让球盘具五态结算[全赢/半赢/走/半输/全输]。若无完整五态真实结算分布，settlement_status为SETTLEMENT_UNVERIFIABLE，严禁作为selected_line、不得参与EV排序、不得推荐！(UNVERIFIABLE QUARTER LINE: INVALID FOR VALUE RANKING)" : undefined,
+        in_play_reset_rule: isLive ? "滚球让球盘仅考核推荐后剩余进球，以0:0重新起算！" : undefined
+      };
+    };
+
     const compressedAiBrief = { 
       ...aiBrief, 
       core_markets: {
-        ah_main: match.markets?.full_spread_main,
-        ah_secondary: quantFeatures.devig.spread_secondary_ev,
-        ou_main: match.markets?.full_total_main,
-        ou_secondary: quantFeatures.devig.total_secondary_ev,
+        ah_main: annotateAhMarket(match.markets?.full_spread_main),
+        ah_secondary: Array.isArray(quantFeatures.devig.spread_secondary_ev) ? quantFeatures.devig.spread_secondary_ev.map(annotateAhMarket) : quantFeatures.devig.spread_secondary_ev,
+        ou_main: annotateOuMarket(match.markets?.full_total_main),
+        ou_secondary: Array.isArray(quantFeatures.devig.total_secondary_ev) ? quantFeatures.devig.total_secondary_ev.map(annotateOuMarket) : quantFeatures.devig.total_secondary_ev,
         euro_1x2: match.markets?.full_h2h
       },
       condensed_features: undefined 
     };
     delete compressedAiBrief.condensed_features;
+
+    // 显式 OOS 状态与模型稳定性门禁判定 (P0-01)
+    const pipeline = quantFeatures.candidate_pipeline;
+    const validations = pipeline?.validations ?? [];
+    const hasValidOosProfile = validations.some(v => v.status === 'VALIDATED' && v.effective_sample_size > 0);
+    const maxEss = validations.reduce((acc, v) => Math.max(acc, v.effective_sample_size ?? 0), 0);
+    const oosProfileStatus: 'NO_PROFILE' | 'VALIDATED' = hasValidOosProfile ? 'VALIDATED' : 'NO_PROFILE';
+    const isOosValidated = oosProfileStatus === 'VALIDATED' && maxEss >= 30;
+
+    const modelStability = quantFeatures.confidence_breakdown?.model_stability_score ?? 100;
+    const hasMajorConflict = (quantFeatures.risk_flags?.length ?? 0) > 0 || (pipeline?.blockers?.length ?? 0) > 0;
+    const candidateCount = pipeline?.machine_candidate_count ?? 0;
+    const isPipelineLocked = pipeline?.state !== 'PRODUCTION_UNLOCKED';
+
+    let hardGateCeiling: 'A_GRADE' | 'B_GRADE' | 'WATCH' | 'REJECTED' = 'A_GRADE';
+    if (blindSpots.length > 0) {
+      hardGateCeiling = 'C_GRADE' as any;
+    } else if (modelStability < 70 && (hasMajorConflict || candidateCount === 0 || isPipelineLocked)) {
+      hardGateCeiling = 'WATCH';
+    } else if (!isOosValidated || modelStability < 70) {
+      hardGateCeiling = 'B_GRADE';
+    }
 
     let expectedRemaining = 0;
     if (match.timing?.stage === MatchStage.FINISHED) {
@@ -207,7 +268,20 @@ export function generateRefactoredPrompt(
           red_card_state: `${quantFeatures.match_state.red_card_attack_multiplier_home.toFixed(2)}/${quantFeatures.match_state.red_card_attack_multiplier_away.toFixed(2)}`,
           signals: quantFeatures.positive_ev_signals
         } : undefined,
-        market_divergence_insights: quantFeatures.devig.bookmaker_posture
+        market_divergence_insights: quantFeatures.devig.bookmaker_posture,
+        oos_semantic_status: {
+          profile_status: oosProfileStatus,
+          is_oos_validated: isOosValidated,
+          effective_sample_size: maxEss,
+          audit_rule: `NO_PROFILE ≠ OOS VALIDATED. oos_validated_count (${pipeline?.oos_validated_count ?? 0}) indicates pipeline candidates only. When profile_status is NO_PROFILE or ESS < 30, A_GRADE is strictly prohibited.`
+        },
+        stability_and_blockers: {
+          model_stability_score: modelStability,
+          has_major_live_conflict: hasMajorConflict,
+          blocker_count: pipeline?.blockers?.length ?? 0,
+          blockers: Array.from(pipeline?.blockers ?? []),
+          hard_gate_ceiling: hardGateCeiling
+        }
       }
     });
   }

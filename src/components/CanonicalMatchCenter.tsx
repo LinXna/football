@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   CheckCircle,
+  CheckCircle2,
+  PlusCircle,
   AlertTriangle,
   XCircle,
   Clock,
@@ -223,11 +225,13 @@ export const CanonicalMatchCenter: React.FC = () => {
   const [ledgerFeedback, setLedgerFeedback] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // 方案 1 & 方案 2 状态：OOS 校准档案与实盘核销结算
+  // 重构系统正式推荐台账与 OOS 实盘自增校准状态
   const [oosStatus, setOosStatus] = useState<any>(null);
-  const [isSeedingOos, setIsSeedingOos] = useState<boolean>(false);
   const [settleInputs, setSettleInputs] = useState<Record<string, { home: string; away: string }>>({});
+  const [settleSources, setSettleSources] = useState<Record<string, string>>({});
   const [settlingIds, setSettlingIds] = useState<Record<string, boolean>>({});
+  const [ledgerFilter, setLedgerFilter] = useState<'ALL' | 'UNSETTLED' | 'SETTLED'>('ALL');
+  const [appendingLedgerIds, setAppendingLedgerIds] = useState<Record<string, boolean>>({});
 
   // State for AI Prompt & Evaluator Modal
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -478,9 +482,48 @@ export const CanonicalMatchCenter: React.FC = () => {
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || '导入失败');
       
-      setAiFeedback({ type: 'success', message: '✅ 成功导入 AI 评估！已自动与当前重构赛事关联并在比赛卡片就地呈现。' });
+      // 自动检查是否有符合 A/B 级的推荐，并尝试自动沉淀至重构正式台账
+      let autoAppendedCount = 0;
+      const importedMatches = Array.isArray(data.result?.matches) ? data.result.matches : [];
+      for (const item of importedMatches) {
+        const grade = String(item.grade || item.grade_raw || '').toUpperCase();
+        if ((grade.startsWith('A') || grade.startsWith('B')) && (item.recommended_legs?.length > 0 || item.recommendation)) {
+          const matchedCanonical = matches.find(m => 
+            m.canonical_id === item.canonical_id || 
+            m.canonical_id === item.match_id ||
+            (item.ybty_home && m.home_team_name.includes(item.ybty_home))
+          );
+          if (matchedCanonical) {
+            const quant = quantFeaturesMap[matchedCanonical.canonical_id];
+            try {
+              const appendResp = await fetch('/api/refactor/formal-ledger/append', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  stage: mode === 'live' ? 'LIVE' : 'PREMATCH',
+                  canonical_match: matchedCanonical,
+                  quant_features: quant,
+                  ai_evaluation: item
+                })
+              });
+              const appendData = await appendResp.json();
+              if (appendData.success && appendData.count > 0) {
+                autoAppendedCount += appendData.count;
+              }
+            } catch {
+              // ignore individual append failure
+            }
+          }
+        }
+      }
+
+      const appendMsg = autoAppendedCount > 0
+        ? `，并已将 ${autoAppendedCount} 条合格 A/B 级推荐自动沉淀至正式台账！`
+        : '！';
+      setAiFeedback({ type: 'success', message: `✅ 成功导入 AI 评估${appendMsg}已自动与当前重构赛事关联并在比赛卡片就地呈现。` });
       setAiImportJson('');
       loadAiEvaluations();
+      await fetchRefactorLedger();
     } catch (err: any) {
       setAiFeedback({ type: 'error', message: `❌ 导入失败: ${err.message}` });
     } finally {
@@ -638,23 +681,32 @@ export const CanonicalMatchCenter: React.FC = () => {
     }
   }, []);
 
-  const handleSeedOos = async () => {
-    setIsSeedingOos(true);
-    setLedgerFeedback('正在从雷速历史真实对阵提取样本并编译 OOS 档案...');
+  const handleAppendToLedger = async (match: CanonicalMatch, aiEval: any) => {
+    setAppendingLedgerIds((prev) => ({ ...prev, [match.canonical_id]: true }));
+    setLedgerFeedback(`正在将 ${match.home_team_name} vs ${match.away_team_name} 推荐写入重构正式台账...`);
     try {
-      const res = await fetch('/api/refactor/oos-seed', { method: 'POST' });
+      const quant = quantFeaturesMap[match.canonical_id];
+      const res = await fetch('/api/refactor/formal-ledger/append', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stage: mode === 'live' ? 'LIVE' : 'PREMATCH',
+          canonical_match: match,
+          quant_features: quant,
+          ai_evaluation: aiEval,
+        }),
+      });
       const data = await res.json();
-      if (data.ok) {
-        setOosStatus(data.status);
-        setLedgerFeedback(`✅ 成功扫描并重新编译雷速历史数据！已生成样本: ${data.sample_count || data.status?.sample_count} 条，有效 ESS: ${(data.status?.ess || 0).toFixed(1)}，状态已跃迁为 VALIDATED`);
-        fetchCanonicalData();
+      if (data.success) {
+        setLedgerFeedback(`✅ ${data.message}`);
+        await fetchRefactorLedger();
       } else {
-        setLedgerFeedback(`❌ 编译 OOS 样本失败: ${data.error || '未知错误'}`);
+        setLedgerFeedback(`❌ 写入正式台账失败: ${data.error || '未知错误'}`);
       }
-    } catch (e: any) {
-      setLedgerFeedback(`❌ 请求失败: ${e.message}`);
+    } catch (err: any) {
+      setLedgerFeedback(`❌ 写入正式台账网络异常: ${err.message}`);
     } finally {
-      setIsSeedingOos(false);
+      setAppendingLedgerIds((prev) => ({ ...prev, [match.canonical_id]: false }));
     }
   };
 
@@ -667,6 +719,7 @@ export const CanonicalMatchCenter: React.FC = () => {
     setSettlingIds((prev) => ({ ...prev, [recordId]: true }));
     setLedgerFeedback('正在执行四分之一盘确定性核销并同步 OOS 校准样本...');
     try {
+      const source = settleSources[recordId] || '雷速比分画布/接口校验';
       const res = await fetch('/api/refactor/formal-ledger/settle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -675,12 +728,17 @@ export const CanonicalMatchCenter: React.FC = () => {
           stage: mode === 'live' ? 'LIVE' : 'PREMATCH',
           final_score: { home: Number(input.home), away: Number(input.away) },
           score_verified: true,
+          score_source: source,
         }),
       });
       const data = await res.json();
       if (data.success) {
         const profit = data.settlement?.profit_loss ?? 0;
-        setLedgerFeedback(`✅ 记录核销成功！结果: [${data.settlement?.outcome}]，净盈亏: ${profit > 0 ? '+' : ''}${profit.toFixed(2)}u。${profit !== 0 ? '已实时增量沉淀至 OOS 样本库！' : ''}`);
+        const outcome = data.settlement?.outcome;
+        const oosMsg = data.oos_sample_ingested
+          ? '⚡ 已按 Layer 06 契约转化为真实 OOS 校准样本并增量更新档案！'
+          : (data.skipped_reason ? `ℹ️ 台账已核销，但未入 OOS 样本档案（原因: ${data.skipped_reason}）` : '');
+        setLedgerFeedback(`✅ 记录核销成功！结果: [${outcome}]，净盈亏: ${profit > 0 ? '+' : ''}${profit.toFixed(2)}u。${oosMsg}`);
         if (data.oos_status) {
           setOosStatus(data.oos_status);
         }
@@ -1490,7 +1548,7 @@ export const CanonicalMatchCenter: React.FC = () => {
         </div>
       </div>
 
-      {/* 方案 1 & 方案 2 核心监控看板：OOS 校准档案与实盘自增 */}
+      {/* 重构体系：OOS 样本校准档案与实盘自增监控看板 */}
       <div className="bg-slate-900/80 rounded-xl border border-blue-950/80 p-3.5 space-y-3 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
@@ -1500,7 +1558,7 @@ export const CanonicalMatchCenter: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-slate-100">
-                  OOS 样本校准档案与实盘自增监控看板 (方案 1 + 方案 2)
+                  OOS 样本校准档案与实盘自增监控看板
                 </span>
                 <span
                   className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
@@ -1509,89 +1567,118 @@ export const CanonicalMatchCenter: React.FC = () => {
                       : "bg-amber-500/10 text-amber-300 border-amber-500/30"
                   }`}
                 >
-                  {oosStatus?.status === "VALIDATED" ? "✅ VALIDATED (成熟可用)" : "⚠️ PENDING_CALIBRATION"}
+                  {oosStatus?.status === "VALIDATED" ? "✅ VALIDATED (成熟可用)" : "⚠️ PENDING_CALIBRATION (实盘样本累积中)"}
+                </span>
+                <span className="text-[10px] bg-blue-950 text-blue-300 px-2 py-0.5 rounded border border-blue-800">
+                  Layer 06 实盘闭环契约
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                雷速完赛冷启动 (860+样本) + 赛后实盘核销自增闭环，为 Layer 03 概率引擎提供真实先验衰减与分桶校准
+                严格遵循重构技术架构契约：仅当正式 A/B 级推荐完成赛后比分核销后，自动提取真实公允概率增量沉淀至 OOS 档案，零伪造数据。
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={handleSeedOos}
-              disabled={isSeedingOos}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-all shadow-xs"
-              title="重新从雷速历史中提取并编译样本库"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isSeedingOos ? "animate-spin" : ""}`} />
-              <span>{isSeedingOos ? "正在提取编译..." : "重新扫描编译雷速历史样本 (方案 1)"}</span>
-            </button>
-            <button
               onClick={fetchOosStatus}
-              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium border border-slate-700"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium border border-slate-700 transition-colors"
+              title="刷新 OOS 校准指标"
             >
-              刷新指标
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>刷新校准指标</span>
             </button>
           </div>
         </div>
 
-        {/* 核心量化四大指标卡 */}
+        {/* 核心量化四大指标卡 (真实数据呈现，零伪造) */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
           <div className="bg-slate-950/70 p-2.5 rounded-lg border border-slate-800">
-            <div className="text-[10px] text-slate-400 font-medium">历史沉淀样本总数</div>
+            <div className="text-[10px] text-slate-400 font-medium">真实核销沉淀样本</div>
             <div className="text-base font-bold font-mono text-blue-300 mt-0.5">
-              {oosStatus?.sample_count ?? 1131} <span className="text-[10px] font-normal text-slate-500">条</span>
+              {oosStatus?.sample_count ?? 0} <span className="text-[10px] font-normal text-slate-500">条</span>
             </div>
-            <div className="text-[10px] text-slate-500 mt-0.5">覆盖让球与大小球实盘胜负</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">
+              {oosStatus?.sample_count > 0 ? "覆盖让球与大小球实盘胜负" : "等待赛后核销沉淀首批样本"}
+            </div>
           </div>
 
           <div className="bg-slate-950/70 p-2.5 rounded-lg border border-slate-800">
             <div className="text-[10px] text-slate-400 font-medium">有效统计量 (ESS)</div>
             <div className="text-base font-bold font-mono text-emerald-400 mt-0.5">
-              {(oosStatus?.ess ?? 570.0).toFixed(1)} <span className="text-[10px] font-normal text-emerald-600">/ 200.0</span>
+              {(oosStatus?.ess ?? 0).toFixed(1)} <span className="text-[10px] font-normal text-emerald-600">/ 200.0</span>
             </div>
-            <div className="text-[10px] text-emerald-500/80 mt-0.5">✔ 远超门槛，已解锁正式推荐</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">
+              {oosStatus?.status === "VALIDATED" ? "✔ 达到成熟门槛，已解锁校准" : "实盘自增累积中 (门槛 200.0)"}
+            </div>
           </div>
 
           <div className="bg-slate-950/70 p-2.5 rounded-lg border border-slate-800">
-            <div className="text-[10px] text-slate-400 font-medium">概率校准成熟分桶</div>
+            <div className="text-[10px] text-slate-400 font-medium">概率校准分桶数量</div>
             <div className="text-base font-bold font-mono text-purple-300 mt-0.5">
-              {oosStatus?.profile_count ?? 5} <span className="text-[10px] font-normal text-slate-500">个区间</span>
+              {oosStatus?.profile_count ?? 0} <span className="text-[10px] font-normal text-slate-500">个区间</span>
             </div>
-            <div className="text-[10px] text-slate-500 mt-0.5">五分位数平滑概率收缩</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">自适应等频五分位分桶</div>
           </div>
 
           <div className="bg-slate-950/70 p-2.5 rounded-lg border border-slate-800">
             <div className="text-[10px] text-slate-400 font-medium">Brier 预测误差分值</div>
             <div className="text-base font-bold font-mono text-amber-300 mt-0.5">
-              {oosStatus?.brier_score != null ? oosStatus.brier_score.toFixed(3) : "0.218"}
+              {oosStatus?.brier_score != null ? oosStatus.brier_score.toFixed(4) : "暂无 (实盘样本累积中)"}
             </div>
-            <div className="text-[10px] text-slate-500 mt-0.5">显著优于未校准随机基线 0.250</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">随机无信息基线为 0.2500</div>
           </div>
         </div>
       </div>
 
+      {/* 重构正式推荐台账与实盘核销结算中心 */}
       <div className="bg-slate-900/70 rounded-xl border border-indigo-900/60 p-3.5 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-indigo-200">重构正式推荐台账 (方案 2 核销结算)</span>
-              <span className="text-[10px] bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded border border-indigo-800">
+              <span className="text-sm font-semibold text-indigo-200">
+                重构正式推荐台账与实盘核销中心 ({mode === "live" ? "滚球" : "赛前"})
+              </span>
+              <span className="text-[10px] bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded border border-indigo-800 font-mono">
                 {formalLedger.length} 场记录
               </span>
             </div>
             <div className="text-[11px] text-slate-400">
-              支持手动录入完场比分；后台自动执行四分之一盘确定性核销，结算后自动增量沉淀至 OOS 校准库。
+              严格遵循 Layer 05/06 契约：仅写入 A/B 级且 PRODUCTION_UNLOCKED 的正式推荐；赛后录入真实比分完成确定性四分之一盘核销，结算结果自动增量沉淀至 OOS 档案。
             </div>
           </div>
-          <button
-            onClick={fetchRefactorLedger}
-            className="px-2.5 py-1 text-xs rounded border border-indigo-800 text-indigo-300 hover:bg-indigo-950/60 transition-colors"
-          >
-            刷新台账
-          </button>
+
+          <div className="flex items-center gap-2">
+            {/* 过滤器 */}
+            <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-xs">
+              <button
+                onClick={() => setLedgerFilter('ALL')}
+                className={`px-2 py-1 rounded transition-colors ${ledgerFilter === 'ALL' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                全部 ({formalLedger.length})
+              </button>
+              <button
+                onClick={() => setLedgerFilter('UNSETTLED')}
+                className={`px-2 py-1 rounded transition-colors ${ledgerFilter === 'UNSETTLED' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                待核销 ({formalLedger.filter(r => !r.settlement?.is_settled).length})
+              </button>
+              <button
+                onClick={() => setLedgerFilter('SETTLED')}
+                className={`px-2 py-1 rounded transition-colors ${ledgerFilter === 'SETTLED' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                已结算 ({formalLedger.filter(r => r.settlement?.is_settled).length})
+              </button>
+            </div>
+
+            <button
+              onClick={fetchRefactorLedger}
+              className="px-2.5 py-1 text-xs rounded border border-indigo-800 text-indigo-300 hover:bg-indigo-950/60 transition-colors flex items-center gap-1"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>刷新台账</span>
+            </button>
+          </div>
         </div>
 
         {ledgerFeedback && (
@@ -1601,16 +1688,26 @@ export const CanonicalMatchCenter: React.FC = () => {
         )}
 
         {formalLedger.length === 0 ? (
-          <div className="text-xs text-slate-500 py-3 text-center bg-slate-950/40 rounded-lg border border-slate-800/60">
-            当前模式（{mode === "live" ? "滚球" : "赛前"}）暂无正式重构台账记录。您可在上方赛事卡片中通过 AI 评估生成推荐。
+          <div className="text-xs text-slate-500 py-4 text-center bg-slate-950/40 rounded-lg border border-slate-800/60 space-y-1">
+            <div>当前模式（{mode === "live" ? "滚球" : "赛前"}）暂无正式重构台账记录。</div>
+            <div className="text-slate-600">
+              您可在下方比赛卡片点击【写入正式台账】，或在顶部导入合格的 A/B 级 AI 评估，系统将自动验证门禁并持久化入账。
+            </div>
           </div>
         ) : (
           <div className="space-y-2.5">
-            {formalLedger.map((record) => {
+            {formalLedger
+              .filter(record => {
+                if (ledgerFilter === 'UNSETTLED') return !record.settlement?.is_settled;
+                if (ledgerFilter === 'SETTLED') return record.settlement?.is_settled;
+                return true;
+              })
+              .map((record) => {
               const isSettled = record.settlement?.is_settled;
               const outcome = record.settlement?.outcome;
               const profitLoss = record.settlement?.profit_loss;
               const curInput = settleInputs[record.record_id] || { home: "", away: "" };
+              const curSource = settleSources[record.record_id] || "雷速比分画布/接口校验";
               const isSettling = settlingIds[record.record_id];
 
               return (
@@ -1619,28 +1716,46 @@ export const CanonicalMatchCenter: React.FC = () => {
                   className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-950/80 rounded-lg p-3 border border-slate-800 hover:border-slate-700 transition-all"
                 >
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-bold text-slate-100">
                         {record.teams?.home} vs {record.teams?.away}
                       </span>
-                      <span className="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.2 rounded border border-slate-800">
-                        {record.league_key || "赛事"}
+                      <span className="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
+                        {record.league_key || record.league_name || "赛事"}
                       </span>
-                      <span className="text-[10px] text-blue-400 font-mono">
-                        {record.condition_snapshot?.match_minute || "即时"}
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {record.beijing_start_time || "未标时间"}
+                      </span>
+                      <span className="text-[10px] text-blue-400 font-mono bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-900">
+                        {record.condition_snapshot?.match_minute != null ? `第 ${record.condition_snapshot.match_minute}' 分钟` : '赛前'} (推荐时比分: {record.prediction_snapshot?.score_at_recommendation || '0-0'})
+                      </span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                        String(record.ai_assessment?.grade || '').startsWith('A')
+                          ? 'bg-emerald-950/70 text-emerald-300 border-emerald-700'
+                          : 'bg-blue-950/70 text-blue-300 border-blue-700'
+                      }`}>
+                        AI定级: {record.ai_assessment?.grade} ({record.ai_assessment?.confidence_score}分)
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2 text-xs text-slate-300">
+                    <div className="flex items-center gap-2.5 text-xs text-slate-300 flex-wrap pt-0.5">
                       <span className="font-semibold text-amber-300">
                         {record.prediction_snapshot?.market || record.leg?.market} {record.prediction_snapshot?.line || record.leg?.selected_line}
+                      </span>
+                      <span className="text-indigo-300 font-medium">
+                        方向: {record.leg?.direction}
                       </span>
                       <span className="font-mono text-slate-400">
                         @ {record.prediction_snapshot?.odds || record.leg?.current_odds}
                       </span>
                       {record.prediction_snapshot?.model_probability && (
                         <span className="text-[10px] text-emerald-400 font-mono">
-                          (胜率 {(record.prediction_snapshot.model_probability * 100).toFixed(1)}%)
+                          (模型公允胜率 {(record.prediction_snapshot.model_probability * 100).toFixed(1)}%)
+                        </span>
+                      )}
+                      {record.prediction_snapshot?.predicted_lambda && (
+                        <span className="text-[10px] text-purple-300 font-mono">
+                          (λ: 主 {record.prediction_snapshot.predicted_lambda.home?.toFixed(2)} / 客 {record.prediction_snapshot.predicted_lambda.away?.toFixed(2)})
                         </span>
                       )}
                     </div>
@@ -1649,7 +1764,7 @@ export const CanonicalMatchCenter: React.FC = () => {
                   {/* 核销结算区 */}
                   <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
                     {isSettled ? (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span
                           className={`text-xs px-2.5 py-1 rounded font-bold border ${
                             outcome === "WIN" || outcome === "WIN_HALF"
@@ -1660,17 +1775,23 @@ export const CanonicalMatchCenter: React.FC = () => {
                           }`}
                         >
                           {outcome === "WIN" ? "赢" : outcome === "WIN_HALF" ? "赢半" : outcome === "LOSE" ? "输" : outcome === "LOSE_HALF" ? "输半" : "走盘"}
-                          {profitLoss != null && ` (${profitLoss > 0 ? "+" : ""}${profitLoss}u)`}
+                          {profitLoss != null && ` (${profitLoss > 0 ? "+" : ""}${profitLoss.toFixed(2)}u)`}
                         </span>
                         <span className="text-xs font-mono text-slate-300 bg-slate-900 px-2 py-1 rounded border border-slate-800">
-                          完场: {record.settlement?.final_score_verified}
+                          完场: {record.settlement?.final_score_verified} ({record.settlement?.final_score_source || '雷速校验'})
                         </span>
-                        <span className="text-[10px] text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800">
-                          ⚡ 已沉淀 OOS 样本
-                        </span>
+                        {outcome === "WIN" || outcome === "LOSE" ? (
+                          <span className="text-[10px] text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800">
+                            ⚡ 已沉淀 OOS 样本
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800" title="非二元结算按 Layer 06 契约不进入二元 OOS 样本库">
+                            ⚪ 非二元结算
+                          </span>
+                        )}
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1.5 bg-slate-900 p-1.5 rounded-lg border border-slate-800">
+                      <div className="flex items-center gap-1.5 bg-slate-900 p-1.5 rounded-lg border border-slate-800 flex-wrap">
                         <span className="text-[11px] text-slate-400">完场:</span>
                         <input
                           type="number"
@@ -1697,12 +1818,26 @@ export const CanonicalMatchCenter: React.FC = () => {
                           }
                           className="w-10 px-1.5 py-0.5 bg-slate-950 text-slate-200 border border-slate-700 rounded text-center text-xs focus:outline-none focus:border-blue-500 font-mono"
                         />
+                        <select
+                          value={curSource}
+                          onChange={(e) =>
+                            setSettleSources((prev) => ({
+                              ...prev,
+                              [record.record_id]: e.target.value,
+                            }))
+                          }
+                          className="bg-slate-950 text-[10px] text-slate-300 border border-slate-700 rounded px-1.5 py-0.5 focus:outline-none"
+                        >
+                          <option value="雷速比分画布/接口校验">雷速比分画布/接口</option>
+                          <option value="官方完场赛果核验">官方完场核验</option>
+                          <option value="人工/现场核对">人工核对</option>
+                        </select>
                         <button
                           onClick={() => handleSettleRecord(record.record_id)}
                           disabled={isSettling}
                           className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded text-xs font-medium transition-colors shadow-xs"
                         >
-                          {isSettling ? "核销中..." : "保存核销 (自增OOS)"}
+                          {isSettling ? "核销中..." : "录入比分核销"}
                         </button>
                       </div>
                     )}
@@ -1949,6 +2084,88 @@ export const CanonicalMatchCenter: React.FC = () => {
                           : "✅ 11维全齐备"}
                       </span>
                     </button>
+
+                    {/* 正式台账状态与写入入口 */}
+                    {(() => {
+                      const inLedger = formalLedger.some(
+                        r => r.canonical_match_id === m.canonical_id || 
+                             r.record_id?.includes(m.canonical_id) ||
+                             (r.teams?.home === m.home_team_name && r.teams?.away === m.away_team_name)
+                      );
+                      const aiEval = findAiEvaluationForMatch(m);
+
+                      if (inLedger) {
+                        return (
+                          <button
+                            id={`btn-ledger-status-${idx}`}
+                            onClick={() => {
+                              setExpandedMatchId(m.canonical_id);
+                              setActiveTabByMatch((prev) => ({ ...prev, [m.canonical_id]: "ai" }));
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-950/80 text-indigo-300 border border-indigo-700 hover:bg-indigo-900/80 transition-colors"
+                            title="该赛事推荐已在重构正式台账中，点击查看"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />
+                            <span>已入正式台账</span>
+                          </button>
+                        );
+                      }
+
+                      if (aiEval) {
+                        const grade = String(aiEval.grade || aiEval.grade_raw || '').toUpperCase();
+                        const isQual = grade.startsWith('A') || grade.startsWith('B');
+                        return (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => {
+                                setExpandedMatchId(m.canonical_id);
+                                setActiveTabByMatch((prev) => ({ ...prev, [m.canonical_id]: "ai" }));
+                              }}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${
+                                grade.startsWith('A')
+                                  ? 'bg-emerald-950/70 text-emerald-300 border-emerald-700'
+                                  : 'bg-blue-950/70 text-blue-300 border-blue-700'
+                              }`}
+                              title="点击展开查看 AI 详细评估与推荐腿"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>AI:{aiEval.grade} ({aiEval.confidence_score ?? '-'}分)</span>
+                            </button>
+                            {isQual && (
+                              <button
+                                id={`btn-append-ledger-${idx}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAppendToLedger(m, aiEval);
+                                }}
+                                disabled={appendingLedgerIds[m.canonical_id]}
+                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white transition-all shadow-xs"
+                                title="点击将本场合格推荐写入重构正式台账"
+                              >
+                                <PlusCircle className="w-3.5 h-3.5" />
+                                <span>{appendingLedgerIds[m.canonical_id] ? "正在入账..." : "写入正式台账"}</span>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <button
+                          id={`btn-eval-ai-${idx}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAiSelectedMatchIds(new Set([m.canonical_id]));
+                            setIsAiModalOpen(true);
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-950/60 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-800 transition-colors"
+                          title="提取本场比赛生成 AI 评估 Prompt"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>AI评估</span>
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -2547,6 +2764,7 @@ export const CanonicalMatchCenter: React.FC = () => {
                       <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800/80 flex-wrap">
                         {[
                           { id: "quant", label: `⚡ 03 机器量化评估与最优投注 (${quant ? (quant.positive_ev_signals.length > 0 ? `${quant.positive_ev_signals.length}项+EV` : "已评估") : "评估阻断"})`, icon: Zap },
+                          { id: "ai", label: `🤖 AI 评估与台账${findAiEvaluationForMatch(m) ? ` (${findAiEvaluationForMatch(m).grade}级)` : ""}`, icon: Sparkles },
                           { id: "diagnostics", label: `🛡️ 11维体检 (${m.missing_reasons.length > 0 ? `${m.missing_reasons.length}项缺口` : "全齐备"})`, icon: Shield },
                           { id: "markets", label: "🎯 YBTY 盘口全集", icon: Target },
                           { id: "stats", label: "📊 雷速统计增强", icon: BarChart2 },
@@ -2594,6 +2812,156 @@ export const CanonicalMatchCenter: React.FC = () => {
                         <MachineQuantEvaluationPanel match={m} quant={quant} />
                       )
                     )}
+
+                    {/* TAB: 🤖 AI 综合评估与台账沉淀 (AI Evaluation & Ledger Settlement Entry) */}
+                    {activeTabByMatch[m.canonical_id] === "ai" && (() => {
+                      const aiEval = findAiEvaluationForMatch(m);
+                      const inLedger = formalLedger.some(
+                        r => r.canonical_match_id === m.canonical_id || 
+                             r.record_id?.includes(m.canonical_id) ||
+                             (r.teams?.home === m.home_team_name && r.teams?.away === m.away_team_name)
+                      );
+                      const grade = String(aiEval?.grade || aiEval?.grade_raw || '').toUpperCase();
+                      const isQual = grade.startsWith('A') || grade.startsWith('B');
+
+                      if (!aiEval) {
+                        return (
+                          <div className="p-6 bg-slate-950/70 border border-slate-800 rounded-xl text-center space-y-3">
+                            <div className="w-10 h-10 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto">
+                              <Sparkles className="w-5 h-5" />
+                            </div>
+                            <div className="space-y-1">
+                              <h4 className="text-sm font-semibold text-slate-200">本场比赛尚未导入 AI 评估报告</h4>
+                              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                                您可一键提取本场比赛的标准 Prompt，交由外部专业大模型完成基本面与价值核验，然后将评估结果粘贴导入。
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setAiSelectedMatchIds(new Set([m.canonical_id]));
+                                setIsAiModalOpen(true);
+                              }}
+                              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1.5 shadow-sm"
+                            >
+                              <Sparkles className="w-4 h-4" />
+                              <span>一键生成本场 AI 评估 Prompt</span>
+                            </button>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-4 animate-in fade-in duration-150">
+                          {/* 评估核心结论卡 */}
+                          <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+                            <div className="flex items-center gap-3">
+                              <div className={`px-3 py-1.5 rounded-lg border text-center ${
+                                grade.startsWith('A')
+                                  ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600'
+                                  : grade.startsWith('B')
+                                  ? 'bg-blue-950/80 text-blue-300 border-blue-600'
+                                  : 'bg-slate-900 text-slate-400 border-slate-700'
+                              }`}>
+                                <div className="text-[10px] uppercase font-bold text-slate-400">AI 综合定级</div>
+                                <div className="text-lg font-black">{aiEval.grade || 'N/A'}</div>
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-bold text-slate-100">
+                                    置信度分值: {aiEval.confidence_score ?? '未定'}/100
+                                  </span>
+                                  {isQual ? (
+                                    <span className="text-[10px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-medium">
+                                      达到正式推荐门槛
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-medium">
+                                      低于正式推荐门槛 (仅供参考)
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-slate-400 mt-1 max-w-xl">
+                                  {aiEval.qualitative_summary || aiEval.analysis || '暂无定性摘要'}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {inLedger ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-950 text-indigo-300 border border-indigo-700">
+                                  <CheckCircle2 className="w-4 h-4 text-indigo-400" />
+                                  <span>已记录入重构正式台账</span>
+                                </span>
+                              ) : isQual ? (
+                                <button
+                                  onClick={() => handleAppendToLedger(m, aiEval)}
+                                  disabled={appendingLedgerIds[m.canonical_id]}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white transition-all shadow-xs"
+                                >
+                                  <PlusCircle className="w-4 h-4" />
+                                  <span>{appendingLedgerIds[m.canonical_id] ? "正在入账..." : "一键写入正式台账"}</span>
+                                </button>
+                              ) : (
+                                <span className="text-xs text-slate-500 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
+                                  未达 A/B 级门槛不可入正式台账
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 推荐投注腿明细 */}
+                          {aiEval.recommended_legs && aiEval.recommended_legs.length > 0 && (
+                            <div className="space-y-2">
+                              <div className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                                <Target className="w-3.5 h-3.5 text-blue-400" />
+                                <span>AI 推荐投注腿 (Recommended Legs)</span>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {aiEval.recommended_legs.map((leg: any, lIdx: number) => (
+                                  <div key={lIdx} className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between text-xs">
+                                    <div>
+                                      <span className="font-bold text-amber-300 mr-2">{leg.market} {leg.line || leg.selected_line}</span>
+                                      <span className="text-indigo-300 font-medium mr-2">{leg.direction}</span>
+                                      <span className="text-slate-400 font-mono">@ {leg.odds || leg.current_odds}</span>
+                                    </div>
+                                    <div className="text-[11px] text-slate-400">
+                                      {leg.reason ? leg.reason.slice(0, 30) : ''}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 盲区核验与逻辑自洽审计 */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {aiEval.blind_spot_analysis && (
+                              <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800 space-y-1">
+                                <div className="text-xs font-semibold text-amber-300 flex items-center gap-1">
+                                  <AlertTriangle className="w-3.5 h-3.5" />
+                                  <span>盲区与重大风险排查 (Blind Spot Analysis)</span>
+                                </div>
+                                <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+                                  {typeof aiEval.blind_spot_analysis === 'string' ? aiEval.blind_spot_analysis : JSON.stringify(aiEval.blind_spot_analysis, null, 2)}
+                                </p>
+                              </div>
+                            )}
+
+                            {aiEval.internal_logical_audit && (
+                              <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800 space-y-1">
+                                <div className="text-xs font-semibold text-blue-300 flex items-center gap-1">
+                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                  <span>逻辑自洽与赔率价值核验 (Logical Audit)</span>
+                                </div>
+                                <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+                                  {typeof aiEval.internal_logical_audit === 'string' ? aiEval.internal_logical_audit : JSON.stringify(aiEval.internal_logical_audit, null, 2)}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* TAB 1: 🛡️ 赛事数据完整度 11 维全景体检报告 (Inline 11-Dimension Diagnostics) */}
                     {activeTabByMatch[m.canonical_id] === "diagnostics" && (
