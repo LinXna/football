@@ -60,7 +60,7 @@ export class AiEvaluatorService {
           type: Type.OBJECT,
           properties: {
             selected_line: { type: Type.STRING },
-            market: { type: Type.STRING },
+            market: { type: Type.STRING, enum: ['ASIAN_HANDICAP_MAIN', 'ASIAN_HANDICAP_SECONDARY', 'TOTAL_GOALS_MAIN', 'TOTAL_GOALS_SECONDARY', 'EURO_1X2', 'NONE'] },
             direction: { type: Type.STRING, enum: ['HOME', 'AWAY', 'OVER', 'UNDER', 'DRAW', 'NONE'] },
             current_odds: { type: Type.NUMBER },
             minimum_acceptable_odds: { type: Type.NUMBER },

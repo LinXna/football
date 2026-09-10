@@ -75,8 +75,8 @@ export function synthesizePrematchPrior(
   let squadRatioA = 1.0;
   if (homeMv > 0 && awayMv > 0) {
     const totalMv = homeMv + awayMv;
-    squadRatioH = 0.5 + (homeMv / totalMv - 0.5) * 0.8; // 平滑映射至 [0.6, 1.4]
-    squadRatioA = 0.5 + (awayMv / totalMv - 0.5) * 0.8;
+    squadRatioH = Math.max(0.6, Math.min(1.4, 1.0 + (homeMv / totalMv - 0.5) * 0.8));
+    squadRatioA = Math.max(0.6, Math.min(1.4, 1.0 + (awayMv / totalMv - 0.5) * 0.8));
   }
 
   const lisH = context.lineup_impact.home_lis; // [0.4 ~ 1.0]

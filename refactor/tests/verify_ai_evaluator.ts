@@ -192,4 +192,150 @@ if (secondaryAiResult.grade !== RecommendationGrade.REJECTED || secondaryAiResul
 }
 console.log("[OK] Secondary-line AI output was rejected by the statutory alignment guard.");
 
-console.log("\n[OK] Layer 04 Deep Defect Refinement Compiled Successfully.");
+// --- Test 3: P0-01 / P1-03 Market Scan Decoupling and VALID_BUT_BLOCKED ---
+console.log("\n=== TESTING MARKET SCAN DECOUPLING & VALID_BUT_BLOCKED ===");
+const blockedByGradeResult = verifyStatutoryAlignment(
+  {
+    ...validAiResult,
+    grade: RecommendationGrade.WATCH,
+    confidence_score: 45,
+    market_scan: {
+      selected_line: '-0.25',
+      market: 'ASIAN_HANDICAP_MAIN',
+      market_status: 'VALID_BUT_BLOCKED',
+      direction: 'AWAY',
+      current_odds: 1.85,
+      minimum_acceptable_odds: 1.70,
+      raw_ev: 0.08,
+      risk_adjusted_ev: 0,
+      risk_adjustment_status: 'QUALITATIVE_ONLY',
+      is_quarter_line: true,
+      quarter_line_settlement_distribution: {
+        p_full_win: 0.45,
+        p_half_win: 0.15,
+        p_push: 0.05,
+        p_half_loss: 0.15,
+        p_full_loss: 0.20,
+        settlement_status: 'VERIFIED'
+      },
+      mathematically_closed: false,
+      actionable: false,
+      rejection_reason: 'GATED_BY_GRADE_WATCH'
+    }
+  },
+  mockPayload
+);
+
+if (blockedByGradeResult.market_scan?.market_status !== 'VALID_BUT_BLOCKED') {
+  throw new Error(`[FAIL] Expected VALID_BUT_BLOCKED, got ${blockedByGradeResult.market_scan?.market_status}`);
+}
+if (blockedByGradeResult.market_scan?.selected_line !== '-0.25' || blockedByGradeResult.market_scan?.market !== 'ASIAN_HANDICAP_MAIN') {
+  throw new Error('[FAIL] VALID_BUT_BLOCKED must retain selected_line and market!');
+}
+if (blockedByGradeResult.market_scan?.actionable !== false || blockedByGradeResult.recommended_legs.length !== 0) {
+  throw new Error('[FAIL] VALID_BUT_BLOCKED must set actionable=false and clear recommended_legs!');
+}
+console.log("[OK] VALID_BUT_BLOCKED correctly retains selected_line and market with actionable=false.");
+
+// Test 3.2: Erroneous NONE correction when raw signals exist
+const erroneousNoneResult = verifyStatutoryAlignment(
+  {
+    ...validAiResult,
+    grade: RecommendationGrade.WATCH,
+    confidence_score: 30,
+    market_scan: {
+      selected_line: 'NONE',
+      market: 'NONE',
+      direction: 'NONE',
+      current_odds: 0,
+      minimum_acceptable_odds: 0,
+      raw_ev: 0,
+      risk_adjusted_ev: 0,
+      is_quarter_line: false,
+      actionable: false,
+      rejection_reason: 'Blocked by watch'
+    }
+  },
+  mockPayload
+);
+if (erroneousNoneResult.market_scan?.market_status !== 'VALID_BUT_BLOCKED' || erroneousNoneResult.market_scan?.selected_line === 'NONE') {
+  throw new Error('[FAIL] Erroneous market=NONE must be corrected to VALID_BUT_BLOCKED when valid raw signals exist!');
+}
+console.log("[OK] Erroneous market=NONE corrected to VALID_BUT_BLOCKED with retained scanned line.");
+
+// --- Test 4: Line-Specific Mathematically Closed ---
+console.log("\n=== TESTING LINE-SPECIFIC MATHEMATICALLY CLOSED ===");
+const closedLineResult = verifyStatutoryAlignment(
+  {
+    ...validAiResult,
+    market_scan: {
+      selected_line: '1.5',
+      market: 'TOTAL_GOALS_MAIN',
+      direction: 'OVER',
+      current_odds: 1.5,
+      minimum_acceptable_odds: 1.4,
+      raw_ev: 0.05,
+      risk_adjusted_ev: 0,
+      is_quarter_line: false,
+      actionable: true,
+      rejection_reason: 'N/A'
+    }
+  },
+  {
+    ...mockPayload,
+    ai_brief: {
+      ...mockPayload.ai_brief,
+      score_verification: { is_verified: true, current_score: '2 - 0' }
+    }
+  }
+);
+if (!closedLineResult.market_scan?.mathematically_closed || closedLineResult.market_scan?.market_status !== 'VALID_BUT_BLOCKED') {
+  throw new Error('[FAIL] Line 1.5 with score 2-0 must be mathematically_closed and VALID_BUT_BLOCKED!');
+}
+console.log("[OK] Line-specific 1.5 is mathematically_closed at 2-0 without affecting other lines.");
+
+// --- Test 5: Temporal Integrity Check Prioritization and Tactical Suppression ---
+console.log("\n=== TESTING TEMPORAL INTEGRITY CHECK & TACTICAL SUPPRESSION ===");
+const temporalConflictPayload: EvaluatorPayload = {
+  ...mockPayload,
+  ai_brief: {
+    ...mockPayload.ai_brief,
+    kickoff_time: '2026-09-02T20:00:00Z', // Kickoff is AFTER prediction_at
+  },
+  quant_features: {
+    ...mockPayload.quant_features,
+    prediction_snapshot: {
+      prediction_at: '2026-09-02T19:00:00Z'
+    }
+  } as any
+};
+
+const suppressedResult = verifyStatutoryAlignment(
+  {
+    ...validAiResult,
+    grade: RecommendationGrade.A_GRADE,
+    confidence_score: 95,
+    blind_spot_analysis: {
+      ...validAiResult.blind_spot_analysis!,
+      tactical_regime_evaluation: TacticalRegimeEvaluation.GENUINE_DOMINANCE
+    }
+  },
+  temporalConflictPayload
+);
+
+if (suppressedResult.grade !== RecommendationGrade.WATCH) {
+  throw new Error(`[FAIL] Temporal conflict must downgrade grade to WATCH, got ${suppressedResult.grade}`);
+}
+if (suppressedResult.confidence_score > 40) {
+  throw new Error(`[FAIL] Temporal conflict must cap confidence at 40, got ${suppressedResult.confidence_score}`);
+}
+if (suppressedResult.blind_spot_analysis?.tactical_regime_evaluation !== TacticalRegimeEvaluation.TACTICAL_STALEMATE) {
+  throw new Error(`[FAIL] Temporal conflict must suppress GENUINE_DOMINANCE to TACTICAL_STALEMATE, got ${suppressedResult.blind_spot_analysis?.tactical_regime_evaluation}`);
+}
+if (suppressedResult.recommended_legs.length !== 0) {
+  throw new Error('[FAIL] Temporal conflict must clear recommended_legs!');
+}
+console.log("[OK] Temporal conflict suppressed tactical dominance to TACTICAL_STALEMATE and downgraded to WATCH.");
+
+console.log("\n[OK] All Advanced Refactoring and Inviolable Laws Verified Successfully.");
+

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseHandicapToFloat, verifyStatutoryAlignment } from '../refactor/04_ai_evaluator/alignmentGuard.js';
+import { parseHandicapToFloat, verifyStatutoryAlignment, isQuarterOrSplitLine } from '../refactor/04_ai_evaluator/alignmentGuard.js';
 import { RecommendationGrade, TacticalRegimeEvaluation, TrapDetectionResult } from '../refactor/04_ai_evaluator/enums.js';
 import { EvaluatorPayload, AiEvaluationResult } from '../refactor/04_ai_evaluator/types.js';
 
@@ -378,5 +378,127 @@ test('verifyStatutoryAlignment enforces P0-03 MAO gate (rejects leg if current_o
   const verified = verifyStatutoryAlignment(result, payload);
   assert.equal(verified.recommended_legs.length, 0);
   assert.ok(verified.risk_warnings.some(w => w.includes('P0-03')));
+});
+
+test('isQuarterOrSplitLine and P0-01 line detection override erroneous metadata', () => {
+  // 基础字符串与分盘/双值盘口识别
+  assert.equal(isQuarterOrSplitLine('+0/0.5'), true);
+  assert.equal(isQuarterOrSplitLine('-0/0.5'), true);
+  assert.equal(isQuarterOrSplitLine('0/0.5'), true);
+  assert.equal(isQuarterOrSplitLine('0.5/1'), true);
+  assert.equal(isQuarterOrSplitLine('2/2.5'), true);
+  assert.equal(isQuarterOrSplitLine('+0.25'), true);
+  assert.equal(isQuarterOrSplitLine('-0.75'), true);
+  assert.equal(isQuarterOrSplitLine('-0.5'), false);
+  assert.equal(isQuarterOrSplitLine('2.5'), false);
+
+  // 测试在 verifyStatutoryAlignment 中覆盖 is_quarter_line: false 元数据
+  const payload = createBasePayload();
+  payload.ai_brief.core_markets.ah_main = {
+    handicap: '+0/0.5',
+    home_odds: 1.95,
+    away_odds: 1.90
+  };
+  payload.quant_features.machine_candidate_signals = [
+    {
+      market: 'ASIAN_HANDICAP_MAIN',
+      line: '+0/0.5',
+      side: 'home',
+      odds: 1.95,
+      ev: 0.05,
+      confidence: 80,
+      kelly_fraction: 0.02
+    }
+  ];
+
+  const result = createBaseResult(RecommendationGrade.B_GRADE, 75);
+  result.recommended_legs = [
+    {
+      market: 'ASIAN_HANDICAP_MAIN',
+      selected_line: '+0/0.5',
+      current_odds: 1.95,
+      minimum_acceptable_odds: 1.85,
+      direction: 'HOME',
+      basis: 'Quarter line pick with wrong metadata'
+    }
+  ];
+  result.market_scan = {
+    selected_line: '+0/0.5',
+    market: 'ASIAN_HANDICAP_MAIN',
+    direction: 'HOME',
+    current_odds: 1.95,
+    minimum_acceptable_odds: 1.85,
+    raw_ev: 0.08,
+    risk_adjusted_ev: 0.05,
+    is_quarter_line: false, // 错误的元数据
+    quarter_line_settlement_distribution: {
+      p_full_win: 0.4,
+      p_half_win: 0.2,
+      p_push: 0.0,
+      p_half_loss: 0.2,
+      p_full_loss: 0.2,
+      settlement_status: 'SETTLEMENT_UNVERIFIABLE'
+    },
+    actionable: true,
+    rejection_reason: 'N/A'
+  };
+
+  const verified = verifyStatutoryAlignment(result, payload);
+  // 必须强制修正 is_quarter_line 为 true
+  assert.equal(verified.market_scan?.is_quarter_line, true);
+  // 且因为 settlement_status 为 SETTLEMENT_UNVERIFIABLE，禁止推荐
+  assert.equal(verified.recommended_legs.length, 0);
+  assert.equal(verified.market_scan?.actionable, false);
+});
+
+test('verifyStatutoryAlignment supports P1-01 NONE market state when no valid markets exist', () => {
+  const payload = createBasePayload();
+  const result = createBaseResult(RecommendationGrade.WATCH, 50);
+  result.market_scan = {
+    selected_line: 'NONE',
+    market: 'NONE',
+    direction: 'NONE',
+    current_odds: 0,
+    minimum_acceptable_odds: 0,
+    raw_ev: 0,
+    risk_adjusted_ev: 0,
+    risk_adjustment_status: 'UNAVAILABLE',
+    is_quarter_line: false,
+    actionable: false,
+    rejection_reason: 'NO_EDGE_FOUND'
+  };
+  result.recommended_legs = [];
+
+  const verified = verifyStatutoryAlignment(result, payload);
+  assert.equal(verified.market_scan?.market, 'NONE');
+  assert.equal(verified.market_scan?.selected_line, 'NONE');
+  assert.equal(verified.market_scan?.direction, 'NONE');
+  assert.equal(verified.market_scan?.actionable, false);
+  assert.equal(verified.market_scan?.raw_ev, 0);
+  assert.equal(verified.market_scan?.risk_adjusted_ev, 0);
+  assert.equal(verified.recommended_legs.length, 0);
+});
+
+test('verifyStatutoryAlignment enforces P1-02 QUALITATIVE_ONLY risk_adjusted_ev = 0', () => {
+  const payload = createBasePayload();
+  const result = createBaseResult(RecommendationGrade.B_GRADE, 75);
+  result.market_scan = {
+    selected_line: 'Under 2.5',
+    market: 'TOTAL_GOALS_MAIN',
+    direction: 'UNDER',
+    current_odds: 1.95,
+    minimum_acceptable_odds: 1.88,
+    raw_ev: 0.05,
+    risk_adjusted_ev: 0.035, // 违规伪造精确调整后 EV
+    risk_adjustment_status: 'QUALITATIVE_ONLY',
+    is_quarter_line: false,
+    actionable: true,
+    rejection_reason: 'N/A'
+  };
+
+  const verified = verifyStatutoryAlignment(result, payload);
+  // QUALITATIVE_ONLY 时必须被强制归零
+  assert.equal(verified.market_scan?.risk_adjusted_ev, 0);
+  assert.ok(verified.risk_warnings.some(w => w.includes('P1-02')));
 });
 

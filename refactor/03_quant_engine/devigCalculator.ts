@@ -14,6 +14,7 @@
  */
 
 import { CanonicalMatch } from '../02_canonical_model/types.js';
+import { MatchStage } from '../02_canonical_model/enums.js';
 import {
   MarketType,
   DeviggedMarketFeatures,
@@ -24,7 +25,9 @@ import {
   BookmakerPosture,
   InPlayPoissonFeatures,
   Layer03OpId,
-  Layer03FeatureId
+  Layer03FeatureId,
+  FiveStateSettlementDistribution,
+  LineDispersionMetrics
 } from './types.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
@@ -212,6 +215,97 @@ export function invertHandicapString(lineStr: string): string {
 }
 
 /**
+ * 计算亚洲让球盘的 5 态精确结算概率分布
+ */
+export function calculateSpreadFiveStateDistribution(
+  handicapValue: number,
+  side: 'home' | 'away',
+  matrix: number[][]
+): FiveStateSettlementDistribution {
+  let p_full_win = 0.0;
+  let p_half_win = 0.0;
+  let p_push = 0.0;
+  let p_half_loss = 0.0;
+  let p_full_loss = 0.0;
+
+  for (let h = 0; h < matrix.length; h++) {
+    for (let a = 0; a < matrix[h].length; a++) {
+      const pCell = matrix[h][a];
+      if (pCell <= 0) continue;
+
+      const d = h - a;
+      const delta = side === 'home' ? d + handicapValue : -d - handicapValue;
+
+      if (delta >= 0.5 - 1e-4) {
+        p_full_win += pCell;
+      } else if (Math.abs(delta - 0.25) < 1e-4) {
+        p_half_win += pCell;
+      } else if (Math.abs(delta) < 1e-4) {
+        p_push += pCell;
+      } else if (Math.abs(delta - (-0.25)) < 1e-4) {
+        p_half_loss += pCell;
+      } else {
+        p_full_loss += pCell;
+      }
+    }
+  }
+
+  return {
+    p_full_win: Number(p_full_win.toFixed(4)),
+    p_half_win: Number(p_half_win.toFixed(4)),
+    p_push: Number(p_push.toFixed(4)),
+    p_half_loss: Number(p_half_loss.toFixed(4)),
+    p_full_loss: Number(p_full_loss.toFixed(4)),
+    source: 'ENGINE_COMPUTED'
+  };
+}
+
+/**
+ * 计算全场大小球盘口的 5 态精确结算概率分布
+ */
+export function calculateTotalFiveStateDistribution(
+  line: number,
+  currentTotalGoals: number,
+  side: 'over' | 'under',
+  lambdaRest: number
+): FiveStateSettlementDistribution {
+  const remainingTarget = line - currentTotalGoals;
+  let p_full_win = 0.0;
+  let p_half_win = 0.0;
+  let p_push = 0.0;
+  let p_half_loss = 0.0;
+  let p_full_loss = 0.0;
+
+  for (let k = 0; k <= poissonSupportUpperBound(lambdaRest); k++) {
+    const pK = poissonPMF(k, lambdaRest);
+    if (pK <= 0) continue;
+
+    const delta = side === 'over' ? k - remainingTarget : remainingTarget - k;
+
+    if (delta >= 0.5 - 1e-4) {
+      p_full_win += pK;
+    } else if (Math.abs(delta - 0.25) < 1e-4) {
+      p_half_win += pK;
+    } else if (Math.abs(delta) < 1e-4) {
+      p_push += pK;
+    } else if (Math.abs(delta - (-0.25)) < 1e-4) {
+      p_half_loss += pK;
+    } else {
+      p_full_loss += pK;
+    }
+  }
+
+  return {
+    p_full_win: Number(p_full_win.toFixed(4)),
+    p_half_win: Number(p_half_win.toFixed(4)),
+    p_push: Number(p_push.toFixed(4)),
+    p_half_loss: Number(p_half_loss.toFixed(4)),
+    p_full_loss: Number(p_full_loss.toFixed(4)),
+    source: 'ENGINE_COMPUTED'
+  };
+}
+
+/**
  * 亚洲让球盘 (Asian Handicap) 复合 EV 计算器
  * 核心原理：
  * 设剩余时段净胜球 d = h - a, 盘口为 line (对主队而言，如 -0.25, 0, +0.5)
@@ -288,14 +382,19 @@ export function calculateAsianHandicapEV(
   homeEV = Number(homeEV.toFixed(4));
   awayEV = Number(awayEV.toFixed(4));
 
+  // P0-05 规范：优先依据 Risk-Adjusted EV（净 EV），绝对禁止用单纯胜率高低覆盖 EV
   let preferredSide: 'home' | 'away' | 'none' = 'none';
   const marketMargin = Math.max(0.025, (1.0 / homeOdds + 1.0 / awayOdds) - 1.0);
   const minRequiredEV = Math.max(0.015, marketMargin * 0.5 + 0.01);
 
-  if (homePositiveProbability > awayPositiveProbability && homeEV >= minRequiredEV) {
+  if (homeEV >= minRequiredEV && awayEV < minRequiredEV) {
     preferredSide = 'home';
-  } else if (awayPositiveProbability > homePositiveProbability && awayEV >= minRequiredEV) {
+  } else if (awayEV >= minRequiredEV && homeEV < minRequiredEV) {
     preferredSide = 'away';
+  } else if (homeEV >= minRequiredEV && awayEV >= minRequiredEV) {
+    preferredSide = homeEV >= awayEV ? 'home' : 'away';
+  } else {
+    preferredSide = 'none';
   }
 
   const selectedOdds = preferredSide === 'home' ? homeOdds : awayOdds;
@@ -303,6 +402,10 @@ export function calculateAsianHandicapEV(
   const kellyFraction = (preferredSide !== 'none' && selectedOdds > 1.0 && selectedEV > 0)
     ? Number(Math.max(0.0, Math.min(0.05, selectedEV / (4.0 * (selectedOdds - 1.0)))).toFixed(4))
     : 0.0;
+
+  // P1-08: 求解 5 态精确结算概率分布
+  const homeSettlementDist = calculateSpreadFiveStateDistribution(line, 'home', matrix);
+  const awaySettlementDist = calculateSpreadFiveStateDistribution(line, 'away', matrix);
 
   return Object.freeze({
     line: handicapLineStr,
@@ -314,7 +417,9 @@ export function calculateAsianHandicapEV(
     is_positive_ev: preferredSide !== 'none',
     home_model_probability: Number(homePositiveProbability.toFixed(4)),
     away_model_probability: Number(awayPositiveProbability.toFixed(4)),
-    kelly_fraction: kellyFraction
+    kelly_fraction: kellyFraction,
+    home_settlement_distribution: homeSettlementDist,
+    away_settlement_distribution: awaySettlementDist
   });
 }
 
@@ -390,14 +495,19 @@ export function calculateTotalGoalsEV(
   overEV = Number(overEV.toFixed(4));
   underEV = Number(underEV.toFixed(4));
 
+  // P0-05 规范：优先依据 Risk-Adjusted EV，绝对禁止用胜率高低覆盖 EV
   let preferredSide: 'over' | 'under' | 'none' = 'none';
   const marketMargin = Math.max(0.025, (1.0 / overOdds + 1.0 / underOdds) - 1.0);
   const minRequiredEV = Math.max(0.015, marketMargin * 0.5 + 0.01);
 
-  if (overPositiveProbability > underPositiveProbability && overEV >= minRequiredEV) {
+  if (overEV >= minRequiredEV && underEV < minRequiredEV) {
     preferredSide = 'over';
-  } else if (underPositiveProbability > overPositiveProbability && underEV >= minRequiredEV) {
+  } else if (underEV >= minRequiredEV && overEV < minRequiredEV) {
     preferredSide = 'under';
+  } else if (overEV >= minRequiredEV && underEV >= minRequiredEV) {
+    preferredSide = overEV >= underEV ? 'over' : 'under';
+  } else {
+    preferredSide = 'none';
   }
 
   const selectedOdds = preferredSide === 'over' ? overOdds : underOdds;
@@ -405,6 +515,10 @@ export function calculateTotalGoalsEV(
   const kellyFraction = (preferredSide !== 'none' && selectedOdds > 1.0 && selectedEV > 0)
     ? Number(Math.max(0.0, Math.min(0.05, selectedEV / (4.0 * (selectedOdds - 1.0)))).toFixed(4))
     : 0.0;
+
+  // P1-08: 求解 5 态精确结算概率分布
+  const overSettlementDist = calculateTotalFiveStateDistribution(line, currentTotalGoals, 'over', lambdaRest);
+  const underSettlementDist = calculateTotalFiveStateDistribution(line, currentTotalGoals, 'under', lambdaRest);
 
   return Object.freeze({
     line: totalLineStr,
@@ -416,7 +530,9 @@ export function calculateTotalGoalsEV(
     is_positive_ev: preferredSide !== 'none',
     over_model_probability: Number(overPositiveProbability.toFixed(4)),
     under_model_probability: Number(underPositiveProbability.toFixed(4)),
-    kelly_fraction: kellyFraction
+    kelly_fraction: kellyFraction,
+    over_settlement_distribution: overSettlementDist,
+    under_settlement_distribution: underSettlementDist
   });
 }
 
@@ -427,11 +543,11 @@ export function identifyBookmakerPosture(
   spreadEV: SpreadEVAssessment | undefined,
   totalEV: TotalEVAssessment | undefined,
   overround: number,
-  shinZ: number,
+  shinZ?: number,
   h2hDevig?: SingleMarketDevig
 ): BookmakerPosture {
-  // 1. 庄家极度抽水防御或知情交易者重度介入
-  if (shinZ >= 0.08) {
+  // 1. 庄家极度抽水防御或知情交易者重度介入 (P1-03: 仅在有效估算出 Shin Z 时触发)
+  if (shinZ !== undefined && shinZ >= 0.08) {
     return BookmakerPosture.HEAVY_DEFENSIVE;
   }
 
@@ -552,7 +668,30 @@ export function calculateDeviggedMarketFeatures(
   collector?: DeficitCollector,
   tracer?: Tracer
 ): DeviggedMarketFeatures {
-  const h2hOdds = match.markets?.full_h2h;
+  const isLive = match.timing?.stage === MatchStage.LIVE;
+
+  // P0-01: 区分 LIVE / PREMATCH 赔率源，并禁止在 LIVE 阶段回退到 PREMATCH
+  let evMarketSource: 'LIVE_YBTY' | 'LIVE_LEISU' | 'PREMATCH' | 'UNAVAILABLE' = 'UNAVAILABLE';
+  const rawMarkets = match.markets;
+
+  const hasAvailableOdds = Boolean(
+    rawMarkets && (
+      (rawMarkets.full_spread_main?.home_odds && rawMarkets.full_spread_main.home_odds > 1.0) ||
+      (rawMarkets.full_total_main?.over_odds && rawMarkets.full_total_main.over_odds > 1.0) ||
+      (rawMarkets.full_h2h?.home_odds && rawMarkets.full_h2h.home_odds > 1.0)
+    )
+  );
+
+  if (isLive) {
+    evMarketSource = hasAvailableOdds ? 'LIVE_YBTY' : 'UNAVAILABLE';
+  } else {
+    evMarketSource = hasAvailableOdds ? 'PREMATCH' : 'UNAVAILABLE';
+  }
+
+  // 若无法获得对应阶段的合法赔率，直接阻断虚假 EV 计算
+  const activeMarkets = evMarketSource === 'UNAVAILABLE' ? null : rawMarkets;
+
+  const h2hOdds = activeMarkets?.full_h2h;
   const decimalOdds: number[] = [];
   if (h2hOdds) {
     if (h2hOdds.home_odds) decimalOdds.push(h2hOdds.home_odds);
@@ -560,10 +699,22 @@ export function calculateDeviggedMarketFeatures(
     if (h2hOdds.away_odds) decimalOdds.push(h2hOdds.away_odds);
   }
 
-  // 1. 欧赔去抽水与 M3 独赢 EV 计算
+  // 1. 欧赔去抽水与 M3 独赢 EV 计算 (P1-03: 动态求解 Shin Z)
   let h2hDevig: SingleMarketDevig | undefined;
+  let estimatedShinZ: number | undefined;
+  let shinZStatus: 'DYNAMIC_ESTIMATED' | 'DEFAULT_ASSUMPTION' | 'UNAVAILABLE' = 'UNAVAILABLE';
+  let postureConfidence: 'HIGH' | 'MEDIUM' | 'LOW' = 'LOW';
+
   if (decimalOdds.length === 3 && h2hOdds?.home_odds && h2hOdds?.draw_odds && h2hOdds?.away_odds) {
     const shin = devigShin(decimalOdds);
+    if (shin.z > 0) {
+      estimatedShinZ = shin.z;
+      shinZStatus = 'DYNAMIC_ESTIMATED';
+      postureConfidence = 'HIGH';
+    } else {
+      shinZStatus = 'UNAVAILABLE';
+      postureConfidence = 'LOW';
+    }
     const h2hEval = calculateH2hEV(h2hOdds.home_odds, h2hOdds.draw_odds, h2hOdds.away_odds, poisson);
     h2hDevig = {
       market_type: MarketType.MONEYLINE_1X2,
@@ -583,15 +734,15 @@ export function calculateDeviggedMarketFeatures(
   }
 
   // 2. 亚洲让球盘 EV
-  const spreadMarket = match.markets?.full_spread_main;
+  const spreadMarket = activeMarkets?.full_spread_main;
   let spreadMain: SpreadEVAssessment | undefined;
   if (spreadMarket && spreadMarket.home_selection && spreadMarket.home_odds && spreadMarket.away_odds) {
     spreadMain = calculateAsianHandicapEV(spreadMarket.home_selection, spreadMarket.home_odds, spreadMarket.away_odds, poisson);
   }
 
   const spreadSecondaryEV: SpreadEVAssessment[] = [];
-  if (match.markets?.full_spread_subs) {
-    for (const sub of match.markets.full_spread_subs) {
+  if (activeMarkets?.full_spread_subs) {
+    for (const sub of activeMarkets.full_spread_subs) {
       if (sub.home_selection && sub.home_odds && sub.away_odds) {
         spreadSecondaryEV.push(calculateAsianHandicapEV(sub.home_selection, sub.home_odds, sub.away_odds, poisson));
       }
@@ -599,10 +750,7 @@ export function calculateDeviggedMarketFeatures(
   }
 
   // 3. 大小球盘 EV
-  const totalMarket = match.markets?.full_total_main;
-  // M4 predicts future goals. For a full-match line, convert it to a
-  // remaining-goals target by subtracting the verified current score. A
-  // remaining-goals line must be explicitly marked by the source parser.
+  const totalMarket = activeMarkets?.full_total_main;
   const currentTotal = totalMarket?.settlement_basis === 'REMAINING_GOALS'
     ? 0
     : (match.score.home_score ?? 0) + (match.score.away_score ?? 0);
@@ -612,8 +760,8 @@ export function calculateDeviggedMarketFeatures(
   }
 
   const totalSecondaryEV: TotalEVAssessment[] = [];
-  if (match.markets?.full_total_subs) {
-    for (const sub of match.markets.full_total_subs) {
+  if (activeMarkets?.full_total_subs) {
+    for (const sub of activeMarkets.full_total_subs) {
       if (sub.line && sub.over_odds && sub.under_odds) {
         const subCurrentTotal = sub.settlement_basis === 'REMAINING_GOALS'
           ? 0
@@ -623,8 +771,62 @@ export function calculateDeviggedMarketFeatures(
     }
   }
 
-  // 4. 机构姿态识别
-  const posture = identifyBookmakerPosture(spreadMain, totalMain, h2hDevig?.raw_overround ?? 1.05, 0.02, h2hDevig);
+  // 4. 机构姿态识别 (使用动态估算的 Shin Z，绝不硬编码 0.02)
+  const posture = identifyBookmakerPosture(spreadMain, totalMain, h2hDevig?.raw_overround ?? 1.05, estimatedShinZ, h2hDevig);
+
+  // 5. P1-02: 真实计算 line_dispersion，禁止伪造 0.0
+  const spreadLines: number[] = [];
+  if (activeMarkets?.full_spread_main?.home_selection) {
+    spreadLines.push(parseAsianHandicapLine(activeMarkets.full_spread_main.home_selection));
+  }
+  if (activeMarkets?.full_spread_subs) {
+    for (const sub of activeMarkets.full_spread_subs) {
+      if (sub.home_selection) {
+        spreadLines.push(parseAsianHandicapLine(sub.home_selection));
+      }
+    }
+  }
+
+  let spreadVariance: number | 'UNAVAILABLE' = 'UNAVAILABLE';
+  if (spreadLines.length >= 2) {
+    const mean = spreadLines.reduce((a, b) => a + b, 0) / spreadLines.length;
+    const v = spreadLines.reduce((acc, x) => acc + Math.pow(x - mean, 2), 0) / (spreadLines.length - 1);
+    spreadVariance = Number(v.toFixed(4));
+  }
+
+  const totalLines: number[] = [];
+  if (activeMarkets?.full_total_main?.line) {
+    totalLines.push(parseAsianHandicapLine(activeMarkets.full_total_main.line));
+  }
+  if (activeMarkets?.full_total_subs) {
+    for (const sub of activeMarkets.full_total_subs) {
+      if (sub.line) {
+        totalLines.push(parseAsianHandicapLine(sub.line));
+      }
+    }
+  }
+
+  let totalVariance: number | 'UNAVAILABLE' = 'UNAVAILABLE';
+  if (totalLines.length >= 2) {
+    const mean = totalLines.reduce((a, b) => a + b, 0) / totalLines.length;
+    const v = totalLines.reduce((acc, x) => acc + Math.pow(x - mean, 2), 0) / (totalLines.length - 1);
+    totalVariance = Number(v.toFixed(4));
+  }
+
+  let dispersionStatus: 'CALCULATED' | 'PARTIAL' | 'UNAVAILABLE' = 'UNAVAILABLE';
+  if (typeof spreadVariance === 'number' && typeof totalVariance === 'number') {
+    dispersionStatus = 'CALCULATED';
+  } else if (typeof spreadVariance === 'number' || typeof totalVariance === 'number') {
+    dispersionStatus = 'PARTIAL';
+  }
+
+  const lineDispersion: LineDispersionMetrics = {
+    spread_variance: spreadVariance,
+    total_variance: totalVariance,
+    spread_lines_count: spreadLines.length,
+    total_lines_count: totalLines.length,
+    status: dispersionStatus
+  };
 
   const activeTracer = tracer ?? Tracer.getInstance();
   activeTracer.log(
@@ -635,7 +837,10 @@ export function calculateDeviggedMarketFeatures(
     {
       posture,
       spread_main: spreadMain,
-      total_main: totalMain
+      total_main: totalMain,
+      ev_market_source: evMarketSource,
+      shin_z: estimatedShinZ,
+      line_dispersion: lineDispersion
     },
     match.canonical_id
   );
@@ -646,10 +851,11 @@ export function calculateDeviggedMarketFeatures(
     spread_secondary_ev: spreadSecondaryEV,
     total_main_ev: totalMain,
     total_secondary_ev: totalSecondaryEV,
-    line_dispersion: {
-      spread_variance: 0.0,
-      total_variance: 0.0
-    },
-    bookmaker_posture: posture
+    line_dispersion: lineDispersion,
+    bookmaker_posture: posture,
+    ev_market_source: evMarketSource,
+    shin_z: estimatedShinZ,
+    shin_z_status: shinZStatus,
+    posture_confidence: postureConfidence
   });
 }

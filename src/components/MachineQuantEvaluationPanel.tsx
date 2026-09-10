@@ -213,7 +213,7 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
               {posture.label}
             </span>
             <p className="text-[10px] text-slate-400 mt-0.5 truncate">
-              让球方差: {quant.devig?.line_dispersion?.spread_variance != null ? quant.devig.line_dispersion.spread_variance.toFixed(3) : "0.000"}
+              让球方差: {quant.devig?.line_dispersion?.spread_variance != null ? (typeof quant.devig.line_dispersion.spread_variance === 'number' ? quant.devig.line_dispersion.spread_variance.toFixed(3) : quant.devig.line_dispersion.spread_variance) : "0.000"}
             </p>
           </div>
           <div className="text-[10px] text-slate-500 font-mono">

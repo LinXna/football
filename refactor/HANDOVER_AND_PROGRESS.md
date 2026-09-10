@@ -1,53 +1,127 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260909-AI-PROMPT-REMAINING-ISSUES`
+- **任务编号 (Task)**: `SNAPSHOT-20260910-MARKET-SCAN-ACTIONABILITY-DECOUPLING-AND-16-STEP-REFACTOR`
 - **当前状态 (Status)**: `IN_PROGRESS`
 - **任务目标 (Goal)**：
-  严格根据《AI PROMPT 剩余问题修复规范》修复 Prompt / Schema / 数据约束中的剩余未闭环问题：
-  1. 【P0-01 OOS ESS 门禁统一】：
-     - 明确 `NO_PROFILE` 或 `ESS < 30` 均算作未通过 OOS 验证；
-     - 门禁规则统一修改为 `NO_PROFILE OR ESS < 30 → MAX B_GRADE → A_GRADE PROHIBITED`，禁止使用 `ESS == 0` 作为唯一门禁；
-     - 明确 `oos_validated_count` 不得作为 genuine OOS validation 证据。
-  2. 【P0-02 Risk-Adjusted EV 规则闭环】：
-     - 明确折减必须覆盖 OOS、稳定性、实时数据冲突、战术一致性、结算完整性、四分之一盘风险；
-     - 禁止 AI 自行发明未定义折扣系数；
-     - Layer 03 提供的 `risk_adjusted_ev` 优先使用；未提供时 AI 仅能进行 QUALITATIVE 调整，严禁伪造具体数值；
-     - 新增 `risk_adjustment_status: "ENGINE_PROVIDED" | "QUALITATIVE_ONLY" | "UNAVAILABLE"` 字段。
-  3. 【P0-03 MAO 变量来源明确与反向凑合禁止】：
-     - `Risk_Adjusted_Fair_Prob` 必须源自 Layer 03 或经校验的五态结算分布，严禁主观捏造；
-     - `Hurdle_Margin` 必须有明确系统来源，未提供时禁止 AI 假设，`minimum_acceptable_odds = 0`，`actionable = false`，`recommended_legs = []`；
-     - 严禁为了凑推荐反推 MAO。
-  4. 【P0-04 Quarter Line 彻底禁止错误 EV 参与排序】：
-     - 四分之一盘口若缺乏完整五态结算分布，标记为 `SETTLEMENT_UNVERIFIABLE`；
-     - 强制规则：不得作为 actionable line，不得参与 risk-adjusted EV 排序，不得作为 `market_scan.selected_line`，不得进入 `recommended_legs`，`raw_ev` 不得用于证明价值。
-     - 确立原则：`# UNVERIFIABLE QUARTER LINE: INVALID FOR VALUE RANKING`。
-  5. 【P1-01 internal_logical_audit 消除 CoT 要求】：
-     - 修改描述为："Concise decision audit summarizing the verified evidence, contradictions, risk adjustments, settlement checks, gate decisions, and final market selection. Do not expose hidden chain-of-thought."
-     - 说明 11 项决策依据摘要，禁止要求 AI 输出隐藏推理过程。
+  严格根据用户最新《AI Prompt 核心问题与硬门禁深化规范（进阶修正版）》彻底解决语义冲突与逻辑循环：
+  1. 【P0-01 MARKET_SCAN 与 ACTIONABILITY 语义彻底分离】：
+     - `selected_line` = 扫描阶段发现的、通过数学有效性与结算完整性验证后的最佳合法盘口，`selected_line ≠ actionable`。
+     - `NO_VALID_MARKET`: 没有任何合法盘口通过数学/结算完整性验证，`market_status="NO_VALID_MARKET"`, `market="NONE"`, `selected_line="NONE"`, `actionable=false`。
+     - `VALID_BUT_BLOCKED`: 盘口数学有效、结算有效，但被 OOS/Stability/Live/Grade 门禁阻止。必须保留 `selected_line` 和 `market`，`actionable=false`，`recommended_legs=[]`，`rejection_reason` 明确指出阻塞原因。严禁因门禁拦截将有效盘口改写为 `market="NONE"`！
+     - `ACTIONABLE`: 全部执行门禁均通过，`market_status="ACTIONABLE"`, `actionable=true`, `rejection_reason="N/A"`。
+  2. 【P0-02 消除逻辑循环，构建 16 步严格线性执行流程】：
+     - 解耦 Market Scan（盘口初步扫描与排序，STEP 11-12）与 Grade/Execution Hard-Gates（执行门禁与分类，STEP 13-15），彻底消除“Market Scan 需依赖后续 Grade”的逻辑顺序循环。
+  3. 【P1-01 mathematically_closed 精确针对具体盘口，禁止扩散至整个市场】：
+     - `mathematically_closed=true` 仅针对具体 `market + line + direction`（如 2-0 下 Over/Under 1.5 闭盘，但 Over/Under 2.5 仍然 active）。
+  4. 【P1-02 TEMPORAL INTEGRITY FAILURE 拥有最高阻断优先级】：
+     - 时间完整性失败优先于任何 Tactical / Momentum 解释。时序冲突立即标记 `live data = UNTRUSTED`，严禁依据不可信 live stats 得出强战术结论，强制降级为 WATCH 或 REJECTED，`actionable=false`，`recommended_legs=[]`。
+  5. 【P1-03 明确 selected_line 为“扫描最佳”而非“下注最佳”】。
+  6. 【P1-04 Live Tactical Regime 必须严格服从 Temporal Integrity】。
+  7. 严格落地 20 条最终不可违反红线。
+- **影响文件 (Target Files)**：
+  - `refactor/04_ai_evaluator/promptBuilder.ts`
+  - `refactor/04_ai_evaluator/alignmentGuard.ts`
+  - `refactor/04_ai_evaluator/types.ts`
+  - `refactor/HANDOVER_AND_PROGRESS.md`
+- **执行步骤 (Action Plan)**：
+  1. 在 `refactor/HANDOVER_AND_PROGRESS.md` 登记快照 (IN_PROGRESS)；
+  2. 升级 `promptBuilder.ts`：将 15 步线性执行链重构为无循环的 16 步严格线性流程，明确 `selected_line` 为“扫描最佳”、三态解耦、具体盘口级 `mathematically_closed`、Temporal Integrity 拥有最高优先级、20 条不可违反规则；
+  3. 升级 `alignmentGuard.ts`：严格对齐三态解耦逻辑，当盘口合法但受门禁阻止时保留 `market` 与 `selected_line`（设为 `VALID_BUT_BLOCKED`），仅在真正无合法盘口时设为 `NO_VALID_MARKET`；落实盘口级 `mathematically_closed` 与 Temporal Integrity 对 Live Tactical 的前置清空/降级；
+  4. 运行单测与全量测试套件，验证 16 步流程与全部硬门禁；
+  5. 更新 `HANDOVER_AND_PROGRESS.md` 归档为 DONE。
+
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260910-AI-PROMPT-DEEP-HARDENING-P0-P1` (DONE)
+- **任务目标 (Goal)**：
+  严格根据用户最新《AI Prompt 核心问题与硬门禁深化规范》（P0-01 至 P1-12 及 15 步最终硬性执行顺序）彻底闭环 Prompt / Schema / 后置风控对齐逻辑：
+  1. 【P0-01 OOS_VALIDATED 唯一标准化定义】：统一且唯一绑定 `(profile_status == "VALIDATED") AND (effective_sample_size >= 30)`，废除以 ESS==0 为唯一条件的漏洞，明确 pipeline oos_validated_count 不得作为验证证据，OOS_VALIDATED=false 绝对禁止 A_GRADE，封顶 B_GRADE。
+  2. 【P0-02 Quarter Line MAO 数学公式闭环】：明确 MAO = 1 + (Hurdle_Margin + 0.5 * P_HALF_LOSS + P_FULL_LOSS) / (P_FULL_WIN + 0.5 * P_HALF_WIN)，禁止使用单一二元概率反推；若无显式 Hurdle_Margin 则 MAO=0, actionable=false, recommended_legs=[]。
+  3. 【P0-03 Quarter Line 五态分布数学约束】：强制要求 P_FULL_WIN + P_HALF_WIN + P_PUSH + P_HALF_LOSS + P_FULL_LOSS = 1，五态字段全量校验，总和不为 1 或缺项时标记 SETTLEMENT_UNVERIFIABLE，禁止 selected_line / EV 排序 / recommended_legs。
+  4. 【P0-04 market_scan 三态解耦与合法保留】：明确区分 NO_VALID_MARKET (仅此类 market="NONE")、VALID_BUT_BLOCKED (保留盘口，在 rejection_reason 记录被 OOS/Stability/Conflict 阻断原因) 与 ACTIONABLE。
+  5. 【P0-05 LIVE 时间完整性门禁 (TEMPORAL_INTEGRITY_CHECK)】：强制核验 kickoff_time < prediction_at 且与比赛分钟/剩余时间逻辑自洽，时序严重倒挂时判定 live data UNTRUSTED 强制降级为 WATCH，置信度 <= 40。
+  6. 【P1-01 machine_candidate_count 语义严格区分】：明确 machine_candidate_count == 0 ≠ raw_positive_ev_signals == 0，仅代表未通过流水线进入机器候选。
+  7. 【P1-02 明确 EXECUTION_LOCKED 语义】：明确 LOCKED ≠ VERIFIED，仅表示数据可用于审计但禁止执行。
+  8. 【P1-03 CONFIRMED_TRAP 双重独立风险类别】：强制要求至少来自两个不同风险类别 (MODEL, OOS/CALIBRATION, LIVE_PHYSICAL, DATA_INTEGRITY, MARKET_STRUCTURE)，单类别仅能评为 POTENTIAL_TRAP 或 UNCERTAIN；后置门禁直接拦截 CONFIRMED_TRAP 为 REJECTED 且置信度为 0。
+  9. 【P1-04 & P1-05 市场语义严格隔离】：MONEYLINE 全场终态、LIVE AH 0:0 重置仅看剩余、TOTAL GOALS 全场比分绝不重置；概率数值相同绝对不等于市场语义相同。
+  10. 【P1-06 BARREN_DOMINANCE 持续时间窗口】：基于连续时间序列 (15分钟以上窗口) 综合 xT/SOT/Box penetration 判定，禁止瞬时毛刺误判。
+  11. 【P1-07 Underdog 身份量化结构定义】：依据当前相关 AH 受让方、1X2 隐含概率或模型概率确定，禁止依据名气或主客场主观判定。
+  12. 【P1-08 market_scan 优选层级标准】：严格依序 Settlement Integrity -> Model Validity -> Engine Risk-Adjusted EV -> Live Data -> OOS -> Risk Gate，绝对禁止“最高 Raw EV = selected_line”。
+  13. 【P1-09 Raw EV / Risk-Adjusted EV / Actionable 三层隔离】：只有引擎提供时方可有数值，否则 QUALITATIVE_ONLY 且数值必为 0，严禁 AI 凭空折算。
+  14. 【P1-10 Grade 与 recommended_legs 绝对硬约束】：非 A_GRADE/B_GRADE(conf>=70)+actionable 时必须 recommended_legs=[]；Actionable 评级下严禁空腿。
+  15. 【P1-11 盘口字符串强制识别 Quarter Line】：实际盘口结构优先于 metadata。
+  16. 【P1-12 比分数学闭盘前置判断】：已决出胜负的盘口 (如 2-0 下的大小球 1.5) 标记 mathematically_closed，禁止作为预测价值推荐。
+  17. 【15 步最终硬性执行顺序】：在 Prompt 及系统逻辑中完整固化 15 步线性执行链。
+- **交付物 (Deliverables)**：
+  - `refactor/04_ai_evaluator/types.ts`：更新 market_scan 状态契约（`market_status`、`mathematically_closed` 等）；
+  - `refactor/04_ai_evaluator/promptBuilder.ts`：完整注入 P0-01 至 P1-12 规则与 15 步标准执行链；
+  - `refactor/04_ai_evaluator/alignmentGuard.ts`：全量落地 TEMPORAL_INTEGRITY_CHECK、五态分布闭式校验、三态 market_scan 解耦、CONFIRMED_TRAP 强制拦截、已结清盘口阻断；
+  - `scripts/export_bursa_payload.ts` & `output/bursa_istanbul_layer03_real_payload.json`：生成并导出了布尔萨体育 vs 伊斯坦堡士邦真实 Layer 03 Payload；
+  - `server/routes/canonicalRoutes.ts`：新增 `GET /api/refactor/bursa-payload` 端点供直接访问导出的真实 Payload。
+- **验证结果 (Verification)**：
+  - `npx tsx refactor/tests/verify_layer04_05_candidate_boundary.ts`: PASS
+  - `npx tsx refactor/tests/verify_ai_evaluator.ts`: PASS
+  - `npm run test:ts`: 81 tests passing (81 passed, 0 failed, 0 errors).
+
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260910-LAYER03-QUANT-ENGINE-P0-P1-REFACTOR` (DONE)
+- **任务目标 (Goal)**：
+  严格根据《Layer 03 Quant Engine 问题修复规范》彻底修复 Layer 03 数学计算与状态流问题（P0-01 至 P1-09）：
+  1. 【P0-01 LIVE 赔率源与市场隔离】：强制隔离 LIVE_MARKETS 与 PREMATCH_MARKETS；滚球阶段严禁使用赛前赔率计算 LIVE EV，缺失时标记 `ev_market_source: "UNAVAILABLE"`。
+  2. 【P0-02 三大市场数学语义隔离】：严格落实 LIVE 1X2 (全场终态/已有比分+剩余进球)、LIVE AH (0:0 重置纯剩余时段净胜) 与 LIVE TOTAL (全场终态/已有总球+剩余进球) 的数学闭环。
+  3. 【P0-03 squadRatio 阵容比值回正】：基准中心对齐 1.0，区间严格钳位在 [0.6, 1.4]。
+  4. 【P0-04 阻断 OOS 跨市场污染】：禁止 TOTAL_GOALS_MAIN 的 OOS 校准无条件缩放影响 AH 与 1X2 的底层泊松 Lambda。
+  5. 【P0-05 优先选择最高 Risk-Adjusted EV】：AH 与 Total 盘口优选方向由单纯胜率比较升级为风险调整后 EV / 边际价值决策。
+  6. 【P1-01 Secondary Lines 纳入候选与防静默丢弃】：副盘纳入候选池及最优盘口扫描；无法晋升时记录明确 blocker 原因。
+  7. 【P1-02 line_dispersion 真实离散度计算】：基于主副盘真实赔率/盘口计算样本方差；不足 2 条时明确输出 `UNAVAILABLE`，杜绝伪造 0.0。
+  8. 【P1-03 动态估算 Shin Z】：根据市场赔率动态优化 Shin 知情交易者参数，不足时标记 `UNAVAILABLE` 与 `posture_confidence: LOW`，废除硬编码 0.02。
+  9. 【P1-04 升级市场冲突仲裁算法】：废除单一 `bothWinProb < 0.05` 粗暴规则，综合期望重叠、边际 EV、胜率一致性与即时比分仲裁。
+  10. 【P1-05 OOS 门禁与生产成熟门禁语义分离】：明确区分 OOS_VALIDATED_THRESHOLD (ESS >= 30) 与 PRODUCTION_MATURE_THRESHOLD (ESS >= 200)。
+  11. 【P1-06 Dixon-Coles rho 显式标识】：rho = 0.05 标注 `rho_source = "DEFAULT_ASSUMPTION"`，禁止称为已校准参数。
+  12. 【P1-07 LIVE 剩余时间建立单一真实源 (SSOT)】：统一使用 `expected_remaining_minutes_including_stoppage`，杜绝重复叠加或 90 分钟突变清零。
+  13. 【P1-08 Quarter Line 五态结算分布】：输出 `p_full_win`, `p_half_win`, `p_push`, `p_half_loss`, `p_full_loss` 闭式分布与来源标识。
+  14. 【P1-09 候选流水线状态计数准确性】：明确区分 `raw_signal_count`, `oos_validated_count` (真 VALIDATED & ESS>=30), `soft_gate_pass_count`, `machine_candidate_count`，软门禁放行明确打标 `PERMISSIVE_PASSED`。
+- **交付物 (Deliverables)**：
+  - `refactor/03_quant_engine/types.ts`：更新量化核心契约，补充五态结算分布、动态 Shin Z、盘口离散度样本方差、多梯队 OOS 门禁状态与计数；
+  - `refactor/03_quant_engine/prematchPriorEngine.ts`：修复 `squadRatio` 计算公式（基准 1.0 对齐，区间 [0.6, 1.4]）；
+  - `refactor/03_quant_engine/poissonDecayModel.ts`：接入 `expected_remaining_minutes_including_stoppage` 作为剩余时间 SSOT、双变量泊松网格返回 `rho_source: "DEFAULT_ASSUMPTION"`、移除全局对泊松 lambda 的跨市场污染；
+  - `refactor/03_quant_engine/devigCalculator.ts`：强制区分 LIVE 与 PREMATCH 赔率来源，计算动态 `line_dispersion`、动态估算 Shin Z、全面实现分盘五态分布计算与最高 Risk-Adjusted EV 优选决策；
+  - `refactor/03_quant_engine/candidateStateMachine.ts`：隔离 ESS >= 30 与 ESS >= 200 状态门禁、支持副盘策略显式拦截 (`SECONDARY_LINE_POLICY_BLOCKED`)、准确计算流水线计数并打标 `PERMISSIVE_PASSED`；
+  - `refactor/03_quant_engine/index.ts`：升级动态抽水关联的市场冲突仲裁、阻断跨市场 OOS 污染；
+  - 81 项测试全绿通过 (`tests 81, suites 5, pass 81, fail 0`)，TypeScript 与生产编译通过。
+- **下一步 (Next Step)**：
+  根据整体系统交付目标，保持对 Layer 04/05/06 各阶段的联调监控，响应用户进一步指令。
+
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260910-AI-PROMPT-FINAL-REMAINING-ISSUES` (DONE)
+- **任务目标 (Goal)**：
+  严格根据《足球预测 AI Prompt 最终剩余问题修复规范》修复 Prompt / Schema / 数据规则中的最后 4 项问题：
+  1. 【P0-01 Asian Handicap 分盘/四分之一盘字符串强制识别】：
+     - 增加“盘口字符串强制识别”规则：从盘口字符串本身强制识别 quarter/split lines（例如 `0/0.5`, `-0/0.5`, `+0/0.5`, `0.5/1`, `1/1.5`, `1.5/2`, `2/2.5`, `+0.25`, `-0.25`, `+0.75`, `-0.75` 等）；
+     - `is_quarter_line` 仅是元数据，严禁覆盖盘口实际数学结构。实际盘口结构优先于 metadata，即使 `is_quarter_line: false` 也必须适用分盘/四分之一盘结算与分布规则。
+  2. 【P0-02 Quarter Line 的 MAO 不能使用单一 Fair Probability】：
+     - 明确 Quarter-Line MAO 硬规则：必须基于五态结算分布 (`P_FULL_WIN`, `P_HALF_WIN`, `P_PUSH`, `P_HALF_LOSS`, `P_FULL_LOSS`) 推导加权期望收益达到要求的最低赔率；
+     - 若缺乏有效五态分布：`minimum_acceptable_odds = 0`, `actionable = false`, `recommended_legs = []`，禁止从单一二元概率计算 MAO。
+  3. 【P1-01 无有效市场时 market_scan 增加合法 NONE 状态】：
+     - `market_scan.market` 扩充合法值 `"NONE"`；
+     - 当没有任何盘口通过结算验证/模型有效性/价值排序/风控门禁时，明确输出 `market: "NONE"`, `selected_line: "NONE"`, `direction: "NONE"`, `current_odds: 0`, `minimum_acceptable_odds: 0`, `raw_ev: 0`, `risk_adjusted_ev: 0`, `actionable: false`, `recommended_legs: []`。
+  4. 【P1-02 QUALITATIVE_ONLY 时 risk_adjusted_ev 数值归零规范】：
+     - 当 `risk_adjustment_status = "QUALITATIVE_ONLY"` 时，严禁 AI 伪造精确数字，`risk_adjusted_ev` 必须为 0（下游字段类型为 number）；推荐腿不得依赖伪造的数字。
 - **影响文件 (Target Files)**：
   `refactor/04_ai_evaluator/types.ts`
   `refactor/04_ai_evaluator/promptBuilder.ts`
   `refactor/04_ai_evaluator/promptExporter.ts`
-  `refactor/04_ai_evaluator/aiCaller.ts`
   `refactor/04_ai_evaluator/alignmentGuard.ts`
+  `refactor/04_ai_evaluator/aiCaller.ts`
   `tests-ts/aiEvaluatorAlignment.test.ts`
-
-  `refactor/04_ai_evaluator/types.ts`
-  `refactor/04_ai_evaluator/alignmentGuard.ts`
-  `refactor/04_ai_evaluator/aiCaller.ts`
-  `server/routes/aiReadRoutes.ts`
-  `src/components/CanonicalMatchCenter.tsx`
   `refactor/HANDOVER_AND_PROGRESS.md`
-- **执行步骤 (Action Plan)**：
-  1. 登记快照至 `refactor/HANDOVER_AND_PROGRESS.md`；
-  2. 升级 `refactor/04_ai_evaluator/types.ts`：定义 `MarketScanResult` 并在 `AiEvaluationResult` 中引入；
-  3. 升级 `refactor/04_ai_evaluator/promptBuilder.ts`：系统级注入 11 项规则与 Grade Hard-Gate Matrix、更新 JSON Schema 与输出格式；
-  4. 升级 `refactor/04_ai_evaluator/promptExporter.ts`：明确 Payload 中 OOS 的真实语义、注入盘口结算属性和数学已结算标记；
-  5. 升级 `refactor/04_ai_evaluator/alignmentGuard.ts` 与 `aiCaller.ts`：保持对新结构与硬门禁的严密校验；
-  6. 适配 `server/routes/aiReadRoutes.ts` 与前端 `src/components/CanonicalMatchCenter.tsx`；
-  7. 执行语法检查、全量编译与回归测试，归档快照为 `DONE`。
+- **交付成果与闭环核验 (Deliverables & Verification)**：
+  1. `types.ts`：扩充 `MarketScanResult.market` 联合类型包含 `"NONE"`，标注 `QUALITATIVE_ONLY` 下 `risk_adjusted_ev` 必须为 0。
+  2. `promptBuilder.ts`：向 System Prompt 注入 P0-01 字符串强制分盘识别、P0-02 五态加权期望收益 MAO 契约、P1-01 NONE 合法状态规范及 P1-02 状态归零规范；更新 JSON Schema 中的 market enum 包含 `"NONE"`。
+  3. `promptExporter.ts`：重构 `checkQuarterLine` 与 `annotateAhMarket`/`annotateOuMarket`，强制对所有候选属性及字符串进行分盘检测，确保实际盘口结构优先于 metadata。
+  4. `alignmentGuard.ts`：导出 `isQuarterOrSplitLine`，在法定审查门禁中严格执行 P0-01 分盘强制覆盖元数据、P0-02 五态分布 MAO 门禁、P1-01 NONE 状态标准化及 P1-02 QUALITATIVE_ONLY 下 `risk_adjusted_ev` 强制归零并触发量化审计告警。
+  5. `aiCaller.ts`：Gemini 结构化输出 Schema 中 `market` 字段扩充包含 `'NONE'` 枚举。
+  6. 测试验证：新增 4 项针对性单元测试，全套测试套件（81 项测试）全部 100% 绿灯通过，构建编译成功。
+- **下一步规划 (Next Steps)**：
+  当前 AI Evaluator 与量化校验门禁全流程已经对齐规范，系统处于完全稳定可运行状态。随时待命接收新的指令。
 
-- **历史任务 (Previous Task)**: `SNAPSHOT-20260909-FORMAL-LEDGER-PERSISTENCE-AND-OOS-CLOSED-LOOP` (DONE)
+- **历史任务 (Previous Task)**: `SNAPSHOT-20260909-AI-PROMPT-REMAINING-ISSUES` (DONE)
 - **任务目标 (Goal)**：
   1. 【切除违规与虚假数据代码】：
      - 彻底从 `CanonicalMatchCenter.tsx` 中剔除“方案 1 + 方案 2 核心监控看板”及生硬拼接的假数据展示；

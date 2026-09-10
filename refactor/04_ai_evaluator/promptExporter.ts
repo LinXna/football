@@ -151,15 +151,28 @@ export function generateRefactoredPrompt(
       data_blind_spot_warning = `【系统最高级别警告】本场比赛存在严重的客观数据盲区: [${blindSpots.join('、')}]。AI 绝对禁止依此凭空捏造实力差距或控场优势。必须将 100% 评估权重转移至已有真实数据 (如可用盘口资金动量)，必须标注 [高波动/盲盒风险]，且最高置信度上限强制锁定在 85 以下，绝对禁止给出 A_GRADE 评级。`;
     }
 
-    // 辅助检查四分之一盘与滚球数学已结算状态
+    // 辅助检查四分之一盘与滚球数学已结算状态 (P0-01 实际盘口结构优先于 metadata)
     const currentHomeScore = match.score?.home_score ?? 0;
     const currentAwayScore = match.score?.away_score ?? 0;
     const currentTotalGoals = currentHomeScore + currentAwayScore;
     const isLive = match.timing?.stage === MatchStage.LIVE;
 
-    const checkQuarterLine = (lineStr: any): boolean => {
-      if (!lineStr) return false;
-      const s = String(lineStr);
+    const checkQuarterLine = (itemOrStr: any): boolean => {
+      if (!itemOrStr) return false;
+      if (typeof itemOrStr === 'object') {
+        const candidates = [
+          itemOrStr.handicap,
+          itemOrStr.line,
+          itemOrStr.total_line,
+          itemOrStr.total,
+          itemOrStr.home_selection,
+          itemOrStr.away_selection,
+          itemOrStr.spread,
+          itemOrStr.selected_line
+        ];
+        return candidates.some(c => checkQuarterLine(c));
+      }
+      const s = String(itemOrStr).trim();
       return s.includes('/') || s.includes('.25') || s.includes('.75');
     };
 
@@ -167,7 +180,7 @@ export function generateRefactoredPrompt(
       if (!marketItem) return marketItem;
       const rawLine = marketItem.line ?? marketItem.total_line ?? marketItem.total ?? '';
       const numLine = parseFloat(String(rawLine).split('/')[0]);
-      const isQuarter = checkQuarterLine(rawLine);
+      const isQuarter = checkQuarterLine(marketItem) || checkQuarterLine(rawLine);
       const isClosed = isLive && !isNaN(numLine) && numLine <= currentTotalGoals;
       return {
         ...marketItem,
@@ -180,8 +193,8 @@ export function generateRefactoredPrompt(
 
     const annotateAhMarket = (marketItem: any) => {
       if (!marketItem) return marketItem;
-      const rawLine = marketItem.handicap ?? marketItem.line ?? '';
-      const isQuarter = checkQuarterLine(rawLine);
+      const rawLine = marketItem.handicap ?? marketItem.line ?? marketItem.home_selection ?? marketItem.away_selection ?? '';
+      const isQuarter = checkQuarterLine(marketItem) || checkQuarterLine(rawLine);
       return {
         ...marketItem,
         is_quarter_line: isQuarter,

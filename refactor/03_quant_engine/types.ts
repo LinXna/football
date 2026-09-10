@@ -32,6 +32,7 @@ export interface QuantEngineOptions {
   calibration_profile?: QuantCalibrationProfile;
   calibration_archive?: OosCalibrationArchive;
   permissive_oos_mode?: boolean;
+  allow_secondary_lines?: boolean;
 }
 
 /**
@@ -364,6 +365,7 @@ export interface InPlayPoissonFeatures {
   lambda_away_rest: number;
   expected_goals_rest: number;
   lambda_source: 'MARKET_IMPLIED' | 'LEAGUE_DNA' | 'FALLBACK';
+  rho_source?: 'CALIBRATED' | 'DEFAULT_ASSUMPTION';
   lambda_decomposition: LambdaDecomposition;
   top_final_scores: ScoreProbabilityItem[];
   rest_score_matrix: {
@@ -401,6 +403,15 @@ export interface SingleMarketDevig {
   kelly_fraction?: number;
 }
 
+export interface FiveStateSettlementDistribution {
+  p_full_win: number;
+  p_half_win: number;
+  p_push: number;
+  p_half_loss: number;
+  p_full_loss: number;
+  source: 'ENGINE_COMPUTED' | 'CALIBRATED' | 'UNAVAILABLE';
+}
+
 export interface SpreadEVAssessment {
   line: string;
   home_odds: number;
@@ -412,6 +423,8 @@ export interface SpreadEVAssessment {
   home_model_probability?: number;
   away_model_probability?: number;
   kelly_fraction?: number;
+  home_settlement_distribution?: FiveStateSettlementDistribution;
+  away_settlement_distribution?: FiveStateSettlementDistribution;
 }
 
 export interface TotalEVAssessment {
@@ -425,6 +438,16 @@ export interface TotalEVAssessment {
   over_model_probability?: number;
   under_model_probability?: number;
   kelly_fraction?: number;
+  over_settlement_distribution?: FiveStateSettlementDistribution;
+  under_settlement_distribution?: FiveStateSettlementDistribution;
+}
+
+export interface LineDispersionMetrics {
+  spread_variance: number | 'UNAVAILABLE';
+  total_variance: number | 'UNAVAILABLE';
+  status?: 'CALCULATED' | 'PARTIAL' | 'UNAVAILABLE';
+  spread_lines_count?: number;
+  total_lines_count?: number;
 }
 
 export interface DeviggedMarketFeatures {
@@ -433,11 +456,12 @@ export interface DeviggedMarketFeatures {
   spread_secondary_ev: SpreadEVAssessment[];
   total_main_ev?: TotalEVAssessment;
   total_secondary_ev: TotalEVAssessment[];
-  line_dispersion: {
-    spread_variance: number;
-    total_variance: number;
-  };
+  line_dispersion: LineDispersionMetrics;
   bookmaker_posture: BookmakerPosture;
+  shin_z?: number;
+  shin_z_status?: 'DYNAMIC_ESTIMATED' | 'DEFAULT_ASSUMPTION' | 'UNAVAILABLE';
+  posture_confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
+  ev_market_source: 'LIVE_YBTY' | 'LIVE_LEISU' | 'PREMATCH' | 'UNAVAILABLE';
 }
 
 export interface PositiveEVSignal {
@@ -449,6 +473,7 @@ export interface PositiveEVSignal {
   confidence: number;
   kelly_fraction: number;
   model_probability?: number;
+  oos_status?: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'PERMISSIVE_PASSED' | 'NO_PROFILE' | 'INSUFFICIENT_EVIDENCE';
 }
 
 /**
@@ -644,9 +669,12 @@ export type Layer03CandidatePipelineState =
   | 'DATA_LOCKED'
   | 'PRODUCTION_UNLOCKED';
 
+export const OOS_VALIDATION_MIN_ESS = 30;
+export const PRODUCTION_MATURE_ESS = 200;
+
 export interface Layer03CandidateOosValidation {
   market: OosMarket | null;
-  status: 'VALIDATED' | 'INSUFFICIENT_EVIDENCE' | 'REJECTED' | 'NO_PROFILE' | 'UNSUPPORTED_MARKET';
+  status: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'INSUFFICIENT_EVIDENCE' | 'NO_PROFILE' | 'REJECTED' | 'UNSUPPORTED_MARKET' | 'VALIDATED';
   effective_sample_size: number;
   oos_brier_score: number | null;
   blockers: readonly string[];
@@ -662,6 +690,8 @@ export interface Layer03CandidatePipeline {
   state: Layer03CandidatePipelineState;
   raw_signal_count: number;
   oos_validated_count: number;
+  permissive_unlocked_count: number;
+  soft_gate_pass_count?: number;
   machine_candidate_count: number;
   validations: readonly Layer03CandidateOosValidation[];
   blockers: readonly string[];

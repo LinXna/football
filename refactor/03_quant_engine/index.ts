@@ -339,12 +339,30 @@ export function calculateConfidenceAndAlerts(
 function resolveMarketConflicts(
   signals: PositiveEVSignal[],
   match: CanonicalMatch,
-  poissonGrid?: number[][]
-): PositiveEVSignal[] {
+  poissonGrid?: number[][],
+  marketOverround?: number,
+  tracer?: Tracer
+): {
+  signals: PositiveEVSignal[];
+  conflict_metric: 'DYNAMIC_MARGIN_RELATIVE';
+  applied_threshold: number;
+} {
   const spreadSignals = signals.filter(s => s.market === 'ASIAN_HANDICAP_MAIN' || s.market === 'ASIAN_HANDICAP_SECONDARY');
   const totalSignals = signals.filter(s => s.market === 'TOTAL_GOALS_MAIN' || s.market === 'TOTAL_GOALS_SECONDARY');
+
+  const marketMargin = (marketOverround && marketOverround > 1.0)
+    ? (marketOverround - 1.0)
+    : 0.06;
+  // P1-04: 冲突判定的阈值应与盘口抽水和方差动态关联：threshold = max(0.04, market_margin * 0.8)
+  const appliedThreshold = Number(Math.max(0.04, marketMargin * 0.8).toFixed(4));
   
-  if (spreadSignals.length === 0 || totalSignals.length === 0 || !poissonGrid) return signals;
+  if (spreadSignals.length === 0 || totalSignals.length === 0 || !poissonGrid) {
+    return {
+      signals,
+      conflict_metric: 'DYNAMIC_MARGIN_RELATIVE',
+      applied_threshold: appliedThreshold
+    };
+  }
 
   let currentSignals = [...signals];
 
@@ -377,7 +395,14 @@ function resolveMarketConflicts(
         }
       }
 
-      if (bothWinProb < 0.05) {
+      if (bothWinProb < appliedThreshold) {
+        tracer?.info(
+          Layer03OpId.ORCHESTRATE_QUANT,
+          'MARKET_CONFLICT_RESOLVED',
+          `Conflict between ${spread.market} (${spread.side} ${spread.line}) and ${total.market} (${total.side} ${total.line}): joint_prob=${bothWinProb.toFixed(4)} < threshold=${appliedThreshold}`,
+          { bothWinProb, appliedThreshold, spread, total },
+          match.canonical_id
+        );
         if (spread.ev >= total.ev) {
           currentSignals = currentSignals.filter(s => s !== total);
         } else {
@@ -387,7 +412,11 @@ function resolveMarketConflicts(
     }
   }
 
-  return currentSignals;
+  return {
+    signals: currentSignals,
+    conflict_metric: 'DYNAMIC_MARGIN_RELATIVE',
+    applied_threshold: appliedThreshold
+  };
 }
 
 /**
@@ -482,18 +511,19 @@ export function calculateQuantitativeFeatures(
     rawDevigFeatures,
     match.timing.stage
   );
-  const resolveProfile = (market: OosMarket): QuantCalibrationProfile | undefined =>
-    options?.calibration_profile?.market === market
+  const resolveProfile = (market: OosMarket): QuantCalibrationProfile | undefined => {
+    const profile = options?.calibration_profile?.market === market
       ? options.calibration_profile
       : selectOosCalibrationProfile(options?.calibration_archive, match, market);
-  const totalCalibrationProfile = resolveProfile('TOTAL_GOALS_MAIN');
-  const totalCalibrationIsValidated = isValidatedOosProfile(totalCalibrationProfile);
-  const poissonFeatures = totalCalibrationIsValidated
-    ? calculateInPlayPoissonFeatures(match, contextFeatures, matchState, marketCalibration, totalCalibrationProfile, collector, tracer)
-    : rawPoissonFeatures;
-  const devigFeatures = totalCalibrationIsValidated
-    ? calculateDeviggedMarketFeatures(match, poissonFeatures, collector, tracer)
-    : rawDevigFeatures;
+    // P0-04: 严格隔离校准档案，若档案市场类型不一致禁止 cross-market 污染
+    if (profile && profile.market !== market) {
+      return undefined;
+    }
+    return profile;
+  };
+
+  const poissonFeatures = rawPoissonFeatures;
+  const devigFeatures = rawDevigFeatures;
 
   // 5. 综合计算战场统治权指数 (BDI)
   const bdi = calculateBattlefieldDominanceIndex(matchState);
@@ -511,7 +541,14 @@ export function calculateQuantitativeFeatures(
     match.timing.stage
   );
 
-  const resolved_positive_ev_signals = resolveMarketConflicts(positive_ev_signals, match, poissonFeatures.score_probability_grid);
+  const conflictResolution = resolveMarketConflicts(
+    positive_ev_signals,
+    match,
+    poissonFeatures.score_probability_grid,
+    devigFeatures.h2h_devig?.raw_overround ?? 1.05,
+    tracer
+  );
+  const resolved_positive_ev_signals = conflictResolution.signals;
 
   let adjustedConfidence = Math.max(0, confidence_score - marketCalibration.market_confidence_penalty);
   if (match.timing.stage === MatchStage.LIVE && !physicalStatsFeatures.stats_available) {
@@ -554,7 +591,8 @@ export function calculateQuantitativeFeatures(
     stage: match.timing.stage,
     hasEvidenceConflict: matchState.has_evidence_conflict,
     postGoalCooldownActive: matchState.post_goal_cooldown_active,
-    permissiveOosMode: options?.permissive_oos_mode ?? true
+    permissiveOosMode: options?.permissive_oos_mode ?? true,
+    allowSecondaryLines: options?.allow_secondary_lines ?? true
   });
   const machineCandidateSignals = [...candidatePipeline.machine_candidate_signals];
   const edgeConfidenceScore = candidatePipeline.edge_confidence_score;
@@ -613,6 +651,8 @@ export function calculateQuantitativeFeatures(
       state: candidatePipeline.state,
       raw_signal_count: candidatePipeline.raw_signals.length,
       oos_validated_count: candidatePipeline.oos_validated_signals.length,
+      permissive_unlocked_count: candidatePipeline.permissive_unlocked_signals.length,
+      soft_gate_pass_count: candidatePipeline.permissive_unlocked_signals.length,
       machine_candidate_count: candidatePipeline.machine_candidate_signals.length,
       validations: Object.freeze(candidatePipeline.validations.map((item) => Object.freeze({
         market: item.market,

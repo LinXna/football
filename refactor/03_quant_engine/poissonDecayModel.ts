@@ -16,7 +16,7 @@
  * 遵循红线：纯函数无副作用 (No In-Place Mutation)、强类型零 any、完全可测试。
  */
 
-import { CanonicalMatch, CanonicalTimelineEvent } from '../02_canonical_model/types.js';
+import { CanonicalMatch, CanonicalTimelineEvent, CanonicalTimingState } from '../02_canonical_model/types.js';
 import { MatchStage, CanonicalEventType } from '../02_canonical_model/enums.js';
 import {
   InPlayPoissonFeatures,
@@ -150,13 +150,16 @@ export function calculatePhasedDNATimeFraction(
  * @param scoreDiff 主客比分差 (home - away)
  * @param homeWeights 主队进球 DNA 时段权重
  * @param awayWeights 客队进球 DNA 时段权重
+ * @param priorStrengthRatio 先验实力比
+ * @param remainingMinutesOverride 统一剩余时间 SSOT (覆盖默认 90 - elapsed)
  */
 export function calculateTimeDecayAndUrgencyMultiplier(
   elapsedMinute: number,
   scoreDiff: number = 0,
   homeWeights?: number[],
   awayWeights?: number[],
-  priorStrengthRatio: number = 1.0
+  priorStrengthRatio: number = 1.0,
+  remainingMinutesOverride?: number
 ): {
   time_fraction: number;
   time_fraction_home: number;
@@ -164,8 +167,10 @@ export function calculateTimeDecayAndUrgencyMultiplier(
   urgency_multiplier: number;
   curve: PoissonDecayCurve;
 } {
-  const remainingMinutes = Math.max(0, 90 - elapsedMinute);
-  const uniformTimeFraction = Number((remainingMinutes / 90.0).toFixed(4));
+  const remainingMinutes = remainingMinutesOverride !== undefined
+    ? Math.max(0, remainingMinutesOverride)
+    : Math.max(0, 90 - elapsedMinute);
+  const uniformTimeFraction = Number(Math.min(1.0, remainingMinutes / 90.0).toFixed(4));
 
   const dnaFractionH = homeWeights && homeWeights.length === 6
     ? calculatePhasedDNATimeFraction(elapsedMinute, homeWeights)
@@ -251,6 +256,8 @@ export function calculateBivariatePoissonGrid(
   prob_home_win_rest: number;
   prob_draw_rest: number;
   prob_away_win_rest: number;
+  rho_used?: number;
+  rho_source?: 'DEFAULT_ASSUMPTION' | 'CALIBRATED_ESTIMATE';
 } {
   const grid: number[][] = [];
   let probHomeWin = 0.0;
@@ -317,7 +324,9 @@ export function calculateBivariatePoissonGrid(
     grid,
     prob_home_win_rest: Number(probHomeWin.toFixed(4)),
     prob_draw_rest: Number(probDraw.toFixed(4)),
-    prob_away_win_rest: Number(probAwayWin.toFixed(4))
+    prob_away_win_rest: Number(probAwayWin.toFixed(4)),
+    rho_used: rho,
+    rho_source: 'DEFAULT_ASSUMPTION'
   };
 }
 
@@ -346,6 +355,30 @@ export function calculateContinuousThreatTensor(
 }
 
 /**
+ * LIVE 剩余比赛时间单一事实来源 (Single Source of Truth)
+ * 严格基于法定分钟数与伤停补时模型推导，禁止下游重复叠加补时。
+ */
+export function calculateExpectedRemainingMinutesIncludingStoppage(timing?: CanonicalTimingState | null): number {
+  if (!timing) return 0;
+  if (timing.stage === MatchStage.FINISHED) return 0;
+  if (timing.stage === MatchStage.PREMATCH) return 90;
+
+  const minute = timing.minute ?? 0;
+  const addedMinute = timing.added_minute ?? null;
+
+  if (minute >= 90) {
+    const estimatedStoppage = (addedMinute !== null && addedMinute > 0) ? addedMinute : 5;
+    const remaining = (90 + estimatedStoppage) - minute;
+    return Math.max(1, remaining);
+  }
+
+  // 常规比赛时间: 80 分钟前不盲目预加补时，80 分钟后平滑引入合理补时
+  const remainingRegulation = Math.max(0, 90 - minute);
+  const stoppageAllowance = minute > 80 ? (addedMinute ?? 5) : 0;
+  return remainingRegulation + stoppageAllowance;
+}
+
+/**
  * 统帅部主函数：求解滚球 0:0 实时重置 Forward 泊松与进球概率模型
  */
 export function calculateInPlayPoissonFeatures(
@@ -370,9 +403,9 @@ export function calculateInPlayPoissonFeatures(
   const elapsedMinute = isPrematch
     ? 0
     : Math.min(90, Math.max(0, match.timing.minute as number));
-  const remainingMinutes = Math.max(0, 90 - elapsedMinute);
+  const remainingMinutes = isPrematch ? 90 : calculateExpectedRemainingMinutesIncludingStoppage(match.timing);
   const isFinished = match.timing.stage === MatchStage.FINISHED;
-  const isUnpriceableStoppageTime = !isFinished && match.timing.stage === MatchStage.LIVE && elapsedMinute >= 90;
+  const isUnpriceableStoppageTime = !isFinished && match.timing.stage === MatchStage.LIVE && remainingMinutes <= 0;
   const currentHomeScore = isPrematch ? 0 : match.score.home_score as number;
   const currentAwayScore = isPrematch ? 0 : match.score.away_score as number;
   const scoreDiff = currentHomeScore - currentAwayScore;
@@ -392,6 +425,7 @@ export function calculateInPlayPoissonFeatures(
       lambda_away_rest: 0.0,
       expected_goals_rest: 0.0,
       lambda_source: 'FALLBACK',
+      rho_source: 'DEFAULT_ASSUMPTION',
       lambda_decomposition: {
         market_base_home: 0,
         market_base_away: 0,
@@ -478,12 +512,6 @@ export function calculateInPlayPoissonFeatures(
     baseAwayLambda *= contextMultiplierAway;
   }
 
-  if (oosCalibration?.market === 'TOTAL_GOALS_MAIN' && oosCalibration.status === 'VALIDATED' && oosCalibration.effective_sample_size >= 200) {
-    const multiplier = Math.exp(oosCalibration.lambda_log_adjustment);
-    baseHomeLambda *= multiplier;
-    baseAwayLambda *= multiplier;
-  }
-
   // 将截至当前分钟的已核验进球节奏作为受限的 in-play 证据，避免 2-2/3-0
   // 等高事件比赛仍沿用纯赛前低进球先验。早期样本权重较低，且观察速率有上限。
   const currentTotalGoals = currentHomeScore + currentAwayScore;
@@ -502,7 +530,7 @@ export function calculateInPlayPoissonFeatures(
   const homeWeights = context?.goal_distribution_dna?.home_scored_weights;
   const awayWeights = context?.goal_distribution_dna?.away_scored_weights;
   const priorStrengthRatio = baseHomeLambda / Math.max(0.1, baseAwayLambda);
-  const timeDecay = calculateTimeDecayAndUrgencyMultiplier(elapsedMinute, scoreDiff, homeWeights, awayWeights, priorStrengthRatio);
+  const timeDecay = calculateTimeDecayAndUrgencyMultiplier(elapsedMinute, scoreDiff, homeWeights, awayWeights, priorStrengthRatio, remainingMinutes);
 
   // 4. 唯一实时状态已经融合 xT、动量、事件、红牌与战术相变；本函数不得再次读取原始特征。
   const regimeMultiplierHome = matchState.regime_multiplier_home;
@@ -636,6 +664,7 @@ export function calculateInPlayPoissonFeatures(
     lambda_away_rest: lambdaAwayRest,
     expected_goals_rest: expectedGoalsRest,
     lambda_source: lambdaSource,
+    rho_source: 'DEFAULT_ASSUMPTION',
     lambda_decomposition: lambdaDecomposition,
     top_final_scores: topFinalScores,
     rest_score_matrix: {

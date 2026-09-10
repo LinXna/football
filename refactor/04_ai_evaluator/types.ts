@@ -108,15 +108,18 @@ export interface QuarterLineSettlementDistribution {
 
 export interface MarketScanResult {
   selected_line: string;
-  market: string;
+  market: 'ASIAN_HANDICAP_MAIN' | 'ASIAN_HANDICAP_SECONDARY' | 'TOTAL_GOALS_MAIN' | 'TOTAL_GOALS_SECONDARY' | 'EURO_1X2' | 'NONE' | string;
+  market_status?: 'NO_VALID_MARKET' | 'VALID_BUT_BLOCKED' | 'ACTIONABLE';
   direction: 'HOME' | 'AWAY' | 'OVER' | 'UNDER' | 'DRAW' | 'NONE';
   current_odds: number;
   minimum_acceptable_odds: number;
   raw_ev: number;
+  // QUALITATIVE_ONLY 时严禁伪造数字，必须为 0 (P1-02)
   risk_adjusted_ev: number;
   risk_adjustment_status?: 'ENGINE_PROVIDED' | 'QUALITATIVE_ONLY' | 'UNAVAILABLE';
   is_quarter_line: boolean;
   quarter_line_settlement_distribution?: QuarterLineSettlementDistribution;
+  mathematically_closed?: boolean;
   actionable: boolean;
   rejection_reason?: string;
 }
@@ -147,7 +150,7 @@ export interface AiEvaluationResult {
   
   blind_spot_analysis: BlindSpotChecklist;
   
-  // Chain-of-Thought (CoT) Checkpoint before issuing the final grade
+  // Concise decision audit summarizing verified evidence, risk adjustments, and gate decisions
   internal_logical_audit: string;
   
   grade: RecommendationGrade;

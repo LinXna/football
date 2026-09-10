@@ -328,6 +328,25 @@ export function registerCanonicalRoutes(app: express.Express): void {
     }
   });
 
+  /**
+   * GET /api/refactor/bursa-payload
+   * 获取布尔萨体育 vs 伊斯坦堡士邦真实 Layer 03 Payload JSON
+   */
+  app.get("/api/refactor/bursa-payload", (_req, res) => {
+    try {
+      const payloadPath = path.resolve(process.cwd(), "output/bursa_istanbul_layer03_real_payload.json");
+      if (fs.existsSync(payloadPath)) {
+        const data = fs.readFileSync(payloadPath, "utf-8");
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        res.send(data);
+      } else {
+        res.status(404).json({ ok: false, error: "File not found at output/bursa_istanbul_layer03_real_payload.json" });
+      }
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e?.message });
+    }
+  });
+
   app.get("/api/refactor/canonical-matches", (req, res) => {
     try {
       const mode = (req.query.mode as string) === "prematch" ? "prematch" : "live";
