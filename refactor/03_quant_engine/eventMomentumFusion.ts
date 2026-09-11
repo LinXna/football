@@ -537,7 +537,8 @@ export function evaluateGoalClimax(
     momentum_acceleration_5m: momentumAcceleration,
     recent_incident_density_5m: recentIncidentDensity,
     post_goal_cooldown_active: postGoalCooldownActive,
-    is_imminent_threat: !postGoalCooldownActive && climaxScore >= 65.0
+    is_imminent_threat: !postGoalCooldownActive && climaxScore >= 65.0,
+    pressure_signal_nature: 'RULE_BASED_PRESSURE_SIGNAL'
   };
 }
 

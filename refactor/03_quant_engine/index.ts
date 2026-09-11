@@ -38,7 +38,8 @@ import {
   TotalEVAssessment,
   Layer03OpId,
   Layer03FeatureId,
-  Layer03CandidatePipeline
+  Layer03CandidatePipeline,
+  Layer03LiveSnapshot
 } from './types.js';
 import { selectOosCalibrationProfile } from './oosCalibrationEngine.js';
 import { extractCleanedContextFeatures } from './contextEngine.js';
@@ -641,6 +642,7 @@ export function calculateQuantitativeFeatures(
     allowSecondaryLines: options?.allow_secondary_lines ?? true
   });
   const machineCandidateSignals = [...candidatePipeline.machine_candidate_signals];
+  const researchCandidateSignals = [...candidatePipeline.research_candidate_signals];
   const edgeConfidenceScore = candidatePipeline.edge_confidence_score;
   const screeningIntegrityScore = Math.min(adjustedConfidence, dataQualityScore, modelStabilityScore);
 
@@ -668,6 +670,26 @@ export function calculateQuantitativeFeatures(
       blockers: candidatePipeline.blockers
     }
   );
+
+  const oosConfidence = candidatePipeline.oos_validated_signals.length > 0 ? edgeConfidenceScore : 0;
+  const productionConfidence = candidatePipeline.production_eligible
+    ? Math.min(screeningIntegrityScore, edgeConfidenceScore)
+    : 0;
+
+  const liveSnapshot: Layer03LiveSnapshot = Object.freeze({
+    observed_at: new Date().toISOString(),
+    cutoff_minute: match.timing.minute ?? null,
+    score: {
+      home_score: match.score.home_score,
+      away_score: match.score.away_score,
+      score_verified: match.score.score_verified
+    },
+    stats_available: physicalStatsFeatures.stats_available,
+    momentum_points: timelineFeatures?.total_points ?? 0,
+    timeline_events_count: match.reference?.timeline_events?.length ?? 0,
+    has_odds: Boolean(match.markets.full_h2h || match.markets.full_spread_main || match.markets.full_total_main)
+  });
+
   const result: QuantitativeFeatures = Object.freeze({
     canonical_id: match.canonical_id,
     calculated_at: new Date().toISOString(),
@@ -682,26 +704,38 @@ export function calculateQuantitativeFeatures(
     match_state: matchState,
     battlefield_dominance_index: bdi,
     goal_phase_alert: goalPhase,
+    live_snapshot: liveSnapshot,
     raw_positive_ev_signals: positive_ev_signals,
+    research_candidate_signals: researchCandidateSignals,
     positive_ev_signals: machineCandidateSignals,
     risk_flags: finalRiskFlags,
     confidence_score: Math.min(screeningIntegrityScore, adjustedConfidence),
     confidence_breakdown: {
       data_quality_score: dataQualityScore,
       model_stability_score: modelStabilityScore,
-      edge_confidence_score: edgeConfidenceScore
+      edge_confidence_score: edgeConfidenceScore,
+      signal_confidence: adjustedConfidence,
+      data_quality_confidence: dataQualityScore,
+      market_confidence: modelStabilityScore,
+      edge_confidence: edgeConfidenceScore,
+      oos_confidence: oosConfidence,
+      production_confidence: productionConfidence,
+      overall_confidence: Math.min(screeningIntegrityScore, adjustedConfidence)
     },
     data_audit: dataAudit,
     production_gate: productionGate,
     candidate_pipeline: Object.freeze({
       state: candidatePipeline.state,
       raw_signal_count: candidatePipeline.raw_signals.length,
+      research_candidate_count: candidatePipeline.research_candidate_signals.length,
       oos_validated_count: candidatePipeline.oos_validated_signals.length,
       permissive_unlocked_count: candidatePipeline.permissive_unlocked_signals.length,
       soft_gate_pass_count: candidatePipeline.permissive_unlocked_signals.length,
       machine_candidate_count: candidatePipeline.machine_candidate_signals.length,
+      production_eligible: candidatePipeline.production_eligible,
       validations: Object.freeze(candidatePipeline.validations.map((item) => Object.freeze({
         market: item.market,
+        oos_profile_key: item.oos_profile_key,
         status: item.status,
         effective_sample_size: item.effective_sample_size,
         oos_brier_score: item.oos_brier_score,

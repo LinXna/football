@@ -37,22 +37,31 @@ if (strictCases[0][1].edge_confidence_score !== 0 || strictCases[1][1].edge_conf
 // 2. 样本累积期宽容软门禁模式校验 (permissiveOosMode: true / 默认行为)
 const permissiveCases = [
   ['PERMISSIVE_NO_POSITIVE_EV', evaluateCandidatePipeline({ ...common, rawSignals: [] })],
-  ['PERMISSIVE_UNLOCKED_NO_PROFILE', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => undefined })],
-  ['PERMISSIVE_UNLOCKED_THIN', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => ({ ...profile, effective_sample_size: 20 }) })],
+  ['PERMISSIVE_COLD_START_NO_PROFILE', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => undefined })],
+  ['PERMISSIVE_COLD_START_THIN', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => ({ ...profile, effective_sample_size: 20 }) })],
   ['PERMISSIVE_DATA_LOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal], dataQualityScore: 70 })],
   ['PERMISSIVE_PRODUCTION_UNLOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal] })],
   ['PERMISSIVE_UNSUPPORTED_MARKET_LOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosMarket: () => undefined })]
 ] as const;
 
-const permissiveExpected = ['NO_POSITIVE_EV', 'PRODUCTION_UNLOCKED', 'PRODUCTION_UNLOCKED', 'DATA_LOCKED', 'PRODUCTION_UNLOCKED', 'OOS_LOCKED'];
+const permissiveExpected = ['NO_POSITIVE_EV', 'COLD_START_PERMISSIVE', 'COLD_START_PERMISSIVE', 'DATA_LOCKED', 'PRODUCTION_UNLOCKED', 'OOS_LOCKED'];
 for (let i = 0; i < permissiveCases.length; i += 1) {
   const [name, result] = permissiveCases[i];
   if (result.state !== permissiveExpected[i]) throw new Error(`${name}: unexpected state ${result.state}`);
 }
-if (permissiveCases[1][1].machine_candidate_signals.length !== 1) throw new Error('Permissive: No-profile signal failed to be soft-promoted to machine candidate');
-if (permissiveCases[2][1].machine_candidate_signals.length !== 1) throw new Error('Permissive: Thin OOS signal failed to be soft-promoted to machine candidate');
+// P0-1 & P0-2 Invariants:
+// In cold start permissive mode: machine_candidate_signals must be 0, research_candidate_signals must be 1, production_eligible must be false!
+if (permissiveCases[1][1].machine_candidate_signals.length !== 0) throw new Error('Permissive: No-profile signal illegally promoted to machine candidate');
+if (permissiveCases[1][1].research_candidate_signals.length !== 1) throw new Error('Permissive: No-profile signal failed to be captured as research candidate');
+if (permissiveCases[1][1].production_eligible !== false) throw new Error('Permissive: No-profile signal illegally marked production_eligible');
+
+if (permissiveCases[2][1].machine_candidate_signals.length !== 0) throw new Error('Permissive: Thin OOS signal illegally promoted to machine candidate');
+if (permissiveCases[2][1].research_candidate_signals.length !== 1) throw new Error('Permissive: Thin OOS signal failed to be captured as research candidate');
+if (permissiveCases[2][1].production_eligible !== false) throw new Error('Permissive: Thin OOS signal illegally marked production_eligible');
+
 if (permissiveCases[3][1].machine_candidate_signals.length !== 0) throw new Error('Permissive: Data-locked signal escaped data quality gate');
-if (permissiveCases[4][1].machine_candidate_signals.length !== 1) throw new Error('Permissive: Validated signal failed to become machine candidate');
+if (permissiveCases[4][1].machine_candidate_signals.length !== 1) throw new Error('Permissive: Validated mature signal failed to become machine candidate');
+if (permissiveCases[4][1].production_eligible !== true) throw new Error('Permissive: Validated mature signal failed production_eligible');
 if (permissiveCases[5][1].machine_candidate_signals.length !== 0) throw new Error('Permissive: Unsupported market escaped lock');
 
 console.log('verify_candidate_state_machine: PASS (both strict and permissive modes verified)');

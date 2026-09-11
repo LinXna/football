@@ -1,30 +1,105 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260911-EXPORT-AND-COPY-03-MODEL-INPUT-AND-OUTPUT`
+- **任务编号 (Task)**: `SNAPSHOT-20260911-LAYER03-QUANT-ENGINE-REGRESSION-CLOSURE`
 - **当前状态 (Status)**: `IN_PROGRESS`
 - **任务目标 (Goal)**：
-  响应用户明确指令：“标准赛事对齐中心，增加一个导出复制功能: 1.支持导出复制我导入的比赛数据，03模型接收的数据结构。2.支持导出复制经过03模型计算后的数据结构。”
-  1. 【全局/批量级导出与复制面板 (Batch Export & Copy Center)】：
-     - 在标准赛事对齐中心顶部操作栏，新增【03模型数据导出/复制】功能菜单/弹窗；
-     - 功能 1：一键复制 / 导出当前导入的全量“03模型接收数据结构” (`CanonicalMatch[]` 原始标准输入 JSON)；
-     - 功能 2：一键复制 / 导出当前全量“03模型计算后数据结构” (`Record<string, QuantitativeFeatures>` 37项确定性量化特征 JSON)；
-     - 支持剪贴板一键复制（带字数统计与反馈 Toast）、支持一键下载为带时间戳的标准 `.json` 文件；
-  2. 【单场赛事卡片级快速复制 (Per-Match Fast Copy Actions)】：
-     - 在每场比赛卡片操作栏及 JSON 详情选项卡中，提供醒目的独立复制/导出按钮：
-       - `复制 03 接收输入 (CanonicalMatch)`
-       - `复制 03 计算输出 (QuantitativeFeatures)`
-       - 并提供单场 JSON 下载与即时成功提示反馈；
-  3. 【工程规范与验证】：
-     - 强类型零 any，严格遵守系统架构数据契约；
-     - 执行 `npm run lint` 与 `compile_applet` 确保构建无误。
+  严格对照《Layer 03 Quant Engine 回归测试问题清单》完成所有 P0/P1/P2/P3 深度问题根治与数据契约规范化：
+  1. 【P0 状态机冲突与语义统一】：
+     - `production_gate.candidate_status` 与 `candidate_pipeline.state` 100% 对齐，彻底消除 `RESEARCH_ONLY` 与 `UNLOCKED` 冲突；冷启动期统一为 `COLD_START_PERMISSIVE`，禁止输出具有生产歧义的 `UNLOCKED`；
+     - 严格约束计数定义：无成熟 OOS (`NO_PROFILE` / `ESS < 200`) 时，`machine_candidate_count` 必须严格等于 0，`production_eligible = false`，仅允许输出 `research_candidate_count`；
+     - 修复状态流转路径：从 `OOS_LOCKED` 转移到 `COLD_START_PERMISSIVE`，严禁伪装为 `PRODUCTION_UNLOCKED`；
+  2. 【P0 & P1 OOS 验证逐盘口身份隔离与参数防坍缩】：
+     - 在 `validations` 输出中显式补齐 `market_type`, `normalized_line`, `side`, `settlement_type`；
+     - 针对滚球让球固化 `score_at_bet`, `line_at_bet`, `odds_at_bet`, `snapshot_time`, `settlement_basis`；
+  3. 【P1 Lambda 分解完整可复算】：
+     - 消除未暴露的进球节奏回踩与市场/理论混淆项，显式暴露 `raw_market_lambda`, `theory_lambda`, `market_weight`, `theory_weight`, `time_fraction`, `weighted_base_lambda`, `observed_pace_multiplier`, `threat`, `regime`, `red_card`, `cooldown`, `oos_multiplier`，满足 `final_lambda = weighted_base × all_multipliers` 独立反算；
+  4. 【P1 Bivariate Poisson Dixon-Coles 修正参数暴露】：
+     - 显式输出 $\rho$, $\rho_{source}$, $\tau_{0,0}$, $\tau_{1,0}$, $\tau_{0,1}$, $\tau_{1,1}$，实现比分概率网格第三方 100% 重建；
+  5. 【P1 H2H 被拒绝后清理假默认值】：
+     - 当 H2H `valid_count === 0` 时，`historical_under_rate` 与 `historical_avg_red_cards` 严格置为 `null`，禁止输出虚假 `0.5` 与 `0.0`；
+  6. 【P1 修复客队客场积分榜数据丢失 Bug】：
+     - 根治 `extractIsoVenueStandings` 中负净胜球被错误拦截的 Bug，恢复客队积分榜数据流；
+  7. 【P1 Confidence 体系语义治理】：
+     - 彻底解耦 `signal_confidence`, `data_quality_confidence`, `market_confidence`, `edge_confidence`, `oos_confidence`, `overall_confidence`，严禁在 `edge_confidence = 0` 时输出无依据的 `confidence = 98`；
+  8. 【P2 & P3 契约与标签明确】：
+     - 阵型重构：区分 `both_formations_known` 与真实同构 `formation_matched`；
+     - 战术态证据：输出 `NEUTRAL_EQUILIBRIUM` 触发阈值与候选能量证据链；
+     - 破门临界定性：明确标注 `alert_nature: 'RULE_BASED_PRESSURE_SIGNAL'`;
+     - 时间链路加强：明确 `event_cutoff_minute`, `source_snapshot_at`, `model_calculated_at`。
 - **改动文件清单 (Target Files)**：
-  - `src/components/CanonicalMatchCenter.tsx`
+  - `/refactor/03_quant_engine/types.ts`
+  - `/refactor/03_quant_engine/candidateStateMachine.ts`
+  - `/refactor/03_quant_engine/dataAudit.ts`
+  - `/refactor/03_quant_engine/marketDivergenceEngine.ts`
+  - `/refactor/03_quant_engine/poissonDecayModel.ts`
+  - `/refactor/03_quant_engine/contextEngine.ts`
+  - `/refactor/03_quant_engine/eventMomentumFusion.ts`
+  - `/refactor/03_quant_engine/index.ts`
+  - `/refactor/tests/verify_candidate_state_machine.ts`
+  - `/refactor/tests/verify_quant_engine.ts`
   - `/refactor/HANDOVER_AND_PROGRESS.md`
-- **执行步骤 (Action Plan)**：
-  - Step 1: 在 `CanonicalMatchCenter.tsx` 中设计并实现全局批量导出复制弹窗及单场卡片操作按钮；
-  - Step 2: 注入数据格式化、剪贴板复制逻辑（兼容 fallback）与 `.json` 导出下载逻辑；
-  - Step 3: 执行 `lint_applet` 与 `compile_applet` 验证；
-  - Step 4: 更新快照状态为 `DONE`。
+- **交付物与成果 (Deliverables)**：
+  待更新。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+- **任务编号 (Task)**: `SNAPSHOT-20260911-LAYER03-QUANT-ENGINE-BASELINE-REFACTOR`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  严格基于《Layer 03 Quant Engine 正式整改基线》落实 03 量化引擎规范重构：
+  1. 【P0-1 & P0-2 状态与候选双轨分离】：
+     - 冷启动状态 (`COLD_START_PERMISSIVE`) 与生产成熟状态 (`PRODUCTION_UNLOCKED`) 彻底解耦；
+     - 明确分离 `research_candidate_signals` (研究级候选) 与 `machine_candidate_signals` (生产级机器候选)；
+     - 冷启动期 `production_eligible = false`, `machine_candidate_count = 0`, `research_candidate_count > 0`，绝不伪装为生产解锁，绝不卡死研究功能；
+  2. 【P0-3 & P0-4 OOS Profile Key 精确化与回填身份绑定】：
+     - OOS Profile Key 必须携带盘口数值 line：`market_type|normalized_line|side|settlement_type`；
+     - 信号携带原始盘口线、赔率与比分快照，杜绝不同让球/大小球跨盘口统计污染；
+  3. 【P1-1 Lambda 分解完整可复算】：
+     - 补齐所有参与 $\lambda$ 计算的中间倍率（威胁、战意、红牌攻防、冷却、衰减、OOS乘数等）至 `LambdaDecomposition`，确保输出 JSON 可 100% 独立复算；
+  4. 【P1-2 Confidence 语义拆分】：
+     - 拆分 `signal_confidence`, `data_quality_confidence`, `market_confidence`, `edge_confidence`, `oos_confidence`, `production_confidence`, `overall_confidence`；
+  5. 【P1-3 & P1-4 统一 Live Snapshot 契约与 IMMINENT_GOAL 规则标签定性】：
+     - 建立明确的 `Layer03LiveSnapshot` 时空截断边界；
+     - 明确 `IMMINENT_GOAL` 为 `RULE_BASED_PRESSURE_SIGNAL` 规则型瞬时压力状态；
+  6. 【PASS 项坚守】：严格保持已验证正确的 Poisson 基础算法、亚盘 -0.5/1 结算与 EV 计算、H2H 730天过滤和 Raw EV 单向下游流动不变。
+- **改动文件清单 (Target Files)**：
+  - `/refactor/03_quant_engine/types.ts`
+  - `/refactor/03_quant_engine/candidateStateMachine.ts`
+  - `/refactor/03_quant_engine/poissonDecayModel.ts`
+  - `/refactor/03_quant_engine/marketDivergenceEngine.ts`
+  - `/refactor/03_quant_engine/index.ts`
+  - `/refactor/03_quant_engine/dataAudit.ts`
+  - `src/components/MachineQuantEvaluationPanel.tsx`
+  - `src/components/QuantBettingDecisionMatrix.tsx`
+  - `src/components/CanonicalMatchCenter.tsx`
+  - `/refactor/tests/verify_candidate_state_machine.ts`
+  - `/refactor/tests/verify_quant_engine.ts`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **交付物与成果 (Deliverables)**：
+  1. 【状态机严格双轨流转】：`NO_PROFILE` 或 `ESS < 200` 时流转至 `COLD_START_PERMISSIVE`，生成 `research_candidate_signals` 并设置 `production_eligible = false`；仅在 `VALIDATED` 且 `ESS >= 200` 时生成 `PRODUCTION_UNLOCKED` 与 `machine_candidate_signals`。
+  2. 【盘口级唯一 OOS Key 约束】：通过 `buildOosProfileKey` 将 `market|line|side|settlement` 规范化编入键名，阻断跨盘口污染。
+  3. 【Lambda 与置信度全量可审计】：`LambdaDecomposition` 暴露全链路乘数，置信度分解清晰呈现各维度评分。
+  4. 【UI 呈现与消费端对齐】：`QuantBettingDecisionMatrix`、`MachineQuantEvaluationPanel` 和 `CanonicalMatchCenter` 完整区分生产级与冷启动研究级徽标与选项卡，冷启动期既不卡死人工研究，又杜绝下游被伪装成生产级。
+  5. 【全套单测与类型检查 100% 通过】：`lint_applet` (tsc --noEmit) 0 报错，`compile_applet` 成功，10 项端到端量化单测全绿。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+- **任务编号 (Task)**: `SNAPSHOT-20260911-EXPORT-MODAL-PRE-MATCH-SELECTION`
+- **当前状态 (Status)**: `DONE`
+
+- **任务编号 (Task)**: `SNAPSHOT-20260911-EXPORT-AND-COPY-03-MODEL-INPUT-AND-OUTPUT`
+- **当前状态 (Status)**: `DONE`
+- **交付物与成果 (Deliverables)**：
+  1. 【全局/批量级 03 模型数据导出与复制中心 (Batch Export & Copy Center)】：
+     - 在标准赛事对齐中心顶部操作栏，绑定【03模型数据导出 / 复制】模态框；
+     - 功能 1：03 模型接收数据结构 (`CanonicalMatch[]`)；
+     - 功能 2：03 模型计算后数据结构 (`Record<string, QuantitativeFeatures>`)；
+  2. 【单场赛事卡片级快速复制与查看 (Per-Match Fast Copy & View)】；
+  3. 【工程规范与质量全覆盖】。
 
 ---
 

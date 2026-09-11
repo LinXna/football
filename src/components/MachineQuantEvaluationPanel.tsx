@@ -129,11 +129,15 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
                   className={
                     quant.candidate_pipeline.state === "PRODUCTION_UNLOCKED"
                       ? "text-emerald-400 font-semibold"
+                      : quant.candidate_pipeline.state === "COLD_START_PERMISSIVE"
+                      ? "text-sky-400 font-semibold"
                       : "text-amber-400"
                   }
                 >
                   {quant.candidate_pipeline.state === "PRODUCTION_UNLOCKED"
-                    ? "✔ 已解锁 (VALIDATED)"
+                    ? "✔ 已解锁 (PRODUCTION)"
+                    : quant.candidate_pipeline.state === "COLD_START_PERMISSIVE"
+                    ? "⚡ 冷启动放行 (RESEARCH)"
                     : quant.candidate_pipeline.state}
                 </span>
               </div>

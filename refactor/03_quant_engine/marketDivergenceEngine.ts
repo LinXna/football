@@ -267,7 +267,8 @@ export function calibrateWithMarketOdds(
     implied_market_draw_prob: Number(pD_mkt.toFixed(4)),
     implied_market_away_win_prob: Number(pA_mkt.toFixed(4)),
     market_weight_applied: finalMarketWeight,
-    theory_weight_applied: finalTheoryWeight
+    theory_weight_applied: finalTheoryWeight,
+    theory_prior: theoryPrior
   };
 
   tracer?.info(

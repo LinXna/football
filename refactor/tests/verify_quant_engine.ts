@@ -704,10 +704,13 @@ async function runQuantEngineTests() {
     assert(quantResult.physical_stats.xt_proxy.home_xt >= 0, 'Home xT must be non-negative');
     assert(quantResult.physical_stats.corner_pressure.window_source === 'CUMULATIVE_BASELINE', 'Live technical corners must remain cumulative baseline, never a recent-window claim');
     assert(quantResult.confidence_breakdown.edge_confidence_score === 0, 'Unvalidated OOS calibration must not create tradable edge confidence');
-    assert(quantResult.positive_ev_signals.length > 0, 'In permissive mode, positive EV signals must be promoted to machine trade candidates');
+    assert(quantResult.candidate_pipeline.state === 'COLD_START_PERMISSIVE', 'Permissive cold-start without mature OOS must enter COLD_START_PERMISSIVE state');
+    assert(quantResult.candidate_pipeline.production_eligible === false, 'Permissive cold-start signals must not be marked production_eligible');
+    assert(quantResult.positive_ev_signals.length === 0, 'In cold-start permissive mode, machine_candidate signals must remain 0');
+    assert(quantResult.research_candidate_signals.length > 0, 'In cold-start permissive mode, positive EV signals must be captured as research candidates');
     const strictQuantResult = calculateQuantitativeFeatures(targetMatch!, { permissive_oos_mode: false }, collector, tracer);
     assert(strictQuantResult.positive_ev_signals.length === 0, 'Under strict mode, raw devig EV without validated OOS evidence must not become a machine trade candidate');
-    assert(quantResult.raw_positive_ev_signals.length >= quantResult.positive_ev_signals.length, 'Raw EV signals must remain observable separately from machine candidates');
+    assert(quantResult.raw_positive_ev_signals.length >= quantResult.research_candidate_signals.length, 'Raw EV signals must remain observable separately from research candidates');
     assert(quantResult.devig.total_main_ev?.line === targetMatch!.markets.full_total_main?.line, 'Live total EV must use the YBTY execution line');
     assert(quantResult.devig.spread_secondary_ev.length === targetMatch!.markets.full_spread_subs.length, 'Every YBTY secondary handicap line must produce an EV assessment');
     assert(quantResult.devig.total_secondary_ev.length === targetMatch!.markets.full_total_subs.length, 'Every YBTY secondary total line must produce an EV assessment');

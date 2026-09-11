@@ -553,27 +553,33 @@ export function calculateInPlayPoissonFeatures(
   const remainingFactorHome = (marketAlreadyRemaining ? 1 : timeDecay.time_fraction_home) * timeDecay.urgency_multiplier;
   const remainingFactorAway = (marketAlreadyRemaining ? 1 : timeDecay.time_fraction_away) * timeDecay.urgency_multiplier;
 
-  // xT, shots, corners and momentum are already fused in the single threat tensor; do not multiply them again.
-  // 红牌同时改变本方进攻能力和对手面对的防守漏洞；缺失或未验证时乘数保持 1.0。
-  let lambdaHomeRest = baseHomeLambda * remainingFactorHome * redAttackHome * redLeakAway * regimeMultiplierHome * threatDampingHome * postGoalCooldownMultiplier;
-  let lambdaAwayRest = baseAwayLambda * remainingFactorAway * redAttackAway * redLeakHome * regimeMultiplierAway * threatDampingAway * postGoalCooldownMultiplier;
+  const lambdaBeforeLiveContextHome = baseHomeLambda * remainingFactorHome;
+  const lambdaBeforeLiveContextAway = baseAwayLambda * remainingFactorAway;
 
   // 5.1 注入已验证的 OOS 样本校准调整 (OOS Shrinkage Calibration)
+  let oosMultiplier = 1.0;
   if (oosCalibration?.status === 'VALIDATED' && typeof oosCalibration.lambda_log_adjustment === 'number' && Number.isFinite(oosCalibration.lambda_log_adjustment)) {
-    const oosMultiplier = Math.exp(oosCalibration.lambda_log_adjustment);
-    lambdaHomeRest *= oosMultiplier;
-    lambdaAwayRest *= oosMultiplier;
+    oosMultiplier = Math.exp(oosCalibration.lambda_log_adjustment);
   }
 
+  // xT, shots, corners and momentum are already fused in the single threat tensor; do not multiply them again.
+  // 红牌同时改变本方进攻能力和对手面对的防守漏洞；缺失或未验证时乘数保持 1.0。
+  const lambdaAfterLiveContextHome = lambdaBeforeLiveContextHome * redAttackHome * redLeakAway * regimeMultiplierHome * threatDampingHome * postGoalCooldownMultiplier * oosMultiplier;
+  const lambdaAfterLiveContextAway = lambdaBeforeLiveContextAway * redAttackAway * redLeakHome * regimeMultiplierAway * threatDampingAway * postGoalCooldownMultiplier * oosMultiplier;
+
   // 极值安全钳位
-  lambdaHomeRest = Math.max(0.01, Math.min(3.50, Number(lambdaHomeRest.toFixed(3))));
-  lambdaAwayRest = Math.max(0.01, Math.min(3.50, Number(lambdaAwayRest.toFixed(3))));
+  const lambdaHomeRest = Math.max(0.01, Math.min(3.50, Number(lambdaAfterLiveContextHome.toFixed(3))));
+  const lambdaAwayRest = Math.max(0.01, Math.min(3.50, Number(lambdaAfterLiveContextAway.toFixed(3))));
   const expectedGoalsRest = Number((lambdaHomeRest + lambdaAwayRest).toFixed(3));
   const lambdaDecomposition = {
+    theory_lambda_home: Number((calibration?.theory_prior?.lambda_home_theory ?? baseHomeLambda).toFixed(3)),
+    theory_lambda_away: Number((calibration?.theory_prior?.lambda_away_theory ?? baseAwayLambda).toFixed(3)),
     market_base_home: Number(marketBaseHome.toFixed(3)),
     market_base_away: Number(marketBaseAway.toFixed(3)),
     market_weight_applied: calibration?.market_weight_applied ?? 0,
     theory_weight_applied: calibration?.theory_weight_applied ?? 1,
+    weighted_base_lambda_home: Number(baseHomeLambda.toFixed(3)),
+    weighted_base_lambda_away: Number(baseAwayLambda.toFixed(3)),
     context_multiplier_home: Number(contextMultiplierHome.toFixed(3)),
     context_multiplier_away: Number(contextMultiplierAway.toFixed(3)),
     base_after_context_home: Number(baseHomeLambda.toFixed(3)),
@@ -583,11 +589,20 @@ export function calculateInPlayPoissonFeatures(
     urgency_multiplier: timeDecay.urgency_multiplier,
     threat_home: threatDampingHome,
     threat_away: threatDampingAway,
+    regime_multiplier_home: regimeMultiplierHome,
+    regime_multiplier_away: regimeMultiplierAway,
     red_attack_home: redAttackHome,
     red_attack_away: redAttackAway,
     red_leak_home: redLeakHome,
     red_leak_away: redLeakAway,
-    post_goal_cooldown_multiplier: postGoalCooldownMultiplier
+    post_goal_cooldown_multiplier: postGoalCooldownMultiplier,
+    oos_multiplier: Number(oosMultiplier.toFixed(4)),
+    lambda_before_live_context_home: Number(lambdaBeforeLiveContextHome.toFixed(3)),
+    lambda_before_live_context_away: Number(lambdaBeforeLiveContextAway.toFixed(3)),
+    lambda_after_live_context_home: Number(lambdaAfterLiveContextHome.toFixed(3)),
+    lambda_after_live_context_away: Number(lambdaAfterLiveContextAway.toFixed(3)),
+    final_lambda_home: lambdaHomeRest,
+    final_lambda_away: lambdaAwayRest
   };
 
   // 6. 求解双变量泊松网格，动态覆盖可忽略的高进球尾部

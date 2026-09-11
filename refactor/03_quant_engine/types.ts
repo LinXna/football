@@ -64,6 +64,7 @@ export interface MarketCalibrationResult {
   implied_market_away_win_prob: number;  // 机构隐含客胜概率
   market_weight_applied: number;         // 实际生效的市场权重 [0.0 ~ 1.0]
   theory_weight_applied: number;         // 实际生效的理论先验权重 [0.0 ~ 1.0]
+  theory_prior?: PrematchTheoryPrior;
 }
 
 export interface HistoricalMatchWeight {
@@ -336,10 +337,14 @@ export interface ScoreProbabilityItem {
 }
 
 export interface LambdaDecomposition {
+  theory_lambda_home?: number;
+  theory_lambda_away?: number;
   market_base_home: number;
   market_base_away: number;
   market_weight_applied: number;
   theory_weight_applied: number;
+  weighted_base_lambda_home?: number;
+  weighted_base_lambda_away?: number;
   context_multiplier_home: number;
   context_multiplier_away: number;
   base_after_context_home: number;
@@ -349,11 +354,20 @@ export interface LambdaDecomposition {
   urgency_multiplier: number;
   threat_home: number;
   threat_away: number;
+  regime_multiplier_home?: number;
+  regime_multiplier_away?: number;
   red_attack_home: number;
   red_attack_away: number;
   red_leak_home: number;
   red_leak_away: number;
   post_goal_cooldown_multiplier: number;
+  oos_multiplier?: number;
+  lambda_before_live_context_home?: number;
+  lambda_before_live_context_away?: number;
+  lambda_after_live_context_home?: number;
+  lambda_after_live_context_away?: number;
+  final_lambda_home?: number;
+  final_lambda_away?: number;
 }
 
 export interface InPlayPoissonFeatures {
@@ -471,9 +485,16 @@ export interface PositiveEVSignal {
   odds: number;
   ev: number;
   confidence: number;
+  signal_confidence?: number;
   kelly_fraction: number;
   model_probability?: number;
   oos_status?: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'PERMISSIVE_PASSED' | 'NO_PROFILE' | 'INSUFFICIENT_EVIDENCE';
+  oos_profile_key?: string;
+  line_at_signal?: string;
+  side_at_signal?: string;
+  odds_at_signal?: number;
+  score_at_signal?: string;
+  snapshot_time?: string;
 }
 
 /**
@@ -601,6 +622,7 @@ export interface GoalClimaxFeatures {
   recent_incident_density_5m: number;
   post_goal_cooldown_active: boolean;
   is_imminent_threat: boolean;
+  pressure_signal_nature?: 'RULE_BASED_PRESSURE_SIGNAL';
 }
 
 /**
@@ -630,6 +652,20 @@ export interface UnifiedMatchState {
   red_card_defense_leak_multiplier_away: number;
 }
 
+export interface Layer03LiveSnapshot {
+  observed_at: string;
+  cutoff_minute: number | null;
+  score: {
+    home_score: number | null;
+    away_score: number | null;
+    score_verified: boolean;
+  };
+  stats_available: boolean;
+  momentum_points: number;
+  timeline_events_count: number;
+  has_odds: boolean;
+}
+
 export interface QuantitativeFeatures {
   canonical_id: string;
   calculated_at: string;
@@ -644,9 +680,12 @@ export interface QuantitativeFeatures {
   match_state: UnifiedMatchState;
   battlefield_dominance_index: number;
   goal_phase_alert: GoalPhaseAlert;
+  live_snapshot?: Layer03LiveSnapshot;
   /** M5 原始正 EV，仅表示数学筛选结果，不代表可交易候选。 */
   raw_positive_ev_signals: PositiveEVSignal[];
-  /** 仅保留通过数据质量、OOS 校准和滚球门禁的 machine candidate。 */
+  /** 冷启动研究候选，在 COLD_START_PERMISSIVE 下放行供人机研究初筛。 */
+  research_candidate_signals?: PositiveEVSignal[];
+  /** 仅保留通过数据质量、严格 OOS 档案校准 (ESS>=200) 的生产级 machine candidate。 */
   positive_ev_signals: PositiveEVSignal[];
   risk_flags: QuantAlert[];
   confidence_score: number;
@@ -654,6 +693,13 @@ export interface QuantitativeFeatures {
     data_quality_score: number;
     model_stability_score: number;
     edge_confidence_score: number;
+    signal_confidence?: number;
+    data_quality_confidence?: number;
+    market_confidence?: number;
+    edge_confidence?: number;
+    oos_confidence?: number;
+    production_confidence?: number;
+    overall_confidence?: number;
   };
   data_audit: Layer03DataAudit;
   production_gate: Layer03ProductionGate;
@@ -661,12 +707,13 @@ export interface QuantitativeFeatures {
 }
 
 export type Layer03CalculationStatus = 'PRODUCTION_READY' | 'RESEARCH_ONLY' | 'BLOCKED';
-export type Layer03CandidateStatus = 'UNLOCKED' | 'OOS_LOCKED' | 'DATA_LOCKED';
+export type Layer03CandidateStatus = 'UNLOCKED' | 'OOS_LOCKED' | 'DATA_LOCKED' | 'COLD_START_PERMISSIVE';
 
 export type Layer03CandidatePipelineState =
   | 'NO_POSITIVE_EV'
   | 'OOS_LOCKED'
   | 'DATA_LOCKED'
+  | 'COLD_START_PERMISSIVE'
   | 'PRODUCTION_UNLOCKED';
 
 export const OOS_VALIDATION_MIN_ESS = 30;
@@ -674,6 +721,7 @@ export const PRODUCTION_MATURE_ESS = 200;
 
 export interface Layer03CandidateOosValidation {
   market: OosMarket | null;
+  oos_profile_key?: string;
   status: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'INSUFFICIENT_EVIDENCE' | 'NO_PROFILE' | 'REJECTED' | 'UNSUPPORTED_MARKET' | 'VALIDATED';
   effective_sample_size: number;
   oos_brier_score: number | null;
@@ -689,10 +737,12 @@ export interface Layer03CandidatePipelineTransition {
 export interface Layer03CandidatePipeline {
   state: Layer03CandidatePipelineState;
   raw_signal_count: number;
+  research_candidate_count: number;
   oos_validated_count: number;
   permissive_unlocked_count: number;
   soft_gate_pass_count?: number;
   machine_candidate_count: number;
+  production_eligible: boolean;
   validations: readonly Layer03CandidateOosValidation[];
   blockers: readonly string[];
   transitions: readonly Layer03CandidatePipelineTransition[];

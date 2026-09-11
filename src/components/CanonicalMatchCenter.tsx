@@ -262,7 +262,11 @@ export const CanonicalMatchCenter: React.FC = () => {
   // 弹窗状态：03模型数据导出/复制全景面板
   const [showDataExportModal, setShowDataExportModal] = useState<boolean>(false);
   const [exportModalTab, setExportModalTab] = useState<'input' | 'output'>('input');
+  const [exportModalFormat, setExportModalFormat] = useState<'pure' | 'enveloped'>('enveloped');
   const [exportCopyFeedback, setExportCopyFeedback] = useState<string | null>(null);
+  const [cardJsonSubTab, setCardJsonSubTab] = useState<Record<string, 'input' | 'output'>>({});
+  const [exportSelectedMatchIds, setExportSelectedMatchIds] = useState<Set<string>>(new Set());
+  const [exportMatchSearchTerm, setExportMatchSearchTerm] = useState<string>("");
 
   // 弹窗状态：选中的 AI Brief 查看
   const [selectedBrief, setSelectedBrief] = useState<AiEvaluationBrief | null>(null);
@@ -442,8 +446,96 @@ export const CanonicalMatchCenter: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  // 打开 03 模型数据导出中心，并进行赛事前置选择初始化
+  const handleOpen03ExportModal = (initialMatchId?: string) => {
+    if (initialMatchId) {
+      setExportSelectedMatchIds(new Set([initialMatchId]));
+    } else {
+      // 默认全选当前所有比赛，方便一键导出或自由勾选
+      setExportSelectedMatchIds(new Set(matches.map((m) => m.canonical_id)));
+    }
+    setExportMatchSearchTerm("");
+    setShowDataExportModal(true);
+  };
+
+  // 当前前置选中的比赛列表 (严格遵循前置赛事选择)
+  const selectedExportMatches = useMemo(() => {
+    if (exportSelectedMatchIds.size === 0) return [];
+    return matches.filter((m) => exportSelectedMatchIds.has(m.canonical_id));
+  }, [matches, exportSelectedMatchIds]);
+
+  // 当前前置选中的比赛 03 量化特征映射
+  const selectedExportQuantFeaturesMap = useMemo(() => {
+    const res: Record<string, QuantitativeFeatures> = {};
+    selectedExportMatches.forEach((m) => {
+      const q = quantFeaturesMap[m.canonical_id];
+      if (q) {
+        res[m.canonical_id] = q;
+      }
+    });
+    return res;
+  }, [selectedExportMatches, quantFeaturesMap]);
+
+  // 模态框内赛事前置选择列表搜索过滤
+  const modalFilteredMatches = useMemo(() => {
+    if (!exportMatchSearchTerm.trim()) return matches;
+    const term = exportMatchSearchTerm.toLowerCase();
+    return matches.filter(
+      (m) =>
+        m.home_team_name.toLowerCase().includes(term) ||
+        m.away_team_name.toLowerCase().includes(term) ||
+        m.league_name.toLowerCase().includes(term)
+    );
+  }, [matches, exportMatchSearchTerm]);
+
+  // 前置选择快捷操作
+  const handleToggleSelectMatchForExport = (canonicalId: string) => {
+    setExportSelectedMatchIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(canonicalId)) {
+        next.delete(canonicalId);
+      } else {
+        next.add(canonicalId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllFilteredMatches = () => {
+    setExportSelectedMatchIds((prev) => {
+      const next = new Set(prev);
+      modalFilteredMatches.forEach((m) => next.add(m.canonical_id));
+      return next;
+    });
+  };
+
+  const handleClearAllExportMatches = () => {
+    setExportSelectedMatchIds(new Set());
+  };
+
+  const handleInvertExportMatches = () => {
+    setExportSelectedMatchIds((prev) => {
+      const next = new Set(prev);
+      modalFilteredMatches.forEach((m) => {
+        if (next.has(m.canonical_id)) {
+          next.delete(m.canonical_id);
+        } else {
+          next.add(m.canonical_id);
+        }
+      });
+      return next;
+    });
+  };
+
+  const handleSelectCalculatedOnlyMatches = () => {
+    const calculatedIds = matches
+      .filter((m) => !!quantFeaturesMap[m.canonical_id])
+      .map((m) => m.canonical_id);
+    setExportSelectedMatchIds(new Set(calculatedIds));
+  };
+
   // 1. 获取 03 模型接收的数据结构 (Input Dataset: CanonicalMatch[])
-  const get03ModelInputData = () => {
+  const get03ModelInputData = (targetMatches: CanonicalMatch[] = selectedExportMatches) => {
     return {
       dataset_name: "Layer 03 Quant Engine Input Dataset",
       schema_version: "2.0.0",
@@ -451,15 +543,20 @@ export const CanonicalMatchCenter: React.FC = () => {
       exported_at: new Date().toISOString(),
       mode,
       batch_id: refactorBatchId || "batch_current",
-      total_matches: matches.length,
-      canonical_matches: matches,
+      selected_matches_count: targetMatches.length,
+      total_matches_in_pool: matches.length,
+      canonical_matches: targetMatches,
     };
   };
 
   // 2. 获取经过 03 模型计算后的数据结构 (Output Dataset: QuantitativeFeatures)
-  const get03ModelOutputData = () => {
-    const calculatedMatches = matches.map((m) => {
+  const get03ModelOutputData = (targetMatches: CanonicalMatch[] = selectedExportMatches) => {
+    const selectedFeaturesMap: Record<string, QuantitativeFeatures> = {};
+    const calculatedMatches = targetMatches.map((m) => {
       const q = quantFeaturesMap[m.canonical_id];
+      if (q) {
+        selectedFeaturesMap[m.canonical_id] = q;
+      }
       return {
         canonical_id: m.canonical_id,
         league_name: m.league_name,
@@ -471,7 +568,7 @@ export const CanonicalMatchCenter: React.FC = () => {
       };
     });
 
-    const calculatedCount = matches.filter((m) => !!quantFeaturesMap[m.canonical_id]).length;
+    const calculatedCount = targetMatches.filter((m) => !!quantFeaturesMap[m.canonical_id]).length;
 
     return {
       dataset_name: "Layer 03 Quant Engine Output Features Dataset",
@@ -481,9 +578,10 @@ export const CanonicalMatchCenter: React.FC = () => {
       exported_at: new Date().toISOString(),
       mode,
       batch_id: refactorBatchId || "batch_current",
-      total_matches: matches.length,
+      selected_matches_count: targetMatches.length,
+      total_matches_in_pool: matches.length,
       calculated_matches_count: calculatedCount,
-      features_by_match_id: quantFeaturesMap,
+      features_by_match_id: selectedFeaturesMap,
       matches_with_quant: calculatedMatches,
     };
   };
@@ -1595,14 +1693,27 @@ export const CanonicalMatchCenter: React.FC = () => {
         const validEvSignals = Array.isArray(quant.positive_ev_signals)
           ? quant.positive_ev_signals
           : [];
+        const researchSignals = Array.isArray(quant.research_candidate_signals)
+          ? quant.research_candidate_signals
+          : [];
         if (validEvSignals.length > 0) {
           const maxEv = Math.max(...validEvSignals.map((s) => s.ev));
           return {
             status: "BETTABLE" as const,
             hasAi: false,
-            label: "可投注(初筛+EV)",
-            badgeClass: "bg-blue-950/60 text-blue-300 border-blue-500/60",
-            reason: `机器初筛 ${validEvSignals.length}项+EV (最高 +${(maxEv * 100).toFixed(1)}%)`,
+            label: "生产级(+EV)",
+            badgeClass: "bg-emerald-950/60 text-emerald-300 border-emerald-500/60",
+            reason: `机器初筛 ${validEvSignals.length}项生产+EV (最高 +${(maxEv * 100).toFixed(1)}%)`,
+          };
+        }
+        if (researchSignals.length > 0) {
+          const maxEv = Math.max(...researchSignals.map((s) => s.ev));
+          return {
+            status: "BETTABLE" as const,
+            hasAi: false,
+            label: "冷启动研究(+EV)",
+            badgeClass: "bg-sky-950/60 text-sky-300 border-sky-500/60",
+            reason: `冷启动初筛 ${researchSignals.length}项研究+EV (最高 +${(maxEv * 100).toFixed(1)}%)`,
           };
         }
         return {
@@ -1808,9 +1919,7 @@ export const CanonicalMatchCenter: React.FC = () => {
           {/* 03 模型数据导出 / 复制中心按钮 */}
           <button
             id="btn-open-03-export-modal"
-            onClick={() => {
-              setShowDataExportModal(true);
-            }}
+            onClick={() => handleOpen03ExportModal()}
             disabled={matches.length === 0}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-700 hover:bg-blue-600 rounded-lg text-xs font-semibold text-white transition-colors border border-blue-500/60 shadow-xs disabled:opacity-50"
             title="导出或复制 03 模型接收数据结构与计算后数据结构"
@@ -3171,7 +3280,11 @@ export const CanonicalMatchCenter: React.FC = () => {
                       模型置信度: <strong className="text-emerald-400">{quant ? quant.confidence_score : 'N/A'}分</strong>
                       {quant && quant.positive_ev_signals && quant.positive_ev_signals.length > 0 ? (
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                          {quant.positive_ev_signals.length}项+EV
+                          {quant.positive_ev_signals.length}项生产+EV
+                        </span>
+                      ) : quant && quant.research_candidate_signals && quant.research_candidate_signals.length > 0 ? (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40">
+                          {quant.research_candidate_signals.length}项研究+EV
                         </span>
                       ) : (
                         <span className="text-slate-500 text-[10px]">{quant ? '无+EV' : (isAlignmentPending ? '待核验对齐' : '门禁拦截')}</span>
@@ -3267,9 +3380,11 @@ export const CanonicalMatchCenter: React.FC = () => {
                     >
                       <Zap className="w-3.5 h-3.5 text-amber-400" />
                       <span>03 机器量化</span>
-                      {quant && quant.positive_ev_signals.length > 0 && (
-                        <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500 text-slate-950 font-black">
-                          {quant.positive_ev_signals.length}
+                      {quant && (quant.positive_ev_signals.length > 0 || (quant.research_candidate_signals?.length ?? 0) > 0) && (
+                        <span className={`ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                          quant.positive_ev_signals.length > 0 ? "bg-emerald-500 text-slate-950" : "bg-sky-500 text-slate-950"
+                        }`}>
+                          {quant.positive_ev_signals.length > 0 ? quant.positive_ev_signals.length : quant.research_candidate_signals?.length}
                         </span>
                       )}
                     </button>
@@ -3321,6 +3436,20 @@ export const CanonicalMatchCenter: React.FC = () => {
                       <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                       AI 简报
                     </button>
+
+                    {/* 快捷查看与复制 03 模型数据 */}
+                    <button
+                      id={`btn-open-card-03-data-${idx}`}
+                      onClick={() => {
+                        setExpandedMatchId(m.canonical_id);
+                        setActiveTabByMatch((prev) => ({ ...prev, [m.canonical_id]: "json" }));
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors"
+                      title="展开并查看本场比赛 03 模型接收输入与计算输出 JSON"
+                    >
+                      <FileCode className="w-3.5 h-3.5 text-blue-400" />
+                      <span>03数据</span>
+                    </button>
                   </div>
                 </div>
 
@@ -3337,7 +3466,7 @@ export const CanonicalMatchCenter: React.FC = () => {
                           { id: "markets", label: "🎯 YBTY 盘口全集", icon: Target },
                           { id: "stats", label: "📊 雷速统计增强", icon: BarChart2 },
                           { id: "h2h", label: "⚔️ 近期战绩/交锋/阵容", icon: Users },
-                          { id: "json", label: "{} 完整合并 JSON", icon: Code },
+                          { id: "json", label: "{} 03模型数据 (输入/输出)", icon: Code },
                         ].map((tab) => {
                           const currentTab = activeTabByMatch[m.canonical_id] || "quant";
                           const isActive = currentTab === tab.id;
@@ -4483,47 +4612,133 @@ export const CanonicalMatchCenter: React.FC = () => {
                     )}
 
 
-                    {/* TAB 5: {} 完整合并 JSON (Raw Canonical JSON) */}
-                    {(activeTabByMatch[m.canonical_id] || "markets") === "json" && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between bg-slate-950 px-3 py-2 rounded-t-lg border border-slate-800 text-xs">
-                          <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-                            <FileJson className="w-4 h-4 text-emerald-400" />
-                            CanonicalMatch 标准合并数据实体 (纯净未计算)
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <button
-                              id={`btn-copy-json-${idx}`}
-                              onClick={() => handleCopySingleMatchJSON(m)}
-                              className="flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs transition-colors border border-slate-700"
-                            >
-                              {copiedMatchId === m.canonical_id ? (
+                    {/* TAB 5: {} 03 模型数据 (输入/输出) */}
+                    {(activeTabByMatch[m.canonical_id] || "markets") === "json" && (() => {
+                      const currentSubTab = cardJsonSubTab[m.canonical_id] || 'input';
+                      const quant = quantFeaturesMap[m.canonical_id];
+                      const singleOutputData = {
+                        canonical_id: m.canonical_id,
+                        match_name: `${m.home_team_name} vs ${m.away_team_name}`,
+                        league_name: m.league_name,
+                        stage: m.timing?.stage,
+                        score: m.score,
+                        exported_at: new Date().toISOString(),
+                        quant_features: quant || null,
+                      };
+
+                      return (
+                        <div className="space-y-2">
+                          {/* 子标签切换与操作栏 */}
+                          <div className="flex items-center justify-between bg-slate-950 px-3 py-2 rounded-t-lg border border-slate-800 text-xs flex-wrap gap-2">
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center bg-slate-900 rounded-lg p-0.5 border border-slate-800">
+                                <button
+                                  id={`btn-card-json-tab-input-${idx}`}
+                                  onClick={() => setCardJsonSubTab((prev) => ({ ...prev, [m.canonical_id]: 'input' }))}
+                                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                                    currentSubTab === 'input'
+                                      ? 'bg-emerald-600 text-white font-semibold shadow-xs'
+                                      : 'text-slate-400 hover:text-slate-200'
+                                  }`}
+                                >
+                                  <FileJson className="w-3.5 h-3.5" />
+                                  <span>1. 03 接收输入 (CanonicalMatch)</span>
+                                </button>
+                                <button
+                                  id={`btn-card-json-tab-output-${idx}`}
+                                  onClick={() => setCardJsonSubTab((prev) => ({ ...prev, [m.canonical_id]: 'output' }))}
+                                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                                    currentSubTab === 'output'
+                                      ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                      : 'text-slate-400 hover:text-slate-200'
+                                  }`}
+                                >
+                                  <Zap className="w-3.5 h-3.5" />
+                                  <span>2. 03 计算输出 (QuantitativeFeatures)</span>
+                                  {quant ? (
+                                    <span className="px-1.5 py-0.2 rounded text-[10px] bg-blue-950 text-blue-300 border border-blue-700/60 font-mono">
+                                      已计算
+                                    </span>
+                                  ) : (
+                                    <span className="px-1.5 py-0.2 rounded text-[10px] bg-amber-950 text-amber-300 border border-amber-700/60 font-mono">
+                                      未就绪
+                                    </span>
+                                  )}
+                                </button>
+                              </div>
+
+                              <span className="text-[11px] text-slate-500 font-mono">
+                                {currentSubTab === 'input' ? '纯净标准赛事输入实体' : '37项量化推演输出特征'}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {currentSubTab === 'input' ? (
                                 <>
-                                  <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
-                                  <span className="text-emerald-400">已复制</span>
+                                  <button
+                                    id={`btn-copy-json-input-${idx}`}
+                                    onClick={() => handleCopySingleMatchInput(m)}
+                                    className="flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs transition-colors border border-slate-700"
+                                  >
+                                    {copiedKey === `${m.canonical_id}_input` ? (
+                                      <>
+                                        <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+                                        <span className="text-emerald-400 font-semibold">已复制输入</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="w-3.5 h-3.5 text-emerald-400" />
+                                        <span>复制 03 接收输入</span>
+                                      </>
+                                    )}
+                                  </button>
+                                  <button
+                                    id={`btn-download-json-input-${idx}`}
+                                    onClick={() => handleDownloadSingleMatchInput(m)}
+                                    className="flex items-center gap-1 px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded text-xs transition-colors"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                    <span>下载输入 JSON</span>
+                                  </button>
                                 </>
                               ) : (
                                 <>
-                                  <Copy className="w-3.5 h-3.5" />
-                                  <span>复制 JSON</span>
+                                  <button
+                                    id={`btn-copy-json-output-${idx}`}
+                                    onClick={() => handleCopySingleMatchOutput(m)}
+                                    className="flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs transition-colors border border-slate-700"
+                                  >
+                                    {copiedKey === `${m.canonical_id}_output` ? (
+                                      <>
+                                        <CheckCheck className="w-3.5 h-3.5 text-blue-400" />
+                                        <span className="text-blue-400 font-semibold">已复制输出</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="w-3.5 h-3.5 text-blue-400" />
+                                        <span>复制 03 计算输出</span>
+                                      </>
+                                    )}
+                                  </button>
+                                  <button
+                                    id={`btn-download-json-output-${idx}`}
+                                    onClick={() => handleDownloadSingleMatchOutput(m)}
+                                    className="flex items-center gap-1 px-2.5 py-1 bg-blue-700 hover:bg-blue-600 text-white rounded text-xs transition-colors"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                    <span>下载输出 JSON</span>
+                                  </button>
                                 </>
                               )}
-                            </button>
-                            <button
-                              id={`btn-download-json-${idx}`}
-                              onClick={() => handleDownloadSingleMatchJSON(m)}
-                              className="flex items-center gap-1 px-2.5 py-1 bg-blue-700 hover:bg-blue-600 text-white rounded text-xs transition-colors"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                              <span>下载文件</span>
-                            </button>
+                            </div>
                           </div>
+
+                          <pre className="text-[11px] font-mono bg-slate-950 p-4 rounded-b-lg overflow-x-auto text-slate-200 max-h-96 border border-t-0 border-slate-800 select-all">
+                            {JSON.stringify(currentSubTab === 'input' ? m : singleOutputData, null, 2)}
+                          </pre>
                         </div>
-                        <pre className="text-[11px] font-mono bg-slate-950 p-4 rounded-b-lg overflow-x-auto text-emerald-300 max-h-96 border border-t-0 border-slate-800 select-all">
-                          {JSON.stringify(m, null, 2)}
-                        </pre>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 )}
               </div>
@@ -5897,6 +6112,433 @@ export const CanonicalMatchCenter: React.FC = () => {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 03 模型数据导出 / 复制全景模态框 (Layer 03 Model Data Export & Copy Center Modal with Pre-Match Selection) */}
+      {showDataExportModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-slate-900 rounded-2xl w-full max-w-6xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[90vh]">
+            {/* 模态框头部 */}
+            <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-blue-950/80 border border-blue-700/60 flex items-center justify-center text-blue-400 shadow-inner">
+                  <FileCode className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-slate-100 text-sm">
+                      03 模型数据导出与复制中心
+                    </h3>
+                    <span className="text-[11px] px-2 py-0.5 bg-blue-950 text-blue-300 rounded font-mono border border-blue-800/50">
+                      Layer 03 Model Data Hub
+                    </span>
+                    <span className="text-[11px] px-2 py-0.5 bg-slate-800 text-slate-300 rounded font-mono">
+                      {mode === 'live' ? '🔴 滚球' : '📅 赛前'} · 共 {matches.length} 场
+                    </span>
+                    <span className="text-[11px] px-2 py-0.5 bg-emerald-950 text-emerald-300 rounded font-mono border border-emerald-800/50">
+                      已选 {selectedExportMatches.length} 场
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    支持前置勾选目标赛事：所选比赛将实时生成 03 模型接收数据结构 (Input) 与计算后 37 项量化特征结构 (Output)
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDataExportModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
+                title="关闭"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 顶部控制栏与 Tab 切换 */}
+            <div className="px-5 py-3 border-b border-slate-800/80 bg-slate-950/60 flex flex-wrap items-center justify-between gap-3">
+              {/* 数据结构维度切换 */}
+              <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800">
+                <button
+                  id="tab-export-03-input"
+                  onClick={() => setExportModalTab('input')}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    exportModalTab === 'input'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <FileJson className="w-3.5 h-3.5" />
+                  <span>1. 03模型接收的数据结构 (Input)</span>
+                  <span className="px-1.5 py-0.2 rounded text-[10px] bg-black/30 font-mono">
+                    已选 {selectedExportMatches.length} 场
+                  </span>
+                </button>
+
+                <button
+                  id="tab-export-03-output"
+                  onClick={() => setExportModalTab('output')}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    exportModalTab === 'output'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>2. 经过03模型计算后的数据结构 (Output)</span>
+                  <span className="px-1.5 py-0.2 rounded text-[10px] bg-black/30 font-mono">
+                    已算 {selectedExportMatches.filter((m) => !!quantFeaturesMap[m.canonical_id]).length} 场
+                  </span>
+                </button>
+              </div>
+
+              {/* 格式与操作按钮组 */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* 格式切换：纯净数据 vs 带信封 */}
+                <div className="flex items-center bg-slate-900 rounded-lg border border-slate-800 p-0.5 text-xs">
+                  <button
+                    onClick={() => setExportModalFormat('pure')}
+                    className={`px-2.5 py-1 rounded-md transition-colors ${
+                      exportModalFormat === 'pure'
+                        ? 'bg-slate-800 text-slate-100 font-medium'
+                        : 'text-slate-400 hover:text-slate-300'
+                    }`}
+                    title={exportModalTab === 'input' ? '直接导出所选 CanonicalMatch[] 纯数组' : '直接导出所选比赛的 37 项量化特征字典 Record<string, QuantitativeFeatures>'}
+                  >
+                    纯净数据结构
+                  </button>
+                  <button
+                    onClick={() => setExportModalFormat('enveloped')}
+                    className={`px-2.5 py-1 rounded-md transition-colors ${
+                      exportModalFormat === 'enveloped'
+                        ? 'bg-slate-800 text-slate-100 font-medium'
+                        : 'text-slate-400 hover:text-slate-300'
+                    }`}
+                    title="包含数据契约层级、版本号、导出时间、总场次与选中场次等元数据信封"
+                  >
+                    包含元数据信封
+                  </button>
+                </div>
+
+                {/* 一键复制按钮 */}
+                <button
+                  id="btn-copy-modal-data"
+                  disabled={selectedExportMatches.length === 0}
+                  onClick={() => {
+                    if (selectedExportMatches.length === 0) return;
+                    const dataToCopy = exportModalTab === 'input'
+                      ? (exportModalFormat === 'pure' ? selectedExportMatches : get03ModelInputData(selectedExportMatches))
+                      : (exportModalFormat === 'pure' ? selectedExportQuantFeaturesMap : get03ModelOutputData(selectedExportMatches));
+                    safeCopyToClipboard(
+                      JSON.stringify(dataToCopy, null, 2),
+                      `modal_${exportModalTab}_${exportModalFormat}`
+                    );
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-lg text-xs font-medium transition-colors border border-slate-700 shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={selectedExportMatches.length === 0 ? "请先在左侧至少勾选 1 场比赛" : `一键复制当前勾选的 ${selectedExportMatches.length} 场比赛 JSON`}
+                >
+                  {copiedKey === `modal_${exportModalTab}_${exportModalFormat}` ? (
+                    <>
+                      <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-400 font-semibold">已复制 {selectedExportMatches.length} 场</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 text-blue-400" />
+                      <span>一键复制 JSON ({selectedExportMatches.length}场)</span>
+                    </>
+                  )}
+                </button>
+
+                {/* 导出下载文件按钮 */}
+                <button
+                  id="btn-download-modal-data"
+                  disabled={selectedExportMatches.length === 0}
+                  onClick={() => {
+                    if (selectedExportMatches.length === 0) return;
+                    const dateStr = new Date().toISOString().slice(0, 10);
+                    if (exportModalTab === 'input') {
+                      const data = exportModalFormat === 'pure' ? selectedExportMatches : get03ModelInputData(selectedExportMatches);
+                      downloadJSONFile(
+                        `03_model_input_${exportModalFormat}_${mode}_${selectedExportMatches.length}matches_${dateStr}.json`,
+                        data
+                      );
+                    } else {
+                      const data = exportModalFormat === 'pure' ? selectedExportQuantFeaturesMap : get03ModelOutputData(selectedExportMatches);
+                      downloadJSONFile(
+                        `03_model_output_quant_${exportModalFormat}_${mode}_${selectedExportMatches.length}matches_${dateStr}.json`,
+                        data
+                      );
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition-colors shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={selectedExportMatches.length === 0 ? "请先在左侧至少勾选 1 场比赛" : `下载当前勾选的 ${selectedExportMatches.length} 场比赛 JSON 文件`}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>导出文件 ({selectedExportMatches.length}场)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 状态与契约说明横幅 */}
+            <div className="px-5 py-2 bg-slate-950 border-b border-slate-800/80 flex items-center justify-between text-xs text-slate-400 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                {exportModalTab === 'input' ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span className="text-emerald-300 font-medium">03 模型接收数据契约:</span>
+                    <span>Layer 02 标准化合并实体 (包含盘口宇宙、8维攻防、时序危攻动量、阵容往绩等)</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    <span className="text-blue-300 font-medium">03 模型计算后数据契约:</span>
+                    <span>37 项纯确定性博弈量化特征 (包含 BDI、动量斜率、泊松时间衰减 λ、公允概率、EV、凯利等)</span>
+                  </>
+                )}
+              </div>
+
+              {exportCopyFeedback && (
+                <div className="text-xs px-2.5 py-0.5 bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 rounded font-medium animate-in fade-in">
+                  {exportCopyFeedback}
+                </div>
+              )}
+            </div>
+
+            {/* 核心工作区：左侧前置赛事选择器 + 右侧实时数据结构预览 */}
+            <div className="flex-1 overflow-hidden flex flex-col md:flex-row min-h-0 bg-slate-950">
+              {/* 左侧：前置赛事选择列表面板 (Match Selector) */}
+              <div className="w-full md:w-88 lg:w-96 flex-shrink-0 flex flex-col border-b md:border-b-0 md:border-r border-slate-800 bg-slate-950/80">
+                {/* 选择器头部与操作按钮 */}
+                <div className="p-3 border-b border-slate-800/80 space-y-2.5 bg-slate-950">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
+                      <Filter className="w-3.5 h-3.5 text-blue-400" />
+                      <span>前置赛事勾选</span>
+                      <span className="px-1.5 py-0.2 rounded text-[10px] bg-blue-950 text-blue-300 border border-blue-800/60 font-mono">
+                        {selectedExportMatches.length} / {matches.length}
+                      </span>
+                    </div>
+
+                    {/* 快捷批量选择操作 */}
+                    <div className="flex items-center gap-1 text-xs">
+                      <button
+                        onClick={handleSelectAllFilteredMatches}
+                        className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors text-[11px]"
+                        title="全选当前列表所有赛事"
+                      >
+                        全选
+                      </button>
+                      <button
+                        onClick={handleInvertExportMatches}
+                        className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors text-[11px]"
+                        title="反向勾选"
+                      >
+                        反选
+                      </button>
+                      <button
+                        onClick={handleSelectCalculatedOnlyMatches}
+                        className="px-2 py-0.5 rounded bg-blue-950 hover:bg-blue-900 text-blue-300 border border-blue-800/60 transition-colors text-[11px]"
+                        title="仅勾选 03 模型已计算完成的赛事"
+                      >
+                        仅已算
+                      </button>
+                      <button
+                        onClick={handleClearAllExportMatches}
+                        className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-300 transition-colors text-[11px]"
+                        title="清空全部勾选"
+                      >
+                        清空
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 搜索过滤框 */}
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={exportMatchSearchTerm}
+                      onChange={(e) => setExportMatchSearchTerm(e.target.value)}
+                      placeholder="搜索主客队名 / 联赛..."
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-8 pr-7 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                    />
+                    {exportMatchSearchTerm && (
+                      <button
+                        onClick={() => setExportMatchSearchTerm("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 赛事列表滚动区 */}
+                <div className="flex-1 overflow-y-auto p-2 space-y-1.5 select-none">
+                  {modalFilteredMatches.length === 0 ? (
+                    <div className="text-center py-8 text-xs text-slate-500">
+                      未找到符合条件的赛事
+                    </div>
+                  ) : (
+                    modalFilteredMatches.map((m, idx) => {
+                      const isChecked = exportSelectedMatchIds.has(m.canonical_id);
+                      const isCalculated = !!quantFeaturesMap[m.canonical_id];
+
+                      return (
+                        <div
+                          key={m.canonical_id}
+                          id={`export-match-item-${idx}`}
+                          onClick={() => handleToggleSelectMatchForExport(m.canonical_id)}
+                          className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
+                            isChecked
+                              ? 'bg-slate-900/90 border-blue-500/70 shadow-xs'
+                              : 'bg-slate-950/70 border-slate-800/80 opacity-60 hover:opacity-100 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2.5">
+                            {/* 复选框 */}
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {}} // 由外层 div 的 onClick 统一处理
+                              className="mt-0.5 rounded text-blue-600 focus:ring-blue-500 bg-slate-800 border-slate-700 cursor-pointer"
+                            />
+
+                            <div className="flex-1 min-w-0">
+                              {/* 联赛与时间比分 */}
+                              <div className="flex items-center justify-between gap-1 text-[11px] mb-1">
+                                <span className="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-medium truncate max-w-[120px]">
+                                  {m.league_name}
+                                </span>
+                                <div className="flex items-center gap-1.5 text-slate-400 font-mono text-[10px]">
+                                  <span>{m.timing?.stage || "未开赛"}</span>
+                                  <span className="font-semibold text-slate-200">
+                                    {m.score?.home_score ?? 0} - {m.score?.away_score ?? 0}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* 对阵队伍 */}
+                              <div className="text-xs font-semibold text-slate-100 truncate mb-1">
+                                {m.home_team_name} vs {m.away_team_name}
+                              </div>
+
+                              {/* 03 计算状态与特征标识 */}
+                              <div className="flex items-center justify-between gap-1 text-[10px]">
+                                {isCalculated ? (
+                                  <span className="px-1.5 py-0.2 rounded bg-blue-950 text-blue-300 border border-blue-800/60 font-mono flex items-center gap-1">
+                                    <Zap className="w-2.5 h-2.5 text-blue-400" />
+                                    <span>03 已完成 37 项量化推演</span>
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-800/60 font-mono">
+                                    03 量化特征未就绪
+                                  </span>
+                                )}
+
+                                <span className="text-slate-500 font-mono">
+                                  {getMarketsSummary(m.markets).count} 盘口
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* 左侧底部说明 */}
+                <div className="p-2 border-t border-slate-800/80 bg-slate-950 text-[11px] text-slate-400 text-center">
+                  💡 点击任意比赛卡片即可切换勾选，右侧数据结构实时联动
+                </div>
+              </div>
+
+              {/* 右侧：数据代码查看与动态切片预览区 (Data Preview & Export Area) */}
+              <div className="flex-1 p-3 sm:p-4 overflow-hidden flex flex-col min-w-0 bg-slate-950">
+                {/* 预览区顶部微型状态 */}
+                <div className="flex items-center justify-between pb-2 text-xs text-slate-400 flex-wrap gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-slate-300">
+                      {exportModalTab === 'input' ? '03模型接收数据实体 (Input)' : '03模型量化特征输出 (Output)'}
+                    </span>
+                    <span className="text-slate-500">·</span>
+                    <span className="text-slate-400 font-mono">
+                      当前导出切片: <strong className="text-emerald-400">{selectedExportMatches.length}</strong> 场比赛
+                    </span>
+                    <span className="text-slate-500">·</span>
+                    <span className="text-slate-400">
+                      {exportModalFormat === 'pure' ? '纯净数据结构' : '包含完整元数据信封'}
+                    </span>
+                  </div>
+
+                  {selectedExportMatches.length > 0 && (
+                    <span className="text-[11px] text-slate-500 font-mono">
+                      JSON 字节大小: ~{(
+                        JSON.stringify(
+                          exportModalTab === 'input'
+                            ? (exportModalFormat === 'pure' ? selectedExportMatches : get03ModelInputData(selectedExportMatches))
+                            : (exportModalFormat === 'pure' ? selectedExportQuantFeaturesMap : get03ModelOutputData(selectedExportMatches))
+                        ).length / 1024
+                      ).toFixed(1)} KB
+                    </span>
+                  )}
+                </div>
+
+                {/* 代码主体 / 空状态提示 */}
+                {selectedExportMatches.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center p-8 border border-dashed border-slate-800 rounded-xl text-center bg-slate-950/60">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 mb-3 shadow-inner">
+                      <Layers className="w-6 h-6 text-slate-500" />
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-200 mb-1">未勾选任何比赛</h4>
+                    <p className="text-xs text-slate-400 max-w-sm mb-4">
+                      请在左侧列表中至少勾选 1 场需要导出的比赛；系统将仅导出与复制您选中的比赛数据。
+                    </p>
+                    <button
+                      onClick={handleSelectAllFilteredMatches}
+                      className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition-colors shadow-xs"
+                    >
+                      一键全选所有比赛 ({matches.length} 场)
+                    </button>
+                  </div>
+                ) : (
+                  <pre className="flex-1 overflow-auto p-4 rounded-xl border border-slate-800 bg-slate-950 text-xs font-mono text-slate-200 select-all leading-relaxed">
+                    {JSON.stringify(
+                      exportModalTab === 'input'
+                        ? (exportModalFormat === 'pure' ? selectedExportMatches : get03ModelInputData(selectedExportMatches))
+                        : (exportModalFormat === 'pure' ? selectedExportQuantFeaturesMap : get03ModelOutputData(selectedExportMatches)),
+                      null,
+                      2
+                    )}
+                  </pre>
+                )}
+              </div>
+            </div>
+
+            {/* 底部信息栏 */}
+            <div className="p-3 border-t border-slate-800 bg-slate-950 flex items-center justify-between text-xs text-slate-400 flex-wrap gap-2">
+              <div className="flex items-center gap-3 font-mono">
+                <span>
+                  当前已勾选: <strong className="text-emerald-400">{selectedExportMatches.length}</strong> / {matches.length} 场
+                </span>
+                <span>•</span>
+                <span>
+                  03 已计算: <strong className="text-blue-400">{selectedExportMatches.filter((m) => !!quantFeaturesMap[m.canonical_id]).length}</strong> 场
+                </span>
+                <span>•</span>
+                <span>
+                  03 未就绪: <strong className="text-amber-400">{selectedExportMatches.filter((m) => !quantFeaturesMap[m.canonical_id]).length}</strong> 场
+                </span>
+              </div>
+              <button
+                onClick={() => setShowDataExportModal(false)}
+                className="px-4 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-200 transition-colors border border-slate-700"
+              >
+                关闭面板
+              </button>
             </div>
           </div>
         </div>

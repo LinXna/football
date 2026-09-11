@@ -6,6 +6,8 @@ import {
   Layer03DataAudit,
   Layer03ProductionGate,
   Layer03CandidatePipeline,
+  Layer03CandidatePipelineState,
+  Layer03CandidateStatus,
   MomentumTimelineFeatures,
   RealTimePhysicalStatsFeatures
 } from './types.js';
@@ -213,7 +215,7 @@ export function buildLayer03ProductionGate(
   match: CanonicalMatch,
   audit: Layer03DataAudit,
   candidatePipeline: Layer03CandidatePipeline | {
-    state: 'NO_POSITIVE_EV' | 'OOS_LOCKED' | 'DATA_LOCKED' | 'PRODUCTION_UNLOCKED';
+    state: Layer03CandidatePipelineState;
     machine_candidate_count: number;
     blockers: readonly string[];
   }
@@ -252,11 +254,13 @@ export function buildLayer03ProductionGate(
     }
   }
 
-  const candidateStatus = candidatePipeline.machine_candidate_count > 0
+  const candidateStatus: Layer03CandidateStatus = candidatePipeline.machine_candidate_count > 0
     ? 'UNLOCKED'
     : candidatePipeline.state === 'DATA_LOCKED' || calculationStatus === 'BLOCKED'
       ? 'DATA_LOCKED'
-      : 'OOS_LOCKED';
+      : candidatePipeline.state === 'COLD_START_PERMISSIVE'
+        ? 'COLD_START_PERMISSIVE'
+        : 'OOS_LOCKED';
 
   return Object.freeze({
     calculation_status: calculationStatus,

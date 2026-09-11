@@ -50,6 +50,28 @@ export function getQuantScreeningDecision(quant: QuantitativeFeatures): {
     };
   }
 
+  if (quant.candidate_pipeline?.state === "PRODUCTION_UNLOCKED" && quant.positive_ev_signals.length > 0) {
+    return {
+      badge: `WATCH (重点监控 · ${quant.positive_ev_signals.length}项生产+EV)`,
+      level: "WATCH",
+      colorClass: "text-emerald-300",
+      borderClass: "border-emerald-600/70",
+      bgClass: "bg-emerald-950/70",
+      description: "高置信度且 OOS 样本成熟验证通过，达到生产级机器候选标准",
+    };
+  }
+
+  if (quant.candidate_pipeline?.state === "COLD_START_PERMISSIVE" && (quant.research_candidate_signals?.length ?? 0) > 0) {
+    return {
+      badge: `RESEARCH (冷启动放行 · ${quant.research_candidate_signals?.length}项研究+EV)`,
+      level: "RESEARCH",
+      colorClass: "text-sky-300",
+      borderClass: "border-sky-600/70",
+      bgClass: "bg-sky-950/70",
+      description: "处于冷启动样本积累阶段，已通过数学 +EV 与软门禁初筛（研究级候选，非生产级）",
+    };
+  }
+
   if (quant.confidence_score >= 80 && quant.positive_ev_signals.length > 0) {
     return {
       badge: `WATCH (重点监控 · ${quant.positive_ev_signals.length}项+EV)`,
@@ -355,17 +377,23 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
   const h2hMain = quant.devig.h2h_devig;
   const fullH2hMarket = match.markets.full_h2h;
 
-  // 100% SSOT 信号门禁：严格消费 Layer 03 经由 OOS 校验与置信度门禁下发的 positive_ev_signals
-  // 彻底废除前端基于 ev >= 0.035 或 is_positive_ev 的局部双轨制自决
+  // 100% SSOT 信号门禁：若有生产级信号优先使用；若处于冷启动模式，则消费冷启动研究信号并加以区分
+  const effectiveSignals = useMemo(() => {
+    if (quant.positive_ev_signals && quant.positive_ev_signals.length > 0) {
+      return quant.positive_ev_signals;
+    }
+    return quant.research_candidate_signals ?? [];
+  }, [quant.positive_ev_signals, quant.research_candidate_signals]);
+
   const h2hSignal = useMemo(() => {
-    return quant.positive_ev_signals.find((s) => s.market === "MONEYLINE_1X2") ?? null;
-  }, [quant.positive_ev_signals]);
+    return effectiveSignals.find((s) => s.market === "MONEYLINE_1X2") ?? null;
+  }, [effectiveSignals]);
 
   const totalSignals = useMemo(() => {
-    return quant.positive_ev_signals.filter(
+    return effectiveSignals.filter(
       (s) => s.market === "TOTAL_GOALS_MAIN" || s.market === "TOTAL_GOALS_SECONDARY"
     );
-  }, [quant.positive_ev_signals]);
+  }, [effectiveSignals]);
 
   const bestTotalSignal = useMemo(() => {
     if (totalSignals.length === 0) return null;
@@ -373,10 +401,10 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
   }, [totalSignals]);
 
   const spreadSignals = useMemo(() => {
-    return quant.positive_ev_signals.filter(
+    return effectiveSignals.filter(
       (s) => s.market === "ASIAN_HANDICAP_MAIN" || s.market === "ASIAN_HANDICAP_SECONDARY"
     );
-  }, [quant.positive_ev_signals]);
+  }, [effectiveSignals]);
 
   const bestSpreadSignal = useMemo(() => {
     if (spreadSignals.length === 0) return null;
