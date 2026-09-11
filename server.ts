@@ -18,6 +18,7 @@ import { registerGeminiEvaluationRoutes } from './server/routes/geminiEvaluation
 import { registerBatchSupplementRoutes } from './server/routes/batchSupplementRoutes';
 import { registerCanonicalRoutes } from './server/routes/canonicalRoutes';
 import { registerRefactorLedgerRoutes } from './server/routes/refactorLedgerRoutes';
+import { registerRefactorAiRoutes } from './server/routes/refactorAiRoutes';
 import { synchronizeDecisionAliases } from './server/services/aliasDecisionSynchronizer';
 import { parseModelJson } from './server/services/modelJson';
 import { generateGeminiViaWindowsNetwork as generateGeminiViaWindowsNetworkService } from './server/services/geminiWindowsFallback';
@@ -1835,6 +1836,7 @@ const handleGeminiEvaluation = createGeminiEvaluationHandler({
 registerGeminiEvaluationRoutes(app, handleGeminiEvaluation);
 registerCanonicalRoutes(app);
 registerRefactorLedgerRoutes(app);
+registerRefactorAiRoutes(app);
 
 // ---------------- VITE & SERVER SETUP ----------------
 

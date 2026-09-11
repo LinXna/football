@@ -1,24 +1,114 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260910-FIX-UNCONFIRMED-ALIGNMENT-QUANT-GATE`
+- **任务编号 (Task)**: `SNAPSHOT-20260911-EXPORT-AND-COPY-03-MODEL-INPUT-AND-OUTPUT`
+- **当前状态 (Status)**: `IN_PROGRESS`
+- **任务目标 (Goal)**：
+  响应用户明确指令：“标准赛事对齐中心，增加一个导出复制功能: 1.支持导出复制我导入的比赛数据，03模型接收的数据结构。2.支持导出复制经过03模型计算后的数据结构。”
+  1. 【全局/批量级导出与复制面板 (Batch Export & Copy Center)】：
+     - 在标准赛事对齐中心顶部操作栏，新增【03模型数据导出/复制】功能菜单/弹窗；
+     - 功能 1：一键复制 / 导出当前导入的全量“03模型接收数据结构” (`CanonicalMatch[]` 原始标准输入 JSON)；
+     - 功能 2：一键复制 / 导出当前全量“03模型计算后数据结构” (`Record<string, QuantitativeFeatures>` 37项确定性量化特征 JSON)；
+     - 支持剪贴板一键复制（带字数统计与反馈 Toast）、支持一键下载为带时间戳的标准 `.json` 文件；
+  2. 【单场赛事卡片级快速复制 (Per-Match Fast Copy Actions)】：
+     - 在每场比赛卡片操作栏及 JSON 详情选项卡中，提供醒目的独立复制/导出按钮：
+       - `复制 03 接收输入 (CanonicalMatch)`
+       - `复制 03 计算输出 (QuantitativeFeatures)`
+       - 并提供单场 JSON 下载与即时成功提示反馈；
+  3. 【工程规范与验证】：
+     - 强类型零 any，严格遵守系统架构数据契约；
+     - 执行 `npm run lint` 与 `compile_applet` 确保构建无误。
+- **改动文件清单 (Target Files)**：
+  - `src/components/CanonicalMatchCenter.tsx`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **执行步骤 (Action Plan)**：
+  - Step 1: 在 `CanonicalMatchCenter.tsx` 中设计并实现全局批量导出复制弹窗及单场卡片操作按钮；
+  - Step 2: 注入数据格式化、剪贴板复制逻辑（兼容 fallback）与 `.json` 导出下载逻辑；
+  - Step 3: 执行 `lint_applet` 与 `compile_applet` 验证；
+  - Step 4: 更新快照状态为 `DONE`。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+- **任务编号 (Task)**: `SNAPSHOT-20260911-ADD-BETTABLE-AND-BLOCKED-FILTER`
+- **当前状态 (Status)**: `DONE`
+- **交付物与成果 (Deliverables)**：
+  1. 【全链路决策与风控状态判别逻辑 (SSOT Engine)】：
+     - 在 `CanonicalMatchCenter.tsx` 中封装 `getMatchDecisionStatus` 与 `countsByDecision`；
+     - 自动结合 AI 终审定级、诱盘排雷（`CONFIRMED_TRAP` / 机构高水诱盘）、实战推荐腿及机器层熔断门禁与正期望分布，精准归类为：
+       - `BETTABLE`（🎯 可投注）：AI 终审 A/B 级推荐开仓或具备高正期望的实战赛事；
+       - `BLOCKED`（🚫 已阻断）：AI 排雷阻断、机构诱盘陷阱或数据/风控熔断拦截；
+       - `WAITING`（⚠️ 观望待定）：无正期望或未达实战开仓门禁；
+       - `AI_EVALUATED`（🤖 已AI终审）：已导入并绑定 AI 终审报告的赛事。
+  2. 【交互式开仓风控筛选栏 (Intuitive Decision Filter Bar)】：
+     - 在搜索过滤区首行独立提供高频开仓风控筛选标签组（全部、🎯可投注、🚫已阻断、⚠️观望待定、🤖已AI终审）；
+     - 每一个筛选标签带有实时动态数量计数徽章与高对比度色彩（翡翠绿、玫瑰红、琥珀橙、深青靛蓝）；
+     - 配备智能活跃指示、一键“清除风控筛选”以及无结果时的贴心重置指引；
+  3. 【赛事卡片正面决策状态胶囊】：
+     - 每场赛事卡片顶部直观标出专属状态胶囊（如 `🎯 可投注(AI终审)`、`🚫 已阻断(排雷)`），点击可直达研判明细；
+  4. 【验证通过】：`npm run lint` 零错误，`compile_applet` 一次性编译成功。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+- **任务编号 (Task)**: `SNAPSHOT-20260911-RECONCILE-AI-RECOMMENDATION-CHAIN-AND-SURFACE-UI`
 - **当前状态 (Status)**: `DONE`
 - **任务目标 (Goal)**：
-  根治应用中上报的 `[CanonicalRoutes] Error computing quant for match 4639285: Error: MATCH_ALIGNMENT_FAILED: Match 4639285 has unconfirmed alignment status NEEDS_MANUAL_SELECTION` 错误：
-  1. 【统一收敛量化定价前置准入门禁】：在 `refactor/03_quant_engine/index.ts` 导出纯函数守卫 `isMatchQuantEligible`，明确对齐状态门禁与比分/时钟门禁；
-  2. 【服务端预计算链路治理】：在 `server/routes/canonicalRoutes.ts` 中前置调用准入门禁，未确认对齐的比赛（如 `NEEDS_MANUAL_SELECTION`）等待用户确认或别名建立，不再盲目调用 `calculateQuantitativeFeatures`，彻底消除 `console.error` 误报；
-  3. 【Prompt 导出端安全守卫】：在 `refactor/04_ai_evaluator/promptExporter.ts` 同样前置准入门禁，跳过未对齐赛事；
-  4. 【前端友好提示升级】：在 `src/components/CanonicalMatchCenter.tsx` 针对待确认对齐状态提供清晰引导（“待核验对齐/等待人工确认”），提升交互体验。
+  响应用户直接痛点质问与深刻排查要求（“你自己先排查下现在的推荐链路到底怎么回事，我现在看到布尔萨体育这场比赛的面板显示全场让球有最佳推荐，全场大小球有推荐投注，全场独赢有推荐投注，为什么AI评估没有涉及这些，而且跟你说情况也不一样，现在AI评估的内容全部缩放到下拉框，我还要一个一个的打开查看，过程复杂”）：
+  1. 【根治推荐链路严重矛盾与两张皮现象 (AI Gating Authority)】：
+     - 溯源排查确认：常驻卡片未传 `aiEval`，且当没有 AI 推荐或者 AI 明确判定为 `CONFIRMED_TRAP` / 阻断 / 空推荐腿时，底层机器初筛依然根据纯数学 EV > 0 盲目打上“🌟 最佳推荐”和“★ 推荐投注”；
+     - 契约彻底纠偏：机器层正期望必须严格定性为“⚡ 机器数学初筛(+EV)”，严禁越权称为“最佳推荐”或“推荐投注”；
+     - AI 终审强行统御：当 AI 终审判定 `CONFIRMED_TRAP` 或空推荐腿或各盘口 `actionable: false` 时，强制覆盖所有盘口，展示 `🚫 AI已阻断 (诱盘/避险)`，底端显示 `🚫 AI终审风控阻断：机构诱盘或安全边际不足，全盘禁止下注 (坚决观望)`；
+  2. 【彻底解决 AI 评估缩在下拉框复杂交互痛点 (Surface Executive Summary)】：
+     - 在赛事卡片正面第一视觉层（无需点击下拉框、无需逐个打开折叠层），常驻外露展示【AI 终审裁决精要看板 (AI Executive Evaluation Banner)】；
+     - 清晰外露展现：AI 定级与分值、战术定性、排雷避险结果（如布尔萨体育的高水诱盘阻断与全盘禁投结论）、三大盘口 AI 结论；
+     - 外层卡片 `<QuantBettingDecisionMatrix>` 注入 `aiEval`，实现卡片内与下拉展开内 100% 视图与逻辑一致。
+  3. 【编译与自测验证】：全工程 TypeScript 强类型与 Lint 校验 100% 通过。
 - **改动文件清单 (Target Files)**：
-  - `refactor/03_quant_engine/index.ts`
-  - `server/routes/canonicalRoutes.ts`
-  - `refactor/04_ai_evaluator/promptExporter.ts`
+  - `src/components/QuantBettingDecisionMatrix.tsx`
   - `src/components/CanonicalMatchCenter.tsx`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **执行步骤 (Action Plan)**：
+  - Step 1: 升级 `QuantBettingDecisionMatrix.tsx` 中的 AI 数据结构解析与终审裁决统御，严禁底层机器初筛冒充“最佳推荐”，实现 AI 诱盘/阻断时全盘强制阻断；
+  - Step 2: 改造 `CanonicalMatchCenter.tsx`，在赛事卡片正面常驻外露【AI 终审研判精要看板】，将 `aiEval` 传递给外层矩阵，彻底杜绝下拉层层点击；
+  - Step 3: 执行 `npm run lint` 与 `compile_applet` 自测，更新快照状态为 `DONE`。
 - **交付物与成果 (Deliverables)**：
-  - `refactor/03_quant_engine/index.ts`: 导出 `isMatchQuantEligible(match)` 准入判断函数，严格遵循系统契约（仅 `MATCHED_BY_ALIAS` 与 `MATCHED_AUTO` 允许进入量化定价，且核验滚球时钟与比分）。
-  - `server/routes/canonicalRoutes.ts`: 在批次持久化、批次汇聚、增量历史升级与数据导入四大环节前置 `isMatchQuantEligible` 准入判断，未确认对齐的赛事优雅跳过，彻底消除了未捕获异常与控制台误报。
-  - `refactor/04_ai_evaluator/promptExporter.ts`: 增加 `isMatchQuantEligible` 门禁过滤，防止未对齐赛事在 Prompt 构建时发生阻断异常。
-  - `src/components/CanonicalMatchCenter.tsx`: 细化量化面板状态分支，针对 `NEEDS_MANUAL_SELECTION` 渲染金色友好状态卡片，明确引导分析师在“待核验对齐”面板进行确认。
-  - **测试验证**：`npm run test:ts` 84 项测试全部绿灯通过；`lint_applet` 零警告零报错；`compile_applet` 编译与打包完全成功。
+  - `src/components/QuantBettingDecisionMatrix.tsx`:
+    - 接收 `aiEval` 属性，构建智能解析器 `aiInsight`，提取 `recommended_legs`、`market_scan`、`tactical_regime`；
+    - 在矩阵顶部增加 AI 终审裁决条，明确展示 AI 终审裁决状态（实战开仓 vs 排雷阻断）；
+    - 在全场独赢 (1X2)、全场大小球 (O/U)、全场让球 (Asian Handicap) 3 大核心玩法中注入 `🎯 AI推荐` 与 `🚫 AI阻断 (诱盘)` 标签及高亮外框；
+  - `src/components/CanonicalMatchCenter.tsx`:
+    - 将 match 关联的 `ai_evaluation` 传递给 `QuantBettingDecisionMatrix`；
+    - 在 AI 展开面板中增加【无推荐项/排雷门禁面板】，彻底消除空列表导致的界面空白与困惑；
+  - 验证通过：`npm run lint` 0 错误，`compile_applet` 顺利编译完成。
+- **任务目标 (Goal)**：
+  响应用户明确指令“把接口分成旧版和重构版两种，不要让两个版本共用一个接口”：
+  1. 【接口完全解耦与独立命名空间划分】：
+     - 重构版专用接口：统一收敛在 `/api/refactor/ai/*` 命名空间下：
+       - `POST /api/refactor/ai/export-prompt`：专属服务于标准赛事中心 (`CanonicalMatchCenter.tsx`)，入参为 `{ canonical_matches, mode }`，调用重构版 `generateRefactoredPrompt`。
+       - `POST /api/refactor/ai/import-evaluation`：专属服务于标准赛事中心，解析重构版 JSON Schema（`blind_spot_analysis`、`market_scan`、`recommended_legs`），不校验旧版 5 大玩法。
+       - `GET /api/refactor/ai/evaluations`：专属提供重构版历史评估持久化记录读取。
+     - 旧版专用接口：保持原有 `/api/ai/*` 命名空间，服务于旧版 AI 评估中心 (`AiEvaluatorView.tsx`)：
+       - `POST /api/ai/export-prompt`：恢复调用旧版完整的 `buildPromptData`，支持 `match_name`、`selected_match_refs`、`batch_match_refs`、`prompt_style` (standard/objective/gem) 及旧版串关分段，彻底解决 `No matches provided` 400 错误。
+       - `POST /api/ai/import-evaluation`：专属处理旧版 5 大玩法 `market_assessments` 解析、校验与历史保存。
+  2. 【前端调用端精准对接】：
+     - `src/components/CanonicalMatchCenter.tsx`：导出与导入调用全面切换至 `/api/refactor/ai/export-prompt` 与 `/api/refactor/ai/import-evaluation`；评估历史优先读取 `/api/refactor/ai/evaluations`。
+     - `src/components/AiEvaluatorView.tsx`：维持原有的 `/api/ai/*` 接口调用不变。
+  3. 【编译与测试回归】：验证前后端接口正常运行，TypeScript 零错误，编译打包通过。
+- **改动文件清单 (Target Files)**：
+  - `server/routes/refactorAiRoutes.ts` (新建重构版专属路由)
+  - `server/routes/aiReadRoutes.ts` (恢复旧版 export-prompt 逻辑)
+  - `server.ts` (注册重构版路由)
+  - `src/components/CanonicalMatchCenter.tsx` (切换至 `/api/refactor/ai/*`)
+  - `tests-ts/aiRoutesSeparation.test.ts` (独立接口隔离与功能测试)
+- **交付物与成果 (Deliverables)**：
+  - `server/routes/refactorAiRoutes.ts`: 新建重构版 AI 专属路由，提供 `/api/refactor/ai/export-prompt`、`/api/refactor/ai/import-evaluation` 和 `/api/refactor/ai/evaluations`。
+  - `server/routes/aiReadRoutes.ts`: 彻底恢复旧版 `/api/ai/export-prompt` 调用 `buildPromptData` 的能力，解决旧版前端缺少 `canonical_matches` 导致的 `No matches provided` 报错。
+  - `server.ts`: 引入并挂载 `registerRefactorAiRoutes(app)`。
+  - `src/components/CanonicalMatchCenter.tsx`: 前端导出和导入请求完全对齐重构版独立接口，与旧版接口解耦。
+  - `tests-ts/aiRoutesSeparation.test.ts`: 新增 5 项隔离性与兼容性自动化测试，全部通过（pass 5, fail 0）。
+  - 全套回归验证：`npm run lint` 零错误零警告，`compile_applet` 构建成功，既有 API 契约与量化测试稳定运行。
 - **任务目标 (Goal)**：
   贯彻用户针对系统实际数据流与工程边界的指令，彻底清除脱离真实业务流程的过度设计与冗余约束，并完成全链路彻底排查与自测：
   1. 【物理删除时钟倒挂虚假判定】：

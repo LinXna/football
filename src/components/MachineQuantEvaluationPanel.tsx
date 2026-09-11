@@ -24,11 +24,13 @@ export { getQuantScreeningDecision };
 interface MachineQuantEvaluationPanelProps {
   match: CanonicalMatch;
   quant: QuantitativeFeatures;
+  aiEval?: any;
 }
 
 export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelProps> = ({
   match,
   quant,
+  aiEval,
 }) => {
   const decision = getQuantScreeningDecision(quant);
 
@@ -100,7 +102,7 @@ export const MachineQuantEvaluationPanel: React.FC<MachineQuantEvaluationPanelPr
       {/* ========================================================================= */}
       {/* 1. 2行 x 3项 核心盘口与下注决策网格 (包含全场 3 栏 + 半场 3 栏)             */}
       {/* ========================================================================= */}
-      <QuantBettingDecisionMatrix match={match} quant={quant} showHeader={true} />
+      <QuantBettingDecisionMatrix match={match} quant={quant} aiEval={aiEval} showHeader={true} />
 
       {/* ========================================================================= */}
       {/* 2. 总体量化评估四联指标看板 (Summary 4-Card Diagnostics Grid)              */}

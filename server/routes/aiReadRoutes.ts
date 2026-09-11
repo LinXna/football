@@ -64,31 +64,35 @@ export function registerAiEvaluationMutationRoutes(app: express.Express): void {
 }
 
 export function registerAiPromptExportRoutes(app: express.Express, buildPromptData: (body: any, isExportPrompt?: boolean) => any): void {
+  /**
+   * POST /api/ai/export-prompt
+   * 旧版 AI 评估中心专属的 Prompt 导出接口
+   * 严格调用 buildPromptData 组装旧版 5 大玩法及 standard/objective/gem 模版
+   */
   app.post('/api/ai/export-prompt', async (req, res) => {
     try {
-      const { canonical_matches, mode = 'live_eval' } = req.body || {};
-      
-      if (!Array.isArray(canonical_matches) || canonical_matches.length === 0) {
-        return res.status(400).json({ error: 'No matches provided' });
-      }
-
-      const { generateRefactoredPrompt } = await import('../../refactor/04_ai_evaluator/promptExporter.js');
-      const { finalPrompt, matchCount } = generateRefactoredPrompt(canonical_matches, mode);
+      const body = req.body || {};
+      const promptData = buildPromptData(body, true);
+      const prompts: string[] = Array.isArray(promptData?.prompts) ? promptData.prompts : [];
+      const combined = prompts.join('\n\n' + '='.repeat(40) + '\n\n');
+      const activeStyle = body?.prompt_style || promptData?.prompt_style || 'standard';
 
       res.json({
         success: true,
-        mode: mode,
-        prompt_style: 'standard',
-        standard_prompts: [finalPrompt],
-        match_count: matchCount,
-        prompt_count: 1,
-        prompts: [finalPrompt],
-        combined_prompt: finalPrompt,
-        instructions: `（已自动切换至${mode === 'live_eval' ? '滚球' : mode === 'prematch_eval' ? '赛前' : '串关'}专属规则）共 ${matchCount} 场赛事。请一键复制以下 Prompt 并在网页版大模型中执行。`
+        mode: promptData?.mode || body?.mode || 'live_eval',
+        prompt_style: activeStyle,
+        standard_prompts: promptData?.standard_prompts || prompts,
+        objective_prompts: promptData?.objective_prompts || prompts,
+        gem_prompts: promptData?.gem_prompts || prompts,
+        prompts,
+        combined_prompt: combined,
+        match_count: promptData?.match_count || 0,
+        prompt_count: prompts.length,
+        instructions: `（旧版评估中心）已生成 ${prompts.length} 段 Prompt，覆盖 ${promptData?.match_count || 0} 场比赛。请复制并在网页端 AI 中执行。`
       });
     } catch (error: any) {
-      console.error('Failed to export refactored prompt:', error);
-      res.status(400).json({ error: error?.message || 'Failed to export prompt' });
+      console.error('[AiReadRoutes] Failed to export legacy prompt:', error);
+      res.status(400).json({ error: error?.message || '导出 Prompt 失败' });
     }
   });
 }

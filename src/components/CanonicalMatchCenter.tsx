@@ -44,6 +44,8 @@ import {
   ArrowUpDown,
   ArrowRightLeft,
   Zap,
+  Filter,
+  FileCode,
 } from "lucide-react";
 import {
   CanonicalMatch,
@@ -246,6 +248,7 @@ export const CanonicalMatchCenter: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState<string>("");
   const [tierFilter, setTierFilter] = useState<string>("ALL");
+  const [decisionFilter, setDecisionFilter] = useState<'ALL' | 'BETTABLE' | 'BLOCKED' | 'WAITING' | 'AI_EVALUATED'>('ALL');
   const [filterOnlyManualReview, setFilterOnlyManualReview] = useState<boolean>(false);
 
   // 卡片折叠/展开与多维查看器状态
@@ -254,6 +257,12 @@ export const CanonicalMatchCenter: React.FC = () => {
     Record<string, "quant" | "diagnostics" | "ai" | "markets" | "stats" | "h2h" | "alignment" | "json">
   >({});
   const [copiedMatchId, setCopiedMatchId] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // 弹窗状态：03模型数据导出/复制全景面板
+  const [showDataExportModal, setShowDataExportModal] = useState<boolean>(false);
+  const [exportModalTab, setExportModalTab] = useState<'input' | 'output'>('input');
+  const [exportCopyFeedback, setExportCopyFeedback] = useState<string | null>(null);
 
   // 弹窗状态：选中的 AI Brief 查看
   const [selectedBrief, setSelectedBrief] = useState<AiEvaluationBrief | null>(null);
@@ -292,13 +301,17 @@ export const CanonicalMatchCenter: React.FC = () => {
     events: any[];
   } | null>(null);
 
-  // 持续加载 AI 评估历史
+  // 持续加载 AI 评估历史（优先重构版专用，回退兼容旧版）
   const loadAiEvaluations = useCallback(() => {
-    fetch('/api/ai/evaluations')
+    fetch('/api/refactor/ai/evaluations')
       .then(res => res.json())
       .then(data => {
-        if (data.evaluations) {
+        if (Array.isArray(data.evaluations) && data.evaluations.length > 0) {
           setAiEvaluations(data.evaluations);
+        } else {
+          return fetch('/api/ai/evaluations').then(r => r.json()).then(d => {
+            if (d.evaluations) setAiEvaluations(d.evaluations);
+          });
         }
       })
       .catch(err => console.error("Failed to fetch AI evaluations", err));
@@ -326,6 +339,8 @@ export const CanonicalMatchCenter: React.FC = () => {
         candidates.push(...evalObj.result.matches);
       } else if (evalObj.result && typeof evalObj.result === 'object') {
         candidates.push(evalObj.result);
+      } else if (evalObj.match_id || evalObj.canonical_id || evalObj.match) {
+        candidates.push(evalObj);
       }
 
       for (const item of candidates) {
@@ -368,6 +383,8 @@ export const CanonicalMatchCenter: React.FC = () => {
         candidates.push(...evalObj.result.matches);
       } else if (evalObj.result && typeof evalObj.result === 'object') {
         candidates.push(evalObj.result);
+      } else if (evalObj.match_id || evalObj.canonical_id || evalObj.match) {
+        candidates.push(evalObj);
       }
       for (const item of candidates) {
         if (!item) continue;
@@ -380,50 +397,169 @@ export const CanonicalMatchCenter: React.FC = () => {
     return false;
   };
 
-  const handleExportAllCanonicalJSON = () => {
-    if (!matches || matches.length === 0) return;
-    const payload = {
-      export_version: "2.0.0",
-      export_source: "CanonicalMatchCenter",
-      exported_at: new Date().toISOString(),
-      mode,
-      total_count: matches.length,
-      canonical_matches: matches,
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `canonical_merged_${mode}_${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  // 复制单场 Canonical JSON
-  const handleCopySingleMatchJSON = async (match: CanonicalMatch) => {
+  // 安全剪贴板复制工具函数 (支持 navigator.clipboard 与 textarea 备选 fallback)
+  const safeCopyToClipboard = async (text: string, keyOrDesc: string) => {
     try {
-      await navigator.clipboard.writeText(JSON.stringify(match, null, 2));
-      setCopiedMatchId(match.canonical_id);
-      setTimeout(() => setCopiedMatchId(null), 2000);
-    } catch {
-      // fallback
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        textarea.style.top = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setCopiedKey(keyOrDesc);
+      setCopiedMatchId(keyOrDesc);
+      setExportCopyFeedback(`✅ 复制成功 (共 ${(text.length / 1024).toFixed(1)} KB)`);
+      setTimeout(() => {
+        setCopiedKey(null);
+        setCopiedMatchId(null);
+        setExportCopyFeedback(null);
+      }, 2200);
+    } catch (err) {
+      console.error("复制到剪贴板失败:", err);
+      setExportCopyFeedback("❌ 复制失败，请点击文本框全选手动复制");
+      setTimeout(() => setExportCopyFeedback(null), 3000);
     }
   };
 
-  // 下载单场 Canonical JSON
-  const handleDownloadSingleMatchJSON = (match: CanonicalMatch) => {
-    const blob = new Blob([JSON.stringify(match, null, 2)], { type: "application/json" });
+  // 通用 JSON 文件下载工具函数
+  const downloadJSONFile = (filename: string, data: any) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `canonical_${match.league_name}_${match.home_team_name}_vs_${match.away_team_name}.json`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
+
+  // 1. 获取 03 模型接收的数据结构 (Input Dataset: CanonicalMatch[])
+  const get03ModelInputData = () => {
+    return {
+      dataset_name: "Layer 03 Quant Engine Input Dataset",
+      schema_version: "2.0.0",
+      contract_layer: "Layer 02 Canonical Match Assemble -> Layer 03 Quant Engine Ingestion",
+      exported_at: new Date().toISOString(),
+      mode,
+      batch_id: refactorBatchId || "batch_current",
+      total_matches: matches.length,
+      canonical_matches: matches,
+    };
+  };
+
+  // 2. 获取经过 03 模型计算后的数据结构 (Output Dataset: QuantitativeFeatures)
+  const get03ModelOutputData = () => {
+    const calculatedMatches = matches.map((m) => {
+      const q = quantFeaturesMap[m.canonical_id];
+      return {
+        canonical_id: m.canonical_id,
+        league_name: m.league_name,
+        home_team_name: m.home_team_name,
+        away_team_name: m.away_team_name,
+        stage: m.timing?.stage,
+        score: m.score,
+        quant_features: q || null,
+      };
+    });
+
+    const calculatedCount = matches.filter((m) => !!quantFeaturesMap[m.canonical_id]).length;
+
+    return {
+      dataset_name: "Layer 03 Quant Engine Output Features Dataset",
+      schema_version: "2.0.0",
+      contract_layer: "Layer 03 Deterministic & Game Theory Quant Engine Execution",
+      contract_spec: "37 Quantitative & Game Features SSOT",
+      exported_at: new Date().toISOString(),
+      mode,
+      batch_id: refactorBatchId || "batch_current",
+      total_matches: matches.length,
+      calculated_matches_count: calculatedCount,
+      features_by_match_id: quantFeaturesMap,
+      matches_with_quant: calculatedMatches,
+    };
+  };
+
+  // 批量：复制 03 模型接收的全部数据
+  const handleCopy03InputAll = () => {
+    const data = get03ModelInputData();
+    safeCopyToClipboard(JSON.stringify(data, null, 2), "03_input_all");
+  };
+
+  // 批量：下载 03 模型接收的全部数据 JSON 文件
+  const handleDownload03InputAll = () => {
+    const data = get03ModelInputData();
+    const dateStr = new Date().toISOString().slice(0, 10);
+    downloadJSONFile(`03_model_input_canonical_${mode}_${dateStr}.json`, data);
+  };
+
+  // 批量：复制 03 模型计算后的全部数据
+  const handleCopy03OutputAll = () => {
+    const data = get03ModelOutputData();
+    safeCopyToClipboard(JSON.stringify(data, null, 2), "03_output_all");
+  };
+
+  // 批量：下载 03 模型计算后的全部数据 JSON 文件
+  const handleDownload03OutputAll = () => {
+    const data = get03ModelOutputData();
+    const dateStr = new Date().toISOString().slice(0, 10);
+    downloadJSONFile(`03_model_output_quant_features_${mode}_${dateStr}.json`, data);
+  };
+
+  // 单场：复制 03 接收输入 (CanonicalMatch)
+  const handleCopySingleMatchInput = (match: CanonicalMatch) => {
+    safeCopyToClipboard(JSON.stringify(match, null, 2), `${match.canonical_id}_input`);
+  };
+
+  // 单场：下载 03 接收输入 (CanonicalMatch)
+  const handleDownloadSingleMatchInput = (match: CanonicalMatch) => {
+    downloadJSONFile(
+      `03_input_${match.league_name}_${match.home_team_name}_vs_${match.away_team_name}.json`,
+      match
+    );
+  };
+
+  // 单场：复制 03 计算后输出 (QuantitativeFeatures)
+  const handleCopySingleMatchOutput = (match: CanonicalMatch) => {
+    const quant = quantFeaturesMap[match.canonical_id];
+    const payload = {
+      canonical_id: match.canonical_id,
+      match_name: `${match.home_team_name} vs ${match.away_team_name}`,
+      league_name: match.league_name,
+      exported_at: new Date().toISOString(),
+      quant_features: quant || null,
+    };
+    safeCopyToClipboard(JSON.stringify(payload, null, 2), `${match.canonical_id}_output`);
+  };
+
+  // 单场：下载 03 计算后输出 (QuantitativeFeatures)
+  const handleDownloadSingleMatchOutput = (match: CanonicalMatch) => {
+    const quant = quantFeaturesMap[match.canonical_id];
+    const payload = {
+      canonical_id: match.canonical_id,
+      match_name: `${match.home_team_name} vs ${match.away_team_name}`,
+      league_name: match.league_name,
+      exported_at: new Date().toISOString(),
+      quant_features: quant || null,
+    };
+    downloadJSONFile(
+      `03_output_quant_${match.league_name}_${match.home_team_name}_vs_${match.away_team_name}.json`,
+      payload
+    );
+  };
+
+  // 兼容旧引用
+  const handleExportAllCanonicalJSON = handleDownload03InputAll;
+  const handleCopySingleMatchJSON = handleCopySingleMatchInput;
+  const handleDownloadSingleMatchJSON = handleDownloadSingleMatchInput;
 
   // 导出供大模型评估的 Prompt (Txt)
   
@@ -443,7 +579,7 @@ export const CanonicalMatchCenter: React.FC = () => {
         throw new Error('请至少选择一场比赛');
       }
 
-      const resp = await fetch('/api/ai/export-prompt', {
+      const resp = await fetch('/api/refactor/ai/export-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ canonical_matches: selectedMatches, mode: aiEvalMode })
@@ -469,7 +605,7 @@ export const CanonicalMatchCenter: React.FC = () => {
     setAiFeedback(null);
     try {
       const selectedIdsArray = Array.from(aiSelectedMatchIds);
-      const resp = await fetch('/api/ai/import-evaluation', {
+      const resp = await fetch('/api/refactor/ai/import-evaluation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1380,6 +1516,139 @@ export const CanonicalMatchCenter: React.FC = () => {
   // 缺口赛事数量统计
   const matchesWithGapsCount = matches.filter((m) => m.missing_reasons.length > 0).length;
 
+  // 核心风控与决策状态判别逻辑（统一判定可投注、已阻断、观望中等状态）
+  const getMatchDecisionStatus = useCallback(
+    (m: CanonicalMatch) => {
+      const ai = findAiEvaluationForMatch(m);
+      const quant = quantFeaturesMap[m.canonical_id];
+
+      if (ai) {
+        const grade = String(ai.grade || ai.grade_raw || "").toUpperCase();
+        const isQual = grade.startsWith("A") || grade.startsWith("B");
+        const isTrap =
+          ai.blind_spot_analysis?.trap_detection_result === "CONFIRMED_TRAP" ||
+          ai.trap_detection_result === "CONFIRMED_TRAP" ||
+          String(ai.market_scan?.rejection_reason || "").includes("TRAP") ||
+          String(ai.rejection_reason || "").includes("TRAP") ||
+          ai.spread_assessment?.trap_level === "high" ||
+          ai.over_under_assessment?.trap_level === "high";
+
+        const legs = Array.isArray(ai.recommended_legs) ? ai.recommended_legs : [];
+        const hasActionableLegs = legs.length > 0;
+        const isActionable = ai.is_actionable === true || hasActionableLegs;
+
+        // 如果明确判定为机构诱盘陷阱、排雷阻断、或全盘禁止下注
+        if (
+          isTrap ||
+          (!isActionable &&
+            (ai.rejection_reason ||
+              ai.blind_spot_analysis?.rejection_reason ||
+              ai.market_scan?.rejection_reason))
+        ) {
+          return {
+            status: "BLOCKED" as const,
+            hasAi: true,
+            label: "已阻断(排雷)",
+            badgeClass: "bg-rose-950/70 text-rose-300 border-rose-600/80 ring-1 ring-rose-500/20",
+            reason:
+              ai.rejection_reason ||
+              ai.blind_spot_analysis?.rejection_reason ||
+              (isTrap ? "机构高水诱盘陷阱" : "风控拦截严禁开仓"),
+          };
+        }
+
+        if (isQual && !isTrap && isActionable) {
+          return {
+            status: "BETTABLE" as const,
+            hasAi: true,
+            label: "可投注(AI终审)",
+            badgeClass: "bg-emerald-950/70 text-emerald-300 border-emerald-500/80 ring-1 ring-emerald-500/20",
+            reason: `${grade}级实战推荐 (${legs.length}项推荐腿)`,
+          };
+        }
+
+        // 其他已完成评估但未达开仓门槛（属于合规观望）
+        return {
+          status: "WAITING" as const,
+          hasAi: true,
+          label: "观望待定",
+          badgeClass: "bg-slate-800 text-slate-300 border-slate-700",
+          reason: "AI评估未达实战门禁",
+        };
+      }
+
+      // 未完成 AI 终审：考察 Layer 03 机器初筛
+      if (quant) {
+        if (
+          quant.context?.circuit_breaker?.is_triggered ||
+          quant.production_gate?.calculation_status === "BLOCKED"
+        ) {
+          return {
+            status: "BLOCKED" as const,
+            hasAi: false,
+            label: "机器熔断阻断",
+            badgeClass: "bg-rose-950/70 text-rose-300 border-rose-600/80 ring-1 ring-rose-500/20",
+            reason: quant.production_gate?.blockers?.join("; ") || "触发数据或风控熔断阻断",
+          };
+        }
+
+        const validEvSignals = Array.isArray(quant.positive_ev_signals)
+          ? quant.positive_ev_signals
+          : [];
+        if (validEvSignals.length > 0) {
+          const maxEv = Math.max(...validEvSignals.map((s) => s.ev));
+          return {
+            status: "BETTABLE" as const,
+            hasAi: false,
+            label: "可投注(初筛+EV)",
+            badgeClass: "bg-blue-950/60 text-blue-300 border-blue-500/60",
+            reason: `机器初筛 ${validEvSignals.length}项+EV (最高 +${(maxEv * 100).toFixed(1)}%)`,
+          };
+        }
+        return {
+          status: "WAITING" as const,
+          hasAi: false,
+          label: "观望待定",
+          badgeClass: "bg-slate-800 text-slate-400 border-slate-700",
+          reason: "全盘无正期望项",
+        };
+      }
+
+      return {
+        status: "WAITING" as const,
+        hasAi: false,
+        label: "待评估",
+        badgeClass: "bg-slate-800 text-slate-500 border-slate-700",
+        reason: "数据缺失",
+      };
+    },
+    [findAiEvaluationForMatch, quantFeaturesMap]
+  );
+
+  // 统计各风控决策分类下的比赛数量
+  const countsByDecision = useMemo(() => {
+    let bettable = 0;
+    let blocked = 0;
+    let waiting = 0;
+    let aiEvaluated = 0;
+
+    matches.forEach((m) => {
+      const dec = getMatchDecisionStatus(m);
+      if (dec.status === "BETTABLE") bettable++;
+      if (dec.status === "BLOCKED") blocked++;
+      if (dec.status === "WAITING") waiting++;
+      if (dec.hasAi) aiEvaluated++;
+    });
+
+    return {
+      all: matches.length,
+      bettable,
+      blocked,
+      waiting,
+      aiEvaluated,
+    };
+  }, [matches, getMatchDecisionStatus]);
+
   const filteredMatches = matches.filter((m) => {
     const matchesSearch =
       m.league_name.toLowerCase().includes(searchKeyword.toLowerCase()) ||
@@ -1391,7 +1660,19 @@ export const CanonicalMatchCenter: React.FC = () => {
     const matchesTier =
       tierFilter === "ALL" || m.completeness_tier === tierFilter;
 
-    return matchesSearch && matchesTier;
+    const dec = getMatchDecisionStatus(m);
+    let matchesDecision = true;
+    if (decisionFilter === "BETTABLE") {
+      matchesDecision = dec.status === "BETTABLE";
+    } else if (decisionFilter === "BLOCKED") {
+      matchesDecision = dec.status === "BLOCKED";
+    } else if (decisionFilter === "WAITING") {
+      matchesDecision = dec.status === "WAITING";
+    } else if (decisionFilter === "AI_EVALUATED") {
+      matchesDecision = dec.hasAi;
+    }
+
+    return matchesSearch && matchesTier && matchesDecision;
   });
 
   const getTierBadge = (tier: DataCompletenessTier) => {
@@ -1522,6 +1803,23 @@ export const CanonicalMatchCenter: React.FC = () => {
           >
             <Upload className="w-3.5 h-3.5" />
             <span>智能导入数据</span>
+          </button>
+
+          {/* 03 模型数据导出 / 复制中心按钮 */}
+          <button
+            id="btn-open-03-export-modal"
+            onClick={() => {
+              setShowDataExportModal(true);
+            }}
+            disabled={matches.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-700 hover:bg-blue-600 rounded-lg text-xs font-semibold text-white transition-colors border border-blue-500/60 shadow-xs disabled:opacity-50"
+            title="导出或复制 03 模型接收数据结构与计算后数据结构"
+          >
+            <FileCode className="w-3.5 h-3.5 text-blue-200" />
+            <span>03模型数据导出 / 复制</span>
+            <span className="px-1.5 py-0.2 rounded text-[10px] bg-blue-900/80 text-blue-200 border border-blue-400/40 font-mono">
+              {matches.length}场
+            </span>
           </button>
 
           {/* 导出大模型 Prompt 按钮 */}
@@ -1850,35 +2148,153 @@ export const CanonicalMatchCenter: React.FC = () => {
       </div>
 
       {/* 搜索与多维过滤条 */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            id="input-search-match"
-            type="text"
-            placeholder="搜索联赛名、YBTY队名、雷速队名..."
-            value={searchKeyword}
-            onChange={(e) => setSearchKeyword(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-200"
-          />
-        </div>
+      <div className="flex flex-col gap-3 bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 shadow-md">
+        {/* 第一行：决策状态与开仓风控核心筛选 (用户高频核心操作区) */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-800/80">
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto flex-wrap">
+            <span className="text-xs text-slate-400 font-semibold whitespace-nowrap flex items-center gap-1 mr-1">
+              <Filter className="w-3.5 h-3.5 text-blue-400" />
+              开仓风控筛选:
+            </span>
 
-        <div className="flex items-center gap-2 overflow-x-auto flex-wrap">
-          <span className="text-xs text-slate-400 whitespace-nowrap">完整度:</span>
-          {["ALL", DataCompletenessTier.TIER_1_FULL, DataCompletenessTier.TIER_2_BASIC, DataCompletenessTier.TIER_3_SPARSE, DataCompletenessTier.TIER_INVALID].map((tier) => (
+            {/* 全部 */}
             <button
-              key={tier}
-              id={`filter-${tier}`}
-              onClick={() => setTierFilter(tier)}
-              className={`text-xs px-2.5 py-1 rounded-md transition-all whitespace-nowrap ${
-                tierFilter === tier
-                  ? "bg-blue-600 text-white font-medium shadow-xs"
-                  : "bg-slate-950 text-slate-400 hover:bg-slate-800 border border-slate-800"
+              id="filter-decision-all"
+              onClick={() => setDecisionFilter('ALL')}
+              className={`text-xs px-3 py-1.5 rounded-lg transition-all font-semibold flex items-center gap-1.5 whitespace-nowrap ${
+                decisionFilter === 'ALL'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-slate-950 text-slate-400 hover:bg-slate-800 border border-slate-800'
               }`}
             >
-              {tier === "ALL" ? "全部" : tier.replace("TIER_", "")}
+              <span>全部赛事</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                decisionFilter === 'ALL' ? 'bg-blue-800 text-white' : 'bg-slate-800 text-slate-300'
+              }`}>
+                {countsByDecision.all}
+              </span>
             </button>
-          ))}
+
+            {/* 🎯 可投注 */}
+            <button
+              id="filter-decision-bettable"
+              onClick={() => setDecisionFilter('BETTABLE')}
+              className={`text-xs px-3 py-1.5 rounded-lg transition-all font-bold flex items-center gap-1.5 whitespace-nowrap border ${
+                decisionFilter === 'BETTABLE'
+                  ? 'bg-emerald-600 text-white border-emerald-400 shadow-sm ring-1 ring-emerald-400'
+                  : 'bg-emerald-950/40 text-emerald-300 hover:bg-emerald-950/70 border-emerald-700/60'
+              }`}
+              title="仅筛选 AI 终审推荐开仓或具备高正期望的可投注比赛"
+            >
+              <span>🎯 可投注</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                decisionFilter === 'BETTABLE' ? 'bg-emerald-800 text-white' : 'bg-emerald-900/80 text-emerald-200'
+              }`}>
+                {countsByDecision.bettable}
+              </span>
+            </button>
+
+            {/* 🚫 已阻断 */}
+            <button
+              id="filter-decision-blocked"
+              onClick={() => setDecisionFilter('BLOCKED')}
+              className={`text-xs px-3 py-1.5 rounded-lg transition-all font-bold flex items-center gap-1.5 whitespace-nowrap border ${
+                decisionFilter === 'BLOCKED'
+                  ? 'bg-rose-600 text-white border-rose-400 shadow-sm ring-1 ring-rose-400'
+                  : 'bg-rose-950/40 text-rose-300 hover:bg-rose-950/70 border-rose-700/60'
+              }`}
+              title="仅筛选被 AI 排雷阻断、机构高水诱盘陷阱或风控拦截的比赛"
+            >
+              <span>🚫 已阻断 (排雷/诱盘)</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                decisionFilter === 'BLOCKED' ? 'bg-rose-800 text-white' : 'bg-rose-900/80 text-rose-200'
+              }`}>
+                {countsByDecision.blocked}
+              </span>
+            </button>
+
+            {/* ⚠️ 观望待定 */}
+            <button
+              id="filter-decision-waiting"
+              onClick={() => setDecisionFilter('WAITING')}
+              className={`text-xs px-3 py-1.5 rounded-lg transition-all font-medium flex items-center gap-1.5 whitespace-nowrap ${
+                decisionFilter === 'WAITING'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'bg-slate-950 text-slate-400 hover:bg-slate-800 border border-slate-800'
+              }`}
+              title="全盘无正期望项或未达实战开仓门禁"
+            >
+              <span>⚠️ 观望待定</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                decisionFilter === 'WAITING' ? 'bg-amber-800 text-white' : 'bg-slate-800 text-slate-400'
+              }`}>
+                {countsByDecision.waiting}
+              </span>
+            </button>
+
+            {/* 🤖 已AI终审 */}
+            <button
+              id="filter-decision-ai-evaluated"
+              onClick={() => setDecisionFilter('AI_EVALUATED')}
+              className={`text-xs px-3 py-1.5 rounded-lg transition-all font-medium flex items-center gap-1.5 whitespace-nowrap border ${
+                decisionFilter === 'AI_EVALUATED'
+                  ? 'bg-indigo-600 text-white border-indigo-400 shadow-xs'
+                  : 'bg-indigo-950/30 text-indigo-300 hover:bg-indigo-950/60 border-indigo-800/60'
+              }`}
+              title="仅筛选已完成并导入 AI 终审报告的比赛"
+            >
+              <Sparkles className="w-3 h-3 text-amber-300" />
+              <span>已AI终审</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                decisionFilter === 'AI_EVALUATED' ? 'bg-indigo-800 text-white' : 'bg-indigo-900/60 text-indigo-300'
+              }`}>
+                {countsByDecision.aiEvaluated}
+              </span>
+            </button>
+          </div>
+
+          {/* 活跃过滤指示与清除按钮 */}
+          {decisionFilter !== 'ALL' && (
+            <button
+              onClick={() => setDecisionFilter('ALL')}
+              className="text-xs text-slate-400 hover:text-blue-400 underline whitespace-nowrap"
+            >
+              清除风控筛选
+            </button>
+          )}
+        </div>
+
+        {/* 第二行：关键字搜索与数据完整度辅助过滤 */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              id="input-search-match"
+              type="text"
+              placeholder="搜索联赛名、YBTY队名、雷速队名..."
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-200"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 overflow-x-auto flex-wrap">
+            <span className="text-xs text-slate-400 whitespace-nowrap">完整度:</span>
+            {["ALL", DataCompletenessTier.TIER_1_FULL, DataCompletenessTier.TIER_2_BASIC, DataCompletenessTier.TIER_3_SPARSE, DataCompletenessTier.TIER_INVALID].map((tier) => (
+              <button
+                key={tier}
+                id={`filter-${tier}`}
+                onClick={() => setTierFilter(tier)}
+                className={`text-xs px-2.5 py-1 rounded-md transition-all whitespace-nowrap ${
+                  tierFilter === tier
+                    ? "bg-blue-600 text-white font-medium shadow-xs"
+                    : "bg-slate-950 text-slate-400 hover:bg-slate-800 border border-slate-800"
+                }`}
+              >
+                {tier === "ALL" ? "全部" : tier.replace("TIER_", "")}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1893,18 +2309,51 @@ export const CanonicalMatchCenter: React.FC = () => {
           {error}
         </div>
       ) : filteredMatches.length === 0 ? (
-        <div className="p-12 text-center bg-slate-900 rounded-xl border border-slate-800 space-y-3">
+        <div className="p-12 text-center bg-slate-900 rounded-xl border border-slate-800 space-y-4">
           <Database className="w-8 h-8 text-slate-600 mx-auto opacity-50" />
-          <p className="text-sm text-slate-400">未找到匹配的标准赛事数据</p>
-          <button
-            onClick={() => {
-              setShowImportModal(true);
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            立即导入数据文件
-          </button>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-slate-300">
+              {decisionFilter !== "ALL" || tierFilter !== "ALL" || searchKeyword
+                ? `未找到符合当前筛选条件的赛事`
+                : "未找到匹配的标准赛事数据"}
+            </p>
+            <p className="text-xs text-slate-400">
+              {decisionFilter === "BETTABLE"
+                ? "当前无【🎯 可投注】场次（未检出实战推荐项或正期望项）"
+                : decisionFilter === "BLOCKED"
+                ? "当前无【🚫 已阻断】场次（未检出排雷诱盘或风控拦截项）"
+                : decisionFilter === "WAITING"
+                ? "当前无【⚠️ 观望待定】场次"
+                : decisionFilter === "AI_EVALUATED"
+                ? "尚未导入任何赛事的 AI 终审报告，请在上方点击【批量导出 AI 提示词】并导入评估"
+                : "您可以重置筛选条件，或导入新的赛事数据文件。"}
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3 pt-2 flex-wrap">
+            {(decisionFilter !== "ALL" || tierFilter !== "ALL" || searchKeyword) && (
+              <button
+                id="btn-reset-filters"
+                onClick={() => {
+                  setDecisionFilter("ALL");
+                  setTierFilter("ALL");
+                  setSearchKeyword("");
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition-colors border border-slate-700"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                重置所有筛选并查看全部 ({matches.length})
+              </button>
+            )}
+            <button
+              onClick={() => {
+                setShowImportModal(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              立即导入数据文件
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -2008,6 +2457,32 @@ export const CanonicalMatchCenter: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
+                    {/* 核心风控与决策状态胶囊 */}
+                    {(() => {
+                      const dec = getMatchDecisionStatus(m);
+                      return (
+                        <button
+                          id={`btn-match-decision-badge-${idx}`}
+                          onClick={() => {
+                            const hasAi = !!findAiEvaluationForMatch(m);
+                            setExpandedMatchId(expandedMatchId === m.canonical_id ? null : m.canonical_id);
+                            setActiveTabByMatch((prev) => ({ ...prev, [m.canonical_id]: hasAi ? "ai" : "quant" }));
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border transition-all shadow-xs ${dec.badgeClass} hover:opacity-90`}
+                          title={`风控与开仓状态: ${dec.label} (${dec.reason}) - 点击展开详情`}
+                        >
+                          {dec.status === "BETTABLE" ? (
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-300" />
+                          ) : dec.status === "BLOCKED" ? (
+                            <AlertTriangle className="w-3.5 h-3.5 text-rose-300" />
+                          ) : (
+                            <Clock className="w-3.5 h-3.5 text-slate-400" />
+                          )}
+                          <span>{dec.label}</span>
+                        </button>
+                      );
+                    })()}
+
                     {/* 03 机器量化初筛定级徽章入口 */}
                     <button
                       id={`btn-open-quant-header-${idx}`}
@@ -2129,6 +2604,8 @@ export const CanonicalMatchCenter: React.FC = () => {
                       if (aiEval) {
                         const grade = String(aiEval.grade || aiEval.grade_raw || '').toUpperCase();
                         const isQual = grade.startsWith('A') || grade.startsWith('B');
+                        const isWatch = grade.includes('WATCH');
+                        const isTrapOrRejected = grade.includes('REJECT') || grade.includes('TRAP') || grade.includes('F');
                         return (
                           <div className="flex items-center gap-1">
                             <button
@@ -2139,9 +2616,15 @@ export const CanonicalMatchCenter: React.FC = () => {
                               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${
                                 grade.startsWith('A')
                                   ? 'bg-emerald-950/70 text-emerald-300 border-emerald-700'
-                                  : 'bg-blue-950/70 text-blue-300 border-blue-700'
+                                  : grade.startsWith('B')
+                                  ? 'bg-blue-950/70 text-blue-300 border-blue-700'
+                                  : isWatch
+                                  ? 'bg-amber-950/70 text-amber-300 border-amber-600'
+                                  : isTrapOrRejected
+                                  ? 'bg-rose-950/70 text-rose-300 border-rose-700'
+                                  : 'bg-slate-900 text-slate-300 border-slate-700'
                               }`}
-                              title="点击展开查看 AI 详细评估与推荐腿"
+                              title="点击展开查看 AI 详细评估与盘口实战决策"
                             >
                               <Sparkles className="w-3.5 h-3.5" />
                               <span>AI:{aiEval.grade} ({aiEval.confidence_score ?? '-'}分)</span>
@@ -2670,12 +3153,19 @@ export const CanonicalMatchCenter: React.FC = () => {
 
                 {/* 机器量化评估与下注决策矩阵 (全场核心玩法常驻面板) */}
                 <div className="pt-2">
-                  {!quantError && quant && <QuantBettingDecisionMatrix match={m} quant={quant} showHeader={false} />}
+                  {!quantError && quant && (
+                    <QuantBettingDecisionMatrix
+                      match={m}
+                      quant={quant}
+                      aiEval={findAiEvaluationForMatch(m)}
+                      showHeader={false}
+                    />
+                  )}
                 </div>
 
                 {/* 操作栏与明细展开入口 */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs text-slate-400 font-mono flex items-center gap-1.5">
                       <Zap className="w-3.5 h-3.5 text-amber-400" />
                       模型置信度: <strong className="text-emerald-400">{quant ? quant.confidence_score : 'N/A'}分</strong>
@@ -2687,10 +3177,71 @@ export const CanonicalMatchCenter: React.FC = () => {
                         <span className="text-slate-500 text-[10px]">{quant ? '无+EV' : (isAlignmentPending ? '待核验对齐' : '门禁拦截')}</span>
                       )}
                     </span>
+
+                    {/* AI 终审裁决常驻状态胶囊（无需展开即可直接掌握 AI 终审） */}
+                    {(() => {
+                      const cardAi = findAiEvaluationForMatch(m);
+                      if (!cardAi) return null;
+                      const grade = String(cardAi.grade || cardAi.grade_raw || '').toUpperCase();
+                      const isQual = grade.startsWith('A') || grade.startsWith('B');
+                      const isTrap = cardAi.blind_spot_analysis?.trap_detection_result === 'CONFIRMED_TRAP' ||
+                                     cardAi.trap_detection_result === 'CONFIRMED_TRAP' ||
+                                     cardAi.market_scan?.rejection_reason?.includes('TRAP');
+                      return (
+                        <span className={`px-2 py-0.5 rounded text-[11px] font-bold flex items-center gap-1 border shadow-xs ${
+                          isTrap
+                            ? 'bg-rose-950/70 text-rose-300 border-rose-600/80 ring-1 ring-rose-500/20'
+                            : isQual
+                            ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/80 ring-1 ring-emerald-500/20'
+                            : 'bg-slate-800 text-slate-300 border-slate-700'
+                        }`}>
+                          <Sparkles className="w-3 h-3 text-amber-300" />
+                          AI终审: {grade}级 ({cardAi.confidence_score ?? cardAi.conf ?? '-'}分)
+                          {isTrap ? ' · 🚫排雷阻断(严禁开仓)' : isQual ? ' · 🎯实战准入' : ' · ⚠️仅供参考'}
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   {/* 右侧查看与展开操作按钮 */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* 快捷查看 AI 终审评估与实战台账 (一键展开直达，无需多层翻找) */}
+                    {(() => {
+                      const cardAi = findAiEvaluationForMatch(m);
+                      if (!cardAi) return null;
+                      const isCurrentlyAiTab = expandedMatchId === m.canonical_id && (activeTabByMatch[m.canonical_id] === "ai");
+                      return (
+                        <button
+                          id={`btn-view-ai-eval-${idx}`}
+                          onClick={() => {
+                            const isExpanding = !isCurrentlyAiTab;
+                            setExpandedMatchId(isExpanding ? m.canonical_id : null);
+                            setActiveTabByMatch((prev) => ({ ...prev, [m.canonical_id]: "ai" }));
+                            if (isExpanding) {
+                              setTimeout(() => {
+                                const el = document.getElementById(`match-card-${idx}`);
+                                if (el) {
+                                  el.scrollIntoView({ behavior: "smooth", block: "start" });
+                                }
+                              }, 60);
+                            }
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg transition-all border shadow-sm ${
+                            isCurrentlyAiTab
+                              ? "bg-indigo-600 text-white border-indigo-400 shadow-inner ring-1 ring-indigo-300"
+                              : "bg-indigo-950/70 hover:bg-indigo-900 text-indigo-200 border-indigo-600/80"
+                          }`}
+                          title="一键直达本场 AI 终审报告与推荐台账"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                          <span>AI 终审报告</span>
+                          <span className="px-1.5 py-0.2 rounded text-[10px] bg-indigo-500 text-white font-extrabold">
+                            {cardAi.grade || cardAi.grade_raw || 'B'}级
+                          </span>
+                        </button>
+                      );
+                    })()}
+
                     {/* 快捷查看 03 机器量化评估与最优投注 */}
                     <button
                       id={`btn-view-quant-${idx}`}
@@ -2730,7 +3281,9 @@ export const CanonicalMatchCenter: React.FC = () => {
                         const isExpanding = expandedMatchId !== m.canonical_id;
                         setExpandedMatchId(isExpanding ? m.canonical_id : null);
                         if (isExpanding && !activeTabByMatch[m.canonical_id]) {
-                          setActiveTabByMatch((prev) => ({ ...prev, [m.canonical_id]: "quant" }));
+                          // 如果存在 AI 终审报告，默认打开 AI 评估与台账 Tab，否则打开 quant Tab
+                          const hasAi = !!findAiEvaluationForMatch(m);
+                          setActiveTabByMatch((prev) => ({ ...prev, [m.canonical_id]: hasAi ? "ai" : "quant" }));
                         }
                         if (isExpanding) {
                           setTimeout(() => {
@@ -2834,7 +3387,7 @@ export const CanonicalMatchCenter: React.FC = () => {
                           </p>
                         </div>
                       ) : (
-                        <MachineQuantEvaluationPanel match={m} quant={quant} />
+                        <MachineQuantEvaluationPanel match={m} quant={quant} aiEval={findAiEvaluationForMatch(m)} />
                       )
                     )}
 
@@ -2935,7 +3488,7 @@ export const CanonicalMatchCenter: React.FC = () => {
                           </div>
 
                           {/* 推荐投注腿明细 */}
-                          {aiEval.recommended_legs && aiEval.recommended_legs.length > 0 && (
+                          {aiEval.recommended_legs && aiEval.recommended_legs.length > 0 ? (
                             <div className="space-y-2">
                               <div className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                                 <Target className="w-3.5 h-3.5 text-blue-400" />
@@ -2954,6 +3507,25 @@ export const CanonicalMatchCenter: React.FC = () => {
                                     </div>
                                   </div>
                                 ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-3 bg-slate-900/50 rounded-lg border border-amber-500/30 flex items-start gap-2.5 text-xs text-amber-300">
+                              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                              <div className="space-y-1">
+                                <div className="font-bold flex items-center gap-2">
+                                  <span>AI 审核结论：无合法推荐投注腿 (No Recommended Legs)</span>
+                                  {aiEval.blind_spot_analysis?.trap_detection_result === "CONFIRMED_TRAP" && (
+                                    <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/40 px-1.5 py-0.5 rounded">
+                                      陷阱诱盘已阻断 (CONFIRMED_TRAP)
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-slate-400">
+                                  {aiEval.grade === "WATCH" || aiEval.grade === "RESEARCH"
+                                    ? "本场比赛经 AI 盲区审计与赔率价值校验，未达 A/B 级正式出击门槛（可能由于盘口缺失五态结算分布、诱盘防范或安全边际不足），本场仅列入观望，不发起任何真实投注。"
+                                    : "经 AI 实战风控模型核验，本场全部备选盘口均被熔断或排除，严禁下注。"}
+                                </p>
                               </div>
                             </div>
                           )}

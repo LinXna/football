@@ -6,6 +6,11 @@ import {
   Activity,
   Clock,
   Sparkles,
+  AlertTriangle,
+  Ban,
+  CheckCircle2,
+  ShieldAlert,
+  ShieldCheck,
 } from "lucide-react";
 import { CanonicalMatch, MatchStage } from "../../refactor/02_canonical_model";
 import {
@@ -22,6 +27,7 @@ import { formatAsianLine } from "../lib/quarterSettlement";
 export interface QuantBettingDecisionMatrixProps {
   match: CanonicalMatch;
   quant: QuantitativeFeatures;
+  aiEval?: any;
   showHeader?: boolean;
 }
 
@@ -155,9 +161,190 @@ export function formatSpreadSideInfo(
 export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProps> = ({
   match,
   quant,
+  aiEval,
   showHeader = true,
 }) => {
   const decision = getQuantScreeningDecision(quant);
+
+  // -------------------------------------------------------------------------
+  // Layer 04: AI 裁决与终审信号穿透解析 (AI Direct Market Overlay)
+  // -------------------------------------------------------------------------
+  const aiInsight = useMemo(() => {
+    if (!aiEval) return null;
+    const grade = String(aiEval.grade || aiEval.grade_raw || '').toUpperCase();
+    const isQual = (grade.startsWith('A') || grade.startsWith('B')) && !grade.startsWith('WATCH');
+    const isWatch = grade.startsWith('WATCH') || grade.includes('WATCH');
+    const conf = aiEval.confidence_score ?? null;
+    const trap = aiEval.blind_spot_analysis?.trap_detection_result || aiEval.trap_detection_result;
+    const regime = aiEval.blind_spot_analysis?.tactical_regime_evaluation || aiEval.tactical_regime_evaluation;
+
+    // 提取推荐腿
+    const legs: any[] = Array.isArray(aiEval.recommended_legs) ? aiEval.recommended_legs : [];
+
+    // 提取盘口扫描与排除清单
+    const scan = aiEval.market_scan || null;
+    const rawExclusions: string[] = Array.isArray(scan?.exclusion_reasons)
+      ? scan.exclusion_reasons
+      : Array.isArray(aiEval.exclusion_reasons)
+      ? aiEval.exclusion_reasons
+      : [];
+
+    const isGlobalTrapOrGated = Boolean(
+      trap === 'CONFIRMED_TRAP' ||
+      String(aiEval.blind_spot_analysis?.actionable_gate || '').includes('GATED') ||
+      String(aiEval.actionable_gate || '').includes('GATED')
+    );
+
+    // 1. 让球盘 (Full Spread)
+    const spreadLeg = legs.find((l) => {
+      const mStr = String(l.market || '').toUpperCase();
+      return (mStr.includes('SPREAD') || mStr.includes('HANDICAP') || mStr.includes('让球') || mStr.includes('AH')) && !mStr.includes('HALF') && !mStr.includes('半场');
+    });
+
+    const spreadExclusion = rawExclusions.find(r => r.includes('让球') || r.includes('盘口') || r.includes('AH') || r.includes('让') || r.includes('-') || r.includes('+'));
+    const isSpreadBlocked = Boolean(
+      !spreadLeg && (
+        scan?.ah_actionable === false ||
+        spreadExclusion ||
+        isGlobalTrapOrGated ||
+        isWatch ||
+        (scan && (scan.actionable === false || scan.market_status === 'VALID_BUT_BLOCKED' || scan.market_status === 'INVALID_STRUCTURE'))
+      )
+    );
+
+    let spreadInsight: {
+      status: 'RECOMMENDED' | 'BLOCKED' | 'NONE';
+      direction?: 'home' | 'away';
+      line?: string;
+      odds?: number;
+      label?: string;
+      reason?: string;
+    } = { status: 'NONE' };
+
+    if (spreadLeg) {
+      const dirStr = String(spreadLeg.direction || '').toUpperCase();
+      const isHome = dirStr.includes('HOME') || dirStr.includes('主') || (match.home_team_name && dirStr.includes(match.home_team_name));
+      spreadInsight = {
+        status: 'RECOMMENDED',
+        direction: isHome ? 'home' : 'away',
+        line: spreadLeg.line || spreadLeg.selected_line,
+        odds: spreadLeg.odds || spreadLeg.current_odds,
+        label: spreadLeg.direction || (isHome ? '主队' : '客队'),
+        reason: spreadLeg.reason || 'AI 终审推荐投注',
+      };
+    } else if (isSpreadBlocked) {
+      spreadInsight = {
+        status: 'BLOCKED',
+        label: match.home_team_name ? '主/客盘口' : '让球盘',
+        reason: spreadExclusion || (trap === 'CONFIRMED_TRAP' ? '机构高水诱盘陷阱阻断' : 'AI风控门禁未达开仓标准'),
+      };
+    }
+
+    // 2. 大小球盘 (Full Total)
+    const totalLeg = legs.find((l) => {
+      const mStr = String(l.market || '').toUpperCase();
+      return (mStr.includes('TOTAL') || mStr.includes('OVER_UNDER') || mStr.includes('大小') || mStr.includes('OU')) && !mStr.includes('HALF') && !mStr.includes('半场');
+    });
+
+    const totalExclusion = rawExclusions.find(r => r.includes('大小') || r.includes('进球') || r.includes('OU') || r.includes('大球') || r.includes('小球'));
+    const isTotalBlocked = Boolean(
+      !totalLeg && (
+        scan?.ou_actionable === false ||
+        totalExclusion ||
+        isGlobalTrapOrGated ||
+        isWatch ||
+        (scan && (scan.actionable === false || scan.market_status === 'VALID_BUT_BLOCKED' || scan.market_status === 'INVALID_STRUCTURE'))
+      )
+    );
+
+    let totalInsight: {
+      status: 'RECOMMENDED' | 'BLOCKED' | 'NONE';
+      direction?: 'over' | 'under';
+      line?: string;
+      odds?: number;
+      label?: string;
+      reason?: string;
+    } = { status: 'NONE' };
+
+    if (totalLeg) {
+      const dirStr = String(totalLeg.direction || '').toUpperCase();
+      const isOver = dirStr.includes('OVER') || dirStr.includes('大');
+      totalInsight = {
+        status: 'RECOMMENDED',
+        direction: isOver ? 'over' : 'under',
+        line: totalLeg.line || totalLeg.selected_line,
+        odds: totalLeg.odds || totalLeg.current_odds,
+        label: isOver ? '大球' : '小球',
+        reason: totalLeg.reason || 'AI 终审推荐投注',
+      };
+    } else if (isTotalBlocked) {
+      totalInsight = {
+        status: 'BLOCKED',
+        label: '大小球盘',
+        reason: totalExclusion || (trap === 'CONFIRMED_TRAP' ? '机构诱盘阻断/防守反击锁死' : '进球期望未达安全边际'),
+      };
+    }
+
+    // 3. 独赢盘 (1X2 / H2H)
+    const h2hLeg = legs.find((l) => {
+      const mStr = String(l.market || '').toUpperCase();
+      return (mStr.includes('1X2') || mStr.includes('H2H') || mStr.includes('MONEYLINE') || mStr.includes('独赢') || mStr.includes('胜平负')) && !mStr.includes('HALF') && !mStr.includes('半场');
+    });
+
+    const h2hExclusion = rawExclusions.find(r => r.includes('独赢') || r.includes('1X2') || r.includes('主胜') || r.includes('客胜') || r.includes('平局') || r.includes('缓冲'));
+    const isH2hBlocked = Boolean(
+      !h2hLeg && (
+        scan?.h2h_actionable === false ||
+        h2hExclusion ||
+        isGlobalTrapOrGated ||
+        isWatch ||
+        (scan && (scan.actionable === false || scan.market_status === 'VALID_BUT_BLOCKED' || scan.market_status === 'INVALID_STRUCTURE'))
+      )
+    );
+
+    let h2hInsight: {
+      status: 'RECOMMENDED' | 'BLOCKED' | 'NONE';
+      direction?: 'home' | 'draw' | 'away';
+      odds?: number;
+      label?: string;
+      reason?: string;
+    } = { status: 'NONE' };
+
+    if (h2hLeg) {
+      const dirStr = String(h2hLeg.direction || '').toUpperCase();
+      const isHome = dirStr.includes('HOME') || dirStr.includes('主');
+      const isDraw = dirStr.includes('DRAW') || dirStr.includes('平');
+      h2hInsight = {
+        status: 'RECOMMENDED',
+        direction: isHome ? 'home' : isDraw ? 'draw' : 'away',
+        odds: h2hLeg.odds || h2hLeg.current_odds,
+        label: isHome ? '主胜' : isDraw ? '平局' : '客胜',
+        reason: h2hLeg.reason || 'AI 终审推荐投注',
+      };
+    } else if (isH2hBlocked) {
+      h2hInsight = {
+        status: 'BLOCKED',
+        label: '独赢盘 (1X2)',
+        reason: h2hExclusion || '缺乏穿盘防守缓冲，价值不足',
+      };
+    }
+
+    return {
+      grade,
+      conf,
+      isQual,
+      isWatch,
+      trap,
+      regime,
+      hasActionableLegs: legs.length > 0,
+      legsCount: legs.length,
+      spreadInsight,
+      totalInsight,
+      h2hInsight,
+      scan,
+      qualitativeSummary: aiEval.qualitative_summary || aiEval.analysis,
+    };
+  }, [aiEval, match.home_team_name, match.away_team_name]);
 
   // 格式化 BDI 显示
   const bdi = quant.battlefield_dominance_index;
@@ -590,6 +777,19 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       return null;
     }
 
+    // 严禁双轨制与两张皮：当存在 AI 终审时，AI 具有最高裁决权！
+    if (aiInsight) {
+      // 若 AI 终审判定为诱盘 (CONFIRMED_TRAP)、门禁阻断、或未批准任何推荐腿，则全局严禁产生任何“最佳推荐”！
+      if (!aiInsight.hasActionableLegs || aiInsight.trap === "CONFIRMED_TRAP" || !aiInsight.isQual) {
+        return null;
+      }
+      // AI 终审明确推荐了对应盘口，则优先高亮 AI 推荐项
+      if (aiInsight.spreadInsight.status === "RECOMMENDED") return "FULL_SPREAD";
+      if (aiInsight.totalInsight.status === "RECOMMENDED") return "FULL_TOTAL";
+      if (aiInsight.h2hInsight.status === "RECOMMENDED") return "FULL_H2H";
+      return null;
+    }
+
     type Candidate = {
       key: "FULL_SPREAD" | "FULL_TOTAL" | "FULL_H2H";
       ev: number;
@@ -627,7 +827,7 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
 
     candidates.sort((a, b) => b.scoreWeight - a.scoreWeight);
     return candidates[0].key;
-  }, [quant, bestSpreadSignal, bestTotalSignal, h2hSignal]);
+  }, [quant, aiInsight, bestSpreadSignal, bestTotalSignal, h2hSignal]);
 
   const isLiveMatch = match.timing.stage === MatchStage.LIVE;
 
@@ -668,6 +868,74 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
       )}
 
       {/* ========================================================================= */}
+      {/* 核心透传：AI 终审实战总指挥看板 (Layer 04 AI Market Direct Overlay)         */}
+      {/* ========================================================================= */}
+      {aiInsight && (
+        <div
+          className={`p-3 rounded-xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-3 ${
+            aiInsight.isQual && aiInsight.hasActionableLegs
+              ? "bg-emerald-950/40 border-emerald-500/80 text-emerald-200 shadow-md shadow-emerald-950/30 ring-1 ring-emerald-500/30"
+              : "bg-amber-950/30 border-amber-500/60 text-amber-200 shadow-md shadow-amber-950/20"
+          }`}
+        >
+          <div className="flex items-start gap-2.5">
+            {aiInsight.isQual && aiInsight.hasActionableLegs ? (
+              <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+            ) : (
+              <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            )}
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-black tracking-wider ${
+                    aiInsight.isQual
+                      ? "bg-emerald-500 text-slate-950"
+                      : "bg-amber-500/20 text-amber-300 border border-amber-500/50"
+                  }`}
+                >
+                  AI 终审: {aiInsight.grade} ({aiInsight.conf ?? "-"}分)
+                </span>
+                <span className="text-xs font-bold text-slate-100">
+                  {aiInsight.isQual && aiInsight.hasActionableLegs
+                    ? `【实战推荐开仓】已检出 ${aiInsight.legsCount} 项终审推荐投注，见下方盘口高亮`
+                    : `【实战门禁排雷阻断】本场触发风控门禁，全盘禁止下注开仓 (坚决观望)`}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                {aiInsight.isQual && aiInsight.hasActionableLegs
+                  ? `AI 研判模型已完成基本面、动机与时序交叉审计，下方盘口已直接高亮标出推荐下注项与对应赔率。`
+                  : `排雷阻断明细: ${
+                      aiInsight.trap === "CONFIRMED_TRAP"
+                        ? "庄家诱盘陷阱 (CONFIRMED_TRAP) · "
+                        : ""
+                    }${
+                      aiInsight.regime === "BARREN_DOMINANCE"
+                        ? "客队虚假繁荣/无效压迫 (BARREN_DOMINANCE) · "
+                        : ""
+                    }${
+                      aiInsight.spreadInsight.status === "BLOCKED"
+                        ? `全场让球 ${aiInsight.spreadInsight.label} ${aiInsight.spreadInsight.line || ""} 已被 AI 强行阻断 (${aiInsight.spreadInsight.reason}) · `
+                        : ""
+                    }即便机器层存在正期望计算，实盘亦严禁盲目开仓！`}
+              </p>
+            </div>
+          </div>
+
+          <div className="shrink-0 flex items-center gap-2 text-[11px] font-mono">
+            {aiInsight.isQual && aiInsight.hasActionableLegs ? (
+              <span className="px-2.5 py-1 rounded-md bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 font-bold flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> 推荐就绪
+              </span>
+            ) : (
+              <span className="px-2.5 py-1 rounded-md bg-amber-500/20 border border-amber-500/50 text-amber-300 font-bold flex items-center gap-1">
+                <Ban className="w-3.5 h-3.5" /> 观望省本金
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* 2行 x 3项 核心盘口与下注决策网格 (2 Rows x 3 Items Matrix)                  */}
       {/* ========================================================================= */}
       <div className="space-y-3">
@@ -678,7 +946,9 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
           {/* 1.1 全场独赢 (Full-Time 1X2) */}
           <div
             className={`rounded-xl p-3 flex flex-col justify-between transition-all duration-200 ${
-              bestBetMarket === "FULL_H2H"
+              aiInsight?.h2hInsight.status === "RECOMMENDED"
+                ? "bg-gradient-to-b from-emerald-950/70 via-slate-900 to-slate-950 border-2 border-emerald-400/90 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/30"
+                : bestBetMarket === "FULL_H2H"
                 ? "bg-gradient-to-b from-emerald-950/70 via-slate-900 to-slate-950 border-2 border-emerald-400/90 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/30"
                 : "bg-slate-900/90 border border-slate-800"
             }`}
@@ -689,15 +959,26 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                   <Percent className="w-3.5 h-3.5" />
                   全场独赢 (1X2)
                 </span>
-                {bestBetMarket === "FULL_H2H" ? (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-400 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-emerald-400" />
-                    ⭐ 最佳投注
+                {aiInsight?.h2hInsight.status === "RECOMMENDED" ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500 text-slate-950 flex items-center gap-1 shadow-xs">
+                    <Sparkles className="w-3 h-3 text-slate-950" />
+                    🎯 AI终审推荐: {aiInsight.h2hInsight.label}
+                  </span>
+                ) : aiInsight?.h2hInsight.status === "BLOCKED" ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-rose-500/20 text-rose-300 border border-rose-500/50 flex items-center gap-1 shadow-xs" title={aiInsight.h2hInsight.reason}>
+                    <Ban className="w-3 h-3 text-rose-400" />
+                    🚫 AI排除
+                  </span>
+                ) : aiInsight ? (
+                  <span className="text-[10px] text-slate-500 font-mono">AI观望</span>
+                ) : bestBetMarket === "FULL_H2H" ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-500/20 text-blue-300 border border-blue-400 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-blue-400" />
+                    ⚡ 机器最高EV
                   </span>
                 ) : fullH2hEval?.isPositiveEv ? (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-emerald-400" />
-                    ★ 推荐投注
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/60 flex items-center gap-1">
+                    ⚡ 机器初筛(+EV)
                   </span>
                 ) : (
                   <span className="text-[10px] text-slate-500 font-mono">Shin去水</span>
@@ -707,112 +988,144 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
               {fullH2hMarket && h2hMain ? (
                 <div className="space-y-2 font-mono text-xs">
                   {/* 3 栏赔率与公允概率及三向独立 EV */}
-                  <div className="grid grid-cols-3 gap-1.5 text-center">
-                    <div
-                      className={`p-1.5 rounded border relative flex flex-col justify-between ${
-                        fullH2hEval?.isHomeRecommended
-                          ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
-                          : "bg-slate-950/80 border-slate-800 text-slate-300"
-                      }`}
-                    >
-                      <div>
-                        <div className="text-[10px] text-slate-400 truncate">主胜</div>
-                        <div className="text-xs font-bold text-slate-200">@{fullH2hMarket.home_odds}</div>
-                        <div className="text-[10px] text-blue-400">
-                          胜率 {((fullH2hEval?.modelProbs?.[0] ?? h2hMain.fair_probabilities[0]) * 100).toFixed(1)}%
-                        </div>
-                        <div
-                          className={`text-[10px] font-mono ${
-                            fullH2hEval && fullH2hEval.homeEv > 0
-                              ? "text-emerald-400 font-bold"
-                              : "text-slate-500"
-                          }`}
-                        >
-                          EV{" "}
-                          {fullH2hEval && fullH2hEval.homeEv > 0
-                            ? `+${(fullH2hEval.homeEv * 100).toFixed(1)}%`
-                            : `${((fullH2hEval?.homeEv ?? 0) * 100).toFixed(1)}%`}
-                        </div>
-                      </div>
-                      {fullH2hEval?.isHomeRecommended && (
-                        <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
-                          <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
-                            推荐
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                  {(() => {
+                    const isAiHomeRec = aiInsight?.h2hInsight.status === "RECOMMENDED" && aiInsight.h2hInsight.direction === "home";
+                    const isAiDrawRec = aiInsight?.h2hInsight.status === "RECOMMENDED" && aiInsight.h2hInsight.direction === "draw";
+                    const isAiAwayRec = aiInsight?.h2hInsight.status === "RECOMMENDED" && aiInsight.h2hInsight.direction === "away";
 
-                    <div
-                      className={`p-1.5 rounded border relative flex flex-col justify-between ${
-                        fullH2hEval?.isDrawRecommended
-                          ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
-                          : "bg-slate-950/80 border-slate-800 text-slate-300"
-                      }`}
-                    >
-                      <div>
-                        <div className="text-[10px] text-slate-400 truncate">平局</div>
-                        <div className="text-xs font-bold text-slate-200">@{fullH2hMarket.draw_odds}</div>
-                        <div className="text-[10px] text-amber-400">
-                          胜率 {((fullH2hEval?.modelProbs?.[1] ?? h2hMain.fair_probabilities[1]) * 100).toFixed(1)}%
-                        </div>
+                    return (
+                      <div className="grid grid-cols-3 gap-1.5 text-center">
                         <div
-                          className={`text-[10px] font-mono ${
-                            fullH2hEval && fullH2hEval.drawEv > 0
-                              ? "text-emerald-400 font-bold"
-                              : "text-slate-500"
+                          className={`p-1.5 rounded border relative flex flex-col justify-between ${
+                            isAiHomeRec
+                              ? "bg-emerald-950/80 border-emerald-400 text-emerald-300 font-bold shadow-sm ring-2 ring-emerald-500/50"
+                              : fullH2hEval?.isHomeRecommended
+                              ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
+                              : "bg-slate-950/80 border-slate-800 text-slate-300"
                           }`}
                         >
-                          EV{" "}
-                          {fullH2hEval && fullH2hEval.drawEv > 0
-                            ? `+${(fullH2hEval.drawEv * 100).toFixed(1)}%`
-                            : `${((fullH2hEval?.drawEv ?? 0) * 100).toFixed(1)}%`}
+                          <div>
+                            <div className="text-[10px] text-slate-400 truncate">主胜</div>
+                            <div className="text-xs font-bold text-slate-200">@{fullH2hMarket.home_odds}</div>
+                            <div className="text-[10px] text-blue-400">
+                              胜率 {((fullH2hEval?.modelProbs?.[0] ?? h2hMain.fair_probabilities[0]) * 100).toFixed(1)}%
+                            </div>
+                            <div
+                              className={`text-[10px] font-mono ${
+                                fullH2hEval && fullH2hEval.homeEv > 0
+                                  ? "text-emerald-400 font-bold"
+                                  : "text-slate-500"
+                              }`}
+                            >
+                              EV{" "}
+                              {fullH2hEval && fullH2hEval.homeEv > 0
+                                ? `+${(fullH2hEval.homeEv * 100).toFixed(1)}%`
+                                : `${((fullH2hEval?.homeEv ?? 0) * 100).toFixed(1)}%`}
+                            </div>
+                          </div>
+                          {isAiHomeRec ? (
+                            <div className="mt-1 pt-0.5 border-t border-emerald-500">
+                              <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-black bg-emerald-500 text-slate-950">
+                                🎯 AI推荐
+                              </span>
+                            </div>
+                          ) : fullH2hEval?.isHomeRecommended ? (
+                            <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
+                              <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
+                                推荐
+                              </span>
+                            </div>
+                          ) : null}
                         </div>
-                      </div>
-                      {fullH2hEval?.isDrawRecommended && (
-                        <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
-                          <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
-                            推荐
-                          </span>
-                        </div>
-                      )}
-                    </div>
 
-                    <div
-                      className={`p-1.5 rounded border relative flex flex-col justify-between ${
-                        fullH2hEval?.isAwayRecommended
-                          ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
-                          : "bg-slate-950/80 border-slate-800 text-slate-300"
-                      }`}
-                    >
-                      <div>
-                        <div className="text-[10px] text-slate-400 truncate">客胜</div>
-                        <div className="text-xs font-bold text-slate-200">@{fullH2hMarket.away_odds}</div>
-                        <div className="text-[10px] text-purple-400">
-                          胜率 {((fullH2hEval?.modelProbs?.[2] ?? h2hMain.fair_probabilities[2]) * 100).toFixed(1)}%
-                        </div>
                         <div
-                          className={`text-[10px] font-mono ${
-                            fullH2hEval && fullH2hEval.awayEv > 0
-                              ? "text-emerald-400 font-bold"
-                              : "text-slate-500"
+                          className={`p-1.5 rounded border relative flex flex-col justify-between ${
+                            isAiDrawRec
+                              ? "bg-emerald-950/80 border-emerald-400 text-emerald-300 font-bold shadow-sm ring-2 ring-emerald-500/50"
+                              : fullH2hEval?.isDrawRecommended
+                              ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
+                              : "bg-slate-950/80 border-slate-800 text-slate-300"
                           }`}
                         >
-                          EV{" "}
-                          {fullH2hEval && fullH2hEval.awayEv > 0
-                            ? `+${(fullH2hEval.awayEv * 100).toFixed(1)}%`
-                            : `${((fullH2hEval?.awayEv ?? 0) * 100).toFixed(1)}%`}
+                          <div>
+                            <div className="text-[10px] text-slate-400 truncate">平局</div>
+                            <div className="text-xs font-bold text-slate-200">@{fullH2hMarket.draw_odds}</div>
+                            <div className="text-[10px] text-amber-400">
+                              胜率 {((fullH2hEval?.modelProbs?.[1] ?? h2hMain.fair_probabilities[1]) * 100).toFixed(1)}%
+                            </div>
+                            <div
+                              className={`text-[10px] font-mono ${
+                                fullH2hEval && fullH2hEval.drawEv > 0
+                                  ? "text-emerald-400 font-bold"
+                                  : "text-slate-500"
+                              }`}
+                            >
+                              EV{" "}
+                              {fullH2hEval && fullH2hEval.drawEv > 0
+                                ? `+${(fullH2hEval.drawEv * 100).toFixed(1)}%`
+                                : `${((fullH2hEval?.drawEv ?? 0) * 100).toFixed(1)}%`}
+                            </div>
+                          </div>
+                          {isAiDrawRec ? (
+                            <div className="mt-1 pt-0.5 border-t border-emerald-500">
+                              <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-black bg-emerald-500 text-slate-950">
+                                🎯 AI推荐
+                              </span>
+                            </div>
+                          ) : fullH2hEval?.isDrawRecommended ? (
+                            <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
+                              <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
+                                推荐
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div
+                          className={`p-1.5 rounded border relative flex flex-col justify-between ${
+                            isAiAwayRec
+                              ? "bg-emerald-950/80 border-emerald-400 text-emerald-300 font-bold shadow-sm ring-2 ring-emerald-500/50"
+                              : fullH2hEval?.isAwayRecommended
+                              ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
+                              : "bg-slate-950/80 border-slate-800 text-slate-300"
+                          }`}
+                        >
+                          <div>
+                            <div className="text-[10px] text-slate-400 truncate">客胜</div>
+                            <div className="text-xs font-bold text-slate-200">@{fullH2hMarket.away_odds}</div>
+                            <div className="text-[10px] text-purple-400">
+                              胜率 {((fullH2hEval?.modelProbs?.[2] ?? h2hMain.fair_probabilities[2]) * 100).toFixed(1)}%
+                            </div>
+                            <div
+                              className={`text-[10px] font-mono ${
+                                fullH2hEval && fullH2hEval.awayEv > 0
+                                  ? "text-emerald-400 font-bold"
+                                  : "text-slate-500"
+                              }`}
+                            >
+                              EV{" "}
+                              {fullH2hEval && fullH2hEval.awayEv > 0
+                                ? `+${(fullH2hEval.awayEv * 100).toFixed(1)}%`
+                                : `${((fullH2hEval?.awayEv ?? 0) * 100).toFixed(1)}%`}
+                            </div>
+                          </div>
+                          {isAiAwayRec ? (
+                            <div className="mt-1 pt-0.5 border-t border-emerald-500">
+                              <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-black bg-emerald-500 text-slate-950">
+                                🎯 AI推荐
+                              </span>
+                            </div>
+                          ) : fullH2hEval?.isAwayRecommended ? (
+                            <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
+                              <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
+                                推荐
+                              </span>
+                            </div>
+                          ) : null}
                         </div>
                       </div>
-                      {fullH2hEval?.isAwayRecommended && (
-                        <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
-                          <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
-                            推荐
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                    );
+                  })()}
                 </div>
               ) : (
                 <div className="py-4 text-center text-xs text-slate-500 font-mono">
@@ -821,31 +1134,49 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
               )}
             </div>
 
-            {/* 底部量化指标 */}
+            {/* 底部量化与 AI 终审结论 */}
             <div className="mt-2.5 pt-2 border-t border-slate-800/80 text-[11px]">
-              {fullH2hEval ? (
+              {aiInsight ? (
+                <div className="flex items-center min-h-[2.25rem]">
+                  <span className="font-mono line-clamp-2 leading-snug w-full break-words">
+                    {aiInsight.h2hInsight.status === "RECOMMENDED" ? (
+                      <span className="text-emerald-400 font-bold">
+                        🎯 AI终审推荐: {aiInsight.h2hInsight.label} @{aiInsight.h2hInsight.odds} ({aiInsight.h2hInsight.reason})
+                      </span>
+                    ) : aiInsight.h2hInsight.status === "BLOCKED" ? (
+                      <span className="text-rose-400/90 font-medium">
+                        🚫 AI终审排除: {aiInsight.h2hInsight.reason || "缺乏穿盘防守缓冲，价值不足"}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">
+                        ⚠️ AI终审裁决: 本盘口未达实战开仓门禁 (坚决观望)
+                      </span>
+                    )}
+                  </span>
+                </div>
+              ) : fullH2hEval ? (
                 <div className="flex items-center min-h-[2.25rem]">
                   <span
                     className="font-mono text-slate-300 line-clamp-2 leading-snug w-full break-words"
                     title={
                       fullH2hEval.isMachineCandidate
-                        ? `🌟 最佳推荐: ${fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} @${fullH2hEval.bestOdds} (胜率 ${(fullH2hEval.bestProb * 100).toFixed(1)}% | EV: +${(fullH2hEval.maxEv * 100).toFixed(1)}%)`
+                        ? `⚡ 机器初筛候选: ${fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} @${fullH2hEval.bestOdds} (胜率 ${(fullH2hEval.bestProb * 100).toFixed(1)}% | EV: +${(fullH2hEval.maxEv * 100).toFixed(1)}%) · 待AI终审`
                         : fullH2hEval.maxEv > 0
-                        ? `⚠️ 综合评估: 正期望但未达推荐门禁 (最高: ${fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} EV +${(fullH2hEval.maxEv * 100).toFixed(1)}%)`
-                        : `⚠️ 综合评估: 全盘无正期望项 (最高: ${fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} EV ${(fullH2hEval.maxEv * 100).toFixed(1)}%)`
+                        ? `⚠️ 机器评估: 正期望但未达推荐门禁 (最高: ${fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} EV +${(fullH2hEval.maxEv * 100).toFixed(1)}%)`
+                        : `⚠️ 机器评估: 全盘无正期望项 (最高: ${fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} EV ${(fullH2hEval.maxEv * 100).toFixed(1)}%)`
                     }
                   >
                     {fullH2hEval.isMachineCandidate ? (
-                      <span className="text-emerald-400 font-bold">
-                        🌟 最佳推荐: {fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} @{fullH2hEval.bestOdds} (胜率 {(fullH2hEval.bestProb * 100).toFixed(1)}% | EV: +{(fullH2hEval.maxEv * 100).toFixed(1)}%)
+                      <span className="text-blue-400 font-medium">
+                        ⚡ 机器初筛候选: {fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} @${fullH2hEval.bestOdds} (EV: +{(fullH2hEval.maxEv * 100).toFixed(1)}%) · 待AI终审
                       </span>
                     ) : fullH2hEval.maxEv > 0 ? (
                       <span className="text-amber-400/90">
-                        ⚠️ 综合评估: 正期望但未达推荐门禁 (最高: {fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} EV +{(fullH2hEval.maxEv * 100).toFixed(1)}%)
+                        ⚠️ 机器初筛: 正期望但未达门禁 (EV +{(fullH2hEval.maxEv * 100).toFixed(1)}%)
                       </span>
                     ) : (
                       <span className="text-slate-400">
-                        ⚠️ 综合评估: 全盘无正期望项 (最高: {fullH2hEval.bestSide === "home" ? "主胜" : fullH2hEval.bestSide === "draw" ? "平局" : "客胜"} EV {(fullH2hEval.maxEv * 100).toFixed(1)}%)
+                        ⚠️ 机器初筛: 全盘无正期望项
                       </span>
                     )}
                   </span>
@@ -859,7 +1190,9 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
           {/* 1.2 全场大小球 (Full-Time Over/Under) */}
           <div
             className={`rounded-xl p-3 flex flex-col justify-between transition-all duration-200 ${
-              bestBetMarket === "FULL_TOTAL"
+              aiInsight?.totalInsight.status === "RECOMMENDED"
+                ? "bg-gradient-to-b from-emerald-950/70 via-slate-900 to-slate-950 border-2 border-emerald-400/90 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/30"
+                : bestBetMarket === "FULL_TOTAL"
                 ? "bg-gradient-to-b from-emerald-950/70 via-slate-900 to-slate-950 border-2 border-emerald-400/90 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/30"
                 : "bg-slate-900/90 border border-slate-800"
             }`}
@@ -870,19 +1203,26 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                   <TrendingUp className="w-3.5 h-3.5" />
                   全场大小球 (O/U)
                 </span>
-                {bestBetMarket === "FULL_TOTAL" ? (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-400 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-emerald-400" />
-                    ⭐ 最佳投注 {!activeTotalOption?.isMain ? "(副盘)" : "(主盘)"}
+                {aiInsight?.totalInsight.status === "RECOMMENDED" ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500 text-slate-950 flex items-center gap-1 shadow-xs">
+                    <Sparkles className="w-3 h-3 text-slate-950" />
+                    🎯 AI终审推荐: {aiInsight.totalInsight.label} {aiInsight.totalInsight.line}
+                  </span>
+                ) : aiInsight?.totalInsight.status === "BLOCKED" ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-rose-500/20 text-rose-300 border border-rose-500/50 flex items-center gap-1 shadow-xs" title={aiInsight.totalInsight.reason}>
+                    <Ban className="w-3 h-3 text-rose-400" />
+                    🚫 AI排除: {aiInsight.totalInsight.label}
+                  </span>
+                ) : aiInsight ? (
+                  <span className="text-[10px] text-slate-500 font-mono">AI观望</span>
+                ) : bestBetMarket === "FULL_TOTAL" ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-500/20 text-blue-300 border border-blue-400 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-blue-400" />
+                    ⚡ 机器最高EV {!activeTotalOption?.isMain ? "(副盘)" : "(主盘)"}
                   </span>
                 ) : fullTotalEval?.isPositiveEv ? (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-emerald-400" />
-                    ★ 推荐投注 {!activeTotalOption?.isMain ? "(副盘)" : "(主盘)"}
-                  </span>
-                ) : bestTotalSignal ? (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/60 flex items-center gap-1">
-                    ★ 推荐见切线池 ({bestTotalSignal.line})
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/60 flex items-center gap-1">
+                    ⚡ 机器初筛(+EV) {!activeTotalOption?.isMain ? "(副盘)" : "(主盘)"}
                   </span>
                 ) : (
                   <span className="text-[10px] text-slate-400 font-mono">
@@ -928,59 +1268,100 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
               {fullTotalEval ? (
                 <div className="space-y-2 font-mono text-xs">
                   {/* 大球 vs 小球对比 */}
-                  <div className="grid grid-cols-2 gap-2 text-center">
-                    <div
-                      className={`p-1.5 rounded border relative flex flex-col justify-between ${
-                        fullTotalEval.isOverRecommended
-                          ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
-                          : "bg-slate-950/80 border-slate-800 text-slate-300"
-                      }`}
-                    >
-                      <div>
-                        <div className="text-[10px] text-slate-400">大球 ({`>${fullTotalEval.line}`})</div>
-                        <div className="text-xs font-bold text-slate-200">@{fullTotalEval.overOdds}</div>
-                        <div className="text-[10px] text-slate-400">
-                          胜率 {(fullTotalEval.overProb * 100).toFixed(1)}% |{" "}
-                          <span className={fullTotalEval.overEv > 0 ? "text-emerald-400 font-bold" : "text-slate-500"}>
-                            EV {(fullTotalEval.overEv * 100).toFixed(1)}%
-                          </span>
-                        </div>
-                      </div>
-                      {fullTotalEval.isOverRecommended && (
-                        <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
-                          <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
-                            推荐
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                  {(() => {
+                    const isAiOverRec = aiInsight?.totalInsight.status === "RECOMMENDED" && aiInsight.totalInsight.direction === "over";
+                    const isAiUnderRec = aiInsight?.totalInsight.status === "RECOMMENDED" && aiInsight.totalInsight.direction === "under";
+                    const isAiOverBlocked = aiInsight?.totalInsight.status === "BLOCKED" && aiInsight.totalInsight.direction === "over";
+                    const isAiUnderBlocked = aiInsight?.totalInsight.status === "BLOCKED" && aiInsight.totalInsight.direction === "under";
 
-                    <div
-                      className={`p-1.5 rounded border relative flex flex-col justify-between ${
-                        fullTotalEval.isUnderRecommended
-                          ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
-                          : "bg-slate-950/80 border-slate-800 text-slate-300"
-                      }`}
-                    >
-                      <div>
-                        <div className="text-[10px] text-slate-400">小球 ({`<${fullTotalEval.line}`})</div>
-                        <div className="text-xs font-bold text-slate-200">@{fullTotalEval.underOdds}</div>
-                        <div className="text-[10px] text-slate-400">
-                          胜率 {(fullTotalEval.underProb * 100).toFixed(1)}% |{" "}
-                          <span className={fullTotalEval.underEv > 0 ? "text-emerald-400 font-bold" : "text-slate-500"}>
-                            EV {(fullTotalEval.underEv * 100).toFixed(1)}%
-                          </span>
+                    return (
+                      <div className="grid grid-cols-2 gap-2 text-center">
+                        <div
+                          className={`p-1.5 rounded border relative flex flex-col justify-between ${
+                            isAiOverRec
+                              ? "bg-emerald-950/80 border-emerald-400 text-emerald-300 font-bold shadow-sm ring-2 ring-emerald-500/50"
+                              : isAiOverBlocked
+                              ? "bg-rose-950/40 border-rose-600/80 text-rose-200 ring-1 ring-rose-500/30"
+                              : fullTotalEval.isOverRecommended
+                              ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
+                              : "bg-slate-950/80 border-slate-800 text-slate-300"
+                          }`}
+                        >
+                          <div>
+                            <div className="text-[10px] text-slate-400">大球 ({`>${fullTotalEval.line}`})</div>
+                            <div className="text-xs font-bold text-slate-200">@{fullTotalEval.overOdds}</div>
+                            <div className="text-[10px] text-slate-400">
+                              胜率 {(fullTotalEval.overProb * 100).toFixed(1)}% |{" "}
+                              <span className={fullTotalEval.overEv > 0 ? "text-emerald-400 font-bold" : "text-slate-500"}>
+                                EV {(fullTotalEval.overEv * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+                          {isAiOverRec ? (
+                            <div className="mt-1 pt-0.5 border-t border-emerald-500">
+                              <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-black bg-emerald-500 text-slate-950">
+                                🎯 AI推荐
+                              </span>
+                            </div>
+                          ) : isAiOverBlocked ? (
+                            <div className="mt-1 pt-0.5 border-t border-rose-800/60">
+                              <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[9.5px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/60">
+                                <Ban className="w-2.5 h-2.5" /> AI阻断
+                              </span>
+                            </div>
+                          ) : fullTotalEval.isOverRecommended ? (
+                            <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
+                              <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
+                                推荐
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div
+                          className={`p-1.5 rounded border relative flex flex-col justify-between ${
+                            isAiUnderRec
+                              ? "bg-emerald-950/80 border-emerald-400 text-emerald-300 font-bold shadow-sm ring-2 ring-emerald-500/50"
+                              : isAiUnderBlocked
+                              ? "bg-rose-950/40 border-rose-600/80 text-rose-200 ring-1 ring-rose-500/30"
+                              : fullTotalEval.isUnderRecommended
+                              ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
+                              : "bg-slate-950/80 border-slate-800 text-slate-300"
+                          }`}
+                        >
+                          <div>
+                            <div className="text-[10px] text-slate-400">小球 ({`<${fullTotalEval.line}`})</div>
+                            <div className="text-xs font-bold text-slate-200">@{fullTotalEval.underOdds}</div>
+                            <div className="text-[10px] text-slate-400">
+                              胜率 {(fullTotalEval.underProb * 100).toFixed(1)}% |{" "}
+                              <span className={fullTotalEval.underEv > 0 ? "text-emerald-400 font-bold" : "text-slate-500"}>
+                                EV {(fullTotalEval.underEv * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+                          {isAiUnderRec ? (
+                            <div className="mt-1 pt-0.5 border-t border-emerald-500">
+                              <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-black bg-emerald-500 text-slate-950">
+                                🎯 AI推荐
+                              </span>
+                            </div>
+                          ) : isAiUnderBlocked ? (
+                            <div className="mt-1 pt-0.5 border-t border-rose-800/60">
+                              <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[9.5px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/60">
+                                <Ban className="w-2.5 h-2.5" /> AI阻断
+                              </span>
+                            </div>
+                          ) : fullTotalEval.isUnderRecommended ? (
+                            <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
+                              <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
+                                推荐
+                              </span>
+                            </div>
+                          ) : null}
                         </div>
                       </div>
-                      {fullTotalEval.isUnderRecommended && (
-                        <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
-                          <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
-                            推荐
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   <div className="text-[10px] text-slate-400 space-y-1 px-0.5">
                     <div className="flex justify-between flex-wrap gap-1">
@@ -1006,31 +1387,49 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
               )}
             </div>
 
-            {/* 底部量化指标 */}
+            {/* 底部量化与 AI 终审结论 */}
             <div className="mt-2.5 pt-2 border-t border-slate-800/80 text-[11px]">
-              {globalBestTotal ? (
+              {aiInsight ? (
+                <div className="flex items-center min-h-[2.25rem]">
+                  <span className="font-mono line-clamp-2 leading-snug w-full break-words">
+                    {aiInsight.totalInsight.status === "RECOMMENDED" ? (
+                      <span className="text-emerald-400 font-bold">
+                        🎯 AI终审推荐: {aiInsight.totalInsight.label} {aiInsight.totalInsight.line} @{aiInsight.totalInsight.odds} ({aiInsight.totalInsight.reason})
+                      </span>
+                    ) : aiInsight.totalInsight.status === "BLOCKED" ? (
+                      <span className="text-rose-400/90 font-medium">
+                        🚫 AI终审排除: {aiInsight.totalInsight.reason || "进球期望不足/已被风控阻断"}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">
+                        ⚠️ AI终审裁决: 本盘口未达实战开仓门禁 (坚决观望)
+                      </span>
+                    )}
+                  </span>
+                </div>
+              ) : globalBestTotal ? (
                 <div className="flex items-center min-h-[2.25rem]">
                   <span
                     className="font-mono text-slate-300 line-clamp-2 leading-snug w-full break-words"
                     title={
                       bestTotalSignal
-                        ? `🌟 最佳推荐: ${bestTotalSignal.market === "TOTAL_GOALS_MAIN" ? "主盘" : "副盘"} ${bestTotalSignal.side === "over" ? `大球 (>${bestTotalSignal.line})` : `小球 (<${bestTotalSignal.line})`} @${bestTotalSignal.odds} (胜率 ${((bestTotalSignal.model_probability ?? 0.5) * 100).toFixed(1)}% | EV: +${(bestTotalSignal.ev * 100).toFixed(1)}%)`
+                        ? `⚡ 机器初筛候选: ${bestTotalSignal.market === "TOTAL_GOALS_MAIN" ? "主盘" : "副盘"} ${bestTotalSignal.side === "over" ? `大球 (>${bestTotalSignal.line})` : `小球 (<${bestTotalSignal.line})`} @${bestTotalSignal.odds} (胜率 ${((bestTotalSignal.model_probability ?? 0.5) * 100).toFixed(1)}% | EV: +${(bestTotalSignal.ev * 100).toFixed(1)}%) · 待AI终审`
                         : globalBestTotal.ev > 0
-                        ? `⚠️ 综合评估: 正期望但未达推荐门禁 (最高: ${globalBestTotal.isMain ? "主盘" : "副盘"} ${globalBestTotal.label} EV +${(globalBestTotal.ev * 100).toFixed(1)}%)`
-                        : `⚠️ 综合评估: 全盘无正期望项 (最高: ${globalBestTotal.isMain ? "主盘" : "副盘"} ${globalBestTotal.label} EV ${(globalBestTotal.ev * 100).toFixed(1)}%)`
+                        ? `⚠️ 机器评估: 正期望但未达推荐门禁 (最高: ${globalBestTotal.isMain ? "主盘" : "副盘"} ${globalBestTotal.label} EV +${(globalBestTotal.ev * 100).toFixed(1)}%)`
+                        : `⚠️ 机器评估: 全盘无正期望项 (最高: ${globalBestTotal.isMain ? "主盘" : "副盘"} ${globalBestTotal.label} EV ${(globalBestTotal.ev * 100).toFixed(1)}%)`
                     }
                   >
                     {bestTotalSignal ? (
-                      <span className="text-emerald-400 font-bold">
-                        🌟 最佳推荐: {bestTotalSignal.market === "TOTAL_GOALS_MAIN" ? "主盘" : "副盘"} {bestTotalSignal.side === "over" ? `大球 (>${bestTotalSignal.line})` : `小球 (<${bestTotalSignal.line})`} @${bestTotalSignal.odds} (胜率 {((bestTotalSignal.model_probability ?? 0.5) * 100).toFixed(1)}% | EV: +{(bestTotalSignal.ev * 100).toFixed(1)}%)
+                      <span className="text-blue-400 font-medium">
+                        ⚡ 机器初筛候选: {bestTotalSignal.market === "TOTAL_GOALS_MAIN" ? "主盘" : "副盘"} {bestTotalSignal.side === "over" ? `大球 (>${bestTotalSignal.line})` : `小球 (<${bestTotalSignal.line})`} @${bestTotalSignal.odds} (EV: +{(bestTotalSignal.ev * 100).toFixed(1)}%) · 待AI终审
                       </span>
                     ) : globalBestTotal.ev > 0 ? (
                       <span className="text-amber-400/90">
-                        ⚠️ 综合评估: 正期望但未达推荐门禁 (最高: {globalBestTotal.isMain ? "主盘" : "副盘"} {globalBestTotal.label} EV +{(globalBestTotal.ev * 100).toFixed(1)}%)
+                        ⚠️ 机器初筛: 正期望但未达推荐门禁 (EV +{(globalBestTotal.ev * 100).toFixed(1)}%)
                       </span>
                     ) : (
                       <span className="text-slate-400">
-                        ⚠️ 综合评估: 全盘无正期望项 (最高: {globalBestTotal.isMain ? "主盘" : "副盘"} {globalBestTotal.label} EV {(globalBestTotal.ev * 100).toFixed(1)}%)
+                        ⚠️ 机器初筛: 全盘无正期望项
                       </span>
                     )}
                   </span>
@@ -1044,7 +1443,11 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
           {/* 1.3 全场让球 (Full-Time Asian Handicap) */}
           <div
             className={`rounded-xl p-3 flex flex-col justify-between transition-all duration-200 ${
-              bestBetMarket === "FULL_SPREAD"
+              aiInsight?.spreadInsight.status === "RECOMMENDED"
+                ? "bg-gradient-to-b from-emerald-950/70 via-slate-900 to-slate-950 border-2 border-emerald-400/90 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/30"
+                : aiInsight?.spreadInsight.status === "BLOCKED"
+                ? "bg-slate-900/90 border border-rose-800/60 ring-1 ring-rose-500/20"
+                : bestBetMarket === "FULL_SPREAD"
                 ? "bg-gradient-to-b from-emerald-950/70 via-slate-900 to-slate-950 border-2 border-emerald-400/90 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/30"
                 : "bg-slate-900/90 border border-slate-800"
             }`}
@@ -1055,19 +1458,26 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                   <Activity className="w-3.5 h-3.5" />
                   全场让球 (Asian Handicap)
                 </span>
-                {bestBetMarket === "FULL_SPREAD" ? (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-400 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-emerald-400" />
-                    ⭐ 最佳投注 {!activeSpreadOption?.isMain ? "(副盘)" : "(主盘)"}
+                {aiInsight?.spreadInsight.status === "RECOMMENDED" ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500 text-slate-950 flex items-center gap-1 shadow-xs">
+                    <Sparkles className="w-3 h-3 text-slate-950" />
+                    🎯 AI终审推荐: {aiInsight.spreadInsight.label} {aiInsight.spreadInsight.line}
+                  </span>
+                ) : aiInsight?.spreadInsight.status === "BLOCKED" ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-rose-500/20 text-rose-300 border border-rose-500/50 flex items-center gap-1 shadow-xs" title={aiInsight.spreadInsight.reason}>
+                    <Ban className="w-3 h-3 text-rose-400" />
+                    🚫 AI排除: {aiInsight.spreadInsight.label}
+                  </span>
+                ) : aiInsight ? (
+                  <span className="text-[10px] text-slate-500 font-mono">AI观望</span>
+                ) : bestBetMarket === "FULL_SPREAD" ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-500/20 text-blue-300 border border-blue-400 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-blue-400" />
+                    ⚡ 机器最高EV {!activeSpreadOption?.isMain ? "(副盘)" : "(主盘)"}
                   </span>
                 ) : fullSpreadEval?.isPositiveEv ? (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-emerald-400" />
-                    ★ 推荐投注 {!activeSpreadOption?.isMain ? "(副盘)" : "(主盘)"}
-                  </span>
-                ) : bestSpreadSignal ? (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/60 flex items-center gap-1">
-                    ★ 推荐见切线池 ({bestSpreadSignal.line})
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/60 flex items-center gap-1">
+                    ⚡ 机器初筛(+EV) {!activeSpreadOption?.isMain ? "(副盘)" : "(主盘)"}
                   </span>
                 ) : (
                   <span className="text-[10px] text-slate-400 font-mono">
@@ -1152,11 +1562,20 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                       ? "客 0 (平手)"
                       : `客 ${formatAsianHandicapLine(-spreadNum)}`;
 
+                    const isAiHomeRec = aiInsight?.spreadInsight.status === "RECOMMENDED" && aiInsight.spreadInsight.direction === "home";
+                    const isAiAwayRec = aiInsight?.spreadInsight.status === "RECOMMENDED" && aiInsight.spreadInsight.direction === "away";
+                    const isAiHomeBlocked = aiInsight?.spreadInsight.status === "BLOCKED" && aiInsight.spreadInsight.direction === "home";
+                    const isAiAwayBlocked = aiInsight?.spreadInsight.status === "BLOCKED" && aiInsight.spreadInsight.direction === "away";
+
                     return (
                       <div className="grid grid-cols-2 gap-2 text-center">
                         <div
                           className={`p-1.5 rounded border relative flex flex-col justify-between ${
-                            fullSpreadEval.isHomeRecommended
+                            isAiHomeRec
+                              ? "bg-emerald-950/80 border-emerald-400 text-emerald-300 font-bold shadow-sm ring-2 ring-emerald-500/50"
+                              : isAiHomeBlocked
+                              ? "bg-rose-950/40 border-rose-600/80 text-rose-200 ring-1 ring-rose-500/30"
+                              : fullSpreadEval.isHomeRecommended
                               ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
                               : "bg-slate-950/80 border-slate-800 text-slate-300"
                           }`}
@@ -1173,19 +1592,35 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                               </span>
                             </div>
                           </div>
-                          {fullSpreadEval.isHomeRecommended && (
-                            <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
-                              <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
-                                推荐
+                          {isAiHomeRec ? (
+                            <div className="mt-1 pt-0.5 border-t border-emerald-500">
+                              <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-black bg-emerald-500 text-slate-950">
+                                🎯 AI推荐
                               </span>
                             </div>
-                          )}
+                          ) : isAiHomeBlocked ? (
+                            <div className="mt-1 pt-0.5 border-t border-rose-800/60">
+                              <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[9.5px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/60" title={aiInsight?.spreadInsight.reason}>
+                                <Ban className="w-2.5 h-2.5" /> AI阻断 (诱盘)
+                              </span>
+                            </div>
+                          ) : fullSpreadEval.isHomeRecommended && !aiInsight ? (
+                            <div className="mt-1 pt-0.5 border-t border-blue-700/60">
+                              <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/60">
+                                机器初筛
+                              </span>
+                            </div>
+                          ) : null}
                         </div>
 
                         <div
                           className={`p-1.5 rounded border relative flex flex-col justify-between ${
-                            fullSpreadEval.isAwayRecommended
-                              ? "bg-emerald-950/60 border-emerald-500 text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
+                            isAiAwayRec
+                              ? "bg-emerald-950/80 border-emerald-400 text-emerald-300 font-bold shadow-sm ring-2 ring-emerald-500/50"
+                              : isAiAwayBlocked
+                              ? "bg-rose-950/40 border-rose-600/80 text-rose-200 ring-1 ring-rose-500/30"
+                              : fullSpreadEval.isAwayRecommended && !aiInsight
+                              ? "bg-blue-950/60 border-blue-500 text-blue-300 font-bold shadow-xs ring-1 ring-blue-500/40"
                               : "bg-slate-950/80 border-slate-800 text-slate-300"
                           }`}
                         >
@@ -1201,13 +1636,25 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
                               </span>
                             </div>
                           </div>
-                          {fullSpreadEval.isAwayRecommended && (
-                            <div className="mt-1 pt-0.5 border-t border-emerald-700/60">
-                              <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">
-                                推荐
+                          {isAiAwayRec ? (
+                            <div className="mt-1 pt-0.5 border-t border-emerald-500">
+                              <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-black bg-emerald-500 text-slate-950">
+                                🎯 AI推荐
                               </span>
                             </div>
-                          )}
+                          ) : isAiAwayBlocked ? (
+                            <div className="mt-1 pt-0.5 border-t border-rose-800/60">
+                              <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[9.5px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/60" title={aiInsight?.spreadInsight.reason}>
+                                <Ban className="w-2.5 h-2.5" /> AI阻断 (诱盘)
+                              </span>
+                            </div>
+                          ) : fullSpreadEval.isAwayRecommended && !aiInsight ? (
+                            <div className="mt-1 pt-0.5 border-t border-blue-700/60">
+                              <span className="inline-block px-1 py-0.2 rounded text-[9.5px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/60">
+                                机器初筛
+                              </span>
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     );
@@ -1225,31 +1672,49 @@ export const QuantBettingDecisionMatrix: React.FC<QuantBettingDecisionMatrixProp
               )}
             </div>
 
-            {/* 底部量化指标 */}
-            <div className="mt-2.5 pt-2 border-t border-slate-800/80 text-[11px]">
-              {globalBestSpread ? (
+            {/* 底部量化与 AI 终审结论 */}
+            <div className="mt-2.5 pt-2 border-t border-slate-800/80 text-[11px] space-y-1">
+              {aiInsight ? (
                 <div className="flex items-center min-h-[2.25rem]">
+                  <span className="font-mono line-clamp-2 leading-snug w-full break-words">
+                    {aiInsight.spreadInsight.status === "RECOMMENDED" ? (
+                      <span className="text-emerald-400 font-bold">
+                        🎯 AI终审推荐: {aiInsight.spreadInsight.label} {aiInsight.spreadInsight.line} @{aiInsight.spreadInsight.odds} ({aiInsight.spreadInsight.reason})
+                      </span>
+                    ) : aiInsight.spreadInsight.status === "BLOCKED" ? (
+                      <span className="text-rose-400/90 font-medium">
+                        🚫 AI排雷阻断: {aiInsight.spreadInsight.label} {aiInsight.spreadInsight.line} 诱盘风险阻断，严禁开仓！({aiInsight.spreadInsight.reason || "机构深诱"})
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">
+                        ⚠️ AI终审裁决: 本盘口未达实战开仓门禁 (坚决观望)
+                      </span>
+                    )}
+                  </span>
+                </div>
+              ) : globalBestSpread ? (
+                <div className="flex items-center min-h-[1.75rem]">
                   <span
                     className="font-mono text-slate-300 line-clamp-2 leading-snug w-full break-words"
                     title={
                       bestSpreadSignal
-                        ? `🌟 最佳推荐: ${bestSpreadSignal.market === "ASIAN_HANDICAP_MAIN" ? "主盘" : "副盘"} ${bestSpreadSignal.side === "home" ? match.home_team_name : match.away_team_name} ${bestSpreadSignal.line} @${bestSpreadSignal.odds} (胜率 ${((bestSpreadSignal.model_probability ?? 0.5) * 100).toFixed(1)}% | EV: +${(bestSpreadSignal.ev * 100).toFixed(1)}%)`
+                        ? `⚡ 机器初筛候选: ${bestSpreadSignal.market === "ASIAN_HANDICAP_MAIN" ? "主盘" : "副盘"} ${bestSpreadSignal.side === "home" ? match.home_team_name : match.away_team_name} ${bestSpreadSignal.line} @${bestSpreadSignal.odds} (胜率 ${((bestSpreadSignal.model_probability ?? 0.5) * 100).toFixed(1)}% | EV: +${(bestSpreadSignal.ev * 100).toFixed(1)}%) · 待AI终审`
                         : globalBestSpread.ev > 0
-                        ? `⚠️ 综合评估: 正期望但未达推荐门禁 (最高: ${globalBestSpread.isMain ? "主盘" : "副盘"} ${globalBestSpread.isHome ? "主队" : "客队"} ${globalBestSpread.lineNotation} EV +${(globalBestSpread.ev * 100).toFixed(1)}%)`
-                        : `⚠️ 综合评估: 全盘无正期望项 (最高: ${globalBestSpread.isMain ? "主盘" : "副盘"} ${globalBestSpread.isHome ? "主队" : "客队"} ${globalBestSpread.lineNotation} EV ${(globalBestSpread.ev * 100).toFixed(1)}%)`
+                        ? `⚠️ 机器评估: 正期望但未达推荐门禁 (最高: ${globalBestSpread.isMain ? "主盘" : "副盘"} ${globalBestSpread.isHome ? "主队" : "客队"} ${globalBestSpread.lineNotation} EV +${(globalBestSpread.ev * 100).toFixed(1)}%)`
+                        : `⚠️ 机器评估: 全盘无正期望项 (最高: ${globalBestSpread.isMain ? "主盘" : "副盘"} ${globalBestSpread.isHome ? "主队" : "客队"} ${globalBestSpread.lineNotation} EV ${(globalBestSpread.ev * 100).toFixed(1)}%)`
                     }
                   >
                     {bestSpreadSignal ? (
-                      <span className="text-emerald-400 font-bold">
-                        🌟 最佳推荐: {bestSpreadSignal.market === "ASIAN_HANDICAP_MAIN" ? "主盘" : "副盘"} {bestSpreadSignal.side === "home" ? match.home_team_name : match.away_team_name} {bestSpreadSignal.line} @${bestSpreadSignal.odds} (胜率 {((bestSpreadSignal.model_probability ?? 0.5) * 100).toFixed(1)}% | EV: +{(bestSpreadSignal.ev * 100).toFixed(1)}%)
+                      <span className="text-blue-400 font-medium">
+                        ⚡ 机器初筛候选: {bestSpreadSignal.market === "ASIAN_HANDICAP_MAIN" ? "主盘" : "副盘"} ${bestSpreadSignal.side === "home" ? match.home_team_name : match.away_team_name} ${bestSpreadSignal.line} @${bestSpreadSignal.odds} (EV: +{(bestSpreadSignal.ev * 100).toFixed(1)}%) · 待AI终审
                       </span>
                     ) : globalBestSpread.ev > 0 ? (
                       <span className="text-amber-400/90">
-                        ⚠️ 综合评估: 正期望但未达推荐门禁 (最高: {globalBestSpread.isMain ? "主盘" : "副盘"} {globalBestSpread.isHome ? "主队" : "客队"} {globalBestSpread.lineNotation} EV +{(globalBestSpread.ev * 100).toFixed(1)}%)
+                        ⚠️ 机器初筛: 正期望但未达推荐门禁 (EV +{(globalBestSpread.ev * 100).toFixed(1)}%)
                       </span>
                     ) : (
                       <span className="text-slate-400">
-                        ⚠️ 综合评估: 全盘无正期望项 (最高: {globalBestSpread.isMain ? "主盘" : "副盘"} ${globalBestSpread.isHome ? "主队" : "客队"} ${globalBestSpread.lineNotation} EV ${(globalBestSpread.ev * 100).toFixed(1)}%)
+                        ⚠️ 机器初筛: 全盘无正期望项
                       </span>
                     )}
                   </span>
