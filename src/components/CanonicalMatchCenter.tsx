@@ -1626,8 +1626,8 @@ export const CanonicalMatchCenter: React.FC = () => {
         const isTrap =
           ai.blind_spot_analysis?.trap_detection_result === "CONFIRMED_TRAP" ||
           ai.trap_detection_result === "CONFIRMED_TRAP" ||
-          String(ai.market_scan?.rejection_reason || "").includes("TRAP") ||
-          String(ai.rejection_reason || "").includes("TRAP") ||
+          String(ai.market_scan?.rejection_reason || "").includes("CONFIRMED_TRAP") ||
+          String(ai.rejection_reason || "").includes("CONFIRMED_TRAP") ||
           ai.spread_assessment?.trap_level === "high" ||
           ai.over_under_assessment?.trap_level === "high";
 
@@ -1635,26 +1635,7 @@ export const CanonicalMatchCenter: React.FC = () => {
         const hasActionableLegs = legs.length > 0;
         const isActionable = ai.is_actionable === true || hasActionableLegs;
 
-        // 如果明确判定为机构诱盘陷阱、排雷阻断、或全盘禁止下注
-        if (
-          isTrap ||
-          (!isActionable &&
-            (ai.rejection_reason ||
-              ai.blind_spot_analysis?.rejection_reason ||
-              ai.market_scan?.rejection_reason))
-        ) {
-          return {
-            status: "BLOCKED" as const,
-            hasAi: true,
-            label: "已阻断(排雷)",
-            badgeClass: "bg-rose-950/70 text-rose-300 border-rose-600/80 ring-1 ring-rose-500/20",
-            reason:
-              ai.rejection_reason ||
-              ai.blind_spot_analysis?.rejection_reason ||
-              (isTrap ? "机构高水诱盘陷阱" : "风控拦截严禁开仓"),
-          };
-        }
-
+        // 1. 实战开仓推荐：具有 A/B 级合格评级、可执行且非陷阱
         if (isQual && !isTrap && isActionable) {
           return {
             status: "BETTABLE" as const,
@@ -1665,13 +1646,43 @@ export const CanonicalMatchCenter: React.FC = () => {
           };
         }
 
-        // 其他已完成评估但未达开仓门槛（属于合规观望）
+        // 2. 确诊陷阱/机构恶意诱盘：明确排雷阻断
+        if (isTrap) {
+          return {
+            status: "BLOCKED" as const,
+            hasAi: true,
+            label: "已阻断(排雷)",
+            badgeClass: "bg-rose-950/70 text-rose-300 border-rose-600/80 ring-1 ring-rose-500/20",
+            reason:
+              ai.rejection_reason ||
+              ai.blind_spot_analysis?.rejection_reason ||
+              "机构高水诱盘陷阱/致命风控排雷",
+          };
+        }
+
+        // 3. 其他未达实战开仓门槛（属于合规观望待定，如冷启动样本积累中、无正期望、稳定性打折等）
+        const rawReason =
+          ai.rejection_reason ||
+          ai.blind_spot_analysis?.rejection_reason ||
+          ai.market_scan?.rejection_reason ||
+          "AI评估未达实战门禁";
+        let friendlyReason = rawReason;
+        if (rawReason.includes("OOS") || rawReason.includes("COLD_START")) {
+          friendlyReason = "冷启动样本积累中(未达实战门禁)";
+        } else if (rawReason.includes("MODEL_STABILITY") || rawReason.includes("STABILITY")) {
+          friendlyReason = "模型稳定性打折(合规观望)";
+        } else if (rawReason.includes("NO_POSITIVE_EV")) {
+          friendlyReason = "全盘无正期望(合规观望)";
+        } else if (rawReason.includes("DATA_BLIND_SPOTS") || rawReason.includes("DATA_LOCKED")) {
+          friendlyReason = "现场数据不完备(合规观望)";
+        }
+
         return {
           status: "WAITING" as const,
           hasAi: true,
           label: "观望待定",
           badgeClass: "bg-slate-800 text-slate-300 border-slate-700",
-          reason: "AI评估未达实战门禁",
+          reason: friendlyReason,
         };
       }
 

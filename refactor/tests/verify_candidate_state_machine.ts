@@ -60,6 +60,8 @@ if (permissiveCases[2][1].research_candidate_signals.length !== 1) throw new Err
 if (permissiveCases[2][1].production_eligible !== false) throw new Error('Permissive: Thin OOS signal illegally marked production_eligible');
 
 if (permissiveCases[3][1].machine_candidate_signals.length !== 0) throw new Error('Permissive: Data-locked signal escaped data quality gate');
+if (permissiveCases[3][1].research_candidate_signals.length !== 1) throw new Error('Permissive: Data-locked signal failed to retain research candidates');
+if (permissiveCases[3][1].production_eligible !== false) throw new Error('Permissive: Data-locked signal illegally marked production_eligible');
 if (permissiveCases[4][1].machine_candidate_signals.length !== 1) throw new Error('Permissive: Validated mature signal failed to become machine candidate');
 if (permissiveCases[4][1].production_eligible !== true) throw new Error('Permissive: Validated mature signal failed production_eligible');
 if (permissiveCases[5][1].machine_candidate_signals.length !== 0) throw new Error('Permissive: Unsupported market escaped lock');

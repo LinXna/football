@@ -639,7 +639,9 @@ export function calculateQuantitativeFeatures(
     hasEvidenceConflict: matchState.has_evidence_conflict,
     postGoalCooldownActive: matchState.post_goal_cooldown_active,
     permissiveOosMode: options?.permissive_oos_mode ?? true,
-    allowSecondaryLines: options?.allow_secondary_lines ?? true
+    allowSecondaryLines: options?.allow_secondary_lines ?? true,
+    currentScore: `${match.score.home_score ?? 0}-${match.score.away_score ?? 0}`,
+    snapshotTime: match.timing.beijing_start_time ?? new Date().toISOString()
   });
   const machineCandidateSignals = [...candidatePipeline.machine_candidate_signals];
   const researchCandidateSignals = [...candidatePipeline.research_candidate_signals];
@@ -676,9 +678,13 @@ export function calculateQuantitativeFeatures(
     ? Math.min(screeningIntegrityScore, edgeConfidenceScore)
     : 0;
 
+  const nowIso = new Date().toISOString();
   const liveSnapshot: Layer03LiveSnapshot = Object.freeze({
-    observed_at: new Date().toISOString(),
+    observed_at: nowIso,
     cutoff_minute: match.timing.minute ?? null,
+    event_cutoff_minute: match.timing.minute ?? null,
+    source_snapshot_at: match.timing.beijing_start_time ?? null,
+    model_calculated_at: nowIso,
     score: {
       home_score: match.score.home_score,
       away_score: match.score.away_score,

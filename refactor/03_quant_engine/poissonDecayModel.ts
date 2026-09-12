@@ -258,6 +258,12 @@ export function calculateBivariatePoissonGrid(
   prob_away_win_rest: number;
   rho_used?: number;
   rho_source?: 'DEFAULT_ASSUMPTION' | 'CALIBRATED_ESTIMATE';
+  dixon_coles_tau?: {
+    tau_0_0: number;
+    tau_0_1: number;
+    tau_1_0: number;
+    tau_1_1: number;
+  };
 } {
   const grid: number[][] = [];
   let probHomeWin = 0.0;
@@ -266,6 +272,10 @@ export function calculateBivariatePoissonGrid(
 
   // Dixon-Coles dependence parameter (positive rho inflates draws/low-scoring games)
   const rho = 0.05;
+  const tau_0_0 = Math.max(0, 1 - lambdaHome * lambdaAway * rho);
+  const tau_0_1 = Math.max(0, 1 + lambdaHome * rho);
+  const tau_1_0 = Math.max(0, 1 + lambdaAway * rho);
+  const tau_1_1 = Math.max(0, 1 - rho);
 
   for (let h = 0; h <= maxGoals; h++) {
     const row: number[] = [];
@@ -276,13 +286,13 @@ export function calculateBivariatePoissonGrid(
       
       // Apply Dixon-Coles correction for low-scoring combinations
       if (h === 0 && a === 0) {
-        prob *= Math.max(0, 1 - lambdaHome * lambdaAway * rho);
+        prob *= tau_0_0;
       } else if (h === 0 && a === 1) {
-        prob *= Math.max(0, 1 + lambdaHome * rho);
+        prob *= tau_0_1;
       } else if (h === 1 && a === 0) {
-        prob *= Math.max(0, 1 + lambdaAway * rho);
+        prob *= tau_1_0;
       } else if (h === 1 && a === 1) {
-        prob *= Math.max(0, 1 - rho);
+        prob *= tau_1_1;
       }
       
       row.push(prob);
@@ -326,7 +336,13 @@ export function calculateBivariatePoissonGrid(
     prob_draw_rest: Number(probDraw.toFixed(4)),
     prob_away_win_rest: Number(probAwayWin.toFixed(4)),
     rho_used: rho,
-    rho_source: 'DEFAULT_ASSUMPTION'
+    rho_source: 'DEFAULT_ASSUMPTION',
+    dixon_coles_tau: {
+      tau_0_0: Number(tau_0_0.toFixed(4)),
+      tau_0_1: Number(tau_0_1.toFixed(4)),
+      tau_1_0: Number(tau_1_0.toFixed(4)),
+      tau_1_1: Number(tau_1_1.toFixed(4))
+    }
   };
 }
 
@@ -498,6 +514,8 @@ export function calculateInPlayPoissonFeatures(
   baseAwayLambda = Math.max(0.3, baseAwayLambda);
   const marketBaseHome = baseHomeLambda;
   const marketBaseAway = baseAwayLambda;
+  const weightedBaseHome = baseHomeLambda;
+  const weightedBaseAway = baseAwayLambda;
   const rawContextMultiplierHome = context?.motivation_urgency && context.lineup_impact
     ? context.motivation_urgency.home_mui * context.lineup_impact.home_lis
     : 1;
@@ -512,19 +530,30 @@ export function calculateInPlayPoissonFeatures(
     baseHomeLambda *= contextMultiplierHome;
     baseAwayLambda *= contextMultiplierAway;
   }
+  const baseAfterContextHome = baseHomeLambda;
+  const baseAfterContextAway = baseAwayLambda;
 
   // 将截至当前分钟的已核验进球节奏作为受限的 in-play 证据，避免 2-2/3-0
   // 等高事件比赛仍沿用纯赛前低进球先验。早期样本权重较低，且观察速率有上限。
   const currentTotalGoals = currentHomeScore + currentAwayScore;
+  let observedPaceMultiplierHome = 1.0;
+  let observedPaceMultiplierAway = 1.0;
+  let observedPaceWeight = 0.0;
+  let observedFullMatchRate = 0.0;
+
   if (elapsedMinute >= 15 && currentTotalGoals > 0) {
     const priorTotalLambda = baseHomeLambda + baseAwayLambda;
-    const observedFullMatchRate = Math.min(5.5, (currentTotalGoals / elapsedMinute) * 90);
-    const paceWeight = Math.min(0.35, ((elapsedMinute - 15) / 75) * 0.35);
+    observedFullMatchRate = Math.min(5.5, (currentTotalGoals / elapsedMinute) * 90);
+    observedPaceWeight = Math.min(0.35, ((elapsedMinute - 15) / 75) * 0.35);
     const blendedTotalLambda =
-      priorTotalLambda * (1 - paceWeight) + observedFullMatchRate * paceWeight;
+      priorTotalLambda * (1 - observedPaceWeight) + observedFullMatchRate * observedPaceWeight;
     const homeShare = baseHomeLambda / Math.max(0.01, priorTotalLambda);
-    baseHomeLambda = blendedTotalLambda * homeShare;
-    baseAwayLambda = blendedTotalLambda * (1 - homeShare);
+    const newHomeLambda = blendedTotalLambda * homeShare;
+    const newAwayLambda = blendedTotalLambda * (1 - homeShare);
+    observedPaceMultiplierHome = newHomeLambda / Math.max(0.01, baseHomeLambda);
+    observedPaceMultiplierAway = newAwayLambda / Math.max(0.01, baseAwayLambda);
+    baseHomeLambda = newHomeLambda;
+    baseAwayLambda = newAwayLambda;
   }
 
   // 3. 计算时间衰减与局势非线性搏命因子 (结合 15 分钟进球时段 DNA 与 先验实力差)
@@ -574,16 +603,22 @@ export function calculateInPlayPoissonFeatures(
   const lambdaDecomposition = {
     theory_lambda_home: Number((calibration?.theory_prior?.lambda_home_theory ?? baseHomeLambda).toFixed(3)),
     theory_lambda_away: Number((calibration?.theory_prior?.lambda_away_theory ?? baseAwayLambda).toFixed(3)),
+    raw_market_lambda_home: Number(marketBaseHome.toFixed(3)),
+    raw_market_lambda_away: Number(marketBaseAway.toFixed(3)),
     market_base_home: Number(marketBaseHome.toFixed(3)),
     market_base_away: Number(marketBaseAway.toFixed(3)),
     market_weight_applied: calibration?.market_weight_applied ?? 0,
     theory_weight_applied: calibration?.theory_weight_applied ?? 1,
-    weighted_base_lambda_home: Number(baseHomeLambda.toFixed(3)),
-    weighted_base_lambda_away: Number(baseAwayLambda.toFixed(3)),
+    weighted_base_lambda_home: Number(weightedBaseHome.toFixed(3)),
+    weighted_base_lambda_away: Number(weightedBaseAway.toFixed(3)),
     context_multiplier_home: Number(contextMultiplierHome.toFixed(3)),
     context_multiplier_away: Number(contextMultiplierAway.toFixed(3)),
-    base_after_context_home: Number(baseHomeLambda.toFixed(3)),
-    base_after_context_away: Number(baseAwayLambda.toFixed(3)),
+    base_after_context_home: Number(baseAfterContextHome.toFixed(3)),
+    base_after_context_away: Number(baseAfterContextAway.toFixed(3)),
+    observed_pace_multiplier_home: Number(observedPaceMultiplierHome.toFixed(3)),
+    observed_pace_multiplier_away: Number(observedPaceMultiplierAway.toFixed(3)),
+    observed_pace_weight: Number(observedPaceWeight.toFixed(3)),
+    observed_pace_full_match_rate: Number(observedFullMatchRate.toFixed(3)),
     time_fraction_home: marketAlreadyRemaining ? 1 : timeDecay.time_fraction_home,
     time_fraction_away: marketAlreadyRemaining ? 1 : timeDecay.time_fraction_away,
     urgency_multiplier: timeDecay.urgency_multiplier,
@@ -701,6 +736,7 @@ export function calculateInPlayPoissonFeatures(
       home: projectedHomeFinal,
       away: projectedAwayFinal,
       most_likely_score: mostLikely
-    }
+    },
+    dixon_coles_tau: poissonResult.dixon_coles_tau
   };
 }

@@ -1,7 +1,51 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
+- **任务编号 (Task)**: `SNAPSHOT-20260912-DEV-SERVER-STABILIZATION-AND-RESTART`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  排查并根治 Dev Server 启动失败问题，确保 Node.js/Vite 开发服务器在 Cloud Run 容器中稳定自愈与响应：
+  1. 【Vite HMR 端口冲突根治】：在 `server.ts` 的 `createViteServer` 配置中，适配平台 `DISABLE_HMR=true` 环境变量，设置 `hmr: process.env.DISABLE_HMR === 'true' ? false : undefined`，杜绝 24678 端口冲突报错与启动阻塞。
+  2. 【端口与监听绑定加固】：确保仅绑定 3000 端口与 `0.0.0.0`，拦截任何环境变量导致的端口漂移。
+  3. 【服务重启与健康验证】：调用 `restart_dev_server`，验证 `http://localhost:3000/api/health` 与前端 SPA 入口正常加载。
+- **改动文件清单 (Target Files)**：
+  - `/server.ts`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **交付物与成果 (Deliverables)**：
+  1. ✅ `server.ts`：更新 Vite 中间件初始化逻辑，在 `DISABLE_HMR=true` 时禁用 HMR WebSocket 服务（避免 24678 端口冲突），并严格锁定监听在 `0.0.0.0:3000`。
+  2. ✅ 代码自测与构建：`lint_applet`（0 错误通过），`compile_applet`（构建成功）。
+  3. ✅ 容器服务运行状态：通过 `restart_dev_server` 完成平滑拉起，`GET /api/health` 返回 `HTTP 200 OK`，前端 Vite SPA 根路径返回 `HTTP 200 OK`。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+- **任务编号 (Task)**: `SNAPSHOT-20260911-PIPELINE-AND-DECISION-STATUS-ALIGNMENT`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  根治全场比赛被限制、AI 评估后全盘阻断以及研究信号在 DATA_LOCKED 下被误清空的问题：
+  1. 【Layer 03 状态机治本】：在 `candidateStateMachine.ts` 中解耦生产硬门禁与研究信号保留。当触发 `dataBlockers`（如稳定性打折）时，仅锁定生产准入（`machineCandidateSignals = []`, `productionEligible = false`），在宽容模式下如实保留 `researchCandidateSignals`，消除下游信号被粗暴抹除的缺陷。
+  2. 【Layer 04 AI Evaluator 提示词治本】：在 `promptBuilder.ts` 中明确冷启动期（$ESS < 200$）属于平台阶段性样本积累状态，严禁将其作为构成 `CONFIRMED_TRAP` 的第二独立风险类别；确诊诱盘必须由真实的现场物理态势逆转或盘口异动触发。
+  3. 【前端决策分类纠偏】：在 `CanonicalMatchCenter.tsx` 的 `getMatchDecisionStatus` 中严格隔离 `BLOCKED`（排雷阻断）与 `WAITING`（观望待定），未开仓但无机构诱盘恶意设防的比赛统一归入合规观望（如“冷启动样本积累中”、“模型稳定性打折”），彻底终结“一跑 AI 全盘皆红标阻断”的现象。
+- **改动文件清单 (Target Files)**：
+  - `/refactor/03_quant_engine/candidateStateMachine.ts`
+  - `/refactor/04_ai_evaluator/promptBuilder.ts`
+  - `/src/components/CanonicalMatchCenter.tsx`
+  - `/refactor/03_quant_engine/index.ts`
+  - `/refactor/tests/verify_candidate_state_machine.ts`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **交付物与成果 (Deliverables)**：
+  1. ✅ `candidateStateMachine.ts`：在 `DATA_LOCKED` 且 `permissive = true` 时完整保留 `research_candidate_signals`，并通过了强化单测断言。
+  2. ✅ `promptBuilder.ts`：明确排除冷启动 $ESS < 200$ / `NO_PROFILE` 作为诱盘确诊因子的规则，确立双重独立真实风险（物理对抗矛盾、严重盘口异动、现场数据冲突）标准。
+  3. ✅ `CanonicalMatchCenter.tsx`：重构 `getMatchDecisionStatus`，严格区分实战可投（BETTABLE）、机构诱盘排雷阻断（BLOCKED）与合规门禁观望待定（WAITING，附带友好提示语），前端呈现层次分明。
+  4. ✅ `refactor/03_quant_engine/index.ts`：修复 score/timing 类型对齐与 Layer03LiveSnapshot 完整参数构造。
+  5. ✅ 单测与构建验证：`verify_candidate_state_machine.ts` 100% PASS，`verify_quant_engine.ts` 10 项端到端单测 100% PASS，`verify_regression_fixes.ts` 100% PASS，`lint_applet` (0 错误) 与 `compile_applet` (编译成功)。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
 - **任务编号 (Task)**: `SNAPSHOT-20260911-LAYER03-QUANT-ENGINE-REGRESSION-CLOSURE`
-- **当前状态 (Status)**: `IN_PROGRESS`
+- **当前状态 (Status)**: `DONE`
 - **任务目标 (Goal)**：
   严格对照《Layer 03 Quant Engine 回归测试问题清单》完成所有 P0/P1/P2/P3 深度问题根治与数据契约规范化：
   1. 【P0 状态机冲突与语义统一】：
@@ -37,9 +81,15 @@
   - `/refactor/03_quant_engine/index.ts`
   - `/refactor/tests/verify_candidate_state_machine.ts`
   - `/refactor/tests/verify_quant_engine.ts`
+  - `/refactor/tests/verify_regression_fixes.ts`
   - `/refactor/HANDOVER_AND_PROGRESS.md`
 - **交付物与成果 (Deliverables)**：
-  待更新。
+  1. ✅ `refactor/tests/verify_candidate_state_machine.ts` 双轨（严格生产门禁 vs 宽容冷启动门禁）断言 100% PASS。
+  2. ✅ `refactor/tests/verify_quant_engine.ts` 端到端 10 大确定性量化与博弈单测 100% PASS。
+  3. ✅ `refactor/tests/verify_regression_fixes.ts` P0-P3 回归测试集专项断言 100% PASS。
+  4. ✅ 生产构建编译 `compile_applet` 验证无任何 TypeScript 语法与类型报错。
+- **下一步计划 (Next Steps)**：
+  推进 Layer 04 推荐生成与回测台账/复盘验证系统建设。
 
 ---
 

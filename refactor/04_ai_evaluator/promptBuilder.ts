@@ -173,15 +173,17 @@ ${modeSpecificRules}
      * AI MUST verify price acceptability against engine MAO: current_odds >= minimum_acceptable_odds. If current_odds < minimum_acceptable_odds, the leg must be rejected.
 
 10. CONFIRMED_TRAP DUAL-CATEGORY INDEPENDENCE CRITERIA (确诊陷阱双重独立类别标准 - P1-03)
-    - Risk Categories:
-      * CATEGORY_A = MODEL (e.g., model_stability_score < 70)
-      * CATEGORY_B = OOS / CALIBRATION (e.g., NO_PROFILE OOS or uncalibrated)
-      * CATEGORY_C = LIVE_PHYSICAL (e.g., on-pitch physical metrics and momentum contradicting price)
-      * CATEGORY_D = DATA_INTEGRITY (e.g., temporal mismatch, multi-source clock/score conflict)
-      * CATEGORY_E = MARKET_STRUCTURE (e.g., abnormal odds movement, suspicious handicap depth)
+    - COLD START PHASE IS NOT A TRAP (冷启动样本不足绝非诱盘陷阱):
+      * System-wide cold start (OOS sample accumulation phase, ESS < 200 / NO_PROFILE) is a platform developmental state, NOT malicious bookmaker trap behavior.
+      * In cold start, lack of mature OOS only gates production execution (actionable = false, maximum B_GRADE for research). It MUST NOT be used as a risk evidence category for declaring a match a 'CONFIRMED_TRAP'!
+    - Genuine Trap Risk Categories (must be match/market specific):
+      * CATEGORY_A = MODEL INSTABILITY (e.g., severe model divergence, model_stability_score < 60)
+      * CATEGORY_B = LIVE_PHYSICAL CONTRADICTION (e.g., deceptive possession without penetration, high xT/dangerous attacks strongly favoring the non-EV side)
+      * CATEGORY_C = DATA_INTEGRITY (e.g., temporal mismatch, multi-source clock/score conflict, unverified score)
+      * CATEGORY_D = MARKET_STRUCTURE (e.g., abnormal reverse odds movement, suspicious handicap depth lure)
     - MANDATORY CRITERIA:
-      * A match may ONLY be labeled 'CONFIRMED_TRAP' if verified risk evidence originates from AT LEAST TWO (2) DIFFERENT CATEGORIES!
-      * If evidence comes from only one single category: label as 'POTENTIAL_TRAP' or 'UNCERTAIN'.
+      * A match may ONLY be labeled 'CONFIRMED_TRAP' if verified risk evidence originates from AT LEAST TWO (2) GENUINE TRAP CATEGORIES!
+      * If evidence comes from only one single category or only general cold-start gating: label as 'POTENTIAL_TRAP' or 'UNCERTAIN', NEVER 'CONFIRMED_TRAP'.
 
 11. MARKET SEMANTIC ISOLATION (市场语义绝对隔离 - P1-04, P1-05)
     - MONEYLINE_1X2: Evaluated on the FULL MATCH final outcome.

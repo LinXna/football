@@ -238,9 +238,9 @@ export function calculateH2HDecayWeights(
         tactical_decayed_weight: 0,
         net_goal_differential_weighted: 0,
         historical_h2h_advantage_home: 0,
-        historical_under_rate: 0.5,
+        historical_under_rate: null,
         historical_avg_corners: null,
-        historical_avg_red_cards: 0.0,
+        historical_avg_red_cards: null,
         tactical_stylistic_clash_index: 0
       }
     };
@@ -442,8 +442,8 @@ export function calculateH2HDecayWeights(
 
   const netDiffWeighted = totalDecayedWeight > 0 ? Number((weightedNetGoals / totalDecayedWeight).toFixed(3)) : 0;
   const h2hAdvantage = Math.max(-0.20, Math.min(0.20, netDiffWeighted * 0.08));
-  const underRate = totalDecayedWeight > 0 ? Number((validUnderCount / totalDecayedWeight).toFixed(3)) : 0.5;
-  const avgReds = validCount > 0 ? Number((totalRedCards / validCount).toFixed(2)) : 0.0;
+  const underRate = totalDecayedWeight > 0 ? Number((validUnderCount / totalDecayedWeight).toFixed(3)) : null;
+  const avgReds = validCount > 0 ? Number((totalRedCards / validCount).toFixed(2)) : null;
 
   // 严禁假 0 或假 9.0，仅当具备真实有效战术攻防样本时计算
   const tacticalAvailable = tacticalValidCount >= 1;
@@ -778,11 +778,12 @@ export function extractIsoVenueStandings(
 
   const mapStanding = (record: ParsedStandingRecord | null): IsoVenueStandingRecord | null => {
     if (!record || !Number.isFinite(record.matches_played) || record.matches_played <= 0) return null;
-    const numericValues = [
+    const nonNegativeValues = [
       record.won, record.draw, record.loss, record.goals_scored,
-      record.goals_conceded, record.goal_difference, record.points
+      record.goals_conceded, record.points
     ];
-    if (numericValues.some((value) => !Number.isFinite(value) || value < 0) ||
+    if (nonNegativeValues.some((value) => !Number.isFinite(value) || value < 0) ||
+        !Number.isFinite(record.goal_difference) ||
         record.won + record.draw + record.loss > record.matches_played ||
         record.goal_difference !== record.goals_scored - record.goals_conceded) {
       return null;
@@ -916,10 +917,14 @@ export function extractTacticalFormationFeatures(
     }
   }
 
+  const bothKnown = homeFormation !== 'UNKNOWN' && awayFormation !== 'UNKNOWN';
+  const formationMatched = bothKnown && (homeFormation === awayFormation);
+
   return Object.freeze({
     home_formation: homeFormation,
     away_formation: awayFormation,
-    formation_matched: homeFormation !== 'UNKNOWN' && awayFormation !== 'UNKNOWN',
+    both_formations_known: bothKnown,
+    formation_matched: formationMatched,
     wing_space_vulnerability_home: wingVulnerabilityHome,
     wing_space_vulnerability_away: wingVulnerabilityAway,
     midfield_congestion_index: midfieldCongestion,

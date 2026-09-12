@@ -19,6 +19,10 @@ export type CandidatePipelineState =
 
 export interface CandidateOosValidation {
   market: OosMarket | null;
+  market_type?: string;
+  normalized_line?: string;
+  side?: string;
+  settlement_type?: string;
   oos_profile_key?: string;
   status: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'INSUFFICIENT_EVIDENCE' | 'NO_PROFILE' | 'REJECTED' | 'UNSUPPORTED_MARKET' | 'VALIDATED';
   effective_sample_size: number;
@@ -68,6 +72,9 @@ export interface CandidatePipelineEvaluationInput {
   readonly postGoalCooldownActive: boolean;
   readonly permissiveOosMode?: boolean;
   readonly allowSecondaryLines?: boolean;
+  readonly isProductionReady?: boolean;
+  readonly currentScore?: string;
+  readonly snapshotTime?: string;
 }
 
 export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInput): CandidatePipelineEvaluation {
@@ -102,6 +109,10 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
     if (isSecondary && !allowSecondary) {
       return {
         market: null,
+        market_type: signal.market,
+        normalized_line: signal.line,
+        side: signal.side,
+        settlement_type: settlementType,
         oos_profile_key: oosProfileKey,
         status: 'UNSUPPORTED_MARKET',
         effective_sample_size: 0,
@@ -114,6 +125,10 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
     if (market === undefined) {
       return {
         market: null,
+        market_type: signal.market,
+        normalized_line: signal.line,
+        side: signal.side,
+        settlement_type: settlementType,
         oos_profile_key: oosProfileKey,
         status: 'UNSUPPORTED_MARKET',
         effective_sample_size: 0,
@@ -126,6 +141,10 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
     if (profile === undefined || profile.effective_sample_size === 0) {
       return {
         market,
+        market_type: signal.market,
+        normalized_line: signal.line,
+        side: signal.side,
+        settlement_type: settlementType,
         oos_profile_key: oosProfileKey,
         status: 'NO_PROFILE',
         effective_sample_size: profile?.effective_sample_size ?? 0,
@@ -142,6 +161,10 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
     if (profile.status === 'REJECTED') {
       return {
         market,
+        market_type: signal.market,
+        normalized_line: signal.line,
+        side: signal.side,
+        settlement_type: settlementType,
         oos_profile_key: oosProfileKey,
         status: 'REJECTED',
         effective_sample_size: profile.effective_sample_size,
@@ -155,6 +178,10 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
     if (profile.effective_sample_size < OOS_VALIDATION_MIN_ESS) {
       return {
         market,
+        market_type: signal.market,
+        normalized_line: signal.line,
+        side: signal.side,
+        settlement_type: settlementType,
         oos_profile_key: oosProfileKey,
         status: 'INSUFFICIENT_EVIDENCE',
         effective_sample_size: profile.effective_sample_size,
@@ -171,6 +198,10 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
     if (profile.oos_brier_score === null || !Number.isFinite(profile.oos_brier_score)) {
       return {
         market,
+        market_type: signal.market,
+        normalized_line: signal.line,
+        side: signal.side,
+        settlement_type: settlementType,
         oos_profile_key: oosProfileKey,
         status: 'REJECTED',
         effective_sample_size: profile.effective_sample_size,
@@ -186,6 +217,10 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
 
     return {
       market,
+      market_type: signal.market,
+      normalized_line: signal.line,
+      side: signal.side,
+      settlement_type: settlementType,
       oos_profile_key: oosProfileKey,
       status: tieredStatus,
       effective_sample_size: profile.effective_sample_size,
@@ -264,69 +299,11 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
     ? [...oosHardBlockers, ...dataBlockers]
     : [...allOosBlockers, ...dataBlockers];
 
-  if (oosPassSignals.length === 0) {
-    state = 'OOS_LOCKED';
-    transitions.push({
-      from: 'OOS_LOCKED',
-      to: 'OOS_LOCKED',
-      reason: permissive
-        ? '没有信号通过支持市场校验或所有信号被硬拦截拒绝。'
-        : `没有任何原始 +EV 信号通过 VALIDATED OOS + ESS >= ${OOS_VALIDATION_MIN_ESS}。`
-    });
-  } else if (dataBlockers.length > 0) {
-    transitions.push({
-      from: 'OOS_LOCKED',
-      to: 'DATA_LOCKED',
-      reason: permissive
-        ? '信号已通过软门禁放行，但执行数据/比赛状态门未通过。'
-        : '至少一个信号已通过 OOS，但执行数据/比赛状态门未通过。'
-    });
-    state = 'DATA_LOCKED';
-  } else {
-    // 数据门禁已通过，严格按 OOS 成熟度区分冷启动放行与生产解锁
-    if (strictlyMatureSignals.length > 0) {
-      transitions.push({
-        from: 'OOS_LOCKED',
-        to: 'PRODUCTION_UNLOCKED',
-        reason: '信号通过严格成熟 OOS 档案校验 (ESS >= 200) 与全部执行门禁，晋升进入生产推荐候选池。'
-      });
-      state = 'PRODUCTION_UNLOCKED';
-      productionEligible = true;
+  const scoreSnapshot = input.currentScore ?? '0-0';
+  const snapshotTime = input.snapshotTime ?? new Date().toISOString();
 
-      machineCandidateSignals = Object.freeze(
-        strictlyMatureSignals.map((raw) => {
-          return Object.freeze({
-            ...raw,
-            oos_status: 'PRODUCTION_MATURE' as const,
-            line_at_signal: raw.line,
-            side_at_signal: raw.side,
-            odds_at_signal: raw.odds
-          });
-        })
-      );
-    } else if (permissive) {
-      // P0-1 & P0-2: 冷启动软门禁独立状态，保留研究候选，不阻断研究功能，但绝不伪装为生产解锁
-      transitions.push({
-        from: 'OOS_LOCKED',
-        to: 'COLD_START_PERMISSIVE',
-        reason: '处于冷启动样本积累期，信号以研究级候选 (RESEARCH_CANDIDATE) 放行，未解锁正式生产推荐 (production_eligible = false)。'
-      });
-      state = 'COLD_START_PERMISSIVE';
-      productionEligible = false;
-      machineCandidateSignals = Object.freeze([]);
-    } else {
-      transitions.push({
-        from: 'OOS_LOCKED',
-        to: 'OOS_LOCKED',
-        reason: '在严格模式下未达到生产成熟 OOS 验证标准。'
-      });
-      state = 'OOS_LOCKED';
-      productionEligible = false;
-      machineCandidateSignals = Object.freeze([]);
-    }
-
-    // 构建研究级候选 (RESEARCH_CANDIDATE) 列表，供下游复盘、量化研究与冷启动初筛
-    researchCandidateSignals = Object.freeze(
+  const buildResearchCandidateSignals = (): readonly PositiveEVSignal[] => {
+    return Object.freeze(
       oosPassIndices.map((i) => {
         const raw = rawSignals[i];
         const valStatus = validations[i]?.status;
@@ -339,16 +316,116 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
           oosStatus = 'PERMISSIVE_PASSED';
         }
 
+        const isAh = raw.market.includes('ASIAN_HANDICAP');
+        const settlementBasis = isAh ? ('REST_OF_MATCH' as const) : ('FULL_MATCH' as const);
+
         return Object.freeze({
           ...raw,
           oos_status: oosStatus,
           oos_profile_key: validations[i]?.oos_profile_key,
           line_at_signal: raw.line,
           side_at_signal: raw.side,
-          odds_at_signal: raw.odds
+          odds_at_signal: raw.odds,
+          score_at_signal: scoreSnapshot,
+          score_at_bet: scoreSnapshot,
+          line_at_bet: raw.line,
+          odds_at_bet: raw.odds,
+          settlement_basis: settlementBasis,
+          snapshot_time: snapshotTime
         });
       })
     );
+  };
+
+  if (oosPassSignals.length === 0) {
+    state = 'OOS_LOCKED';
+    transitions.push({
+      from: 'OOS_LOCKED',
+      to: 'OOS_LOCKED',
+      reason: permissive
+        ? '没有信号通过支持市场校验或所有信号被硬拦截拒绝。'
+        : `没有任何原始 +EV 信号通过 VALIDATED OOS + ESS >= ${OOS_VALIDATION_MIN_ESS}。`
+    });
+    productionEligible = false;
+    machineCandidateSignals = Object.freeze([]);
+    researchCandidateSignals = Object.freeze([]);
+  } else if (dataBlockers.length > 0) {
+    transitions.push({
+      from: 'OOS_LOCKED',
+      to: 'DATA_LOCKED',
+      reason: permissive
+        ? '信号已通过软门禁放行，但执行数据/比赛状态门未通过。'
+        : '至少一个信号已通过 OOS，但执行数据/比赛状态门未通过。'
+    });
+    state = 'DATA_LOCKED';
+    productionEligible = false;
+    machineCandidateSignals = Object.freeze([]);
+    // 在冷启动/宽容研究模式下，保留合规研究级候选供复盘与观察，不因数据/稳定性打折而清空研究候选
+    researchCandidateSignals = permissive ? buildResearchCandidateSignals() : Object.freeze([]);
+  } else {
+    // 数据门禁已通过，严格按 OOS 成熟度区分冷启动放行与生产解锁
+    const isProductionReady = input.isProductionReady !== false;
+    if (strictlyMatureSignals.length > 0 && isProductionReady) {
+      transitions.push({
+        from: 'OOS_LOCKED',
+        to: 'PRODUCTION_UNLOCKED',
+        reason: '信号通过严格成熟 OOS 档案校验 (ESS >= 200) 与全部执行门禁，晋升进入生产推荐候选池。'
+      });
+      state = 'PRODUCTION_UNLOCKED';
+      productionEligible = true;
+
+      machineCandidateSignals = Object.freeze(
+        strictlyMatureSignals.map((raw) => {
+          const isAh = raw.market.includes('ASIAN_HANDICAP');
+          const settlementBasis = isAh ? ('REST_OF_MATCH' as const) : ('FULL_MATCH' as const);
+          return Object.freeze({
+            ...raw,
+            oos_status: 'PRODUCTION_MATURE' as const,
+            line_at_signal: raw.line,
+            side_at_signal: raw.side,
+            odds_at_signal: raw.odds,
+            score_at_signal: scoreSnapshot,
+            score_at_bet: scoreSnapshot,
+            line_at_bet: raw.line,
+            odds_at_bet: raw.odds,
+            settlement_basis: settlementBasis,
+            snapshot_time: snapshotTime
+          });
+        })
+      );
+      researchCandidateSignals = buildResearchCandidateSignals();
+    } else if (strictlyMatureSignals.length > 0 && !isProductionReady) {
+      transitions.push({
+        from: 'OOS_LOCKED',
+        to: 'DATA_LOCKED',
+        reason: '信号通过成熟 OOS 档案校验，但全局生产就绪门禁未通过 (isProductionReady=false)。'
+      });
+      state = 'DATA_LOCKED';
+      productionEligible = false;
+      machineCandidateSignals = Object.freeze([]);
+      researchCandidateSignals = buildResearchCandidateSignals();
+    } else if (permissive) {
+      // P0-1 & P0-2: 冷启动软门禁独立状态，保留研究候选，不阻断研究功能，但绝不伪装为生产解锁
+      transitions.push({
+        from: 'OOS_LOCKED',
+        to: 'COLD_START_PERMISSIVE',
+        reason: '处于冷启动样本积累期，信号以研究级候选 (RESEARCH_CANDIDATE) 放行，未解锁正式生产推荐 (production_eligible = false)。'
+      });
+      state = 'COLD_START_PERMISSIVE';
+      productionEligible = false;
+      machineCandidateSignals = Object.freeze([]);
+      researchCandidateSignals = buildResearchCandidateSignals();
+    } else {
+      transitions.push({
+        from: 'OOS_LOCKED',
+        to: 'OOS_LOCKED',
+        reason: '在严格模式下未达到生产成熟 OOS 验证标准。'
+      });
+      state = 'OOS_LOCKED';
+      productionEligible = false;
+      machineCandidateSignals = Object.freeze([]);
+      researchCandidateSignals = Object.freeze([]);
+    }
   }
 
   return Object.freeze({

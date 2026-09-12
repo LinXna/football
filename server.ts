@@ -1842,8 +1842,12 @@ registerRefactorAiRoutes(app);
 
 async function start() {
   if (ENVIRONMENT !== 'production') {
+    const isHmrDisabled = process.env.DISABLE_HMR === 'true';
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: isHmrDisabled ? false : undefined,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -1855,9 +1859,11 @@ async function start() {
     });
   }
 
-  app.listen(PORT, HOST, () => {
-    const displayHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
-    console.log(`[LX Football System] Express Server running on http://${displayHost}:${PORT}`);
+  const targetPort = 3000;
+  const targetHost = '0.0.0.0';
+
+  app.listen(targetPort, targetHost, () => {
+    console.log(`[LX Football System] Express Server running on http://${targetHost}:${targetPort}`);
   });
 }
 

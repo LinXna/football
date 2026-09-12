@@ -143,10 +143,10 @@ export interface H2HDetailedAnalytics {
   // 历史交锋净胜均值与场面压制 (基于宏观真实比分)
   net_goal_differential_weighted: number;
   historical_h2h_advantage_home: number;  // [-0.20, +0.20]
-  historical_under_rate: number;         // 历史交锋小球倾向率
+  historical_under_rate: number | null;         // 历史交锋小球倾向率
   // 深度战术指标 (严禁假 0 与假默认值，仅当 tactical_metrics_available 时真实计算，否则为 null 或 0.0)
   historical_avg_corners: number | null; // 历史平均角球 (若无有效深层统计则为 null，严禁假 0 或假 9.0)
-  historical_avg_red_cards: number;      // 历史平均红牌
+  historical_avg_red_cards: number | null;      // 历史平均红牌
   tactical_stylistic_clash_index: number;// 球风相克指数 [-1.0, 1.0] (仅基于有效战术样本，若无有效样本严格为 0.0)
 }
 
@@ -182,6 +182,7 @@ export interface GoalDistributionDNAFeatures {
 export interface TacticalFormationFeatures {
   home_formation: string;
   away_formation: string;
+  both_formations_known: boolean;
   formation_matched: boolean;
   wing_space_vulnerability_home: number; // 边肋部空档暴露度 [0.0 ~ 1.0]
   wing_space_vulnerability_away: number;
@@ -337,6 +338,8 @@ export interface ScoreProbabilityItem {
 }
 
 export interface LambdaDecomposition {
+  raw_market_lambda_home?: number;
+  raw_market_lambda_away?: number;
   theory_lambda_home?: number;
   theory_lambda_away?: number;
   market_base_home: number;
@@ -349,6 +352,10 @@ export interface LambdaDecomposition {
   context_multiplier_away: number;
   base_after_context_home: number;
   base_after_context_away: number;
+  observed_pace_multiplier_home?: number;
+  observed_pace_multiplier_away?: number;
+  observed_pace_weight?: number;
+  observed_pace_full_match_rate?: number;
   time_fraction_home: number;
   time_fraction_away: number;
   urgency_multiplier: number;
@@ -370,6 +377,13 @@ export interface LambdaDecomposition {
   final_lambda_away?: number;
 }
 
+export interface DixonColesCorrectionTau {
+  tau_0_0: number;
+  tau_0_1: number;
+  tau_1_0: number;
+  tau_1_1: number;
+}
+
 export interface InPlayPoissonFeatures {
   elapsed_minute: number;
   remaining_minutes: number;
@@ -379,7 +393,9 @@ export interface InPlayPoissonFeatures {
   lambda_away_rest: number;
   expected_goals_rest: number;
   lambda_source: 'MARKET_IMPLIED' | 'LEAGUE_DNA' | 'FALLBACK';
+  rho_used?: number;
   rho_source?: 'CALIBRATED' | 'DEFAULT_ASSUMPTION';
+  dixon_coles_tau?: DixonColesCorrectionTau;
   lambda_decomposition: LambdaDecomposition;
   top_final_scores: ScoreProbabilityItem[];
   rest_score_matrix: {
@@ -494,6 +510,10 @@ export interface PositiveEVSignal {
   side_at_signal?: string;
   odds_at_signal?: number;
   score_at_signal?: string;
+  score_at_bet?: string;
+  line_at_bet?: string;
+  odds_at_bet?: number;
+  settlement_basis?: 'REST_OF_MATCH' | 'FULL_MATCH';
   snapshot_time?: string;
 }
 
@@ -597,6 +617,12 @@ export interface LiveThreatTrinityFeatures {
   rationale: string[];
 }
 
+export interface CandidateRegimeEnergy {
+  regime: TacticalRegimeType;
+  energy: number;
+  description: string;
+}
+
 /**
  * 战术相变与事件后态势 (Tactical Regime State)
  */
@@ -609,6 +635,8 @@ export interface TacticalRegimeFeatures {
   tactical_description: string;
   regime_multiplier_home: number;
   regime_multiplier_away: number;
+  neutral_equilibrium_threshold?: number;
+  candidate_regime_energies?: readonly CandidateRegimeEnergy[];
 }
 
 /**
@@ -655,6 +683,9 @@ export interface UnifiedMatchState {
 export interface Layer03LiveSnapshot {
   observed_at: string;
   cutoff_minute: number | null;
+  event_cutoff_minute: number | null;
+  source_snapshot_at: string | null;
+  model_calculated_at: string;
   score: {
     home_score: number | null;
     away_score: number | null;
@@ -680,6 +711,7 @@ export interface QuantitativeFeatures {
   match_state: UnifiedMatchState;
   battlefield_dominance_index: number;
   goal_phase_alert: GoalPhaseAlert;
+  goal_phase_alert_nature?: 'RULE_BASED_PRESSURE_SIGNAL' | 'NONE';
   live_snapshot?: Layer03LiveSnapshot;
   /** M5 原始正 EV，仅表示数学筛选结果，不代表可交易候选。 */
   raw_positive_ev_signals: PositiveEVSignal[];
@@ -707,7 +739,7 @@ export interface QuantitativeFeatures {
 }
 
 export type Layer03CalculationStatus = 'PRODUCTION_READY' | 'RESEARCH_ONLY' | 'BLOCKED';
-export type Layer03CandidateStatus = 'UNLOCKED' | 'OOS_LOCKED' | 'DATA_LOCKED' | 'COLD_START_PERMISSIVE';
+export type Layer03CandidateStatus = 'PRODUCTION_UNLOCKED' | 'UNLOCKED' | 'OOS_LOCKED' | 'DATA_LOCKED' | 'COLD_START_PERMISSIVE';
 
 export type Layer03CandidatePipelineState =
   | 'NO_POSITIVE_EV'
@@ -721,6 +753,10 @@ export const PRODUCTION_MATURE_ESS = 200;
 
 export interface Layer03CandidateOosValidation {
   market: OosMarket | null;
+  market_type?: string;
+  normalized_line?: string;
+  side?: string;
+  settlement_type?: string;
   oos_profile_key?: string;
   status: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'INSUFFICIENT_EVIDENCE' | 'NO_PROFILE' | 'REJECTED' | 'UNSUPPORTED_MARKET' | 'VALIDATED';
   effective_sample_size: number;
