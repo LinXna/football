@@ -251,6 +251,8 @@ export function calculateH2HDecayWeights(
 
   const currentHomeId = match.reference?.home_team_id ?? match.reference?.league_standings?.home_team?.team_id ?? null;
   const currentAwayId = match.reference?.away_team_id ?? match.reference?.league_standings?.away_team?.team_id ?? null;
+  const currentLeague = match.league_name || match.reference?.leisu_league_name || '';
+  const isCurrentMatchFriendly = /友谊|Friendly|球会友谊/i.test(currentLeague);
 
   let totalDecayedWeight = 0;
   let weightedNetGoals = 0;
@@ -307,7 +309,19 @@ export function calculateH2HDecayWeights(
       decayWeight = Math.exp(-decayConstant * daysAgo);
     }
 
-    const compImp = 1.0;
+    const h2hCompName = String(h2h.league_name || (h2h as any).competition_name || (h2h as any).competition || '');
+    const isH2HFriendly = /友谊|Friendly|球会友谊/i.test(h2hCompName);
+
+    let compImp = 1.0;
+    if (isH2HFriendly) {
+      if (!isCurrentMatchFriendly) {
+        // 规则 A：若当前分析比赛为正规联赛/正规杯赛，历史样本中的球会友谊赛严格隔离归零
+        compImp = 0.0;
+      } else {
+        // 规则 B：若当前分析比赛本身即球会友谊赛，历史友谊赛样本正常保留 1.0 权重并参与时间衰减
+        compImp = 1.0;
+      }
+    }
 
     // 方案 1 历史对赛改造：双重锚定校验当前主队在该历史对决中是主场出战还是客场出战
     let isCurrentHomePlayingHome = true;
@@ -516,6 +530,7 @@ export function calculateRecentFormWeights(
     }
 
     const currentLeagueName = match.league_name || match.reference?.leisu_league_name || '';
+    const isCurrentMatchFriendly = /友谊|Friendly|球会友谊/i.test(currentLeagueName);
 
     let totalEffectiveWeight = 0;
     let sumScored = 0;
@@ -564,10 +579,18 @@ export function calculateRecentFormWeights(
       // 2. 赛事层级与同赛事优先过滤
       let compWeight = 0.8;
       const compName = String(item.league_name || item.competition_name || item.competition || '');
-      if (currentLeagueName && (compName.includes(currentLeagueName) || currentLeagueName.includes(compName))) {
+      const isItemFriendly = /友谊|Friendly|球会友谊/i.test(compName);
+
+      if (isItemFriendly) {
+        if (!isCurrentMatchFriendly) {
+          // 规则 A：若当前分析比赛为正规联赛/正规杯赛，历史样本中的球会友谊赛严格隔离归 0.0，杜绝商业热身假象污染
+          compWeight = 0.0;
+        } else {
+          // 规则 B：若当前分析比赛本身就是球会友谊赛，历史友谊赛样本正常赋予 1.0 权重并参与时间衰减
+          compWeight = 1.0;
+        }
+      } else if (currentLeagueName && (compName.includes(currentLeagueName) || currentLeagueName.includes(compName))) {
         compWeight = 1.0; // 同名同级别联赛最高准度
-      } else if (compName.includes('友谊') || compName.includes('Friendly') || compName.includes('球会友谊')) {
-        compWeight = daysAgo <= 30 ? 0.10 : 0.0; // 友谊赛仅在近期30天保留极低体能参考，超期一律归零
       } else if (compName.includes('杯') || compName.includes('Cup') || compName.includes('Trophy')) {
         compWeight = 0.60; // 杯赛权重
       }

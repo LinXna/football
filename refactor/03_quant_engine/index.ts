@@ -662,6 +662,14 @@ export function calculateQuantitativeFeatures(
     }
   }
 
+  // 若当前比赛为友谊赛，追加 FRIENDLY_HIGH_ROTATION_RISK 风险警报
+  const currentLeague = match.league_name || match.reference?.leisu_league_name || '';
+  if (/友谊|friendly|球会友谊/i.test(currentLeague)) {
+    if (!finalRiskFlags.includes(QuantAlert.FRIENDLY_HIGH_ROTATION_RISK)) {
+      finalRiskFlags.push(QuantAlert.FRIENDLY_HIGH_ROTATION_RISK);
+    }
+  }
+
   const dataAudit = buildLayer03DataAudit(match, contextFeatures, timelineFeatures, physicalStatsFeatures);
   const productionGate = buildLayer03ProductionGate(
     match,

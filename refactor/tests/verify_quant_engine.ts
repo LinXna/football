@@ -207,6 +207,62 @@ async function runQuantEngineTests() {
     assert(extractIsoVenueStandings(dirtyContextMatch).home_at_home === null, 'Inconsistent standings must be rejected');
     assert(calculateLineupImpactScores(dirtyContextMatch).lineup_status === 'NOT_ANNOUNCED', 'One-sided lineup data must not be treated as projected or confirmed');
 
+    // (1.1) 友谊赛动态上下文加权回归测试
+    // 场景 A: 当前比赛为正规联赛 (EPL)，历史友谊赛样本必须隔离归 0.0
+    const regularMatchWithFriendlySample: CanonicalMatch = {
+      ...mockH2HMatch,
+      league_name: '英超',
+      reference: {
+        ...mockH2HMatch.reference!,
+        tactical_context: {
+          ...mockH2HMatch.reference!.tactical_context!,
+          home_recent_matches: [{
+            match_id: 101,
+            match_time: Date.now() - 5 * 86400000,
+            league_name: '球会友谊',
+            home_team_name: 'Team A',
+            away_team_name: 'Other Team',
+            fulltime_score: { home: 3, away: 1 }
+          } as any],
+          h2h_raw: [{
+            match_id: 201,
+            match_time: Date.now() - 10 * 86400000,
+            league_name: '球会友谊',
+            home_team_name: 'Team A',
+            away_team_name: 'Team B',
+            home_scores: [2, 1],
+            away_scores: [0, 0]
+          } as any]
+        }
+      }
+    };
+    const regularRecentRes = calculateRecentFormWeights(regularMatchWithFriendlySample, Date.now());
+    assert(
+      regularRecentRes.home[0].competition_importance_weight === 0.0 && regularRecentRes.home[0].final_composite_weight === 0.0,
+      '正规联赛必须对历史友谊赛样本严格隔离归零 (0.0)'
+    );
+    const regularH2HRes = calculateH2HDecayWeights(regularMatchWithFriendlySample, 365, Date.now());
+    assert(
+      regularH2HRes.weights[0].competition_importance === 0.0,
+      '正规联赛对历史友谊赛交锋重要性必须严格隔离归零 (0.0)'
+    );
+
+    // 场景 B: 当前比赛本身为友谊赛 (球会友谊)，历史友谊赛样本必须正常赋予 1.0 权重并参与衰减
+    const friendlyMatchWithFriendlySample: CanonicalMatch = {
+      ...regularMatchWithFriendlySample,
+      league_name: '球会友谊'
+    };
+    const friendlyRecentRes = calculateRecentFormWeights(friendlyMatchWithFriendlySample, Date.now());
+    assert(
+      friendlyRecentRes.home[0].competition_importance_weight === 1.0 && friendlyRecentRes.home[0].final_composite_weight > 0.5,
+      '当前比赛为友谊赛时，历史友谊赛样本必须正常赋权 1.0'
+    );
+    const friendlyH2HRes = calculateH2HDecayWeights(friendlyMatchWithFriendlySample, 365, Date.now());
+    assert(
+      friendlyH2HRes.weights[0].competition_importance === 1.0 && friendlyH2HRes.weights[0].decay_weight > 0.5,
+      '当前比赛为友谊赛时，历史友谊赛交锋必须正常赋予 1.0 重要性'
+    );
+
     // (2) L0 熔断测试
     const fatalMatch: CanonicalMatch = {
       ...mockH2HMatch,

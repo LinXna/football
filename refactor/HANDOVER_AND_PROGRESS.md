@@ -1,5 +1,40 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
+- **任务编号 (Task)**: `SNAPSHOT-20260912-FRIENDLY-MATCH-CONTEXT-AND-ALIGNMENT-GUARD`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  根治友谊赛战绩权重一刀切归零导致无数据可用，以及落地友谊赛首发确认后的风控分级：
+  1. 【Layer 03 战绩上下文感知动态加权】：
+     - 在 `contextEngine.ts` 中改造 `calculateRecentFormWeights` 与 `calculateH2HDecayWeights`，智能感知当前分析赛事的属性；
+     - 规则 A：若当前分析比赛为正规联赛/正规杯赛（非友谊赛），历史样本中的球会友谊赛严格隔离，权重归 0.0，杜绝商业热身假象污染正规模型；
+     - 规则 B：若当前分析比赛【本身就是球会友谊赛】，历史样本中的球会友谊赛正常赋权 1.0（按时间指数半衰期衰减），保障休赛期友谊赛具备扎实的战绩底色与得失球期望；
+  2. 【Layer 04 AI 终审与风控边界铁律】：
+     - 首发未确认：友谊赛/杯赛维持 C_GRADE 观察门禁（0 推荐腿）；
+     - 首发已确认：若通过量化评估与正期望值检验，最高放行至稳健实战级 `B_GRADE`（置信度上限 80 分），坚决不给 `A_GRADE`（严禁重仓）；
+     - 强制风险警报注入：显式注入 `FRIENDLY_HIGH_ROTATION_RISK` 警报及换人轮换风险提示，确保决策透明；
+  3. 【系统枚举与契约统一】：
+     - 在 `03_quant_engine/enums.ts` 与 `04_ai_evaluator/enums.ts` 中统一支持 `FRIENDLY_HIGH_ROTATION_RISK`；
+  4. 【验证与回归自测】：
+     - 扩充 `refactor/tests/verify_quant_engine.ts` 与 `refactor/tests/verify_ai_evaluator.ts`，验证历史友谊赛在正规比赛中隔离为 0.0、在友谊赛中赋权 1.0、首发确认友谊赛严格封顶 B 级且注入 FRIENDLY_HIGH_ROTATION_RISK，全部测试 100% 通过；
+     - 执行 `lint_applet` 全量 TypeScript 类型检查通过，无任何语法或类型报错。
+- **改动文件清单 (Target Files)**：
+  - `/refactor/03_quant_engine/contextEngine.ts`
+  - `/refactor/03_quant_engine/enums.ts`
+  - `/refactor/03_quant_engine/index.ts`
+  - `/refactor/04_ai_evaluator/alignmentGuard.ts`
+  - `/refactor/04_ai_evaluator/enums.ts`
+  - `/refactor/01_data_ingestion/leisu/types.ts`
+  - `/refactor/tests/verify_quant_engine.ts`
+  - `/refactor/tests/verify_ai_evaluator.ts`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **交付物与成果 (Deliverables)**：
+  - 双场景动态战绩加权引擎与 Layer 04 友谊赛最高 B 级风控硬门禁成功交付；
+  - 单元测试与端到端量化全覆盖验证通过。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
 - **任务编号 (Task)**: `SNAPSHOT-20260912-DEV-SERVER-STABILIZATION-AND-RESTART`
 - **当前状态 (Status)**: `DONE`
 - **任务目标 (Goal)**：

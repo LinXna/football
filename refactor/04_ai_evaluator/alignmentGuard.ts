@@ -342,17 +342,34 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
     }
   }
 
-  // Step 7: 杯赛/友谊赛首发未确认时：最高 C 级，不进正式串关
+  // Step 7: 杯赛/友谊赛首发与风控门禁
   const league = payload.ai_brief.league ?? '';
-  const isCupOrFriendly = /杯|Cup|copa|pokal|coupe|友谊|friendly/i.test(league);
+  const isFriendly = /友谊|friendly|球会友谊/i.test(league);
+  const isCup = /杯|Cup|copa|pokal|coupe/i.test(league);
+  const isCupOrFriendly = isCup || isFriendly;
   const lineupNotConfirmed = typeof payload.lineup_value_matrix === 'string'
     ? true
     : !payload.lineup_value_matrix?.is_lineup_confirmed;
+
   if (isCupOrFriendly && lineupNotConfirmed) {
     if (enforcedGrade === RecommendationGrade.A_GRADE || enforcedGrade === RecommendationGrade.B_GRADE) {
       enforcedGrade = RecommendationGrade.C_GRADE;
       additionalWarnings.push("SYSTEM HARD GATE: 杯赛/友谊赛官方首发未确认，最高维持 C 级观察");
     }
+  } else if (isFriendly && !lineupNotConfirmed) {
+    // 首发官宣确认、主力出战明确的优质友谊赛：最高放行至稳健 B_GRADE，坚决不给 A_GRADE 重仓，强制打上 FRIENDLY_HIGH_ROTATION_RISK
+    if (enforcedGrade === RecommendationGrade.A_GRADE) {
+      enforcedGrade = RecommendationGrade.B_GRADE;
+      additionalWarnings.push("SYSTEM HARD GATE: 友谊赛性质特殊存在换人轮换风险，严禁 A_GRADE 重仓，强制封顶 B_GRADE");
+    }
+    if (enforcedConfidence > 80) {
+      enforcedConfidence = 80;
+      additionalWarnings.push("SYSTEM HARD GATE: 友谊赛置信度强制封顶 80 分");
+    }
+    if (!additionalWarnings.includes(QuantAlert.FRIENDLY_HIGH_ROTATION_RISK)) {
+      additionalWarnings.push(QuantAlert.FRIENDLY_HIGH_ROTATION_RISK);
+    }
+    additionalWarnings.push("RISK_ALERT: [FRIENDLY_HIGH_ROTATION_RISK] 友谊赛换人名额宽泛且战意波动大，谨防下半场大面积轮换风险");
   }
 
   // Step 8 & 9: Layer 03 量化警报后置协同门禁与确诊诱盘 (P1-03)

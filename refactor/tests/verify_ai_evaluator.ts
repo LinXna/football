@@ -332,5 +332,54 @@ if (preservedResult.grade !== RecommendationGrade.B_GRADE) {
 }
 console.log("[OK] Live match tactical evaluation preserved without false string clock degradation.");
 
+// --- Test 8: Friendly Match Gating & Warning Verification ---
+console.log("\n=== TESTING FRIENDLY MATCH GATING AND RISK ALERTS ===");
+const friendlyPayloadWithConfirmedLineup: EvaluatorPayload = {
+  ...mockPayload,
+  ai_brief: {
+    ...mockPayload.ai_brief,
+    league: '球会友谊'
+  },
+  lineup_value_matrix: {
+    is_lineup_confirmed: true,
+    home_confirmed_count: 11,
+    away_confirmed_count: 11,
+    lineup_status: 'CONFIRMED'
+  } as any
+};
+
+const friendlyAiResultWithAGrade: AiEvaluationResult = {
+  ...validAiResult,
+  grade: RecommendationGrade.A_GRADE,
+  confidence_score: 90
+};
+
+const gatedFriendlyResult = verifyStatutoryAlignment(friendlyAiResultWithAGrade, friendlyPayloadWithConfirmedLineup);
+
+if (gatedFriendlyResult.grade !== RecommendationGrade.B_GRADE) {
+  throw new Error(`[FAIL] Confirmed friendly match with A_GRADE must be capped at B_GRADE, got ${gatedFriendlyResult.grade}`);
+}
+if (gatedFriendlyResult.confidence_score > 80) {
+  throw new Error(`[FAIL] Confirmed friendly match confidence must be capped at 80, got ${gatedFriendlyResult.confidence_score}`);
+}
+if (!gatedFriendlyResult.risk_warnings.some(w => w.includes('FRIENDLY_HIGH_ROTATION_RISK'))) {
+  throw new Error(`[FAIL] Confirmed friendly match must contain FRIENDLY_HIGH_ROTATION_RISK warning`);
+}
+console.log("[OK] Friendly match with confirmed lineup correctly capped at B_GRADE with FRIENDLY_HIGH_ROTATION_RISK warning.");
+
+// Unconfirmed lineup friendly match must be C_GRADE
+const friendlyPayloadUnconfirmed: EvaluatorPayload = {
+  ...friendlyPayloadWithConfirmedLineup,
+  lineup_value_matrix: {
+    is_lineup_confirmed: false,
+    lineup_status: 'PREDICTED'
+  } as any
+};
+const unconfirmedFriendlyResult = verifyStatutoryAlignment(friendlyAiResultWithAGrade, friendlyPayloadUnconfirmed);
+if (unconfirmedFriendlyResult.grade !== RecommendationGrade.C_GRADE) {
+  throw new Error(`[FAIL] Unconfirmed friendly match must be downgraded to C_GRADE, got ${unconfirmedFriendlyResult.grade}`);
+}
+console.log("[OK] Friendly match with unconfirmed lineup correctly downgraded to C_GRADE.");
+
 console.log("\n[OK] All Advanced Refactoring and Inviolable Laws Verified Successfully.");
 

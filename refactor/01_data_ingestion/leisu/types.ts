@@ -239,6 +239,8 @@ export interface LeisuRawH2HMatch {
   match_id?: number | null;
   season_id?: number | null;
   competition_id?: number | null;
+  league_name?: string | null;
+  competition_name?: string | null;
   status_id?: number | null;
   match_time?: number | null;
   neutral?: number | null;
