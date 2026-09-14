@@ -348,4 +348,55 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
       res.status(500).json({ success: false, error: e?.message || "结算核销异常" });
     }
   });
+
+  /**
+   * POST /api/refactor/formal-ledger/delete
+   * 删除单条或多条正式台账记录
+   */
+  app.post("/api/refactor/formal-ledger/delete", (req, res) => {
+    try {
+      const { record_ids, stage = "ALL" } = req.body;
+      const ids = Array.isArray(record_ids) ? record_ids : (record_ids ? [record_ids] : []);
+      if (ids.length === 0) {
+        return res.status(400).json({ success: false, error: "缺少 record_ids 参数" });
+      }
+
+      const validStage = (stage === "LIVE" || stage === "PREMATCH" || stage === "ALL") ? stage : "ALL";
+      const { liveRemoved, prematchRemoved } = LedgerPersistence.deleteRecords(validStage as any, ids);
+
+      res.json({
+        success: true,
+        removed_count: liveRemoved + prematchRemoved,
+        live_removed: liveRemoved,
+        prematch_removed: prematchRemoved,
+        stage: validStage
+      });
+    } catch (e: any) {
+      console.error("Refactor ledger delete error:", e);
+      res.status(500).json({ success: false, error: e?.message || "删除台账记录异常" });
+    }
+  });
+
+  /**
+   * POST /api/refactor/formal-ledger/clear
+   * 一键清空测试数据
+   */
+  app.post("/api/refactor/formal-ledger/clear", (req, res) => {
+    try {
+      const { stage = "ALL" } = req.body;
+      const validStage = (stage === "LIVE" || stage === "PREMATCH" || stage === "ALL") ? stage : "ALL";
+      const { liveCleared, prematchCleared } = LedgerPersistence.clearLedger(validStage as any);
+
+      res.json({
+        success: true,
+        cleared_count: liveCleared + prematchCleared,
+        live_cleared: liveCleared,
+        prematch_cleared: prematchCleared,
+        stage: validStage
+      });
+    } catch (e: any) {
+      console.error("Refactor ledger clear error:", e);
+      res.status(500).json({ success: false, error: e?.message || "清空台账异常" });
+    }
+  });
 }

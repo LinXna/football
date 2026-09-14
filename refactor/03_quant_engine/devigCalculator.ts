@@ -256,7 +256,7 @@ export function parseAsianHandicapLine(lineStr: string | number): number {
 
   // 3. 直接浮点解析
   const val = parseFloat(clean);
-  if (isNaN(val)) return 0.0;
+  if (isNaN(val)) return NaN;
   if (val === 0 && (clean.startsWith('-') || Object.is(val, -0))) {
     return 0.0;
   }

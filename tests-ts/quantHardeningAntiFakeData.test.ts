@@ -158,12 +158,12 @@ test('Anti-Fake Data Hardening: Scheme 5 - Dirichlet-Multinomial Bayesian Conjug
         home_team: {
           all: {
             scored_intervals: [
-              { goals: 1 }, // 0-15
-              { goals: 0 }, // 16-30
-              { goals: 0 }, // 31-45
-              { goals: 0 }, // 46-60
-              { goals: 0 }, // 61-75
-              { goals: 0 }  // 76-90
+              { goals: 5 }, // 0-15
+              { goals: 2 }, // 16-30
+              { goals: 2 }, // 31-45
+              { goals: 2 }, // 46-60
+              { goals: 2 }, // 61-75
+              { goals: 2 }  // 76-90
             ]
           }
         },
@@ -184,11 +184,11 @@ test('Anti-Fake Data Hardening: Scheme 5 - Dirichlet-Multinomial Bayesian Conjug
   } as unknown as CanonicalMatch;
 
   const dna = extractGoalDistributionDNA(matchWithGoals);
-  // Raw: 1 goal in interval 0, 0 in other 5 intervals. Total goals = 1.
+  // Raw: 5 goals in interval 0, 2 in each of other 5 intervals. Total goals = 15 (mature sample nAll >= 15).
   // With Dirichlet Alpha = 1.0, K = 6:
-  // denom = 1 + 6 = 7.
-  // interval 0 weight = (1 + 1) / 7 = 2/7 ≈ 0.2857
-  // interval 1 weight = (0 + 1) / 7 = 1/7 ≈ 0.1429
+  // denom = 15 + 6 = 21.
+  // interval 0 weight = (5 + 1) / 21 = 6/21 = 2/7 ≈ 0.2857
+  // interval 1 weight = (2 + 1) / 21 = 3/21 = 1/7 ≈ 0.1429
   // All weights must be strictly positive and smoothly bounded.
   assert.ok(dna.home_scored_weights[0] > 0.25 && dna.home_scored_weights[0] < 0.30);
   assert.ok(dna.home_scored_weights[1] > 0.13 && dna.home_scored_weights[1] < 0.16);

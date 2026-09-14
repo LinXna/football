@@ -15,7 +15,9 @@ function rejectionFor(record: HistoricalBacktestRecord): HistoricalSampleRejecti
   if (record.record_type !== 'formal_ai_recommendation' || !record.formal_recommendation) {
     return { record_id: record.record_id, reason: HistoricalSampleRejectionReason.NOT_FORMAL_RECOMMENDATION };
   }
-  if (record.candidate_pipeline_state !== 'PRODUCTION_UNLOCKED') {
+  const isProductionUnlocked = record.candidate_pipeline_state === 'PRODUCTION_UNLOCKED';
+  const isColdStartExempt = record.candidate_pipeline_state === 'COLD_START_PERMISSIVE' && record.oos_status === 'OOS_COLD_START_EXEMPT';
+  if (!isProductionUnlocked && !isColdStartExempt) {
     return { record_id: record.record_id, reason: HistoricalSampleRejectionReason.CANDIDATE_NOT_PRODUCTION_UNLOCKED };
   }
   if (record.settled_record_provenance !== 'SETTLED_LEDGER_ADAPTER_V1') {

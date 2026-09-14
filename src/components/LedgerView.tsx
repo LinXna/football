@@ -596,6 +596,30 @@ export const LedgerView: React.FC<Props> = ({ ledger: initialLedger, backtestRep
     if (ledgerViewMode !== 'current') return;
     setIsDeleting(true);
     try {
+      // 1. 同步清理重构台账系统 (Refactor Formal Ledger)
+      if (payload.clearAll) {
+        try {
+          await fetch('/api/refactor/formal-ledger/clear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stage: 'ALL' }),
+          });
+        } catch (e) {
+          console.warn('Failed to sync refactor formal-ledger clear:', e);
+        }
+      } else if (payload.ids && payload.ids.length > 0) {
+        try {
+          await fetch('/api/refactor/formal-ledger/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ record_ids: payload.ids, stage: 'ALL' }),
+          });
+        } catch (e) {
+          console.warn('Failed to sync refactor formal-ledger delete:', e);
+        }
+      }
+
+      // 2. 清理主台账
       const res = await fetch('/api/ledger/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

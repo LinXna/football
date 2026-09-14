@@ -11,7 +11,7 @@
 - Latest verified commands:
   - `npx tsx refactor/tests/verify_quant_engine.ts`
   - `npx tsx refactor/tests/verify_full_pipeline_00_03.ts`
-  - `npm run test:ts` (71/71 passed)
+  - `npm run test:ts` (89/89 passed)
   - `npx tsc --noEmit`
   - `git diff --check`
 
@@ -58,6 +58,13 @@
     - Layer 04 `alignmentGuard.ts` 解锁冷启动推荐，强制 A 级降 B 级、置信度 79 封顶，保留正式推荐腿；
     - Layer 06 台账适配器 `formalLedgerAdapter.ts` 与样本录入器 `historicalBacktestIngestion.ts` 支持冷启动豁免记录入账并沉淀真实样本；
     - 边界与台账集成测试 `verify_layer04_05_candidate_boundary.ts` 及全套回归测试通过。
+- [2026-09-14 Systemic Overhaul Phase 2 Complete]:
+  - 任务 2.1：现场 9 项物理统计全面激活，构建并输出 TTI (Threat Transformation Index) 威胁转化指数，实现与 EPI/战术分类的深度联动；
+  - 任务 2.2：构建多尺度动量金字塔模型（5m 40%、10m 35%、15m 25%），支持 `ALIGNED` (共振)、`TURNING` (转折背离)、`COUNTER_SPIKE` (突刺) 状态机，并在破门临界态与泊松威胁推力张量中生效；
+  - 任务 2.3：实现滚球红牌场景三态分流（领先 `LEADING_PARK_BUS`、平局 `DRAW_BALANCED_ATTRITION`、落后 `TRAILING_COLLAPSE_RISK`），建立非对称攻防动态惩罚；
+  - 任务 2.4：落地豪门红牌防御策略覆盖模式 (Strategy Override Pattern)，引入 0.75 缓冲因子避免误杀强队；
+  - 任务 2.5：高赔冷门与极深盘经验贝叶斯收缩机制落地，修正极端方差，补全审计字段；
+  - 专属测试套件 `verify_p2_tactical_momentum.ts` 及全量测试验证 100% 通过。
 
 ## Next Atomic Task
 

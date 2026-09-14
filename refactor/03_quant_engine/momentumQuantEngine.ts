@@ -212,7 +212,17 @@ export function extractMomentumTimelineFeatures(
       dominance_side: 'neutral',
       inflection_count_recent_15m: 0,
       is_sustained_siege: false,
-      is_counter_attack_surge: false
+      is_counter_attack_surge: false,
+      momentum_pyramid: Object.freeze({
+        composite_slope: 0,
+        composite_energy: 0,
+        consistency: 'DIVERGENT' as const,
+        trend_hierarchy: Object.freeze({
+          short_term_5m: 0,
+          medium_term_10m: 0,
+          macro_15m: 0
+        })
+      })
     });
   }
 
@@ -516,8 +526,7 @@ export function extractRealTimePhysicalStats(
   const evaluateRedPenaltyWithTactics = (
     redCount: number | undefined,
     teamScoreDiff: number,
-    isEliteFavorite: boolean,
-    teamPossession: number | undefined
+    isEliteFavorite: boolean
   ) => {
     if (redCount === undefined || redCount <= 0) {
       return {
@@ -547,8 +556,7 @@ export function extractRealTimePhysicalStats(
       baseLeak = Math.exp(0.55 * redCount);
     }
 
-    const hasEliteResilience = isEliteFavorite || (teamPossession !== undefined && teamPossession >= 50.0);
-    if (hasEliteResilience) {
+    if (isEliteFavorite) {
       const bufferedLeak = 1.0 + (baseLeak - 1.0) * 0.75;
       const bufferedAttack = 1.0 - (1.0 - baseAttack) * 0.70;
       return {
@@ -569,8 +577,8 @@ export function extractRealTimePhysicalStats(
     };
   };
 
-  const homeRedPen = evaluateRedPenaltyWithTactics(homeRed ?? undefined, currentScoreDiff, isHomeElite, homePossession);
-  const awayRedPen = evaluateRedPenaltyWithTactics(awayRed ?? undefined, -currentScoreDiff, isAwayElite, awayPossession);
+  const homeRedPen = evaluateRedPenaltyWithTactics(homeRed ?? undefined, currentScoreDiff, isHomeElite);
+  const awayRedPen = evaluateRedPenaltyWithTactics(awayRed ?? undefined, -currentScoreDiff, isAwayElite);
 
   const isCornerCascade = availableMetrics.corners
     ? ((homeCorners ?? 0) >= 5 || (awayCorners ?? 0) >= 5)

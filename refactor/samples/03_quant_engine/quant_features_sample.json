@@ -1,6 +1,6 @@
 {
   "canonical_id": "4562395",
-  "calculated_at": "2026-09-14T06:29:48.859Z",
+  "calculated_at": "2026-09-14T07:56:15.448Z",
   "context": {
     "circuit_breaker": {
       "is_triggered": false,
@@ -1941,7 +1941,17 @@
     "dominance_side": "neutral",
     "inflection_count_recent_15m": 6,
     "is_sustained_siege": false,
-    "is_counter_attack_surge": false
+    "is_counter_attack_surge": false,
+    "momentum_pyramid": {
+      "composite_slope": -10.357,
+      "composite_energy": -35.93,
+      "consistency": "TURNING",
+      "trend_hierarchy": {
+        "short_term_5m": -28.6,
+        "medium_term_10m": 2.085,
+        "macro_15m": 1.414
+      }
+    }
   },
   "physical_stats": {
     "stats_available": true,
@@ -2005,11 +2015,26 @@
       "home_lethal_counter": false,
       "away_lethal_counter": true
     },
+    "threat_transformation_index": {
+      "home_tti": 2.848,
+      "away_tti": 2.057,
+      "ratio": 0.581,
+      "advantage_side": "home",
+      "classification": {
+        "home": "LETHAL_PENETRATION",
+        "away": "EFFECTIVE_ATTACK"
+      }
+    },
     "red_card_penalty": {
       "home_attack_multiplier": 1,
       "home_defense_leak_multiplier": 1,
       "away_attack_multiplier": 1,
-      "away_defense_leak_multiplier": 1
+      "away_defense_leak_multiplier": 1,
+      "home_scenario": "NONE",
+      "away_scenario": "NONE",
+      "elite_override_active": false,
+      "elite_override_side": "none",
+      "elite_override_factor": 1
     }
   },
   "poisson": {
@@ -2017,9 +2042,9 @@
     "remaining_minutes": 28,
     "is_stoppage_time_unpriceable": false,
     "time_decay_curve": "LINEAR_UNIFORM",
-    "lambda_home_rest": 0.396,
-    "lambda_away_rest": 0.748,
-    "expected_goals_rest": 1.144,
+    "lambda_home_rest": 0.423,
+    "lambda_away_rest": 0.788,
+    "expected_goals_rest": 1.211,
     "lambda_source": "MARKET_IMPLIED",
     "rho_source": "DEFAULT_ASSUMPTION",
     "lambda_decomposition": {
@@ -2044,8 +2069,8 @@
       "time_fraction_home": 1,
       "time_fraction_away": 1,
       "urgency_multiplier": 1.015,
-      "threat_home": 1.125,
-      "threat_away": 1.252,
+      "threat_home": 1.23,
+      "threat_away": 1.34,
       "regime_multiplier_home": 1.038,
       "regime_multiplier_away": 1.006,
       "red_attack_home": 1,
@@ -2059,90 +2084,126 @@
       "prior_context_weight": 0.29,
       "lambda_before_live_context_home": 0.354,
       "lambda_before_live_context_away": 0.632,
-      "lambda_after_live_context_home": 0.396,
-      "lambda_after_live_context_away": 0.748,
-      "final_lambda_home": 0.396,
-      "final_lambda_away": 0.748
+      "lambda_after_live_context_home": 0.423,
+      "lambda_after_live_context_away": 0.788,
+      "final_lambda_home": 0.423,
+      "final_lambda_away": 0.788
     },
     "top_final_scores": [
       {
         "home": 0,
         "away": 1,
-        "probability": 0.3138,
-        "percentage_str": "31.4%"
+        "probability": 0.2929,
+        "percentage_str": "29.3%"
       },
       {
         "home": 0,
         "away": 2,
-        "probability": 0.243,
-        "percentage_str": "24.3%"
+        "probability": 0.2397,
+        "percentage_str": "24.0%"
       },
       {
         "home": 1,
         "away": 1,
-        "probability": 0.1309,
+        "probability": 0.131,
         "percentage_str": "13.1%"
       },
       {
         "home": 1,
         "away": 2,
-        "probability": 0.0896,
-        "percentage_str": "9.0%"
+        "probability": 0.0943,
+        "percentage_str": "9.4%"
       },
       {
         "home": 0,
         "away": 3,
-        "probability": 0.0891,
-        "percentage_str": "8.9%"
+        "probability": 0.0925,
+        "percentage_str": "9.2%"
       }
     ],
     "rest_score_matrix": {
-      "prob_home_win_rest": 0.1819,
-      "prob_draw_rest": 0.4107,
-      "prob_away_win_rest": 0.4074
+      "prob_home_win_rest": 0.1875,
+      "prob_draw_rest": 0.3959,
+      "prob_away_win_rest": 0.4167
     },
     "score_probability_grid": [
       [
-        0.313825,
-        0.242987,
-        0.089113,
-        0.022219,
-        0.004155,
-        0.000622,
-        0.000077,
-        0.000008,
+        0.292934,
+        0.239709,
+        0.092489,
+        0.024294,
+        0.004786,
+        0.000754,
+        0.000099,
+        0.000011,
         0.000001,
         0,
         0,
         0,
         0,
         0,
-        0
-      ],
-      [
-        0.13086,
-        0.089637,
-        0.035289,
-        0.008799,
-        0.001645,
-        0.000246,
-        0.000031,
-        0.000003,
-        0,
-        0,
-        0,
-        0,
-        0,
         0,
         0
       ],
       [
-        0.024976,
-        0.018682,
-        0.006987,
-        0.001742,
-        0.000326,
-        0.000049,
+        0.130976,
+        0.094332,
+        0.039123,
+        0.010276,
+        0.002024,
+        0.000319,
+        0.000042,
+        0.000005,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0.026651,
+        0.021001,
+        0.008275,
+        0.002173,
+        0.000428,
+        0.000067,
+        0.000009,
+        0.000001,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0.003758,
+        0.002961,
+        0.001167,
+        0.000306,
+        0.00006,
+        0.00001,
+        0.000001,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0.000397,
+        0.000313,
+        0.000123,
+        0.000032,
         0.000006,
         0.000001,
         0,
@@ -2151,47 +2212,17 @@
         0,
         0,
         0,
-        0
-      ],
-      [
-        0.003297,
-        0.002466,
-        0.000922,
-        0.00023,
-        0.000043,
-        0.000006,
-        0.000001,
-        0,
-        0,
-        0,
-        0,
         0,
         0,
         0,
         0
       ],
       [
-        0.000326,
-        0.000244,
-        0.000091,
-        0.000023,
-        0.000004,
-        0.000001,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
-      ],
-      [
+        0.000034,
         0.000026,
-        0.000019,
-        0.000007,
-        0.000002,
+        0.00001,
+        0.000003,
+        0.000001,
         0,
         0,
         0,
@@ -2205,6 +2236,7 @@
         0
       ],
       [
+        0.000002,
         0.000002,
         0.000001,
         0,
@@ -2236,43 +2268,11 @@
         0,
         0,
         0,
-        0
-      ],
-      [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
         0,
         0
       ],
       [
         0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
-      ],
-      [
         0,
         0,
         0,
@@ -2304,22 +2304,6 @@
         0,
         0,
         0,
-        0
-      ],
-      [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
         0,
         0
       ],
@@ -2338,9 +2322,83 @@
         0,
         0,
         0,
+        0,
         0
       ],
       [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
         0,
         0,
         0,
@@ -2359,19 +2417,19 @@
       ]
     ],
     "full_time_probabilities": {
-      "prob_home_win": 0.0315,
-      "prob_draw": 0.1505,
-      "prob_away_win": 0.8181
+      "prob_home_win": 0.0343,
+      "prob_draw": 0.1532,
+      "prob_away_win": 0.8125
     },
     "projected_final_score": {
-      "home": 0.4,
-      "away": 1.75,
+      "home": 0.42,
+      "away": 1.79,
       "most_likely_score": "0-1"
     },
     "dixon_coles_tau": {
-      "tau_0_0": 0.9852,
-      "tau_0_1": 1.0198,
-      "tau_1_0": 1.0374,
+      "tau_0_0": 0.9833,
+      "tau_0_1": 1.0212,
+      "tau_1_0": 1.0394,
       "tau_1_1": 0.95
     }
   },
@@ -2396,187 +2454,201 @@
         1.43
       ],
       "model_probabilities": [
-        0.0315,
-        0.1505,
-        0.8181
+        0.0343,
+        0.1532,
+        0.8125
       ],
-      "home_ev": -0.726,
-      "draw_ev": -0.4356,
-      "away_ev": 0.1699,
+      "home_ev": -0.7016,
+      "draw_ev": -0.4255,
+      "away_ev": 0.1619,
       "preferred_side": "away",
       "is_positive_ev": true,
-      "kelly_fraction": 0.05
+      "kelly_fraction": 0.05,
+      "bayesian_shrinkage_applied": false,
+      "shrinkage_factor": 1
     },
     "spread_main_ev": {
       "line": "-0/0.5",
       "home_odds": 2.2,
       "away_odds": 1.71,
-      "home_ev": -0.3944,
-      "away_ev": 0.2531,
+      "home_ev": -0.3897,
+      "away_ev": 0.2489,
       "preferred_side": "away",
       "is_positive_ev": true,
-      "home_model_probability": 0.1819,
-      "away_model_probability": 0.8181,
+      "home_model_probability": 0.1875,
+      "away_model_probability": 0.8125,
       "kelly_fraction": 0.05,
       "home_settlement_distribution": {
-        "p_full_win": 0.1819,
+        "p_full_win": 0.1875,
         "p_half_win": 0,
         "p_push": 0,
-        "p_half_loss": 0.4107,
-        "p_full_loss": 0.4074,
+        "p_half_loss": 0.3959,
+        "p_full_loss": 0.4167,
         "source": "ENGINE_COMPUTED"
       },
       "away_settlement_distribution": {
-        "p_full_win": 0.4074,
-        "p_half_win": 0.4107,
+        "p_full_win": 0.4167,
+        "p_half_win": 0.3959,
         "p_push": 0,
         "p_half_loss": 0,
-        "p_full_loss": 0.1819,
+        "p_full_loss": 0.1875,
         "source": "ENGINE_COMPUTED"
-      }
+      },
+      "bayesian_shrinkage_applied": false,
+      "shrinkage_factor": 1
     },
     "spread_secondary_ev": [
       {
         "line": "0",
         "home_odds": 1.6,
         "away_odds": 2.38,
-        "home_ev": -0.2982,
-        "away_ev": 0.3802,
+        "home_ev": -0.3042,
+        "away_ev": 0.3876,
         "preferred_side": "away",
         "is_positive_ev": true,
-        "home_model_probability": 0.1819,
-        "away_model_probability": 0.4074,
+        "home_model_probability": 0.1875,
+        "away_model_probability": 0.4167,
         "kelly_fraction": 0.05,
         "home_settlement_distribution": {
-          "p_full_win": 0.1819,
+          "p_full_win": 0.1875,
           "p_half_win": 0,
-          "p_push": 0.4107,
+          "p_push": 0.3959,
           "p_half_loss": 0,
-          "p_full_loss": 0.4074,
+          "p_full_loss": 0.4167,
           "source": "ENGINE_COMPUTED"
         },
         "away_settlement_distribution": {
-          "p_full_win": 0.4074,
+          "p_full_win": 0.4167,
           "p_half_win": 0,
-          "p_push": 0.4107,
+          "p_push": 0.3959,
           "p_half_loss": 0,
-          "p_full_loss": 0.1819,
+          "p_full_loss": 0.1875,
           "source": "ENGINE_COMPUTED"
-        }
+        },
+        "bayesian_shrinkage_applied": false,
+        "shrinkage_factor": 1
       },
       {
         "line": "-0.5",
         "home_odds": 2.69,
         "away_odds": 1.47,
-        "home_ev": -0.5106,
-        "away_ev": 0.2025,
+        "home_ev": -0.4957,
+        "away_ev": 0.1944,
         "preferred_side": "away",
         "is_positive_ev": true,
-        "home_model_probability": 0.1819,
-        "away_model_probability": 0.8181,
+        "home_model_probability": 0.1875,
+        "away_model_probability": 0.8125,
         "kelly_fraction": 0.05,
         "home_settlement_distribution": {
-          "p_full_win": 0.1819,
+          "p_full_win": 0.1875,
           "p_half_win": 0,
           "p_push": 0,
           "p_half_loss": 0,
-          "p_full_loss": 0.8181,
+          "p_full_loss": 0.8125,
           "source": "ENGINE_COMPUTED"
         },
         "away_settlement_distribution": {
-          "p_full_win": 0.8181,
+          "p_full_win": 0.8125,
           "p_half_win": 0,
           "p_push": 0,
           "p_half_loss": 0,
-          "p_full_loss": 0.1819,
+          "p_full_loss": 0.1875,
           "source": "ENGINE_COMPUTED"
-        }
+        },
+        "bayesian_shrinkage_applied": false,
+        "shrinkage_factor": 1
       }
     ],
     "total_main_ev": {
       "line": "2",
       "over_odds": 1.91,
       "under_odds": 1.95,
-      "over_ev": -0.03,
-      "under_ev": -0.0144,
+      "over_ev": 0.0127,
+      "under_ev": -0.0583,
       "preferred_side": "none",
       "is_positive_ev": false,
-      "over_model_probability": 0.317,
-      "under_model_probability": 0.3185,
+      "over_model_probability": 0.3413,
+      "under_model_probability": 0.2979,
       "kelly_fraction": 0,
       "over_settlement_distribution": {
-        "p_full_win": 0.317,
+        "p_full_win": 0.3413,
         "p_half_win": 0,
-        "p_push": 0.3644,
+        "p_push": 0.3608,
         "p_half_loss": 0,
-        "p_full_loss": 0.3185,
+        "p_full_loss": 0.2979,
         "source": "ENGINE_COMPUTED"
       },
       "under_settlement_distribution": {
-        "p_full_win": 0.3185,
+        "p_full_win": 0.2979,
         "p_half_win": 0,
-        "p_push": 0.3644,
+        "p_push": 0.3608,
         "p_half_loss": 0,
-        "p_full_loss": 0.317,
+        "p_full_loss": 0.3413,
         "source": "ENGINE_COMPUTED"
-      }
+      },
+      "bayesian_shrinkage_applied": false,
+      "shrinkage_factor": 1
     },
     "total_secondary_ev": [
       {
         "line": "2/2.5",
         "over_odds": 2.4,
         "under_odds": 1.57,
-        "over_ev": -0.0569,
-        "under_ev": -0.0316,
+        "over_ev": -0.0004,
+        "under_ev": -0.0687,
         "preferred_side": "none",
         "is_positive_ev": false,
-        "over_model_probability": 0.317,
-        "under_model_probability": 0.683,
+        "over_model_probability": 0.3413,
+        "under_model_probability": 0.6587,
         "kelly_fraction": 0,
         "over_settlement_distribution": {
-          "p_full_win": 0.317,
+          "p_full_win": 0.3413,
           "p_half_win": 0,
           "p_push": 0,
-          "p_half_loss": 0.3644,
-          "p_full_loss": 0.3185,
+          "p_half_loss": 0.3608,
+          "p_full_loss": 0.2979,
           "source": "ENGINE_COMPUTED"
         },
         "under_settlement_distribution": {
-          "p_full_win": 0.3185,
-          "p_half_win": 0.3644,
+          "p_full_win": 0.2979,
+          "p_half_win": 0.3608,
           "p_push": 0,
           "p_half_loss": 0,
-          "p_full_loss": 0.317,
+          "p_full_loss": 0.3413,
           "source": "ENGINE_COMPUTED"
-        }
+        },
+        "bayesian_shrinkage_applied": false,
+        "shrinkage_factor": 1
       },
       {
         "line": "1.5/2",
         "over_odds": 1.56,
         "under_odds": 2.42,
-        "over_ev": -0.039,
-        "under_ev": -0.0469,
+        "over_ev": -0.0057,
+        "under_ev": -0.0987,
         "preferred_side": "none",
         "is_positive_ev": false,
-        "over_model_probability": 0.6815,
-        "under_model_probability": 0.3185,
+        "over_model_probability": 0.7021,
+        "under_model_probability": 0.2979,
         "kelly_fraction": 0,
         "over_settlement_distribution": {
-          "p_full_win": 0.317,
-          "p_half_win": 0.3644,
+          "p_full_win": 0.3413,
+          "p_half_win": 0.3608,
           "p_push": 0,
           "p_half_loss": 0,
-          "p_full_loss": 0.3185,
+          "p_full_loss": 0.2979,
           "source": "ENGINE_COMPUTED"
         },
         "under_settlement_distribution": {
-          "p_full_win": 0.3185,
+          "p_full_win": 0.2979,
           "p_half_win": 0,
           "p_push": 0,
-          "p_half_loss": 0.3644,
-          "p_full_loss": 0.317,
+          "p_half_loss": 0.3608,
+          "p_full_loss": 0.3413,
           "source": "ENGINE_COMPUTED"
-        }
+        },
+        "bayesian_shrinkage_applied": false,
+        "shrinkage_factor": 1
       }
     ],
     "line_dispersion": {
@@ -2596,17 +2668,17 @@
       "home": {
         "momentum_support": 0.907,
         "event_support": 0.581,
-        "stats_support": 0.849,
+        "stats_support": 0.858,
         "alignment_score": 0.674,
-        "calibrated_threat": 0.678,
+        "calibrated_threat": 0.68,
         "has_conflict": false
       },
       "away": {
         "momentum_support": 0.916,
         "event_support": 0.938,
-        "stats_support": 0.834,
-        "alignment_score": 0.896,
-        "calibrated_threat": 0.86,
+        "stats_support": 0.826,
+        "alignment_score": 0.888,
+        "calibrated_threat": 0.855,
         "has_conflict": false
       },
       "dominant_side": "away",
@@ -2640,8 +2712,8 @@
       "regime_multiplier_away": 1.006
     },
     "goal_climax": {
-      "climax_score": 81.5,
-      "climax_level": "EXTREME_IMMINENT",
+      "climax_score": 72.6,
+      "climax_level": "HIGH_PRESSURE",
       "attacking_side": "away",
       "momentum_acceleration_5m": -30.01,
       "recent_incident_density_5m": 2,
@@ -2651,11 +2723,11 @@
     }
   },
   "match_state": {
-    "home_intensity": 0.678,
-    "away_intensity": 0.86,
+    "home_intensity": 0.68,
+    "away_intensity": 0.855,
     "regime_multiplier_home": 1.038,
     "regime_multiplier_away": 1.006,
-    "dominance_index": -16.14,
+    "dominance_index": -15.43,
     "imminent_goal": true,
     "post_goal_cooldown_active": false,
     "has_evidence_conflict": false,
@@ -2663,16 +2735,20 @@
     "red_card_attack_multiplier_home": 1,
     "red_card_attack_multiplier_away": 1,
     "red_card_defense_leak_multiplier_home": 1,
-    "red_card_defense_leak_multiplier_away": 1
+    "red_card_defense_leak_multiplier_away": 1,
+    "home_tti": 2.848,
+    "away_tti": 2.057,
+    "pyramid_slope": -10.357,
+    "elite_override_applied": false
   },
-  "battlefield_dominance_index": -16.14,
+  "battlefield_dominance_index": -15.43,
   "goal_phase_alert": "IMMINENT_GOAL",
   "live_snapshot": {
-    "observed_at": "2026-09-14T06:29:48.859Z",
+    "observed_at": "2026-09-14T07:56:15.448Z",
     "cutoff_minute": 62,
     "event_cutoff_minute": 62,
     "source_snapshot_at": "2026-08-21 03:00:00",
-    "model_calculated_at": "2026-09-14T06:29:48.859Z",
+    "model_calculated_at": "2026-09-14T07:56:15.448Z",
     "score": {
       "home_score": 0,
       "away_score": 1,
@@ -2689,8 +2765,8 @@
       "line": "0",
       "side": "away",
       "odds": 1.43,
-      "ev": 0.1699,
-      "model_probability": 0.8181,
+      "ev": 0.1619,
+      "model_probability": 0.8125,
       "confidence": 98,
       "kelly_fraction": 0.05
     },
@@ -2699,8 +2775,8 @@
       "line": "+0/0.5",
       "side": "away",
       "odds": 1.71,
-      "ev": 0.2531,
-      "model_probability": 0.8181,
+      "ev": 0.2489,
+      "model_probability": 0.8125,
       "confidence": 98,
       "kelly_fraction": 0.05
     },
@@ -2709,8 +2785,8 @@
       "line": "0",
       "side": "away",
       "odds": 2.38,
-      "ev": 0.3802,
-      "model_probability": 0.4074,
+      "ev": 0.3876,
+      "model_probability": 0.4167,
       "confidence": 98,
       "kelly_fraction": 0.05
     },
@@ -2719,8 +2795,8 @@
       "line": "+0.5",
       "side": "away",
       "odds": 1.47,
-      "ev": 0.2025,
-      "model_probability": 0.8181,
+      "ev": 0.1944,
+      "model_probability": 0.8125,
       "confidence": 98,
       "kelly_fraction": 0.05
     }
@@ -2731,8 +2807,8 @@
       "line": "0",
       "side": "away",
       "odds": 1.43,
-      "ev": 0.1699,
-      "model_probability": 0.8181,
+      "ev": 0.1619,
+      "model_probability": 0.8125,
       "confidence": 98,
       "kelly_fraction": 0.05,
       "oos_status": "OOS_COLD_START_EXEMPT",
@@ -2752,8 +2828,8 @@
       "line": "+0/0.5",
       "side": "away",
       "odds": 1.71,
-      "ev": 0.2531,
-      "model_probability": 0.8181,
+      "ev": 0.2489,
+      "model_probability": 0.8125,
       "confidence": 98,
       "kelly_fraction": 0.05,
       "oos_status": "OOS_COLD_START_EXEMPT",
@@ -2773,8 +2849,8 @@
       "line": "0",
       "side": "away",
       "odds": 2.38,
-      "ev": 0.3802,
-      "model_probability": 0.4074,
+      "ev": 0.3876,
+      "model_probability": 0.4167,
       "confidence": 98,
       "kelly_fraction": 0.05,
       "oos_status": "OOS_COLD_START_EXEMPT",
@@ -2794,8 +2870,8 @@
       "line": "+0.5",
       "side": "away",
       "odds": 1.47,
-      "ev": 0.2025,
-      "model_probability": 0.8181,
+      "ev": 0.1944,
+      "model_probability": 0.8125,
       "confidence": 98,
       "kelly_fraction": 0.05,
       "oos_status": "OOS_COLD_START_EXEMPT",
@@ -2831,7 +2907,7 @@
     "overall_confidence": 82
   },
   "data_audit": {
-    "generated_at": "2026-09-14T06:29:48.859Z",
+    "generated_at": "2026-09-14T07:56:15.448Z",
     "canonical_id": "4562395",
     "match_stage": "LIVE",
     "source_snapshot_at": "2026-09-01T07:23:14.894Z",

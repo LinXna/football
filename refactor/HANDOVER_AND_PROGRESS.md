@@ -1,38 +1,58 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260914-QUANT-SYSTEMIC-OVERHAUL-03-P2`
+- **任务编号 (Task)**: `SNAPSHOT-20260914-QUANT-SYSTEMIC-OVERHAUL-04-P3`
 - **当前状态 (Status)**: `IN_PROGRESS`
-- **阶段进度 (Phase)**: `P2 量化引擎战术与动量增强 (任务 2.1, 2.2, 2.3, 2.4, 2.5)`
+- **阶段进度 (Phase)**: `P3 实战闭环级 —— 台账持久化与样本滚雪球 (任务 3.1, 3.2, 3.3)`
 - **任务目标 (Goal)**：
-  1. 【任务 2.1 激活 9 个未使用的现场量化指标并建立 TTI 威胁指数】：
-     - 在 `momentumAnalysis.ts` 与 `spatioTemporalEngine.ts` 中，充分提取压迫成功率、进区触球、防线纵深、解围等 9 个硬指标；
-     - 建立进攻威胁指数 (TTI, Threat Transformation Index = 射门转化率 * 危险进攻强度 * 禁区触球)；
-  2. 【任务 2.2 重构多尺度动量金字塔模型】：
-     - 融合短期 (5min, 40%)、中期 (10min, 35%)、宏观 (15min, 25%) 动量斜率与积分，根除单尺度震荡误判；
-  3. 【任务 2.3 滚球红牌场景分流】：
-     - 区分红牌方处于领先、平局、落后三种局势，动态计算收缩深度与反击惩罚因子；
-  4. 【任务 2.4 引入超强弱悬殊红牌防御模式 (Strategy Override Pattern)】：
-     - 当豪门强队遭遇红牌时，评估控球与实力底蕴，以特定倍率覆盖通用 2.3 惩罚因子，防止高估弱队；
-  5. 【任务 2.5 高赔冷门贝叶斯收缩机制】：
-     - 对极深盘与超高赔冷门实施经验贝叶斯平滑，抑制极端方差。
+  1. 【任务 3.1 滚球与赛前双轨推荐台账持久化】：
+     - 打通 `refactor/runtime/formal_ledger_live.json` 与 `formal_ledger_prematch.json` 统一写盘契约；
+     - 在 `ledgerPersistence.ts` 中放行 `COLD_START_PERMISSIVE`（带 `OOS_COLD_START_EXEMPT` 标记）推荐腿持久化入账；
+     - 记录完整冻结预测快照 `prediction_snapshot`（赔率、盘口、公允概率、剩余 λ、红牌状态等）；
+     - 在 `/src/types.ts` 与 `/server/routes/refactorLedgerRoutes.ts` 建立统一的 TypeScript 契约模型；
+  2. 【任务 3.2 前端台账看板测试控制套件】：
+     - 支持单场同分钟幂等覆盖（更新旧记录，避免简单丢弃或重复堆叠）；
+     - 在 `refactorLedgerRoutes.ts` 新增 `POST /api/refactor/formal-ledger/delete`（单条/批量删除）与 `POST /api/refactor/formal-ledger/clear`（一键清空测试数据）；
+     - 在 `/src/components/CanonicalMatchCenter.tsx` 与 `/src/components/LedgerView.tsx` 增加【一键清空测试数据】与【单条删除】控制按钮及实时响应；
+  3. 【任务 3.3 完赛比分一键回填与 OOS 样本本地自增沉淀】：
+     - 支持快捷录入真实完赛比分与四分之一盘五态确定性核销（WIN / WIN_HALF / DRAW / LOSE_HALF / LOSE）；
+     - 结算完成后，通过 Layer 06 适配器将已结算记录自动转化为二元 OOS 样本，增量写入 `refactor/runtime/oos_calibration_samples.json`；
+     - 在 `historicalBacktestIngestion.ts` 放行 `COLD_START_PERMISSIVE` + `OOS_COLD_START_EXEMPT` 真实样本，自动触发 `buildOosCalibrationArchive` 增量重建档案，实现样本从 0 到 200 滚雪球增长；
 - **改动文件清单 (Target Files)**：
-  - `/refactor/03_quant_engine/types.ts`
-  - `/refactor/03_quant_engine/momentumQuantEngine.ts`
-  - `/refactor/03_quant_engine/eventMomentumFusion.ts`
-  - `/refactor/03_quant_engine/poissonDecayModel.ts`
-  - `/refactor/03_quant_engine/devigCalculator.ts`
-  - `/refactor/03_quant_engine/index.ts`
-  - `/refactor/tests/verify_p2_tactical_momentum.ts`
+  - `/refactor/05_portfolio_risk/ledgerPersistence.ts`
+  - `/refactor/06_settlement_audit/historicalBacktestIngestion.ts`
+  - `/server/routes/refactorLedgerRoutes.ts`
+  - `/src/types.ts`
+  - `/src/components/CanonicalMatchCenter.tsx`
+  - `/src/components/LedgerView.tsx`
+  - `/refactor/tests/verify_p3_ledger_snowball.ts`
   - `/refactor/HANDOVER_AND_PROGRESS.md`
-- **执行步骤 (Action Plan)**：
-  1. 在 `types.ts` 中扩展 `RealTimePhysicalStatsFeatures`（TTI 指数结构、红牌场景分流与豪门覆盖字段）、`MomentumTimelineFeatures`（多尺度动量金字塔结构）、`DeviggedMarketFeatures`（贝叶斯收缩字段）；
-  2. 在 `momentumQuantEngine.ts` 中实现 TTI 指数计算函数与多尺度动量金字塔计算（5m 40%, 10m 35%, 15m 25%）；落实红牌领先/平局/落后三态分流与豪门覆盖策略；
-  3. 在 `eventMomentumFusion.ts` 中将金字塔复合斜率融入破门临界态 `evaluateGoalClimax` 与战术相变 `evaluateTacticalRegime`，并强化 TTI 渗透威胁与 EPI 联动；
-  4. 在 `poissonDecayModel.ts` 中联动红牌三态分流与豪门覆盖乘数，并接入深盘/高赔经验贝叶斯收缩；
-  5. 在 `devigCalculator.ts` 中引入深盘与高赔冷门经验贝叶斯平滑收缩，修正极端方差；
-  6. 编写专属自动化测试套件 `verify_p2_tactical_momentum.ts` 并验证全量回归测试与系统编译。
 - **交付物与成果 (Deliverables)**：
-  - TTI 指数计算公式；多尺度动量加权；红牌三态分流与豪门覆盖策略；贝叶斯高赔收缩；全套量化测试验证 100% 通过。
+  - 待执行验证
+- **下一步计划 (Next Steps)**：
+  - 依次执行任务 3.1、3.2、3.3，运行专属自动化验证套件与系统回归测试。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260914-QUANT-SYSTEMIC-OVERHAUL-03-P2 (DONE)
+- **阶段进度**: `P2 量化引擎战术与动量增强 (任务 2.1, 2.2, 2.3, 2.4, 2.5) —— 全面完成并通过验证`
+- **任务目标**:
+  1. 激活 9 项现场物理统计与 TTI 进攻威胁转化指数，与 EPI 联动；
+  2. 多尺度动量金字塔模型（5m 40%、10m 35%、15m 25%）与状态机增益；
+  3. 滚球红牌场景三态分流（领先收缩大巴、平局消耗、落后崩溃）；
+  4. 豪门红牌防御策略覆盖模式 (0.75 缓冲)；
+  5. 高赔冷门与极深盘经验贝叶斯收缩机制。
+- **交付成果**:
+  - 全部模块落地并通过 `verify_p2_tactical_momentum.ts` 100% 验证，全套回归与编译均通过。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260914-QUANT-SYSTEMIC-OVERHAUL-03-P2 (DONE)
+- **阶段进度**: `P2 量化引擎战术与动量增强 (任务 2.1 ~ 2.5)`
+- **交付成果**: 完成 TTI 指数、多尺度金字塔、红牌三态分流、豪门覆盖与贝叶斯收缩，全量单测通过。
 
 ---
 

@@ -356,7 +356,7 @@ export function calculateContinuousThreatTensor(
   state: UnifiedMatchState
 ): { homeThreat: number; awayThreat: number } {
   // intensity 是已校准的相对威胁分数，0.5 表示中性，不应被当作绝对衰减率。
-  const mapIntensity = (intensity: number, opponentIntensity: number, tti?: number) => {
+  const mapIntensity = (intensity: number, opponentIntensity: number, tti?: number, slopeThrust?: number) => {
     let val = 0.65 + Math.max(0, Math.min(1, intensity)) * 0.7;
     // 只有明确的深度压制才额外折损，避免普通均势被误判为低进球。
     if (opponentIntensity >= 0.85 && intensity <= 0.20) {
@@ -371,11 +371,20 @@ export function calculateContinuousThreatTensor(
         val *= 0.92;
       }
     }
+    // 融入多尺度动量金字塔推力微调 (Pyramid Slope Thrust)
+    if (typeof slopeThrust === 'number' && Number.isFinite(slopeThrust)) {
+      val *= (1.0 + slopeThrust);
+    }
     return Number(Math.max(0.20, Math.min(1.60, val)).toFixed(3));
   };
+
+  const pyramidSlope = state.pyramid_slope ?? 0;
+  const homeThrust = Math.tanh(Math.max(0, pyramidSlope) / 25.0) * 0.05;
+  const awayThrust = Math.tanh(Math.max(0, -pyramidSlope) / 25.0) * 0.05;
+
   return {
-    homeThreat: mapIntensity(state.home_intensity, state.away_intensity, state.home_tti),
-    awayThreat: mapIntensity(state.away_intensity, state.home_intensity, state.away_tti)
+    homeThreat: mapIntensity(state.home_intensity, state.away_intensity, state.home_tti, homeThrust),
+    awayThreat: mapIntensity(state.away_intensity, state.home_intensity, state.away_tti, awayThrust)
   };
 }
 

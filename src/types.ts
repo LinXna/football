@@ -928,3 +928,123 @@ export interface AIMarketAssessment {
   reverse_reasoning_detail?: { detected: boolean; snippet?: string; note?: string };
   audit_warnings?: string[];
 }
+
+export interface RefactorFormalRecommendation {
+  record_type: 'formal_ai_recommendation';
+  formal_recommendation: true;
+  record_id: string;
+  stage: 'LIVE' | 'PREMATCH';
+  created_at_utc: string;
+  match_id: string;
+  kickoff_time?: string;
+  league_key?: string;
+  teams?: {
+    home: string;
+    away: string;
+  };
+  condition_snapshot: {
+    match_minute: string;
+    current_score: string;
+    bdi: number;
+    goal_phase_alert: string;
+    machine_candidate_count: number;
+    candidate_pipeline_state?: 'PRODUCTION_UNLOCKED' | 'COLD_START_PERMISSIVE' | 'RESEARCH_ONLY' | 'DATA_LOCKED';
+    oos_status?: 'VALIDATED' | 'OOS_COLD_START_EXEMPT' | 'INSUFFICIENT_EVIDENCE';
+    score_verified: boolean;
+    source: 'YBTY';
+  };
+  candidate_pipeline_state?: 'PRODUCTION_UNLOCKED' | 'COLD_START_PERMISSIVE' | 'RESEARCH_ONLY' | 'DATA_LOCKED';
+  oos_status?: 'VALIDATED' | 'OOS_COLD_START_EXEMPT' | 'INSUFFICIENT_EVIDENCE';
+  ai_assessment: {
+    grade: 'A_GRADE' | 'B_GRADE' | 'C_GRADE' | 'NO_BET';
+    confidence_score: number;
+    blind_spot_analysis: string;
+    internal_logical_audit: string;
+    qualitative_summary: string;
+  };
+  leg: {
+    market: string;
+    direction: string;
+    selected_line: number;
+    current_odds: number;
+    basis: 'FULL_MATCH' | 'REMAINING_GOALS' | 'REMAINING_PERIOD_DOMINANCE';
+    fair_probability?: number;
+    expected_value?: number;
+    kelly_suggested_fraction?: number;
+    suggested_stake_pct?: number;
+    haircut_multiplier?: number;
+    reasoning?: string;
+    market_category?: 'HANDICAP_HOME' | 'HANDICAP_AWAY' | 'OVER' | 'UNDER' | 'WIN_HOME' | 'WIN_AWAY' | 'DRAW';
+  };
+  prediction_snapshot?: {
+    model_version: string;
+    prediction_at: string;
+    market: string;
+    line: string;
+    odds: number;
+    model_probability: number;
+    predicted_lambda: { home: number; away: number };
+    minute: number | null;
+    score_at_recommendation: string;
+    score_verified: boolean;
+    score_source: string;
+    red_card_state: string;
+  };
+  settlement?: {
+    is_settled: boolean;
+    settled_at?: string;
+    outcome: 'WIN' | 'WIN_HALF' | 'DRAW' | 'LOSE_HALF' | 'LOSE' | 'PENDING' | 'INVALID_DATA';
+    final_score_verified?: string;
+    final_score_source?: string;
+    final_score_verified_at?: string;
+    profit_loss?: number;
+  };
+}
+
+export interface RefactorFormalLedgerResponse {
+  success: boolean;
+  live: RefactorFormalRecommendation[];
+  prematch: RefactorFormalRecommendation[];
+  count: {
+    live: number;
+    prematch: number;
+    total: number;
+  };
+  oos_status?: {
+    total_samples: number;
+    effective_sample_size: number;
+    archive_status: string;
+    profiles_count: number;
+  };
+  error?: string;
+}
+
+export interface RefactorSettleResponse {
+  success: boolean;
+  record?: RefactorFormalRecommendation;
+  settlement?: RefactorFormalRecommendation['settlement'];
+  explanation?: string;
+  oos_sample_ingested?: boolean;
+  skipped_reason?: string;
+  oos_status?: any;
+  error?: string;
+}
+
+export interface RefactorLedgerDeleteResponse {
+  success: boolean;
+  removed_count: number;
+  live_removed: number;
+  prematch_removed: number;
+  stage: 'LIVE' | 'PREMATCH' | 'ALL';
+  error?: string;
+}
+
+export interface RefactorLedgerClearResponse {
+  success: boolean;
+  cleared_count: number;
+  live_cleared: number;
+  prematch_cleared: number;
+  stage: 'LIVE' | 'PREMATCH' | 'ALL';
+  error?: string;
+}
+

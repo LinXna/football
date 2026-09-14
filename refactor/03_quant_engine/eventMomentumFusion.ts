@@ -238,7 +238,8 @@ export function calculateEventPressureConversion(
   timeline: MomentumTimelineFeatures,
   events: CanonicalTimelineEvent[],
   trinity: LiveThreatTrinityFeatures,
-  currentMinute: number
+  currentMinute: number,
+  physical?: RealTimePhysicalStatsFeatures
 ): EventPressureConversionFeatures {
   const windowStart = Math.max(0, currentMinute - 15);
   const recentEvents = events.filter(e => {
@@ -265,15 +266,22 @@ export function calculateEventPressureConversion(
   const homeRatio = Number((homeEventScore / homeNormEnergy).toFixed(3));
   const awayRatio = Number((awayEventScore / awayNormEnergy).toFixed(3));
 
+  const homeTTI = physical?.threat_transformation_index?.home_tti;
+  const awayTTI = physical?.threat_transformation_index?.away_tti;
+  const homeTTIClass = physical?.threat_transformation_index?.classification?.home;
+  const awayTTIClass = physical?.threat_transformation_index?.classification?.away;
+
   // 4. 连续隶属度战术类型软分类 (Continuous Membership Soft Classification)
-  // 结合全场时序事件走势 (fullDecayedScore)，避免 15m 截断导致前序进球被踢出而误判为 BARREN_DOMINANCE
+  // 结合全场时序事件走势 (fullDecayedScore) 与 TTI 真实穿透转化指数
   const classify = (
     energy: number,
     score: number,
     ratio: number,
     integrity: number,
     conflict: boolean,
-    fullDecayedScore: number
+    fullDecayedScore: number,
+    sideTTI?: number,
+    sideTTIClass?: 'LETHAL_PENETRATION' | 'EFFECTIVE_ATTACK' | 'STERILE_POSSESSION' | 'LOW_ACTIVITY'
   ): EventPressureConversionType => {
     // 连续 Sigmoid 激活函数 S(x, x0, k)
     const sig = (x: number, x0: number, k: number) => 1.0 / (1.0 + Math.exp(-(x - x0) / k));
@@ -282,12 +290,23 @@ export function calculateEventPressureConversion(
     const effectiveRatio = Math.max(ratio, Math.min(1.0, fullDecayedScore / 1.5));
     const effectiveScore = Math.max(score, fullDecayedScore * 0.8);
 
-    const pLethal = sig(energy, 150, 25) * sig(effectiveRatio, 0.70, 0.12) * sig(integrity, 0.55, 0.12);
+    // TTI 物理特征加成
+    let ttiLethalBonus = 1.0;
+    let ttiBarrenMultiplier = 1.0;
+    if (sideTTIClass === 'LETHAL_PENETRATION' || (typeof sideTTI === 'number' && sideTTI >= 2.0)) {
+      ttiLethalBonus = 1.0 + Math.min(0.40, ((sideTTI ?? 2.0) - 1.0) * 0.15);
+      ttiBarrenMultiplier = 0.60;
+    } else if (sideTTIClass === 'STERILE_POSSESSION' || (energy >= 100 && typeof sideTTI === 'number' && sideTTI < 0.8)) {
+      ttiBarrenMultiplier = 1.35;
+      ttiLethalBonus = 0.70;
+    }
+
+    const pLethal = sig(energy, 150, 25) * sig(effectiveRatio, 0.70, 0.12) * sig(integrity, 0.55, 0.12) * ttiLethalBonus;
 
     // 虚假繁荣 (BARREN_DOMINANCE) 核心特征是“空有危攻/控球，但全场时序缺乏转化”
     // 若全场时序已有实质事件且尚未完全湮灭（fullDecayedScore > 0），则按其显著度指数压制虚假繁荣的误判
     const barrenSuppression = Math.exp(-fullDecayedScore / 0.45);
-    const pBarren = sig(energy, 150, 25) * (1.0 - sig(effectiveRatio, 0.40, 0.12)) * (conflict ? 1.35 : 1.0) * barrenSuppression;
+    const pBarren = sig(energy, 150, 25) * (1.0 - sig(effectiveRatio, 0.40, 0.12)) * (conflict ? 1.35 : 1.0) * barrenSuppression * ttiBarrenMultiplier;
 
     const pCounter = (1.0 - sig(energy, 130, 25)) * sig(effectiveScore, 1.20, 0.35);
     const pLow = (1.0 - sig(energy, 60, 18)) * (1.0 - sig(effectiveScore, 0.60, 0.20));
@@ -309,14 +328,14 @@ export function calculateEventPressureConversion(
     conversion_ratio: homeRatio,
     event_score_15m: Number(homeEventScore.toFixed(2)),
     energy_15m: homeEnergy,
-    classification: classify(homeEnergy, homeEventScore, homeRatio, trinity.home.calibrated_threat, trinity.home.has_conflict, homeFullEventScore)
+    classification: classify(homeEnergy, homeEventScore, homeRatio, trinity.home.calibrated_threat, trinity.home.has_conflict, homeFullEventScore, homeTTI, homeTTIClass)
   };
 
   const awayTeam: TeamEPIFeatures = {
     conversion_ratio: awayRatio,
     event_score_15m: Number(awayEventScore.toFixed(2)),
     energy_15m: awayEnergy,
-    classification: classify(awayEnergy, awayEventScore, awayRatio, trinity.away.calibrated_threat, trinity.away.has_conflict, awayFullEventScore)
+    classification: classify(awayEnergy, awayEventScore, awayRatio, trinity.away.calibrated_threat, trinity.away.has_conflict, awayFullEventScore, awayTTI, awayTTIClass)
   };
 
   return {
@@ -560,7 +579,7 @@ export function calculateSpatioTemporalFeatures(
 
   // 1. 三位一体实时威胁校准，再由同一证据链生成 EPI。
   const liveThreatTrinity = calculateLiveThreatTrinity(timeline, events, physical, currentMinute);
-  const epi = calculateEventPressureConversion(timeline, events, liveThreatTrinity, currentMinute);
+  const epi = calculateEventPressureConversion(timeline, events, liveThreatTrinity, currentMinute, physical);
 
   // 2. 战术相变
   const regime = evaluateTacticalRegime(match, timeline, epi, physical);

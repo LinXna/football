@@ -987,6 +987,58 @@ export const CanonicalMatchCenter: React.FC = () => {
     }
   };
 
+  const handleDeleteRecord = async (recordId: string) => {
+    if (!window.confirm("确定要从正式台账中删除该条推荐记录吗？")) {
+      return;
+    }
+    setLedgerFeedback("正在删除台账记录...");
+    try {
+      const res = await fetch("/api/refactor/formal-ledger/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          record_ids: [recordId],
+          stage: mode === "live" ? "LIVE" : "PREMATCH",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLedgerFeedback(`✅ 成功删除 ${data.removed_count} 条台账记录`);
+        await fetchRefactorLedger();
+      } else {
+        setLedgerFeedback(`❌ 删除台账记录失败: ${data.error || "未知错误"}`);
+      }
+    } catch (e: any) {
+      setLedgerFeedback(`❌ 删除请求网络异常: ${e.message}`);
+    }
+  };
+
+  const handleClearLedger = async () => {
+    const stageName = mode === "live" ? "滚球" : "赛前";
+    if (!window.confirm(`⚠️ 高危操作：确定要清空当前【${stageName}】全部正式台账测试数据吗？清空后不可撤回。`)) {
+      return;
+    }
+    setLedgerFeedback(`正在清空${stageName}台账测试数据...`);
+    try {
+      const res = await fetch("/api/refactor/formal-ledger/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stage: mode === "live" ? "LIVE" : "PREMATCH",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLedgerFeedback(`✅ 已成功清空${stageName}测试数据，共清除 ${data.cleared_count} 条记录`);
+        await fetchRefactorLedger();
+      } else {
+        setLedgerFeedback(`❌ 清空台账失败: ${data.error || "未知错误"}`);
+      }
+    } catch (e: any) {
+      setLedgerFeedback(`❌ 清空请求网络异常: ${e.message}`);
+    }
+  };
+
   useEffect(() => {
     fetchCanonicalData();
   }, [mode]);
@@ -2096,6 +2148,15 @@ export const CanonicalMatchCenter: React.FC = () => {
               <RefreshCw className="w-3 h-3" />
               <span>刷新台账</span>
             </button>
+
+            <button
+              onClick={handleClearLedger}
+              className="px-2.5 py-1 text-xs rounded border border-rose-800/80 text-rose-300 hover:bg-rose-950/60 transition-colors flex items-center gap-1"
+              title="一键清空当前阶段正式台账测试数据"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span>清空测试数据</span>
+            </button>
           </div>
         </div>
 
@@ -2259,6 +2320,15 @@ export const CanonicalMatchCenter: React.FC = () => {
                         </button>
                       </div>
                     )}
+
+                    <button
+                      onClick={() => handleDeleteRecord(record.record_id)}
+                      className="px-2 py-1 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 rounded text-xs transition-colors flex items-center gap-1"
+                      title="删除单条台账记录"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>删除</span>
+                    </button>
                   </div>
                 </div>
               );
