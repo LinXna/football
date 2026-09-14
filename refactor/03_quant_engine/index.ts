@@ -93,7 +93,8 @@ function isValidatedOosProfile(profile: QuantCalibrationProfile | undefined): bo
 /** 将三源证据、战术状态和进球后冷却凝结为下游唯一可消费的实时状态。 */
 export function buildUnifiedMatchState(
   spatioTemporal: QuantitativeFeatures['spatio_temporal_events'],
-  physical?: RealTimePhysicalStatsFeatures
+  physical?: RealTimePhysicalStatsFeatures,
+  timeline?: MomentumTimelineFeatures
 ): UnifiedMatchState {
   const trinity = spatioTemporal.live_threat_trinity;
   const cooldown = spatioTemporal.goal_climax.post_goal_cooldown_active ? 0.70 : 1.0;
@@ -115,7 +116,11 @@ export function buildUnifiedMatchState(
     red_card_attack_multiplier_home: physical?.red_card_penalty?.home_attack_multiplier ?? 1.0,
     red_card_attack_multiplier_away: physical?.red_card_penalty?.away_attack_multiplier ?? 1.0,
     red_card_defense_leak_multiplier_home: physical?.red_card_penalty?.home_defense_leak_multiplier ?? 1.0,
-    red_card_defense_leak_multiplier_away: physical?.red_card_penalty?.away_defense_leak_multiplier ?? 1.0
+    red_card_defense_leak_multiplier_away: physical?.red_card_penalty?.away_defense_leak_multiplier ?? 1.0,
+    home_tti: physical?.threat_transformation_index?.home_tti,
+    away_tti: physical?.threat_transformation_index?.away_tti,
+    pyramid_slope: timeline?.momentum_pyramid?.composite_slope ?? timeline?.slope_5m,
+    elite_override_applied: physical?.red_card_penalty?.elite_override_active ?? false
   });
 }
 
@@ -530,7 +535,7 @@ export function calculateQuantitativeFeatures(
     collector,
     tracer
   );
-  const matchState = buildUnifiedMatchState(spatioTemporalFeatures, physicalStatsFeatures);
+  const matchState = buildUnifiedMatchState(spatioTemporalFeatures, physicalStatsFeatures, timelineFeatures);
 
   // 3. M4: 滚球 0:0 Forward 泊松时间衰减推演 (注入博弈校准基准、物理场与战术相变乘子)
   const rawPoissonFeatures = calculateInPlayPoissonFeatures(
@@ -641,7 +646,9 @@ export function calculateQuantitativeFeatures(
     permissiveOosMode: options?.permissive_oos_mode ?? true,
     allowSecondaryLines: options?.allow_secondary_lines ?? true,
     currentScore: `${match.score.home_score ?? 0}-${match.score.away_score ?? 0}`,
-    snapshotTime: match.timing.beijing_start_time ?? new Date().toISOString()
+    snapshotTime: match.timing.beijing_start_time ?? new Date().toISOString(),
+    momentumPoints: timelineFeatures.total_points,
+    timelineEventsCount: match.reference?.timeline_events?.length ?? 0
   });
   const machineCandidateSignals = [...candidatePipeline.machine_candidate_signals];
   const researchCandidateSignals = [...candidatePipeline.research_candidate_signals];

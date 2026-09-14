@@ -3,7 +3,7 @@ import { HistoricalSampleRejectionReason } from './enums.js';
 
 export type HistoricalRecordType = 'formal_ai_recommendation' | 'machine_candidate';
 export type SettlementOutcome = 'WIN' | 'LOSE' | 'WIN_HALF' | 'LOSE_HALF' | 'PUSH' | 'PENDING' | 'INVALID';
-export type SettlementBasis = 'FULL_MATCH' | 'REMAINING_GOALS' | 'REMAINING_PERIOD_DOMINANCE';
+export type SettlementBasis = 'FULL_MATCH' | 'REMAINING_GOALS' | 'REMAINING_PERIOD_DOMINANCE' | 'FULL_MATCH_NORMAL';
 
 export interface VerifiedScore {
   home: number;
@@ -14,8 +14,9 @@ export interface VerifiedScore {
 export interface HistoricalBacktestRecord {
   record_id: string;
   record_type: HistoricalRecordType;
-  /** Layer 06 OOS provenance gate: only production-unlocked records are eligible. */
-  candidate_pipeline_state: 'NO_POSITIVE_EV' | 'OOS_LOCKED' | 'DATA_LOCKED' | 'PRODUCTION_UNLOCKED';
+  /** Layer 06 OOS provenance gate: production-unlocked or cold-start exempt records are eligible. */
+  candidate_pipeline_state: 'NO_POSITIVE_EV' | 'OOS_LOCKED' | 'DATA_LOCKED' | 'PRODUCTION_UNLOCKED' | 'COLD_START_PERMISSIVE';
+  oos_status?: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'OOS_COLD_START_EXEMPT' | 'OOS_REJECTED';
   settled_record_provenance: 'SETTLED_LEDGER_ADAPTER_V1';
   formal_recommendation: boolean;
   model_version: string;

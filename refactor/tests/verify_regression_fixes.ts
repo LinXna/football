@@ -12,7 +12,7 @@
 
 import assert from 'node:assert/strict';
 import { evaluateCandidatePipeline } from '../03_quant_engine/candidateStateMachine.js';
-import { calculateH2HDecayWeights, extractIsoVenueStandings, extractTacticalFormationFeatures } from '../03_quant_engine/contextEngine.js';
+import { calculateH2HDecayWeights, extractIsoVenueStandings, extractTacticalFormationFeatures, extractGoalDistributionDNA } from '../03_quant_engine/contextEngine.js';
 import { calculateBivariatePoissonGrid, calculateInPlayPoissonFeatures } from '../03_quant_engine/poissonDecayModel.js';
 import { MatchStage, MatchAlignmentStatus } from '../02_canonical_model/enums.js';
 import type { CanonicalMatch } from '../02_canonical_model/types.js';
@@ -200,6 +200,116 @@ const fSame = extractTacticalFormationFeatures(matchFormationsSame);
 assert.equal(fSame.both_formations_known, true);
 assert.equal(fSame.formation_matched, true, 'Identical formations should be matched');
 console.log('   ✅ P3 Tactical formation semantics verified');
+
+// --------------------------------------------------------------------------
+// 7. 进球时间段分布 DNA：主队“总+主”、客队“总+客”双层自适应融合断言
+// --------------------------------------------------------------------------
+console.log('-> Testing Goal Distribution DNA: Home (All+Home) & Away (All+Away) Dual-Layer Fusion...');
+const dualLayerMatch: CanonicalMatch = {
+  ...mockMatch,
+  reference: {
+    goal_distribution: {
+      has_data: true,
+      home_team: {
+        // 主队总样本极小 (1球) -> 应 100% 回退至中性均匀分布
+        all: { scored_intervals: [{ goals: 1 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }] },
+        home: { scored_intervals: [{ goals: 1 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }] }
+      },
+      away_team: {
+        // 客队：总进球 23 (充足)，客场进球 14 (nVenue >= 12 充足 -> 70% 专属客场 + 30% 总体)
+        all: { scored_intervals: [{ goals: 3 }, { goals: 3 }, { goals: 4 }, { goals: 2 }, { goals: 5 }, { goals: 6 }] },
+        away: { scored_intervals: [{ goals: 1 }, { goals: 2 }, { goals: 2 }, { goals: 1 }, { goals: 3 }, { goals: 5 }] }
+      }
+    }
+  }
+};
+const dnaDual = extractGoalDistributionDNA(dualLayerMatch);
+assert.equal(dnaDual.home_sample_size, 1, 'Home sample size should be 1');
+assert.equal(dnaDual.home_confidence, 'INSUFFICIENT', 'Total goals < 5 must have INSUFFICIENT confidence');
+assert.deepEqual(dnaDual.home_scored_weights, [0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667], 'Insufficient sample size must shrink 100% to uniform weights');
+assert.equal(dnaDual.away_confidence, 'HIGH', 'Away with mature sample size must have HIGH confidence');
+assert.equal(dnaDual.is_away_specific, true, 'Away venue-specific fusion active when nVenue >= 12');
+assert(dnaDual.away_late_game_dna > 0.20, 'Away late game DNA should reflect strong 75+ interval');
+
+// 测试“专属切片不足 (nVenue < 5)，回退 100% 采用总体切片 (All)”
+const fallbackToAllMatch: CanonicalMatch = {
+  ...mockMatch,
+  reference: {
+    goal_distribution: {
+      has_data: true,
+      home_team: {
+        all: { scored_intervals: [{ goals: 3 }, { goals: 4 }, { goals: 5 }, { goals: 3 }, { goals: 6 }, { goals: 4 }] }, // nAll = 25
+        home: { scored_intervals: [{ goals: 1 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 1 }, { goals: 0 }] }  // nVenue = 2 < 5
+      },
+      away_team: {
+        all: { scored_intervals: [{ goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }] },
+        away: { scored_intervals: [{ goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }] }
+      }
+    }
+  }
+};
+const dnaFallback = extractGoalDistributionDNA(fallbackToAllMatch);
+assert.equal(dnaFallback.home_confidence, 'HIGH', 'Home nAll >= 15 has HIGH confidence even if nVenue < 5');
+assert.equal(dnaFallback.is_home_specific, false, 'Home nVenue < 5 gracefully falls back to 100% All without false specific overfitting');
+console.log('   ✅ Goal Distribution DNA: Home (All+Home) & Away (All+Away) Dual-Layer Fusion verified');
+
+// --------------------------------------------------------------------------
+// 8. 滚球阶段动态权重 (Regime Shift Weighting) 与终盘事实统治权
+// --------------------------------------------------------------------------
+console.log('-> Testing In-Play Regime Shift Weighting (30-60m: 60-65%, 65-90m: 80-85%)...');
+const mockState: UnifiedMatchState = {
+  match_id: 'regime_test_01',
+  elapsed_minute: 45,
+  score_diff: 0,
+  regime_multiplier_home: 1.2,
+  regime_multiplier_away: 0.8,
+  red_card_attack_multiplier_home: 1.0,
+  red_card_attack_multiplier_away: 1.0,
+  red_card_defense_leak_multiplier_home: 1.0,
+  red_card_defense_leak_multiplier_away: 1.0,
+  post_goal_cooldown_active: false,
+  xt_home: 1.5,
+  xt_away: 0.8,
+  danger_attacks_ratio_15m: 0.65,
+  dominance_side: 'home'
+};
+
+// 45 分钟（中段攻防展开期 30' ~ 60'）
+const inPlay45m = calculateInPlayPoissonFeatures(
+  mockMatch,
+  mockState,
+  { base_lambda_home: 1.5, base_lambda_away: 1.2 },
+  null,
+  null,
+  null
+);
+assert.equal(inPlay45m.lambda_decomposition.live_regime_stage, 'MID_MATCH');
+assert(
+  (inPlay45m.lambda_decomposition.live_stats_weight ?? 0) >= 0.60 &&
+  (inPlay45m.lambda_decomposition.live_stats_weight ?? 0) <= 0.65,
+  `45m live_stats_weight must be within [0.60, 0.65], got ${inPlay45m.lambda_decomposition.live_stats_weight}`
+);
+
+// 75 分钟（终盘决战期 65' ~ 90'）
+const mockState75: UnifiedMatchState = {
+  ...mockState,
+  elapsed_minute: 75
+};
+const inPlay75m = calculateInPlayPoissonFeatures(
+  { ...mockMatch, timing: { ...mockMatch.timing, minute: 75 } },
+  mockState75,
+  { base_lambda_home: 1.5, base_lambda_away: 1.2 },
+  null,
+  null,
+  null
+);
+assert.equal(inPlay75m.lambda_decomposition.live_regime_stage, 'LATE_SURGE');
+assert(
+  (inPlay75m.lambda_decomposition.live_stats_weight ?? 0) >= 0.80 &&
+  (inPlay75m.lambda_decomposition.live_stats_weight ?? 0) <= 0.85,
+  `75m live_stats_weight must be within [0.80, 0.85], got ${inPlay75m.lambda_decomposition.live_stats_weight}`
+);
+console.log('   ✅ In-Play Regime Shift Weighting verified: 45m weight=' + inPlay45m.lambda_decomposition.live_stats_weight + ', 75m weight=' + inPlay75m.lambda_decomposition.live_stats_weight);
 
 console.log('\n======================================================');
 console.log('🎉 ALL LAYER 03 REGRESSION VERIFICATIONS PASSED 100%!');

@@ -127,11 +127,64 @@ export function devigShin(decimalOdds: number[], maxIter: number = 50, tol: numb
 }
 
 /**
- * 盘口字符串解析（支持 "-0.5", "2.5", "-0/0.5", "平手/半球", "半球" 等）
+ * 经验贝叶斯高赔与深盘离散收缩 (Empirical Bayesian Shrinkage)
+ * 抑制高赔冷门 (> 2.80) 因模型小概率尾部误差造成的虚假正 EV
+ * P_shrunk = P_fair + (P_model - P_fair) / (1 + 0.50 * max(0, odds - 2.80))
  */
-export function parseAsianHandicapLine(lineStr: string): number {
-  if (!lineStr || typeof lineStr !== 'string') return 0.0;
-  const clean = lineStr.trim();
+export function applyBayesianShrinkage(
+  modelProb: number,
+  odds: number,
+  fairProb?: number
+): {
+  shrunkProb: number;
+  shrinkageFactor: number;
+  isApplied: boolean;
+} {
+  if (odds <= 2.80 || !Number.isFinite(odds) || odds <= 1.0) {
+    return {
+      shrunkProb: modelProb,
+      shrinkageFactor: 1.0,
+      isApplied: false
+    };
+  }
+
+  const pMarketFair = (typeof fairProb === 'number' && Number.isFinite(fairProb) && fairProb > 0)
+    ? fairProb
+    : (1.0 / odds); // 若无显式去抽水公允概率，使用内隐概率为锚点
+
+  const shrinkageFactor = Number((1.0 / (1.0 + 0.50 * (odds - 2.80))).toFixed(3));
+  const deltaP = modelProb - pMarketFair;
+
+  if (deltaP <= 0) {
+    // 模型概率低于市场公允概率，无虚假正溢价，无需下调
+    return {
+      shrunkProb: modelProb,
+      shrinkageFactor: 1.0,
+      isApplied: false
+    };
+  }
+
+  const shrunkProb = Number((pMarketFair + deltaP * shrinkageFactor).toFixed(4));
+  return {
+    shrunkProb,
+    shrinkageFactor,
+    isApplied: true
+  };
+}
+
+/**
+ * 盘口字符串统一精准解析（SSOT Parser）
+ * 支持 "-0.5", "2.5", "-0/0.5", "0/-0.5", "+0/0.5", "0/0.5", "-0.5/-1", "平手/半球", "受让平半", "客 -0/0.5" 等
+ * 彻底杜绝负零丢失与符号反转问题
+ */
+export function parseAsianHandicapLine(lineStr: string | number): number {
+  if (lineStr === null || lineStr === undefined) return 0.0;
+  if (typeof lineStr === 'number') {
+    if (isNaN(lineStr) || !isFinite(lineStr)) return 0.0;
+    return lineStr === 0 || Object.is(lineStr, -0) ? 0.0 : lineStr;
+  }
+  const clean = String(lineStr).trim().replace(/\s+/g, '');
+  if (!clean) return 0.0;
 
   // 汉字盘口基础名映射表
   const TEXT_MAP: Record<string, number> = {
@@ -156,66 +209,92 @@ export function parseAsianHandicapLine(lineStr: string): number {
     '三球': 3.0
   };
 
-  // 判断受让 vs 让球
-  const isSurrender = clean.startsWith('+') || clean.includes('受让') || clean.includes('受');
-  const isExplicitMinus = clean.startsWith('-');
+  // 判断受让 vs 让球/负号
+  const hasSurrenderKeyword = clean.includes('受让') || clean.includes('受');
+  const hasNegativeSign = clean.includes('-');
+  const hasPositiveSign = clean.includes('+');
 
-  // 清洗汉字前缀
-  let pureText = clean.replace(/^[+-]/, '').replace(/^让/, '').replace(/^受让/, '').replace(/^受/, '').trim();
+  // 清洗汉字前缀与符号
+  const pureText = clean
+    .replace(/^[+-]/, '')
+    .replace(/^(让球|受让|让|受|客|主)/, '')
+    .replace(/[+-]/g, '')
+    .trim();
 
   if (TEXT_MAP[pureText] !== undefined) {
     const val = TEXT_MAP[pureText];
     if (val === 0.0) return 0.0;
     // 中文让球习惯中，“半球”代表主队让半球即 -0.5；“受让半球”代表主队受让即 +0.5
-    if (isSurrender) return val;
+    if (hasSurrenderKeyword || (hasPositiveSign && !hasNegativeSign)) return val;
     return -val;
   }
 
-  // 2. 检查斜杠复合盘 (如 "0/0.5", "0.5/1", "-0/0.5", "0/-0.5", "-0.5/-1")
+  // 2. 检查斜杠复合盘 (如 "0/0.5", "0.5/1", "-0/0.5", "0/-0.5", "-0.5/-1", "+0/0.5")
   if (clean.includes('/')) {
     const parts = clean.split('/');
     if (parts.length === 2) {
-      const p1 = parseFloat(parts[0]);
-      const p2 = parseFloat(parts[1]);
+      const p1Raw = parts[0].trim();
+      const p2Raw = parts[1].trim();
+      const p1 = parseFloat(p1Raw);
+      const p2 = parseFloat(p2Raw);
       if (!isNaN(p1) && !isNaN(p2)) {
-        const isNegative = isExplicitMinus || p1 < 0 || p2 < 0 || Object.is(p1, -0) || Object.is(p2, -0);
+        // 只要出现负号或为负数或-0，即判为负盘（除非明确只有受让关键词且无负号）
+        const isNeg = !hasSurrenderKeyword && (
+          hasNegativeSign ||
+          p1 < 0 ||
+          p2 < 0 ||
+          Object.is(p1, -0) ||
+          Object.is(p2, -0) ||
+          p1Raw.startsWith('-') ||
+          p2Raw.startsWith('-')
+        );
         const avg = (Math.abs(p1) + Math.abs(p2)) / 2.0;
-        return isNegative ? -avg : avg;
+        return isNeg ? -avg : avg;
       }
     }
   }
 
   // 3. 直接浮点解析
   const val = parseFloat(clean);
-  return isNaN(val) ? 0.0 : val;
+  if (isNaN(val)) return 0.0;
+  if (val === 0 && (clean.startsWith('-') || Object.is(val, -0))) {
+    return 0.0;
+  }
+  return val;
 }
 
 /**
- * 盘口数值转标准显示串 (如 -0.25 -> "-0/0.5", +0.5 -> "+0.5")
+ * 盘口数值转标准显示串 (如 -0.25 -> "-0/0.5", +0.25 -> "+0/0.5", -0.5 -> "-0.5", 0 -> "0")
  */
 export function formatAsianHandicapLine(lineVal: number): string {
+  if (lineVal === 0 || Object.is(lineVal, -0)) return '0';
   const isNeg = lineVal < 0;
   const abs = Math.abs(lineVal);
 
-  if (abs === 0.25) return isNeg ? '-0/0.5' : '+0/0.5';
-  if (abs === 0.75) return isNeg ? '-0.5/1' : '+0.5/1';
-  if (abs === 1.25) return isNeg ? '-1/1.5' : '+1/1.5';
-  if (abs === 1.75) return isNeg ? '-1.5/2' : '+1.5/2';
-  if (abs === 2.25) return isNeg ? '-2/2.5' : '+2/2.5';
-  if (abs === 2.75) return isNeg ? '-2.5/3' : '+2.5/3';
+  if (Math.abs(abs - 0.25) < 1e-4) return isNeg ? '-0/0.5' : '+0/0.5';
+  if (Math.abs(abs - 0.75) < 1e-4) return isNeg ? '-0.5/1' : '+0.5/1';
+  if (Math.abs(abs - 1.25) < 1e-4) return isNeg ? '-1/1.5' : '+1/1.5';
+  if (Math.abs(abs - 1.75) < 1e-4) return isNeg ? '-1.5/2' : '+1.5/2';
+  if (Math.abs(abs - 2.25) < 1e-4) return isNeg ? '-2/2.5' : '+2/2.5';
+  if (Math.abs(abs - 2.75) < 1e-4) return isNeg ? '-2.5/3' : '+2.5/3';
 
-  return lineVal >= 0 ? `+${lineVal}` : `${lineVal}`;
+  return lineVal > 0 ? `+${lineVal}` : `${lineVal}`;
 }
 
+/**
+ * 客队盘口反转统一函数
+ * 基于解析出的浮点数进行严格符号反转，杜绝字符串拼接产生的非法格式 (如 "-平/半", "-0/-0.5")
+ */
 export function invertHandicapString(lineStr: string): string {
   if (!lineStr || lineStr === '0' || lineStr === '0.0') return '0';
-  if (lineStr.startsWith('+')) return lineStr.replace('+', '-');
-  if (lineStr.startsWith('-')) return lineStr.replace('-', '+');
-  return '-' + lineStr;
+  const val = parseAsianHandicapLine(lineStr);
+  if (val === 0) return '0';
+  return formatAsianHandicapLine(-val);
 }
 
 /**
  * 计算亚洲让球盘的 5 态精确结算概率分布
+ * 保证 ∑P = 1.0 闭式归一化
  */
 export function calculateSpreadFiveStateDistribution(
   handicapValue: number,
@@ -250,6 +329,16 @@ export function calculateSpreadFiveStateDistribution(
     }
   }
 
+  // 严格归一化保证数学闭合，防止截断或浮点微小漂移
+  const sum = p_full_win + p_half_win + p_push + p_half_loss + p_full_loss;
+  if (sum > 0) {
+    p_full_win /= sum;
+    p_half_win /= sum;
+    p_push /= sum;
+    p_half_loss /= sum;
+    p_full_loss /= sum;
+  }
+
   return {
     p_full_win: Number(p_full_win.toFixed(4)),
     p_half_win: Number(p_half_win.toFixed(4)),
@@ -262,6 +351,7 @@ export function calculateSpreadFiveStateDistribution(
 
 /**
  * 计算全场大小球盘口的 5 态精确结算概率分布
+ * 保证 ∑P = 1.0 闭式归一化
  */
 export function calculateTotalFiveStateDistribution(
   line: number,
@@ -293,6 +383,16 @@ export function calculateTotalFiveStateDistribution(
     } else {
       p_full_loss += pK;
     }
+  }
+
+  // 严格归一化保证数学闭合，防止截断或浮点微小漂移
+  const sum = p_full_win + p_half_win + p_push + p_half_loss + p_full_loss;
+  if (sum > 0) {
+    p_full_win /= sum;
+    p_half_win /= sum;
+    p_push /= sum;
+    p_half_loss /= sum;
+    p_full_loss /= sum;
   }
 
   return {
@@ -382,23 +482,38 @@ export function calculateAsianHandicapEV(
   homeEV = Number(homeEV.toFixed(4));
   awayEV = Number(awayEV.toFixed(4));
 
+  // 经验贝叶斯高赔与冷门收缩 (Empirical Bayesian Shrinkage for Odds > 2.80)
+  const homeShrink = applyBayesianShrinkage(homePositiveProbability, homeOdds);
+  const awayShrink = applyBayesianShrinkage(awayPositiveProbability, awayOdds);
+  let effectiveHomeEV = homeEV;
+  let effectiveAwayEV = awayEV;
+
+  if (homeShrink.isApplied && homePositiveProbability > 0) {
+    const ratio = homeShrink.shrunkProb / homePositiveProbability;
+    effectiveHomeEV = Number((homeEV * ratio).toFixed(4));
+  }
+  if (awayShrink.isApplied && awayPositiveProbability > 0) {
+    const ratio = awayShrink.shrunkProb / awayPositiveProbability;
+    effectiveAwayEV = Number((awayEV * ratio).toFixed(4));
+  }
+
   // P0-05 规范：优先依据 Risk-Adjusted EV（净 EV），绝对禁止用单纯胜率高低覆盖 EV
   let preferredSide: 'home' | 'away' | 'none' = 'none';
   const marketMargin = Math.max(0.025, (1.0 / homeOdds + 1.0 / awayOdds) - 1.0);
   const minRequiredEV = Math.max(0.015, marketMargin * 0.5 + 0.01);
 
-  if (homeEV >= minRequiredEV && awayEV < minRequiredEV) {
+  if (effectiveHomeEV >= minRequiredEV && effectiveAwayEV < minRequiredEV) {
     preferredSide = 'home';
-  } else if (awayEV >= minRequiredEV && homeEV < minRequiredEV) {
+  } else if (effectiveAwayEV >= minRequiredEV && effectiveHomeEV < minRequiredEV) {
     preferredSide = 'away';
-  } else if (homeEV >= minRequiredEV && awayEV >= minRequiredEV) {
-    preferredSide = homeEV >= awayEV ? 'home' : 'away';
+  } else if (effectiveHomeEV >= minRequiredEV && effectiveAwayEV >= minRequiredEV) {
+    preferredSide = effectiveHomeEV >= effectiveAwayEV ? 'home' : 'away';
   } else {
     preferredSide = 'none';
   }
 
   const selectedOdds = preferredSide === 'home' ? homeOdds : awayOdds;
-  const selectedEV = preferredSide === 'home' ? homeEV : awayEV;
+  const selectedEV = preferredSide === 'home' ? effectiveHomeEV : effectiveAwayEV;
   const kellyFraction = (preferredSide !== 'none' && selectedOdds > 1.0 && selectedEV > 0)
     ? Number(Math.max(0.0, Math.min(0.05, selectedEV / (4.0 * (selectedOdds - 1.0)))).toFixed(4))
     : 0.0;
@@ -407,19 +522,24 @@ export function calculateAsianHandicapEV(
   const homeSettlementDist = calculateSpreadFiveStateDistribution(line, 'home', matrix);
   const awaySettlementDist = calculateSpreadFiveStateDistribution(line, 'away', matrix);
 
+  const anyShrinkage = homeShrink.isApplied || awayShrink.isApplied;
+  const shrinkFactor = homeShrink.isApplied ? homeShrink.shrinkageFactor : (awayShrink.isApplied ? awayShrink.shrinkageFactor : 1.0);
+
   return Object.freeze({
     line: handicapLineStr,
     home_odds: homeOdds,
     away_odds: awayOdds,
-    home_ev: homeEV,
-    away_ev: awayEV,
+    home_ev: effectiveHomeEV,
+    away_ev: effectiveAwayEV,
     preferred_side: preferredSide,
     is_positive_ev: preferredSide !== 'none',
-    home_model_probability: Number(homePositiveProbability.toFixed(4)),
-    away_model_probability: Number(awayPositiveProbability.toFixed(4)),
+    home_model_probability: Number((homeShrink.isApplied ? homeShrink.shrunkProb : homePositiveProbability).toFixed(4)),
+    away_model_probability: Number((awayShrink.isApplied ? awayShrink.shrunkProb : awayPositiveProbability).toFixed(4)),
     kelly_fraction: kellyFraction,
     home_settlement_distribution: homeSettlementDist,
-    away_settlement_distribution: awaySettlementDist
+    away_settlement_distribution: awaySettlementDist,
+    bayesian_shrinkage_applied: anyShrinkage,
+    shrinkage_factor: shrinkFactor
   });
 }
 
@@ -495,23 +615,38 @@ export function calculateTotalGoalsEV(
   overEV = Number(overEV.toFixed(4));
   underEV = Number(underEV.toFixed(4));
 
+  // 经验贝叶斯高赔与冷门收缩 (Empirical Bayesian Shrinkage for Odds > 2.80)
+  const overShrink = applyBayesianShrinkage(overPositiveProbability, overOdds);
+  const underShrink = applyBayesianShrinkage(underPositiveProbability, underOdds);
+  let effectiveOverEV = overEV;
+  let effectiveUnderEV = underEV;
+
+  if (overShrink.isApplied && overPositiveProbability > 0) {
+    const ratio = overShrink.shrunkProb / overPositiveProbability;
+    effectiveOverEV = Number((overEV * ratio).toFixed(4));
+  }
+  if (underShrink.isApplied && underPositiveProbability > 0) {
+    const ratio = underShrink.shrunkProb / underPositiveProbability;
+    effectiveUnderEV = Number((underEV * ratio).toFixed(4));
+  }
+
   // P0-05 规范：优先依据 Risk-Adjusted EV，绝对禁止用胜率高低覆盖 EV
   let preferredSide: 'over' | 'under' | 'none' = 'none';
   const marketMargin = Math.max(0.025, (1.0 / overOdds + 1.0 / underOdds) - 1.0);
   const minRequiredEV = Math.max(0.015, marketMargin * 0.5 + 0.01);
 
-  if (overEV >= minRequiredEV && underEV < minRequiredEV) {
+  if (effectiveOverEV >= minRequiredEV && effectiveUnderEV < minRequiredEV) {
     preferredSide = 'over';
-  } else if (underEV >= minRequiredEV && overEV < minRequiredEV) {
+  } else if (effectiveUnderEV >= minRequiredEV && effectiveOverEV < minRequiredEV) {
     preferredSide = 'under';
-  } else if (overEV >= minRequiredEV && underEV >= minRequiredEV) {
-    preferredSide = overEV >= underEV ? 'over' : 'under';
+  } else if (effectiveOverEV >= minRequiredEV && effectiveUnderEV >= minRequiredEV) {
+    preferredSide = effectiveOverEV >= effectiveUnderEV ? 'over' : 'under';
   } else {
     preferredSide = 'none';
   }
 
   const selectedOdds = preferredSide === 'over' ? overOdds : underOdds;
-  const selectedEV = preferredSide === 'over' ? overEV : underEV;
+  const selectedEV = preferredSide === 'over' ? effectiveOverEV : effectiveUnderEV;
   const kellyFraction = (preferredSide !== 'none' && selectedOdds > 1.0 && selectedEV > 0)
     ? Number(Math.max(0.0, Math.min(0.05, selectedEV / (4.0 * (selectedOdds - 1.0)))).toFixed(4))
     : 0.0;
@@ -520,19 +655,24 @@ export function calculateTotalGoalsEV(
   const overSettlementDist = calculateTotalFiveStateDistribution(line, currentTotalGoals, 'over', lambdaRest);
   const underSettlementDist = calculateTotalFiveStateDistribution(line, currentTotalGoals, 'under', lambdaRest);
 
+  const anyShrinkage = overShrink.isApplied || underShrink.isApplied;
+  const shrinkFactor = overShrink.isApplied ? overShrink.shrinkageFactor : (underShrink.isApplied ? underShrink.shrinkageFactor : 1.0);
+
   return Object.freeze({
     line: totalLineStr,
     over_odds: overOdds,
     under_odds: underOdds,
-    over_ev: overEV,
-    under_ev: underEV,
+    over_ev: effectiveOverEV,
+    under_ev: effectiveUnderEV,
     preferred_side: preferredSide,
     is_positive_ev: preferredSide !== 'none',
-    over_model_probability: Number(overPositiveProbability.toFixed(4)),
-    under_model_probability: Number(underPositiveProbability.toFixed(4)),
+    over_model_probability: Number((overShrink.isApplied ? overShrink.shrunkProb : overPositiveProbability).toFixed(4)),
+    under_model_probability: Number((underShrink.isApplied ? underShrink.shrunkProb : underPositiveProbability).toFixed(4)),
     kelly_fraction: kellyFraction,
     over_settlement_distribution: overSettlementDist,
-    under_settlement_distribution: underSettlementDist
+    under_settlement_distribution: underSettlementDist,
+    bayesian_shrinkage_applied: anyShrinkage,
+    shrinkage_factor: shrinkFactor
   });
 }
 
@@ -557,13 +697,13 @@ export function identifyBookmakerPosture(
     return BookmakerPosture.TRAP_HIGH_ODDS;
   }
 
-  // 1X2 独赢高赔诱盘陷阱：极端高赔 (> 5.0) 且模型预测胜率过低 (< 20%)，或者严重负 EV
+  // 1X2 独赢高赔诱盘陷阱：极端高赔 (>= 4.5) 且模型预测胜率过低 (< 25%)，或者严重负 EV
   if (h2hDevig?.market_odds && h2hDevig.model_probabilities) {
     const odds = h2hDevig.market_odds;
     const probs = h2hDevig.model_probabilities;
     // 检查是否有低胜率高赔率诱盘
     for (let i = 0; i < 3; i++) {
-      if (odds[i] >= 5.0 && probs[i] < 0.20) {
+      if (odds[i] >= 4.5 && probs[i] < 0.25) {
         return BookmakerPosture.TRAP_HIGH_ODDS;
       }
     }
@@ -597,6 +737,8 @@ export function calculateH2hEV(
   preferred_side: 'home' | 'draw' | 'away' | 'none';
   is_positive_ev: boolean;
   kelly_fraction: number;
+  bayesian_shrinkage_applied?: boolean;
+  shrinkage_factor?: number;
 } {
   const probs = poisson.full_time_probabilities ?? {
     prob_home_win: poisson.rest_score_matrix.prob_home_win_rest,
@@ -608,9 +750,18 @@ export function calculateH2hEV(
   const probDraw = probs.prob_draw;
   const probAway = probs.prob_away_win;
 
-  const homeEv = homeOdds > 1 ? Number((probHome * homeOdds - 1.0).toFixed(4)) : -1.0;
-  const drawEv = drawOdds > 1 ? Number((probDraw * drawOdds - 1.0).toFixed(4)) : -1.0;
-  const awayEv = awayOdds > 1 ? Number((probAway * awayOdds - 1.0).toFixed(4)) : -1.0;
+  // 经验贝叶斯高赔收缩 (Empirical Bayesian Shrinkage for Odds > 2.80)
+  const homeShrink = applyBayesianShrinkage(probHome, homeOdds);
+  const drawShrink = applyBayesianShrinkage(probDraw, drawOdds);
+  const awayShrink = applyBayesianShrinkage(probAway, awayOdds);
+
+  const effProbHome = homeShrink.shrunkProb;
+  const effProbDraw = drawShrink.shrunkProb;
+  const effProbAway = awayShrink.shrunkProb;
+
+  const homeEv = homeOdds > 1 ? Number((effProbHome * homeOdds - 1.0).toFixed(4)) : -1.0;
+  const drawEv = drawOdds > 1 ? Number((effProbDraw * drawOdds - 1.0).toFixed(4)) : -1.0;
+  const awayEv = awayOdds > 1 ? Number((effProbAway * awayOdds - 1.0).toFixed(4)) : -1.0;
 
   let preferredSide: 'home' | 'draw' | 'away' | 'none' = 'none';
   let maxEv = -1.0;
@@ -627,19 +778,19 @@ export function calculateH2hEV(
   if (homeEv > maxEv && isEligible1X2(homeEv, homeOdds)) {
     maxEv = homeEv;
     preferredSide = 'home';
-    maxProb = probHome;
+    maxProb = effProbHome;
     maxOdds = homeOdds;
   }
   if (drawEv > maxEv && isEligible1X2(drawEv, drawOdds)) {
     maxEv = drawEv;
     preferredSide = 'draw';
-    maxProb = probDraw;
+    maxProb = effProbDraw;
     maxOdds = drawOdds;
   }
   if (awayEv > maxEv && isEligible1X2(awayEv, awayOdds)) {
     maxEv = awayEv;
     preferredSide = 'away';
-    maxProb = probAway;
+    maxProb = effProbAway;
     maxOdds = awayOdds;
   }
 
@@ -651,14 +802,21 @@ export function calculateH2hEV(
     kelly = Number(Math.max(0.0, Math.min(0.05, fullKelly * 0.25)).toFixed(4));
   }
 
+  const anyShrinkage = homeShrink.isApplied || drawShrink.isApplied || awayShrink.isApplied;
+  const selectedShrinkFactor = preferredSide === 'home'
+    ? homeShrink.shrinkageFactor
+    : (preferredSide === 'draw' ? drawShrink.shrinkageFactor : (preferredSide === 'away' ? awayShrink.shrinkageFactor : 1.0));
+
   return {
-    model_probabilities: [probHome, probDraw, probAway],
+    model_probabilities: [effProbHome, effProbDraw, effProbAway],
     home_ev: homeEv,
     draw_ev: drawEv,
     away_ev: awayEv,
     preferred_side: preferredSide,
     is_positive_ev: preferredSide !== 'none',
-    kelly_fraction: kelly
+    kelly_fraction: kelly,
+    bayesian_shrinkage_applied: anyShrinkage,
+    shrinkage_factor: selectedShrinkFactor
   };
 }
 
@@ -699,13 +857,21 @@ export function calculateDeviggedMarketFeatures(
     if (h2hOdds.away_odds) decimalOdds.push(h2hOdds.away_odds);
   }
 
-  // 1. 欧赔去抽水与 M3 独赢 EV 计算 (P1-03: 动态求解 Shin Z)
+  // 1. 欧赔去抽水与 M3 独赢 EV 计算 (双轨机制：Shin 市场去抽水轨道 + 泊松网格模型积分轨道)
   let h2hDevig: SingleMarketDevig | undefined;
   let estimatedShinZ: number | undefined;
   let shinZStatus: 'DYNAMIC_ESTIMATED' | 'DEFAULT_ASSUMPTION' | 'UNAVAILABLE' = 'UNAVAILABLE';
   let postureConfidence: 'HIGH' | 'MEDIUM' | 'LOW' = 'LOW';
 
-  if (decimalOdds.length === 3 && h2hOdds?.home_odds && h2hOdds?.draw_odds && h2hOdds?.away_odds) {
+  const homeOddsVal = h2hOdds?.home_odds ?? 0;
+  const drawOddsVal = h2hOdds?.draw_odds ?? 0;
+  const awayOddsVal = h2hOdds?.away_odds ?? 0;
+
+  // 始终运行泊松网格模型积分评估，保证底层模型概率闭合
+  const h2hEval = calculateH2hEV(homeOddsVal, drawOddsVal, awayOddsVal, poisson);
+
+  if (decimalOdds.length === 3 && homeOddsVal > 1.0 && drawOddsVal > 1.0 && awayOddsVal > 1.0) {
+    // 轨道 1：市场存在完整三项欧赔，使用 Shin 去抽水
     const shin = devigShin(decimalOdds);
     if (shin.z > 0) {
       estimatedShinZ = shin.z;
@@ -715,22 +881,45 @@ export function calculateDeviggedMarketFeatures(
       shinZStatus = 'UNAVAILABLE';
       postureConfidence = 'LOW';
     }
-    const h2hEval = calculateH2hEV(h2hOdds.home_odds, h2hOdds.draw_odds, h2hOdds.away_odds, poisson);
     h2hDevig = {
       market_type: MarketType.MONEYLINE_1X2,
       raw_overround: shin.overround,
-      devig_method: DevigMethod.SHIN,
+      devig_method: shin.z > 0 ? DevigMethod.SHIN : DevigMethod.MULTIPLICATIVE,
       fair_probabilities: shin.fair_probs,
       fair_odds: shin.fair_probs.map((p) => (p > 0 ? Number((1.0 / p).toFixed(3)) : 0.0)),
-      market_odds: [h2hOdds.home_odds, h2hOdds.draw_odds, h2hOdds.away_odds],
+      market_odds: [homeOddsVal, drawOddsVal, awayOddsVal],
       model_probabilities: h2hEval.model_probabilities,
       home_ev: h2hEval.home_ev,
       draw_ev: h2hEval.draw_ev,
       away_ev: h2hEval.away_ev,
       preferred_side: h2hEval.preferred_side,
       is_positive_ev: h2hEval.is_positive_ev,
-      kelly_fraction: h2hEval.kelly_fraction
+      kelly_fraction: h2hEval.kelly_fraction,
+      bayesian_shrinkage_applied: h2hEval.bayesian_shrinkage_applied,
+      shrinkage_factor: h2hEval.shrinkage_factor
     };
+  } else {
+    // 轨道 2：欧赔缺失或不全时，由泊松网格模型概率闭式推导公允概率与参考赔率
+    const modelProbs = h2hEval.model_probabilities;
+    h2hDevig = {
+      market_type: MarketType.MONEYLINE_1X2,
+      raw_overround: 1.0,
+      devig_method: DevigMethod.POISSON_MODEL_DERIVED,
+      fair_probabilities: modelProbs,
+      fair_odds: modelProbs.map((p) => (p > 0 ? Number((1.0 / p).toFixed(3)) : 0.0)),
+      market_odds: [homeOddsVal, drawOddsVal, awayOddsVal],
+      model_probabilities: modelProbs,
+      home_ev: h2hEval.home_ev,
+      draw_ev: h2hEval.draw_ev,
+      away_ev: h2hEval.away_ev,
+      preferred_side: h2hEval.preferred_side,
+      is_positive_ev: h2hEval.is_positive_ev,
+      kelly_fraction: h2hEval.kelly_fraction,
+      bayesian_shrinkage_applied: h2hEval.bayesian_shrinkage_applied,
+      shrinkage_factor: h2hEval.shrinkage_factor
+    };
+    shinZStatus = 'UNAVAILABLE';
+    postureConfidence = 'LOW';
   }
 
   // 2. 亚洲让球盘 EV

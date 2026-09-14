@@ -51,15 +51,22 @@
   - Q2: 盘口择优竞价池全面纳入大小球与让球的全部合法主副盘（`ASIAN_HANDICAP_MAIN/SECONDARY`, `TOTAL_GOALS_MAIN/SECONDARY`），副盘优于主盘时自动高亮为“最优副盘推荐”；前端界面支持切线切换与对比。
   - Q3: 独赢三向（主胜/平局/客胜）独立呈现对应赔率、概率与单向 EV，正期望方向高亮展示。
   - Q4: 玩法底栏由纯数值“期望值: EV”升级为具备明确主语指向的“最佳推荐选项 + 对应赔率 + EV”。
-- [2026-09-09 Formal Ledger & OOS Clean Architecture Complete]:
-  - 彻底清理旧系统违规侵蚀的伪造数据与“方案1+方案2”旧监控看板，删除伪造数据生成器（`leisuHistoricalSeeder.ts`）；
-  - 实现重构正式台账持久化服务闭环（`GET /api/refactor/formal-ledger`, `POST /api/refactor/formal-ledger/append`, `POST /api/refactor/formal-ledger/settle`）；
-  - 实现真实完赛比分输入、四分之一盘精确结算以及沉淀真实 OOS 样本/重构真实 Brier 得分的完整闭环；
-  - 在前端重构页面实现了符合重构架构的 OOS 自增监控面板、正式推荐台账与完赛核销中心，以及赛事卡片与详情页的一键入账/AI评估入口。
+- [2026-09-14 Systemic Overhaul Phase 0 & Phase 1 Complete]:
+  - P0 致命级任务（0.1 Parser 闭包、0.2 五态分布真实归一化、0.3 1X2 欧赔 Shin+泊松双轨去抽水）完成并经 `verify_p0_math_closure.ts` 100% 验证；
+  - P1 核心阻塞级（1.1 OOS 门禁与实盘准入解耦、1.2 生产门禁与推荐台账贯通）完成：
+    - 在冷启动期放行 `COLD_START_PERMISSIVE`，生成带 `OOS_COLD_START_EXEMPT` 标记的研究候选；
+    - Layer 04 `alignmentGuard.ts` 解锁冷启动推荐，强制 A 级降 B 级、置信度 79 封顶，保留正式推荐腿；
+    - Layer 06 台账适配器 `formalLedgerAdapter.ts` 与样本录入器 `historicalBacktestIngestion.ts` 支持冷启动豁免记录入账并沉淀真实样本；
+    - 边界与台账集成测试 `verify_layer04_05_candidate_boundary.ts` 及全套回归测试通过。
 
 ## Next Atomic Task
 
-交付用户体验与实盘验证。如有新增比赛，可通过 AI 评估导入自动或手动写入正式台账，赛后录入全场真实比分与核验来源执行核销，驱动真实的 OOS 校准档案自增。
+执行【第二阶段：P2 量化引擎战术与动量增强 (任务 2.1, 2.2, 2.3, 2.4, 2.5)】：
+1. 激活 9 个未使用的现场技术统计指标并构建进攻威胁指数 (TTI)；
+2. 重构多尺度动量金字塔模型（5m 40%, 10m 35%, 15m 25%）；
+3. 落实红牌三态分流（领先、平局、落后）与动态收缩深度；
+4. 引入超强弱悬殊豪门红牌防御策略覆盖机制 (Strategy Override Pattern)；
+5. 实现高赔冷门与极深盘经验贝叶斯收缩。
 
 After that, audit live-minute window semantics, red-card multipliers into M4, market timeline separation, and OOS backtesting one atomic issue at a time.
 

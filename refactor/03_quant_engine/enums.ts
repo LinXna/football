@@ -59,7 +59,8 @@ export enum MarketType {
 export enum DevigMethod {
   MULTIPLICATIVE = 'MULTIPLICATIVE',
   SHIN = 'SHIN',
-  POWER = 'POWER'
+  POWER = 'POWER',
+  POISSON_MODEL_DERIVED = 'POISSON_MODEL_DERIVED'
 }
 
 export enum PoissonDecayCurve {

@@ -42,6 +42,7 @@ export interface EvaluatorQuantFeatures {
   raw_positive_ev_signals?: readonly PositiveEVSignal[];
   raw_mathematical_ev_signals?: readonly PositiveEVSignal[];
   machine_candidate_signals?: readonly PositiveEVSignal[];
+  research_candidate_signals?: readonly PositiveEVSignal[];
   candidate_pipeline?: Layer03CandidatePipeline;
   risk_adjusted_ev?: number;
   risk_flags?: QuantAlert[];
@@ -133,6 +134,7 @@ export interface RecommendedLeg {
   minimum_acceptable_odds: number;
   direction: 'HOME' | 'AWAY' | 'OVER' | 'UNDER' | 'DRAW' | 'NONE';
   basis: string;
+  oos_status?: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'OOS_COLD_START_EXEMPT' | 'OOS_REJECTED';
 }
 
 export interface BlindSpotChecklist {

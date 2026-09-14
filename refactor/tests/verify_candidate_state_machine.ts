@@ -66,4 +66,49 @@ if (permissiveCases[4][1].machine_candidate_signals.length !== 1) throw new Erro
 if (permissiveCases[4][1].production_eligible !== true) throw new Error('Permissive: Validated mature signal failed production_eligible');
 if (permissiveCases[5][1].machine_candidate_signals.length !== 0) throw new Error('Permissive: Unsupported market escaped lock');
 
+// 3. 滚球攻防三大约束致命硬门禁校验 (In-Play Trinity Hard Gate)
+console.log('Testing In-Play Trinity Hard Gate...');
+const trinityStatsMissing = evaluateCandidatePipeline({
+  ...common,
+  rawSignals: [signal],
+  liveStatsAvailable: false,
+  momentumPoints: 10,
+  timelineEventsCount: 5
+});
+if (trinityStatsMissing.state !== 'DATA_LOCKED') throw new Error(`Trinity: Missing stats must trigger DATA_LOCKED, got ${trinityStatsMissing.state}`);
+if (trinityStatsMissing.machine_candidate_signals.length !== 0) throw new Error('Trinity: Machine signals must be cleared');
+if (trinityStatsMissing.research_candidate_signals.length !== 0) throw new Error('Trinity: Research signals must be cleared under fatal deficit');
+if (!trinityStatsMissing.blockers.some((b) => b.includes('INPLAY_TRINITY_DATA_DEFICIT'))) {
+  throw new Error('Trinity: Blocker must contain INPLAY_TRINITY_DATA_DEFICIT');
+}
+
+const trinityMomentumMissing = evaluateCandidatePipeline({
+  ...common,
+  rawSignals: [signal],
+  liveStatsAvailable: true,
+  momentumPoints: 0,
+  timelineEventsCount: 5
+});
+if (trinityMomentumMissing.state !== 'DATA_LOCKED') throw new Error(`Trinity: Missing momentum must trigger DATA_LOCKED, got ${trinityMomentumMissing.state}`);
+if (trinityMomentumMissing.machine_candidate_signals.length !== 0) throw new Error('Trinity: Momentum deficit machine signals must be cleared');
+if (trinityMomentumMissing.research_candidate_signals.length !== 0) throw new Error('Trinity: Momentum deficit research signals must be cleared');
+if (!trinityMomentumMissing.blockers.some((b) => b.includes('缺少危攻时序走势'))) {
+  throw new Error('Trinity: Blocker must identify momentum deficit');
+}
+
+const trinityTimelineMissing = evaluateCandidatePipeline({
+  ...common,
+  rawSignals: [signal],
+  liveStatsAvailable: true,
+  momentumPoints: 10,
+  timelineEventsCount: 0
+});
+if (trinityTimelineMissing.state !== 'DATA_LOCKED') throw new Error(`Trinity: Missing timeline must trigger DATA_LOCKED, got ${trinityTimelineMissing.state}`);
+if (trinityTimelineMissing.machine_candidate_signals.length !== 0) throw new Error('Trinity: Timeline deficit machine signals must be cleared');
+if (trinityTimelineMissing.research_candidate_signals.length !== 0) throw new Error('Trinity: Timeline deficit research signals must be cleared');
+if (!trinityTimelineMissing.blockers.some((b) => b.includes('缺少比赛关键事件时间轴'))) {
+  throw new Error('Trinity: Blocker must identify timeline events deficit');
+}
+console.log('In-Play Trinity Hard Gate: PASS');
+
 console.log('verify_candidate_state_machine: PASS (both strict and permissive modes verified)');

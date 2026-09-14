@@ -88,7 +88,13 @@ const mockPayload: EvaluatorPayload = {
     historical_win_rate: 0.12, 
     average_yield: -0.45,
     insight_note: '...'
-  }
+  },
+  lineup_value_matrix: {
+    is_lineup_confirmed: true,
+    home_confirmed_count: 11,
+    away_confirmed_count: 11,
+    lineup_status: 'CONFIRMED'
+  } as any
 };
 
 // Valid AI response using float format '-0.25'
@@ -380,6 +386,43 @@ if (unconfirmedFriendlyResult.grade !== RecommendationGrade.C_GRADE) {
   throw new Error(`[FAIL] Unconfirmed friendly match must be downgraded to C_GRADE, got ${unconfirmedFriendlyResult.grade}`);
 }
 console.log("[OK] Friendly match with unconfirmed lineup correctly downgraded to C_GRADE.");
+
+// --- Test 9: Universal Unconfirmed Lineup Gate Across All Leagues ---
+console.log("\n=== TESTING UNIVERSAL UNCONFIRMED LINEUP HARD GATE ===");
+const leaguePayloadUnconfirmed: EvaluatorPayload = {
+  ...mockPayload,
+  ai_brief: {
+    ...mockPayload.ai_brief,
+    league: 'Premier League'
+  },
+  lineup_value_matrix: {
+    is_lineup_confirmed: false,
+    lineup_status: 'NOT_ANNOUNCED'
+  } as any
+};
+
+const unconfirmedLeagueResult = verifyStatutoryAlignment(
+  {
+    ...validAiResult,
+    grade: RecommendationGrade.A_GRADE,
+    confidence_score: 92
+  },
+  leaguePayloadUnconfirmed
+);
+
+if (unconfirmedLeagueResult.grade !== RecommendationGrade.C_GRADE) {
+  throw new Error(`[FAIL] Unconfirmed league match must be capped at C_GRADE, got ${unconfirmedLeagueResult.grade}`);
+}
+if (unconfirmedLeagueResult.confidence_score > 70) {
+  throw new Error(`[FAIL] Unconfirmed league match confidence must be capped at 70, got ${unconfirmedLeagueResult.confidence_score}`);
+}
+if (unconfirmedLeagueResult.recommended_legs.length !== 0) {
+  throw new Error(`[FAIL] Unconfirmed league match must have 0 recommended legs, got ${unconfirmedLeagueResult.recommended_legs.length}`);
+}
+if (!unconfirmedLeagueResult.risk_warnings.some(w => w.includes('NOT_ANNOUNCED') || w.includes('官方首发名单未确认'))) {
+  throw new Error(`[FAIL] Unconfirmed league match must contain warning about unconfirmed lineup`);
+}
+console.log("[OK] Universal unconfirmed lineup hard gate verified: C_GRADE cap, <=70 confidence, and 0 recommended legs.");
 
 console.log("\n[OK] All Advanced Refactoring and Inviolable Laws Verified Successfully.");
 

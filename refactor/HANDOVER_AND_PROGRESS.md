@@ -1,5 +1,112 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
+- **任务编号 (Task)**: `SNAPSHOT-20260914-QUANT-SYSTEMIC-OVERHAUL-03-P2`
+- **当前状态 (Status)**: `IN_PROGRESS`
+- **阶段进度 (Phase)**: `P2 量化引擎战术与动量增强 (任务 2.1, 2.2, 2.3, 2.4, 2.5)`
+- **任务目标 (Goal)**：
+  1. 【任务 2.1 激活 9 个未使用的现场量化指标并建立 TTI 威胁指数】：
+     - 在 `momentumAnalysis.ts` 与 `spatioTemporalEngine.ts` 中，充分提取压迫成功率、进区触球、防线纵深、解围等 9 个硬指标；
+     - 建立进攻威胁指数 (TTI, Threat Transformation Index = 射门转化率 * 危险进攻强度 * 禁区触球)；
+  2. 【任务 2.2 重构多尺度动量金字塔模型】：
+     - 融合短期 (5min, 40%)、中期 (10min, 35%)、宏观 (15min, 25%) 动量斜率与积分，根除单尺度震荡误判；
+  3. 【任务 2.3 滚球红牌场景分流】：
+     - 区分红牌方处于领先、平局、落后三种局势，动态计算收缩深度与反击惩罚因子；
+  4. 【任务 2.4 引入超强弱悬殊红牌防御模式 (Strategy Override Pattern)】：
+     - 当豪门强队遭遇红牌时，评估控球与实力底蕴，以特定倍率覆盖通用 2.3 惩罚因子，防止高估弱队；
+  5. 【任务 2.5 高赔冷门贝叶斯收缩机制】：
+     - 对极深盘与超高赔冷门实施经验贝叶斯平滑，抑制极端方差。
+- **改动文件清单 (Target Files)**：
+  - `/refactor/03_quant_engine/types.ts`
+  - `/refactor/03_quant_engine/momentumQuantEngine.ts`
+  - `/refactor/03_quant_engine/eventMomentumFusion.ts`
+  - `/refactor/03_quant_engine/poissonDecayModel.ts`
+  - `/refactor/03_quant_engine/devigCalculator.ts`
+  - `/refactor/03_quant_engine/index.ts`
+  - `/refactor/tests/verify_p2_tactical_momentum.ts`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **执行步骤 (Action Plan)**：
+  1. 在 `types.ts` 中扩展 `RealTimePhysicalStatsFeatures`（TTI 指数结构、红牌场景分流与豪门覆盖字段）、`MomentumTimelineFeatures`（多尺度动量金字塔结构）、`DeviggedMarketFeatures`（贝叶斯收缩字段）；
+  2. 在 `momentumQuantEngine.ts` 中实现 TTI 指数计算函数与多尺度动量金字塔计算（5m 40%, 10m 35%, 15m 25%）；落实红牌领先/平局/落后三态分流与豪门覆盖策略；
+  3. 在 `eventMomentumFusion.ts` 中将金字塔复合斜率融入破门临界态 `evaluateGoalClimax` 与战术相变 `evaluateTacticalRegime`，并强化 TTI 渗透威胁与 EPI 联动；
+  4. 在 `poissonDecayModel.ts` 中联动红牌三态分流与豪门覆盖乘数，并接入深盘/高赔经验贝叶斯收缩；
+  5. 在 `devigCalculator.ts` 中引入深盘与高赔冷门经验贝叶斯平滑收缩，修正极端方差；
+  6. 编写专属自动化测试套件 `verify_p2_tactical_momentum.ts` 并验证全量回归测试与系统编译。
+- **交付物与成果 (Deliverables)**：
+  - TTI 指数计算公式；多尺度动量加权；红牌三态分流与豪门覆盖策略；贝叶斯高赔收缩；全套量化测试验证 100% 通过。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260914-QUANT-SYSTEMIC-OVERHAUL-02-P1 (DONE)
+- **阶段进度**: `P1 核心阻塞级 —— OOS 门禁与实盘准入解耦 (任务 1.1, 1.2)`
+- **交付成果**:
+  1. 完成 `candidateStateMachine.ts` 中生产门禁与冷启动准入解耦，无历史样本时自动转入 `COLD_START_PERMISSIVE`，生成带 `OOS_COLD_START_EXEMPT` 标记的研究候选；
+  2. 在 `alignmentGuard.ts` 中解开硬锁死结：放行 `COLD_START_PERMISSIVE` 模式，强制对冷启动候选执行 B 级封顶与置信度 79 封顶，保留正式推荐腿；
+  3. 贯通推荐台账适配器 `formalLedgerAdapter.ts` 与样本录入器 `historicalBacktestIngestion.ts`，支持 `OOS_COLD_START_EXEMPT` 记录入账与样本积累转换；
+  4. 更新 `verify_layer04_05_candidate_boundary.ts`，验证解耦、评级降级、置信度封顶、台账转换与样本入库 100% 通过；全套回归测试与编译均通过。
+
+---
+
+### Snapshot: SNAPSHOT-20260914-QUANT-SYSTEMIC-OVERHAUL-01 (DONE)
+- 完成 P0 致命级任务（任务 0.1、0.2、0.3）：盘口 SSOT Parser 根治负号与 -0、五态分布 $\sum P \equiv 1.0000$ 泊松网格闭式求解、1X2 欧赔 Shin 去抽水与泊松闭式推导双轨机制；
+- 专属测试套件 `verify_p0_math_closure.ts` 与全量回归测试 100% 通过。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260912-GOAL-DNA-TOTAL-PLUS-VENUE-FUSION (DONE)
+- 落实进球时间段分布 DNA “主队：总 + 主”、“客队：总 + 客”双层自适应融合；
+- 全量自动化测试回归通过。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260912-INPLAY-REGIME-WEIGHTING-AND-GOAL-DNA-SHRINKAGE (DONE)
+- 完成滚球 3 阶段动态时变加权计算（0-30m: 20-25%, 30-60m: 60-65%, 65-90m: 80-85%）；
+- 完成进球 DNA 终盘安全阀与样本不足自动回退。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+- **任务编号 (Task)**: `SNAPSHOT-20260912-INPLAY-TRINITY-GATE-AND-UNIVERSAL-LINEUP-C-GRADE-CAP`
+- **当前状态 (Status)**: `DONE`
+- **任务目标 (Goal)**：
+  落地足球量化评估系统问题四与问题五的核心战术风控防线：
+  1. 【Layer 03 滚球攻防三大约束硬门禁 (In-Play Threat Trinity Hard Gate)】：
+     - 确立滚球 3 核心硬事实依赖：实时攻防技术统计 (Stats/available_metrics)、危攻时序波形 (Attack Momentum Timeline/total_points)、比赛关键事件时间轴 (Timeline Events/timed_events)；
+     - 在 `candidateStateMachine.ts` 中，若 `stage === MatchStage.LIVE` 且任一维度完全缺失，立即触发 `INPLAY_TRINITY_DATA_DEFICIT` 致命数据锁；
+     - 状态强制归入 `DATA_LOCKED`，清空 `machine_candidate_signals` 与 `research_candidate_signals`（严禁伪中性数据脑补推演），下游阻断一切实盘输出；
+     - 在 `dataAudit.ts` 中同步落实滚球三大约束缺失直接 `overall_status = BLOCKED` 与生产门禁拦截。
+  2. 【Layer 04 全赛事未官宣首发强制封顶 C 级风控铁律】：
+     - 在 `alignmentGuard.ts` Step 7 中，将原先仅限制杯赛/友谊赛的首发硬门禁扩展为全赛事通用红线：无论联赛、杯赛还是友谊赛，凡未获取到官方官宣首发名单（`NOT_ANNOUNCED` 或 `is_lineup_confirmed !== true`），一律强制封顶为 `C_GRADE`，置信度上限 70 分，`recommended_legs` 强制清空，严禁进入重仓与正式串关；
+     - 唯有在首发官宣确认（`is_lineup_confirmed === true`）后方可解锁晋升至 `B_GRADE` 或 `A_GRADE`（友谊赛首发确认后仍受最高 B 级与轮换风险双重门禁限制）。
+  3. 【全链路回归与验证】：
+     - 补充针对滚球攻防三大约束致命缺失熔断的单元测试与断言；
+     - 补充联赛/杯赛/友谊赛在无首发与官宣首发场景下的分级门禁测试；
+     - 执行全量 TypeScript 单测与 `lint_applet`，确保 100% 绿色通过。
+- **改动文件清单 (Target Files)**：
+  - `/refactor/03_quant_engine/candidateStateMachine.ts`
+  - `/refactor/03_quant_engine/index.ts`
+  - `/refactor/03_quant_engine/dataAudit.ts`
+  - `/refactor/04_ai_evaluator/alignmentGuard.ts`
+  - `/refactor/tests/verify_candidate_state_machine.ts`
+  - `/refactor/tests/verify_ai_evaluator.ts`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **交付物与成果 (Deliverables)**：
+  - 交付 Layer 03 滚球攻防三位一体硬门禁拦截机制：实时技术统计缺失、危攻时序波形缺失、比赛关键事件时间轴缺失任一触发 `INPLAY_TRINITY_DATA_DEFICIT`，致命锁入 `DATA_LOCKED`，机器与研究候选双双清空；
+  - 交付 Layer 04 全赛事未官宣首发通用封顶 C_GRADE 观察门禁（置信度上限 70，推荐腿清空为 0，严禁串关与重仓）；
+  - 全量自动化测试（89 项单测与集成测试）100% 通过；
+  - `lint_applet` TypeScript 类型安全检查通过（0 错误，0 警告）；
+  - `compile_applet` 构建通过。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
 - **任务编号 (Task)**: `SNAPSHOT-20260912-FRIENDLY-MATCH-CONTEXT-AND-ALIGNMENT-GUARD`
 - **当前状态 (Status)**: `DONE`
 - **任务目标 (Goal)**：

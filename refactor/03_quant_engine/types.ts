@@ -177,6 +177,12 @@ export interface GoalDistributionDNAFeatures {
   away_late_game_dna: number;
   home_early_game_dna: number;   // 0-30' 进球占比
   away_early_game_dna: number;
+  home_sample_size: number;      // 实际进球样本总数 N
+  away_sample_size: number;
+  home_confidence: 'HIGH' | 'MEDIUM' | 'LOW' | 'INSUFFICIENT'; // 成熟度
+  away_confidence: 'HIGH' | 'MEDIUM' | 'LOW' | 'INSUFFICIENT';
+  is_home_specific: boolean;     // 是否提取自主场专用切片 (Home Venue)
+  is_away_specific: boolean;     // 是否提取自客场专用切片 (Away Venue)
 }
 
 export interface TacticalFormationFeatures {
@@ -258,6 +264,17 @@ export interface MomentumTimelineFeatures {
   inflection_count_recent_15m: number;
   is_sustained_siege: boolean;
   is_counter_attack_surge: boolean;
+  /** 多尺度动量金字塔模型 (5m: 40%, 10m: 35%, 15m: 25%) */
+  momentum_pyramid?: {
+    composite_slope: number;
+    composite_energy: number;
+    consistency: 'ALIGNED' | 'DIVERGENT' | 'TURNING';
+    trend_hierarchy: {
+      short_term_5m: number;
+      medium_term_10m: number;
+      macro_15m: number;
+    };
+  };
 }
 
 export interface RealTimePhysicalStatsFeatures {
@@ -322,11 +339,27 @@ export interface RealTimePhysicalStatsFeatures {
     home_lethal_counter?: boolean;
     away_lethal_counter?: boolean;
   };
+  /** 进攻威胁指数 (TTI, Threat Transformation Index = 射门转化率 * 危险进攻强度 * 进区触球代理) */
+  threat_transformation_index?: {
+    home_tti?: number;
+    away_tti?: number;
+    ratio?: number;
+    advantage_side?: 'home' | 'away' | 'neutral';
+    classification?: {
+      home: 'LETHAL_PENETRATION' | 'EFFECTIVE_ATTACK' | 'STERILE_POSSESSION' | 'LOW_ACTIVITY';
+      away: 'LETHAL_PENETRATION' | 'EFFECTIVE_ATTACK' | 'STERILE_POSSESSION' | 'LOW_ACTIVITY';
+    };
+  };
   red_card_penalty: {
     home_attack_multiplier?: number;
     home_defense_leak_multiplier?: number;
     away_attack_multiplier?: number;
     away_defense_leak_multiplier?: number;
+    home_scenario?: 'LEADING_PARK_BUS' | 'DRAW_BALANCED_ATTRITION' | 'TRAILING_COLLAPSE_RISK' | 'NONE';
+    away_scenario?: 'LEADING_PARK_BUS' | 'DRAW_BALANCED_ATTRITION' | 'TRAILING_COLLAPSE_RISK' | 'NONE';
+    elite_override_active?: boolean;
+    elite_override_side?: 'home' | 'away' | 'none';
+    elite_override_factor?: number;
   };
 }
 
@@ -369,6 +402,9 @@ export interface LambdaDecomposition {
   red_leak_away: number;
   post_goal_cooldown_multiplier: number;
   oos_multiplier?: number;
+  live_regime_stage?: 'OPENING' | 'MID_MATCH' | 'LATE_SURGE';
+  live_stats_weight?: number;
+  prior_context_weight?: number;
   lambda_before_live_context_home?: number;
   lambda_before_live_context_away?: number;
   lambda_after_live_context_home?: number;
@@ -431,6 +467,8 @@ export interface SingleMarketDevig {
   preferred_side?: 'home' | 'draw' | 'away' | 'none';
   is_positive_ev?: boolean;
   kelly_fraction?: number;
+  bayesian_shrinkage_applied?: boolean;
+  shrinkage_factor?: number;
 }
 
 export interface FiveStateSettlementDistribution {
@@ -455,6 +493,8 @@ export interface SpreadEVAssessment {
   kelly_fraction?: number;
   home_settlement_distribution?: FiveStateSettlementDistribution;
   away_settlement_distribution?: FiveStateSettlementDistribution;
+  bayesian_shrinkage_applied?: boolean;
+  shrinkage_factor?: number;
 }
 
 export interface TotalEVAssessment {
@@ -470,6 +510,8 @@ export interface TotalEVAssessment {
   kelly_fraction?: number;
   over_settlement_distribution?: FiveStateSettlementDistribution;
   under_settlement_distribution?: FiveStateSettlementDistribution;
+  bayesian_shrinkage_applied?: boolean;
+  shrinkage_factor?: number;
 }
 
 export interface LineDispersionMetrics {
@@ -504,7 +546,7 @@ export interface PositiveEVSignal {
   signal_confidence?: number;
   kelly_fraction: number;
   model_probability?: number;
-  oos_status?: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'PERMISSIVE_PASSED' | 'NO_PROFILE' | 'INSUFFICIENT_EVIDENCE';
+  oos_status?: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'PERMISSIVE_PASSED' | 'NO_PROFILE' | 'INSUFFICIENT_EVIDENCE' | 'OOS_COLD_START_EXEMPT';
   oos_profile_key?: string;
   line_at_signal?: string;
   side_at_signal?: string;
@@ -547,7 +589,7 @@ export interface QuantCalibrationProfile {
   lambda_log_adjustment: number;
 }
 
-export type OosMarket = 'ASIAN_HANDICAP_MAIN' | 'TOTAL_GOALS_MAIN' | 'MONEYLINE_1X2';
+export type OosMarket = 'ASIAN_HANDICAP_MAIN' | 'TOTAL_GOALS_MAIN' | 'MONEYLINE_1X2' | 'EURO_1X2';
 
 /** 单条已结算、绝不参与同批模型拟合的 OOS 观测。 */
 export interface OosCalibrationSample {
@@ -678,6 +720,10 @@ export interface UnifiedMatchState {
   red_card_attack_multiplier_away: number;
   red_card_defense_leak_multiplier_home: number;
   red_card_defense_leak_multiplier_away: number;
+  home_tti?: number;
+  away_tti?: number;
+  pyramid_slope?: number;
+  elite_override_applied?: boolean;
 }
 
 export interface Layer03LiveSnapshot {
@@ -758,7 +804,7 @@ export interface Layer03CandidateOosValidation {
   side?: string;
   settlement_type?: string;
   oos_profile_key?: string;
-  status: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'INSUFFICIENT_EVIDENCE' | 'NO_PROFILE' | 'REJECTED' | 'UNSUPPORTED_MARKET' | 'VALIDATED';
+  status: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'INSUFFICIENT_EVIDENCE' | 'NO_PROFILE' | 'REJECTED' | 'UNSUPPORTED_MARKET' | 'VALIDATED' | 'OOS_COLD_START_EXEMPT';
   effective_sample_size: number;
   oos_brier_score: number | null;
   blockers: readonly string[];
@@ -776,6 +822,8 @@ export interface Layer03CandidatePipeline {
   research_candidate_count: number;
   oos_validated_count: number;
   permissive_unlocked_count: number;
+  cold_start_exempt_count?: number;
+  is_cold_start_unlocked?: boolean;
   soft_gate_pass_count?: number;
   machine_candidate_count: number;
   production_eligible: boolean;

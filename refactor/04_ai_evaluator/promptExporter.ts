@@ -2,6 +2,7 @@ import { CanonicalMatch } from '../02_canonical_model/types.js';
 import { MatchStage } from '../02_canonical_model/enums.js';
 import { extractAiEvaluationBrief } from '../02_canonical_model/canonicalMatchAssembler.js';
 import { calculateQuantitativeFeatures, isMatchQuantEligible } from '../03_quant_engine/index.js';
+import { parseAsianHandicapLine } from '../03_quant_engine/devigCalculator.js';
 import { buildSystemPrompt } from './promptBuilder.js';
 import { EvaluatorPayload, EvaluatorLineupMatrix, EvaluatorTeamProfiling } from './types.js';
 
@@ -187,28 +188,38 @@ export function generateRefactoredPrompt(
       return s.includes('/') || s.includes('.25') || s.includes('.75');
     };
 
-    const annotateOuMarket = (marketItem: any) => {
-      if (!marketItem) return marketItem;
-      const rawLine = marketItem.line ?? marketItem.total_line ?? marketItem.total ?? '';
-      const numLine = parseFloat(String(rawLine).split('/')[0]);
-      const isQuarter = checkQuarterLine(marketItem) || checkQuarterLine(rawLine);
+    const annotateOuMarket = (marketItem: any, evAssessment?: any) => {
+      if (!marketItem && !evAssessment) return undefined;
+      const merged = { ...marketItem, ...evAssessment };
+      const rawLine = merged.line ?? merged.total_line ?? merged.total ?? '';
+      const numLine = parseAsianHandicapLine(rawLine);
+      const isQuarter = checkQuarterLine(merged) || checkQuarterLine(rawLine);
       const isClosed = isLive && !isNaN(numLine) && numLine <= currentTotalGoals;
+      const qDist = evAssessment?.preferred_side === 'under'
+        ? evAssessment?.under_settlement_distribution
+        : (evAssessment?.over_settlement_distribution ?? evAssessment?.settlement_distribution);
       return {
-        ...marketItem,
+        ...merged,
         is_quarter_line: isQuarter,
+        quarter_line_settlement_distribution: qDist,
         quarter_line_warning: isQuarter ? "四分之一盘具五态结算[全赢/半赢/走/半输/全输]。若无完整五态真实结算分布，settlement_status为SETTLEMENT_UNVERIFIABLE，严禁作为selected_line、不得参与EV排序、不得推荐！(UNVERIFIABLE QUARTER LINE: INVALID FOR VALUE RANKING)" : undefined,
         mathematical_settlement_state: isClosed ? "MATHEMATICALLY_CLOSED" : "ACTIVE_UNSETTLED",
         settlement_notice: isClosed ? `当前已产生 ${currentTotalGoals} 进球，此盘口(<= ${currentTotalGoals})已结出数学事实(大球必赢/小球必输)，禁止作为未来概率预测推荐！` : undefined
       };
     };
 
-    const annotateAhMarket = (marketItem: any) => {
-      if (!marketItem) return marketItem;
-      const rawLine = marketItem.handicap ?? marketItem.line ?? marketItem.home_selection ?? marketItem.away_selection ?? '';
-      const isQuarter = checkQuarterLine(marketItem) || checkQuarterLine(rawLine);
+    const annotateAhMarket = (marketItem: any, evAssessment?: any) => {
+      if (!marketItem && !evAssessment) return undefined;
+      const merged = { ...marketItem, ...evAssessment };
+      const rawLine = merged.handicap ?? merged.line ?? merged.home_selection ?? merged.away_selection ?? '';
+      const isQuarter = checkQuarterLine(merged) || checkQuarterLine(rawLine);
+      const qDist = evAssessment?.preferred_side === 'away'
+        ? evAssessment?.away_settlement_distribution
+        : (evAssessment?.home_settlement_distribution ?? evAssessment?.settlement_distribution);
       return {
-        ...marketItem,
+        ...merged,
         is_quarter_line: isQuarter,
+        quarter_line_settlement_distribution: qDist,
         quarter_line_warning: isQuarter ? "四分之一让球盘具五态结算[全赢/半赢/走/半输/全输]。若无完整五态真实结算分布，settlement_status为SETTLEMENT_UNVERIFIABLE，严禁作为selected_line、不得参与EV排序、不得推荐！(UNVERIFIABLE QUARTER LINE: INVALID FOR VALUE RANKING)" : undefined,
         in_play_reset_rule: isLive ? "滚球让球盘仅考核推荐后剩余进球，以0:0重新起算！" : undefined
       };
@@ -217,11 +228,24 @@ export function generateRefactoredPrompt(
     const compressedAiBrief = { 
       ...aiBrief, 
       core_markets: {
-        ah_main: annotateAhMarket(match.markets?.full_spread_main),
-        ah_secondary: Array.isArray(quantFeatures.devig.spread_secondary_ev) ? quantFeatures.devig.spread_secondary_ev.map(annotateAhMarket) : quantFeatures.devig.spread_secondary_ev,
-        ou_main: annotateOuMarket(match.markets?.full_total_main),
-        ou_secondary: Array.isArray(quantFeatures.devig.total_secondary_ev) ? quantFeatures.devig.total_secondary_ev.map(annotateOuMarket) : quantFeatures.devig.total_secondary_ev,
-        euro_1x2: match.markets?.full_h2h
+        ah_main: annotateAhMarket(match.markets?.full_spread_main, quantFeatures.devig?.spread_main_ev),
+        ah_secondary: Array.isArray(quantFeatures.devig?.spread_secondary_ev)
+          ? quantFeatures.devig.spread_secondary_ev.map(sub => annotateAhMarket(undefined, sub))
+          : quantFeatures.devig?.spread_secondary_ev,
+        ou_main: annotateOuMarket(match.markets?.full_total_main, quantFeatures.devig?.total_main_ev),
+        ou_secondary: Array.isArray(quantFeatures.devig?.total_secondary_ev)
+          ? quantFeatures.devig.total_secondary_ev.map(sub => annotateOuMarket(undefined, sub))
+          : quantFeatures.devig?.total_secondary_ev,
+        euro_1x2: match.markets?.full_h2h ?? (quantFeatures.devig?.h2h_devig ? {
+          home_odds: quantFeatures.devig.h2h_devig.market_odds?.[0],
+          draw_odds: quantFeatures.devig.h2h_devig.market_odds?.[1],
+          away_odds: quantFeatures.devig.h2h_devig.market_odds?.[2],
+          fair_probabilities: quantFeatures.devig.h2h_devig.fair_probabilities,
+          model_probabilities: quantFeatures.devig.h2h_devig.model_probabilities,
+          home_ev: quantFeatures.devig.h2h_devig.home_ev,
+          draw_ev: quantFeatures.devig.h2h_devig.draw_ev,
+          away_ev: quantFeatures.devig.h2h_devig.away_ev
+        } : undefined)
       },
       condensed_features: undefined 
     };

@@ -190,8 +190,9 @@ export function calculateLiveThreatTrinity(
     const eventSupport = eventScore > 0
       ? bounded(1 - Math.exp(-eventScore / 2.2))
       : 0.35;
+    const tti = (side === 'home' ? physical.threat_transformation_index?.home_tti : physical.threat_transformation_index?.away_tti) ?? 0;
     const statsSupport = physical.stats_available
-      ? bounded(1 - Math.exp(-Math.max(0, xt * 0.32 + penetration * 1.2 + accuracy * 1.5 + corners * 0.08))) : 0;
+      ? bounded(1 - Math.exp(-Math.max(0, xt * 0.25 + penetration * 1.0 + accuracy * 1.2 + corners * 0.06 + tti * 0.15))) : 0;
     const activeSupports = physical.stats_available
       ? [momentumSupport, eventSupport, statsSupport]
       : [momentumSupport, eventSupport];
@@ -478,14 +479,16 @@ export function evaluateGoalClimax(
 
   const recentIncidentDensity = events5m.length;
 
-  // 2. 动量二阶变化 / 斜率强度
+  // 2. 动量二阶变化 / 斜率强度 (融入多尺度动量金字塔)
+  const compositeSlope = timeline.momentum_pyramid?.composite_slope ?? timeline.slope_5m;
   const slope5m = timeline.slope_5m as number;
   const slope15m = timeline.slope_15m as number;
   const momentumAcceleration = Number((slope5m - slope15m).toFixed(2));
 
   // 3. 连续多维势能积分求解
-  // (A) 斜率平滑势能 (双曲正切连续映射，最高 25 分)
-  const phiSlope = 25.0 * Math.tanh(Math.abs(slope5m) / 12.0);
+  // (A) 斜率平滑势能 (优先采用金字塔复合斜率，并在 ALIGNED 共振时获得 1.12 增益，TURNING 时平滑阻尼)
+  const pyramidBonus = timeline.momentum_pyramid?.consistency === 'ALIGNED' ? 1.12 : (timeline.momentum_pyramid?.consistency === 'TURNING' ? 0.90 : 1.0);
+  const phiSlope = 25.0 * Math.tanh(Math.abs(compositeSlope) / 12.0) * pyramidBonus;
 
   // (B) 二阶加速度平滑势能 (最高 10 分)
   const phiAcceleration = 10.0 * Math.tanh(Math.abs(momentumAcceleration) / 8.0);
@@ -512,11 +515,11 @@ export function evaluateGoalClimax(
   const rawClimax = (15.0 + phiSlope + phiAcceleration + phiDensity + phiEpi) * (postGoalCooldownActive ? 0.55 : 1.0);
   const climaxScore = Number(Math.min(100.0, Math.max(0.0, rawClimax)).toFixed(1));
 
-  // (E) 判定主要进攻方 (基于连续动量与能量比率)
+  // (E) 判定主要进攻方 (基于连续动量与能量比率，金字塔复合斜率提供稳健方向)
   let attackingSide: 'home' | 'away' | 'none' = 'none';
-  if (trinity.dominant_side === 'home' || (slope5m > 5 && trinity.home.alignment_score >= 0.45)) {
+  if (trinity.dominant_side === 'home' || (compositeSlope > 4.5 && trinity.home.alignment_score >= 0.45)) {
     attackingSide = 'home';
-  } else if (trinity.dominant_side === 'away' || (slope5m < -5 && trinity.away.alignment_score >= 0.45)) {
+  } else if (trinity.dominant_side === 'away' || (compositeSlope < -4.5 && trinity.away.alignment_score >= 0.45)) {
     attackingSide = 'away';
   }
 

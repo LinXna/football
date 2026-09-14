@@ -1859,8 +1859,8 @@ async function start() {
     });
   }
 
-  const targetPort = 3000;
-  const targetHost = '0.0.0.0';
+  const targetPort = PORT;
+  const targetHost = HOST;
 
   app.listen(targetPort, targetHost, () => {
     console.log(`[LX Football System] Express Server running on http://${targetHost}:${targetPort}`);

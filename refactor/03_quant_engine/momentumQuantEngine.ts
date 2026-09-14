@@ -259,6 +259,37 @@ export function extractMomentumTimelineFeatures(
     (integral15.net < -100 && slope5 >= 18.0)
   );
 
+  // 8. 多尺度动量金字塔模型 (5m: 40%, 10m: 35%, 15m: 25%)
+  const pyramidCompositeSlope = Number((0.40 * slope5 + 0.35 * slope10 + 0.25 * slope15).toFixed(3));
+  const energy5 = integral5.net / 5.0;
+  const energy15 = integral15.net / 15.0;
+  const pyramidCompositeEnergy = Number((0.40 * currentInstantMomentum + 0.35 * energy5 + 0.25 * energy15).toFixed(2));
+
+  let pyramidConsistency: 'ALIGNED' | 'DIVERGENT' | 'TURNING' = 'DIVERGENT';
+  const isSlope5NonZero = Math.abs(slope5) >= 1.0;
+  const isSlope10NonZero = Math.abs(slope10) >= 1.0;
+  const isSlope15NonZero = Math.abs(slope15) >= 1.0;
+  const sameSign = (slope5 > 0 && slope10 > 0 && slope15 > 0) || (slope5 < 0 && slope10 < 0 && slope15 < 0);
+
+  if (isSlope5NonZero && isSlope10NonZero && isSlope15NonZero && sameSign) {
+    pyramidConsistency = 'ALIGNED';
+  } else if ((slope5 * slope15 < 0) && Math.abs(slope5 - slope15) >= 10.0) {
+    pyramidConsistency = 'TURNING';
+  } else {
+    pyramidConsistency = 'DIVERGENT';
+  }
+
+  const momentumPyramid = Object.freeze({
+    composite_slope: pyramidCompositeSlope,
+    composite_energy: pyramidCompositeEnergy,
+    consistency: pyramidConsistency,
+    trend_hierarchy: Object.freeze({
+      short_term_5m: slope5,
+      medium_term_10m: slope10,
+      macro_15m: slope15
+    })
+  });
+
   const result: MomentumTimelineFeatures = Object.freeze({
     total_points: totalPoints,
     window_basis: timed.basis,
@@ -282,7 +313,8 @@ export function extractMomentumTimelineFeatures(
     dominance_side: dominanceSide,
     inflection_count_recent_15m: inflections,
     is_sustained_siege: isSustainedSiege,
-    is_counter_attack_surge: isCounterAttackSurge
+    is_counter_attack_surge: isCounterAttackSurge,
+    momentum_pyramid: momentumPyramid
   });
 
   tracer?.info(
@@ -425,22 +457,127 @@ export function extractRealTimePhysicalStats(
   const homeLethal = (homePossession !== undefined && homeOn !== undefined && homeCounterThreat !== undefined) ? ((homePossession <= 40) && (homeOn >= 2 || homeCounterThreat >= 1.5)) : undefined;
   const awayLethal = (awayPossession !== undefined && awayOn !== undefined && awayCounterThreat !== undefined) ? ((awayPossession <= 40) && (awayOn >= 2 || awayCounterThreat >= 1.5)) : undefined;
 
-  // 9. 连续红牌减员战力崩盘模型
-  const evaluateRedPenalty = (redCount: number | undefined) => {
-    if (redCount === undefined || redCount <= 0) {
-      return { attack: 1.0, leak: 1.0 };
+  // 8.5 进攻威胁转化指数 (TTI, Threat Transformation Index = 射门转化率 * 危险进攻强度 * 进区触球代理)
+  let ttiFeatures: RealTimePhysicalStatsFeatures['threat_transformation_index'] = undefined;
+  if (statsAvailable && homeDA !== undefined && awayDA !== undefined && homeAttacks !== undefined && awayAttacks !== undefined &&
+      homeShots !== undefined && awayShots !== undefined && homeOn !== undefined && awayOn !== undefined &&
+      homePossession !== undefined && awayPossession !== undefined) {
+    const calculateSideTTI = (shots: number, da: number, attacks: number, sot: number, poss: number) => {
+      const shotConversion = da > 0 ? shots / da : 0.0;
+      const daIntensity = attacks > 0 ? da / attacks : 0.0;
+      const boxProxy = Math.min(5.0, (da * (sot + 1.0)) / (poss + 10.0));
+      return Number((shotConversion * daIntensity * boxProxy * 10.0).toFixed(3));
+    };
+
+    const homeTTIVal = calculateSideTTI(homeShots, homeDA, homeAttacks, homeOn, homePossession);
+    const awayTTIVal = calculateSideTTI(awayShots, awayDA, awayAttacks, awayOn, awayPossession);
+    const totalTTI = homeTTIVal + awayTTIVal;
+    const ttiRatio = totalTTI > 0 ? Number((homeTTIVal / totalTTI).toFixed(3)) : 0.50;
+
+    let advSide: 'home' | 'away' | 'neutral' = 'neutral';
+    if (homeTTIVal >= awayTTIVal * 1.35 && homeTTIVal >= 1.2) {
+      advSide = 'home';
+    } else if (awayTTIVal >= homeTTIVal * 1.35 && awayTTIVal >= 1.2) {
+      advSide = 'away';
     }
-    const attack = Number(Math.exp(-0.43 * redCount).toFixed(3));
-    const leak = Number(Math.exp(0.37 * redCount).toFixed(3));
-    return { attack, leak };
+
+    const classifySideTTI = (val: number, sot: number, poss: number): 'LETHAL_PENETRATION' | 'EFFECTIVE_ATTACK' | 'STERILE_POSSESSION' | 'LOW_ACTIVITY' => {
+      if (val >= 2.5 && sot >= 2) return 'LETHAL_PENETRATION';
+      if (val >= 1.2) return 'EFFECTIVE_ATTACK';
+      if (poss >= 55.0 && val < 0.8) return 'STERILE_POSSESSION';
+      return 'LOW_ACTIVITY';
+    };
+
+    ttiFeatures = Object.freeze({
+      home_tti: homeTTIVal,
+      away_tti: awayTTIVal,
+      ratio: ttiRatio,
+      advantage_side: advSide,
+      classification: Object.freeze({
+        home: classifySideTTI(homeTTIVal, homeOn, homePossession),
+        away: classifySideTTI(awayTTIVal, awayOn, awayPossession)
+      })
+    });
+  }
+
+  // 9. 滚球红牌场景分流 (领先/平局/落后) 与豪门覆盖策略 (Strategy Override Pattern)
+  const currentHomeScore = match.score?.home_score ?? 0;
+  const currentAwayScore = match.score?.away_score ?? 0;
+  const currentScoreDiff = currentHomeScore - currentAwayScore; // >0 主领先, <0 客领先, =0 平局
+
+  const mainSpread = match.markets?.full_spread_main?.home_selection ?? '0';
+  const parsedLineNum = Math.abs(parseFloat(mainSpread.replace('+', '').replace('-', '')) || 0);
+  const isMainSpreadDeep = parsedLineNum >= 1.0;
+  const isHomeElite = (isMainSpreadDeep && (mainSpread.startsWith('-') || mainSpread.startsWith('0/-'))) ||
+    ((homePossession ?? 50) >= 56.0 && (homeDA ?? 0) >= (awayDA ?? 0) * 1.4);
+  const isAwayElite = (isMainSpreadDeep && (mainSpread.startsWith('+') || mainSpread.startsWith('0/+'))) ||
+    ((awayPossession ?? 50) >= 56.0 && (awayDA ?? 0) >= (homeDA ?? 0) * 1.4);
+
+  const evaluateRedPenaltyWithTactics = (
+    redCount: number | undefined,
+    teamScoreDiff: number,
+    isEliteFavorite: boolean,
+    teamPossession: number | undefined
+  ) => {
+    if (redCount === undefined || redCount <= 0) {
+      return {
+        attack: 1.0,
+        leak: 1.0,
+        scenario: 'NONE' as const,
+        eliteOverride: false,
+        overrideFactor: 1.0
+      };
+    }
+
+    let scenario: 'LEADING_PARK_BUS' | 'DRAW_BALANCED_ATTRITION' | 'TRAILING_COLLAPSE_RISK';
+    let baseAttack: number;
+    let baseLeak: number;
+
+    if (teamScoreDiff > 0) {
+      scenario = 'LEADING_PARK_BUS';
+      baseAttack = Math.exp(-0.65 * redCount);
+      baseLeak = Math.exp(0.20 * redCount);
+    } else if (teamScoreDiff === 0) {
+      scenario = 'DRAW_BALANCED_ATTRITION';
+      baseAttack = Math.exp(-0.45 * redCount);
+      baseLeak = Math.exp(0.38 * redCount);
+    } else {
+      scenario = 'TRAILING_COLLAPSE_RISK';
+      baseAttack = Math.exp(-0.35 * redCount);
+      baseLeak = Math.exp(0.55 * redCount);
+    }
+
+    const hasEliteResilience = isEliteFavorite || (teamPossession !== undefined && teamPossession >= 50.0);
+    if (hasEliteResilience) {
+      const bufferedLeak = 1.0 + (baseLeak - 1.0) * 0.75;
+      const bufferedAttack = 1.0 - (1.0 - baseAttack) * 0.70;
+      return {
+        attack: Number(bufferedAttack.toFixed(3)),
+        leak: Number(bufferedLeak.toFixed(3)),
+        scenario,
+        eliteOverride: true,
+        overrideFactor: 0.75
+      };
+    }
+
+    return {
+      attack: Number(baseAttack.toFixed(3)),
+      leak: Number(baseLeak.toFixed(3)),
+      scenario,
+      eliteOverride: false,
+      overrideFactor: 1.0
+    };
   };
 
-  const homeRedPen = evaluateRedPenalty(homeRed ?? undefined);
-  const awayRedPen = evaluateRedPenalty(awayRed ?? undefined);
+  const homeRedPen = evaluateRedPenaltyWithTactics(homeRed ?? undefined, currentScoreDiff, isHomeElite, homePossession);
+  const awayRedPen = evaluateRedPenaltyWithTactics(awayRed ?? undefined, -currentScoreDiff, isAwayElite, awayPossession);
 
   const isCornerCascade = availableMetrics.corners
     ? ((homeCorners ?? 0) >= 5 || (awayCorners ?? 0) >= 5)
     : undefined;
+
+  const anyEliteActive = homeRedPen.eliteOverride || awayRedPen.eliteOverride;
+  const eliteSide = homeRedPen.eliteOverride ? 'home' : (awayRedPen.eliteOverride ? 'away' : 'none');
 
   const result: RealTimePhysicalStatsFeatures = Object.freeze({
     stats_available: statsAvailable,
@@ -494,11 +631,17 @@ export function extractRealTimePhysicalStats(
       home_lethal_counter: homeLethal,
       away_lethal_counter: awayLethal
     }),
+    threat_transformation_index: ttiFeatures,
     red_card_penalty: Object.freeze({
       home_attack_multiplier: homeRedPen.attack,
       home_defense_leak_multiplier: homeRedPen.leak,
       away_attack_multiplier: awayRedPen.attack,
-      away_defense_leak_multiplier: awayRedPen.leak
+      away_defense_leak_multiplier: awayRedPen.leak,
+      home_scenario: homeRedPen.scenario,
+      away_scenario: awayRedPen.scenario,
+      elite_override_active: anyEliteActive,
+      elite_override_side: eliteSide,
+      elite_override_factor: anyEliteActive ? 0.75 : 1.0
     })
   });
 

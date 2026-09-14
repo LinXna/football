@@ -356,17 +356,26 @@ export function calculateContinuousThreatTensor(
   state: UnifiedMatchState
 ): { homeThreat: number; awayThreat: number } {
   // intensity 是已校准的相对威胁分数，0.5 表示中性，不应被当作绝对衰减率。
-  const mapIntensity = (intensity: number, opponentIntensity: number) => {
+  const mapIntensity = (intensity: number, opponentIntensity: number, tti?: number) => {
     let val = 0.65 + Math.max(0, Math.min(1, intensity)) * 0.7;
     // 只有明确的深度压制才额外折损，避免普通均势被误判为低进球。
     if (opponentIntensity >= 0.85 && intensity <= 0.20) {
       val *= 0.85;
     }
+    // 融入 TTI 真实进攻威胁转化指数调整
+    if (typeof tti === 'number' && Number.isFinite(tti)) {
+      if (tti >= 2.0) {
+        val *= Math.min(1.15, 1.0 + (tti - 1.0) * 0.05);
+      } else if (tti < 0.6 && intensity >= 0.50) {
+        // 无效空占控球倒脚
+        val *= 0.92;
+      }
+    }
     return Number(Math.max(0.20, Math.min(1.60, val)).toFixed(3));
   };
   return {
-    homeThreat: mapIntensity(state.home_intensity, state.away_intensity),
-    awayThreat: mapIntensity(state.away_intensity, state.home_intensity)
+    homeThreat: mapIntensity(state.home_intensity, state.away_intensity, state.home_tti),
+    awayThreat: mapIntensity(state.away_intensity, state.home_intensity, state.away_tti)
   };
 }
 
@@ -557,10 +566,32 @@ export function calculateInPlayPoissonFeatures(
   }
 
   // 3. 计算时间衰减与局势非线性搏命因子 (结合 15 分钟进球时段 DNA 与 先验实力差)
-  const homeWeights = context?.goal_distribution_dna?.home_scored_weights;
-  const awayWeights = context?.goal_distribution_dna?.away_scored_weights;
+  // 进球 DNA 终盘防陷阱安全阀：
+  // 1) 若该侧进球样本被判定为 INSUFFICIENT (< 5 球)，强制置为 undefined 回退至中性均匀时间
+  // 2) 若比赛已进入 65 分钟后的终盘决战期 (elapsedMinute >= 65)，只有成熟大样本 (HIGH, >= 15 球) 才允许调速；
+  //    样本不足 15 球者终盘一律回退均匀线性时间，严禁小样本虚假绝杀特征在终盘产生冲动推演！
+  const dnaFeatures = context?.goal_distribution_dna;
+  const isLateGameForDNA = elapsedMinute >= 65;
+
+  const getReliableWeights = (weights: number[] | undefined, confidence: string | undefined): number[] | undefined => {
+    if (!weights || weights.length !== 6) return undefined;
+    if (confidence === 'INSUFFICIENT') return undefined;
+    if (isLateGameForDNA && confidence !== 'HIGH') return undefined;
+    return weights;
+  };
+
+  const reliableHomeWeights = getReliableWeights(dnaFeatures?.home_scored_weights, dnaFeatures?.home_confidence);
+  const reliableAwayWeights = getReliableWeights(dnaFeatures?.away_scored_weights, dnaFeatures?.away_confidence);
+
   const priorStrengthRatio = baseHomeLambda / Math.max(0.1, baseAwayLambda);
-  const timeDecay = calculateTimeDecayAndUrgencyMultiplier(elapsedMinute, scoreDiff, homeWeights, awayWeights, priorStrengthRatio, remainingMinutes);
+  const timeDecay = calculateTimeDecayAndUrgencyMultiplier(
+    elapsedMinute,
+    scoreDiff,
+    reliableHomeWeights,
+    reliableAwayWeights,
+    priorStrengthRatio,
+    remainingMinutes
+  );
 
   // 4. 唯一实时状态已经融合 xT、动量、事件、红牌与战术相变；本函数不得再次读取原始特征。
   const regimeMultiplierHome = matchState.regime_multiplier_home;
@@ -591,10 +622,47 @@ export function calculateInPlayPoissonFeatures(
     oosMultiplier = Math.exp(oosCalibration.lambda_log_adjustment);
   }
 
-  // xT, shots, corners and momentum are already fused in the single threat tensor; do not multiply them again.
-  // 红牌同时改变本方进攻能力和对手面对的防守漏洞；缺失或未验证时乘数保持 1.0。
-  const lambdaAfterLiveContextHome = lambdaBeforeLiveContextHome * redAttackHome * redLeakAway * regimeMultiplierHome * threatDampingHome * postGoalCooldownMultiplier * oosMultiplier;
-  const lambdaAfterLiveContextAway = lambdaBeforeLiveContextAway * redAttackAway * redLeakHome * regimeMultiplierAway * threatDampingAway * postGoalCooldownMultiplier * oosMultiplier;
+  // 5.2 阶段权重动态流转体系 (Regime Shift Weighting):
+  // 严格落实实战定价铁律：比赛越往后打，现场发生的一切物理事实（攻防压迫、危攻时序、关键事件、红牌）越占统治地位！
+  // - 阶段 1 (0' ~ 30' 开局探索期): 现场事实权重 20% ~ 25% (基准 0.225)，赛前先验占 77.5%
+  // - 阶段 2 (30' ~ 60' 攻防展开期): 严格按用户指令，【实时攻防技术统计 + 关键事件 + 危攻时序走势】跃升为主导，权重占 60% ~ 65% (基准 0.625)
+  // - 阶段 3 (65' ~ 90' 终盘决战期): 严格按用户指令，【实时危攻走势 + 实时攻防压迫 + 关键事件】绝对主宰，权重占 80% ~ 85% (基准 0.825)
+  let liveStatsWeight: number;
+  let liveRegimeStage: 'OPENING' | 'MID_MATCH' | 'LATE_SURGE';
+
+  if (elapsedMinute < 30) {
+    liveRegimeStage = 'OPENING';
+    // 0' ~ 30' 平滑上升: 0.20 -> 0.25
+    liveStatsWeight = 0.20 + (elapsedMinute / 30.0) * 0.05;
+  } else if (elapsedMinute <= 60) {
+    liveRegimeStage = 'MID_MATCH';
+    // 30' ~ 60' 平滑进入 60% ~ 65%:
+    // 30' 时为 0.60，60' 时达到 0.65
+    liveStatsWeight = 0.60 + ((elapsedMinute - 30.0) / 30.0) * 0.05;
+  } else if (elapsedMinute < 65) {
+    // 60' ~ 65' 过渡区: 0.65 -> 0.80
+    liveRegimeStage = 'MID_MATCH';
+    liveStatsWeight = 0.65 + ((elapsedMinute - 60.0) / 5.0) * 0.15;
+  } else {
+    liveRegimeStage = 'LATE_SURGE';
+    // 65' ~ 90' 终盘决战期: 稳定在 80% ~ 85% (65' 为 0.80，80'+ 达到 0.85)
+    liveStatsWeight = Math.min(0.85, 0.80 + ((elapsedMinute - 65.0) / 25.0) * 0.05);
+  }
+
+  const priorContextWeight = 1.0 - liveStatsWeight;
+
+  // 计算现场实时物理事实所指示的即时进球乘子组合 (Live Physical Signal Factor)
+  // 包含：现场技术威胁张量 (threatDamping)、战术相变乘子 (regimeMultiplier)、红牌影响与进球冷却
+  const livePhysicalFactorHome = threatDampingHome * regimeMultiplierHome * redAttackHome * redLeakAway * postGoalCooldownMultiplier;
+  const livePhysicalFactorAway = threatDampingAway * regimeMultiplierAway * redAttackAway * redLeakHome * postGoalCooldownMultiplier;
+
+  // 将现场事实因子与先验中性基准 (1.0) 按照当前分钟对应的主导权重进行加权合成：
+  // 当 liveStatsWeight 达到 82.5% 时，现场发生的围攻/死沉/红牌将主导 82.5% 的进球能力变化！
+  const blendedLiveFactorHome = 1.0 * priorContextWeight + livePhysicalFactorHome * liveStatsWeight;
+  const blendedLiveFactorAway = 1.0 * priorContextWeight + livePhysicalFactorAway * liveStatsWeight;
+
+  const lambdaAfterLiveContextHome = lambdaBeforeLiveContextHome * blendedLiveFactorHome * oosMultiplier;
+  const lambdaAfterLiveContextAway = lambdaBeforeLiveContextAway * blendedLiveFactorAway * oosMultiplier;
 
   // 极值安全钳位
   const lambdaHomeRest = Math.max(0.01, Math.min(3.50, Number(lambdaAfterLiveContextHome.toFixed(3))));
@@ -632,6 +700,9 @@ export function calculateInPlayPoissonFeatures(
     red_leak_away: redLeakAway,
     post_goal_cooldown_multiplier: postGoalCooldownMultiplier,
     oos_multiplier: Number(oosMultiplier.toFixed(4)),
+    live_regime_stage: liveRegimeStage,
+    live_stats_weight: Number(liveStatsWeight.toFixed(3)),
+    prior_context_weight: Number(priorContextWeight.toFixed(3)),
     lambda_before_live_context_home: Number(lambdaBeforeLiveContextHome.toFixed(3)),
     lambda_before_live_context_away: Number(lambdaBeforeLiveContextAway.toFixed(3)),
     lambda_after_live_context_home: Number(lambdaAfterLiveContextHome.toFixed(3)),

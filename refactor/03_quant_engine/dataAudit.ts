@@ -116,12 +116,12 @@ export function buildLayer03DataAudit(
     item(
       'TIMELINE_EVENTS',
       'LEISU',
-      timedEvents.length > 0 ? 'USED' : 'DEGRADED',
-      timedEvents.length > 0 ? 85 : 35,
+      timedEvents.length > 0 ? 'USED' : match.timing.stage === 'LIVE' ? 'REJECTED' : 'DEGRADED',
+      timedEvents.length > 0 ? 85 : 0,
       ['M3.5 event decay', 'tactical regime', 'goal climax'],
       [`原始事件数: ${events.length}`, `有明确分钟的事件数: ${timedEvents.length}`],
-      timedEvents.length > 0 ? [] : ['没有带明确分钟的事件可用于时间衰减'],
-      { sample_size: timedEvents.length, covered_minute_to: match.timing.minute, weight: timedEvents.length > 0 ? 1 : 0.35 }
+      timedEvents.length > 0 ? [] : ['滚球缺少带明确分钟的事件时间轴'],
+      { sample_size: timedEvents.length, covered_minute_to: match.timing.minute, weight: timedEvents.length > 0 ? 1 : 0 }
     ),
     item(
       'LINEUPS',
@@ -199,7 +199,13 @@ export function buildLayer03DataAudit(
     )
   ];
 
-  const blocked = items.some((auditItem) => auditItem.status === 'REJECTED' && auditItem.category === 'LIVE_STATS');
+  const isLive = match.timing.stage === 'LIVE';
+  const blocked = isLive
+    ? items.some((auditItem) =>
+        auditItem.status === 'REJECTED' &&
+        (auditItem.category === 'LIVE_STATS' || auditItem.category === 'ATTACK_MOMENTUM' || auditItem.category === 'TIMELINE_EVENTS')
+      )
+    : items.some((auditItem) => auditItem.status === 'REJECTED' && auditItem.category === 'LIVE_STATS');
   const degraded = items.some((auditItem) => auditItem.status === 'DEGRADED');
   return Object.freeze({
     generated_at: new Date().toISOString(),
@@ -231,6 +237,18 @@ export function buildLayer03ProductionGate(
     }
     if (!match.score.score_verified) {
       blockers.push('滚球比分未通过可靠来源核验');
+    }
+    const momentumItem = audit.items.find((i) => i.category === 'ATTACK_MOMENTUM');
+    const statsItem = audit.items.find((i) => i.category === 'LIVE_STATS');
+    const eventsItem = audit.items.find((i) => i.category === 'TIMELINE_EVENTS');
+    if (!statsItem || statsItem.status === 'REJECTED') {
+      blockers.push('INPLAY_TRINITY_DATA_DEFICIT: 滚球缺少可用实时攻防技术统计');
+    }
+    if (!momentumItem || momentumItem.status === 'REJECTED') {
+      blockers.push('INPLAY_TRINITY_DATA_DEFICIT: 缺少危攻时序走势，滚球无法建立动量积分模型');
+    }
+    if (!eventsItem || eventsItem.status === 'REJECTED') {
+      blockers.push('INPLAY_TRINITY_DATA_DEFICIT: 缺少比赛关键事件时间轴，滚球无法建立事件因果模型');
     }
   }
   const hasExecutionMarket = Boolean(

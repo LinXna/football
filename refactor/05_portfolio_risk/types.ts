@@ -14,7 +14,8 @@ export interface FormalRecommendation {
   kickoff_time: string;
   league_key: string;
   teams: { home: string, away: string };
-  candidate_pipeline_state: 'NO_POSITIVE_EV' | 'OOS_LOCKED' | 'DATA_LOCKED' | 'PRODUCTION_UNLOCKED';
+  candidate_pipeline_state: 'NO_POSITIVE_EV' | 'OOS_LOCKED' | 'DATA_LOCKED' | 'PRODUCTION_UNLOCKED' | 'COLD_START_PERMISSIVE';
+  oos_status?: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'OOS_COLD_START_EXEMPT' | 'OOS_REJECTED';
   
   // A snapshot of the exact conditions when the bet was placed
   condition_snapshot: {
@@ -23,7 +24,8 @@ export interface FormalRecommendation {
     bdi?: number;
     goal_phase_alert?: string;
     machine_candidate_count?: number;
-    candidate_pipeline_state?: 'NO_POSITIVE_EV' | 'OOS_LOCKED' | 'DATA_LOCKED' | 'PRODUCTION_UNLOCKED';
+    candidate_pipeline_state?: 'NO_POSITIVE_EV' | 'OOS_LOCKED' | 'DATA_LOCKED' | 'PRODUCTION_UNLOCKED' | 'COLD_START_PERMISSIVE';
+    oos_status?: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'OOS_COLD_START_EXEMPT' | 'OOS_REJECTED';
     score_verified: boolean;
     source: 'YBTY';
   };
