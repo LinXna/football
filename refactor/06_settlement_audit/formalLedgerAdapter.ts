@@ -7,10 +7,20 @@ export interface FormalLedgerConversionResult {
 }
 
 const isOosMarket = (value: unknown): value is HistoricalBacktestRecord['market'] =>
-  value === 'ASIAN_HANDICAP_MAIN' || value === 'TOTAL_GOALS_MAIN' || value === 'MONEYLINE_1X2' || value === 'EURO_1X2';
+  value === 'ASIAN_HANDICAP_MAIN' || value === 'TOTAL_GOALS_MAIN' || value === 'MONEYLINE_1X2' || value === 'EURO_1X2' || value === 'ASIAN_HANDICAP';
 
 const isSettlementBasis = (value: unknown): value is NonNullable<HistoricalBacktestRecord['settlement_basis']> =>
-  value === 'FULL_MATCH' || value === 'REMAINING_GOALS' || value === 'REMAINING_PERIOD_DOMINANCE' || value === 'FULL_MATCH_NORMAL';
+  value === 'FULL_MATCH' || value === 'REMAINING_GOALS' || value === 'REMAINING_PERIOD_DOMINANCE' || value === 'FULL_MATCH_NORMAL' || value === 'REST_OF_MATCH';
+
+const normalizeOosMarket = (value: unknown): HistoricalBacktestRecord['market'] => {
+  if (value === 'ASIAN_HANDICAP') return 'ASIAN_HANDICAP_MAIN';
+  return value as HistoricalBacktestRecord['market'];
+};
+
+const normalizeSettlementBasis = (value: unknown): NonNullable<HistoricalBacktestRecord['settlement_basis']> => {
+  if (value === 'REST_OF_MATCH') return 'REMAINING_GOALS';
+  return value as NonNullable<HistoricalBacktestRecord['settlement_basis']>;
+};
 
 function parseScore(value: unknown): { home: number; away: number } | undefined {
   if (!value) return undefined;
@@ -100,13 +110,13 @@ export function convertFormalLedgerRecords(
       final_score: finalScore,
       score_verified: record.prediction_snapshot.score_verified,
       red_card_state: record.prediction_snapshot.red_card_state,
-      market: record.prediction_snapshot.market,
+      market: normalizeOosMarket(record.prediction_snapshot.market),
       line: record.prediction_snapshot.line,
       odds: record.prediction_snapshot.odds,
       model_probability: record.prediction_snapshot.model_probability,
       predicted_lambda: record.prediction_snapshot.predicted_lambda.home + record.prediction_snapshot.predicted_lambda.away,
-      settlement_market: record.prediction_snapshot.market,
-      settlement_basis: record.leg.basis,
+      settlement_market: normalizeOosMarket(record.prediction_snapshot.market),
+      settlement_basis: normalizeSettlementBasis(record.leg.basis),
       settlement_outcome: settlement.outcome
     });
   }

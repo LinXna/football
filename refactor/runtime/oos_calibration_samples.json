@@ -1,1 +1,39 @@
-[]
+[
+  {
+    "sample_id": "rec_live_test_001",
+    "model_version": "3.0.0",
+    "prediction_at": "2026-09-14T20:25:00Z",
+    "league_key": "PREMIER_LEAGUE",
+    "home_team_key": "Arsenal",
+    "away_team_key": "Chelsea",
+    "stage": "LIVE",
+    "score_state": "1-1",
+    "red_card_state": "NONE",
+    "market": "ASIAN_HANDICAP_MAIN",
+    "model_probability": 0.54,
+    "outcome": 1,
+    "binary_outcome": 1,
+    "predicted_probability": 0.54,
+    "predicted_lambda": 3,
+    "observed_goals": 1
+  },
+  {
+    "sample_id": "oos_sample_snowball_002",
+    "model_version": "3.0.0",
+    "prediction_at": "2026-09-14T20:25:00Z",
+    "league_key": "PREMIER_LEAGUE",
+    "home_team_key": "Arsenal",
+    "away_team_key": "Chelsea",
+    "stage": "LIVE",
+    "score_state": "1-1",
+    "red_card_state": "NONE",
+    "market": "ASIAN_HANDICAP_MAIN",
+    "model_probability": 0.62,
+    "outcome": 0,
+    "binary_outcome": 0,
+    "predicted_probability": 0.62,
+    "predicted_lambda": 3,
+    "observed_goals": 1,
+    "match_id": "m_snowball_2"
+  }
+]

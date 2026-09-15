@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "archive_provenance": "OOS_ARCHIVE_BUILDER_V1",
+  "generated_at": "2026-09-14T20:25:02.000Z",
+  "model_version": "3.0.0",
+  "training_window_start_at": "2025-09-13T20:24:59.000Z",
+  "training_window_end_at": "2026-09-13T20:24:59.000Z",
+  "prediction_window_start_at": "2026-09-14T20:24:59.000Z",
+  "prediction_window_end_at": "2026-09-14T20:25:01.000Z",
+  "training_cutoff_at": "2026-09-13T20:24:59.000Z",
+  "global_profile": {
+    "status": "INSUFFICIENT_EVIDENCE",
+    "league_key": "GLOBAL",
+    "minute_band": "ALL",
+    "score_state": "ALL",
+    "red_card_state": "ALL",
+    "market": "ASIAN_HANDICAP_MAIN",
+    "sample_size": 2,
+    "effective_sample_size": 2,
+    "oos_brier_score": 0.298,
+    "lambda_log_adjustment": 0
+  },
+  "global_profiles": [
+    {
+      "status": "INSUFFICIENT_EVIDENCE",
+      "league_key": "GLOBAL",
+      "minute_band": "ALL",
+      "score_state": "ALL",
+      "red_card_state": "ALL",
+      "market": "ASIAN_HANDICAP_MAIN",
+      "sample_size": 2,
+      "effective_sample_size": 2,
+      "oos_brier_score": 0.298,
+      "lambda_log_adjustment": 0
+    }
+  ],
+  "profiles": [
+    {
+      "status": "INSUFFICIENT_EVIDENCE",
+      "league_key": "GLOBAL",
+      "minute_band": "ALL",
+      "score_state": "ALL",
+      "red_card_state": "ALL",
+      "market": "ASIAN_HANDICAP_MAIN",
+      "sample_size": 2,
+      "effective_sample_size": 2,
+      "oos_brier_score": 0.298,
+      "lambda_log_adjustment": 0
+    },
+    {
+      "status": "INSUFFICIENT_EVIDENCE",
+      "league_key": "PREMIER_LEAGUE",
+      "minute_band": "LIVE_60_90",
+      "score_state": "1-1",
+      "red_card_state": "NONE",
+      "market": "ASIAN_HANDICAP_MAIN",
+      "sample_size": 2,
+      "effective_sample_size": 2,
+      "oos_brier_score": 0.298,
+      "lambda_log_adjustment": 0
+    },
+    {
+      "status": "INSUFFICIENT_EVIDENCE",
+      "league_key": "PREMIER_LEAGUE",
+      "team_key": "Arsenal",
+      "minute_band": "LIVE_60_90",
+      "score_state": "1-1",
+      "red_card_state": "NONE",
+      "market": "ASIAN_HANDICAP_MAIN",
+      "sample_size": 2,
+      "effective_sample_size": 2,
+      "oos_brier_score": 0.298,
+      "lambda_log_adjustment": 0
+    },
+    {
+      "status": "INSUFFICIENT_EVIDENCE",
+      "league_key": "PREMIER_LEAGUE",
+      "team_key": "Chelsea",
+      "minute_band": "LIVE_60_90",
+      "score_state": "1-1",
+      "red_card_state": "NONE",
+      "market": "ASIAN_HANDICAP_MAIN",
+      "sample_size": 2,
+      "effective_sample_size": 2,
+      "oos_brier_score": 0.298,
+      "lambda_log_adjustment": 0
+    }
+  ]
+}

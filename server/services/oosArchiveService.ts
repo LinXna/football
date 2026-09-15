@@ -101,15 +101,21 @@ export function appendSampleAndRebuildArchive(
   try {
     ensureOosArchiveInitialized();
 
+    const normalizedSample: OosCalibrationSample = {
+      ...newSample,
+      outcome: typeof (newSample as any).binary_outcome === 'number' ? (newSample as any).binary_outcome : newSample.outcome,
+      model_probability: typeof (newSample as any).predicted_probability === 'number' ? (newSample as any).predicted_probability : newSample.model_probability,
+    };
+
     // 检查是否已有相同 sample_id，做幂等覆盖或追加
-    const existingIndex = cachedSamples.findIndex((s) => s.sample_id === newSample.sample_id);
+    const existingIndex = cachedSamples.findIndex((s) => s.sample_id === normalizedSample.sample_id);
     if (existingIndex >= 0) {
-      cachedSamples[existingIndex] = newSample;
+      cachedSamples[existingIndex] = normalizedSample;
     } else {
-      cachedSamples.push(newSample);
+      cachedSamples.push(normalizedSample);
     }
 
-    // 计算真实时间窗口
+    // 计算真实时间窗口 (严格保证: trainStart < trainEnd < predStart <= sample.prediction_at <= predEnd <= generatedAt)
     let minPredTime = Infinity;
     let maxPredTime = -Infinity;
     for (const s of cachedSamples) {
@@ -120,10 +126,11 @@ export function appendSampleAndRebuildArchive(
       }
     }
 
-    const generatedAt = new Date().toISOString();
-    const generatedTime = Date.parse(generatedAt);
-    const predEnd = maxPredTime < generatedTime && isFinite(maxPredTime) ? new Date(maxPredTime + 1000).toISOString() : generatedAt;
-    const predStart = isFinite(minPredTime) ? new Date(minPredTime - 1000).toISOString() : generatedAt;
+    const nowTime = Date.now();
+    const effectiveGeneratedTime = Math.max(nowTime, isFinite(maxPredTime) ? maxPredTime + 2000 : nowTime);
+    const generatedAt = new Date(effectiveGeneratedTime).toISOString();
+    const predEnd = isFinite(maxPredTime) ? new Date(maxPredTime + 1000).toISOString() : generatedAt;
+    const predStart = isFinite(minPredTime) ? new Date(minPredTime - 1000).toISOString() : new Date(effectiveGeneratedTime - 3600000).toISOString();
     const trainEnd = new Date(Date.parse(predStart) - 86400 * 1000).toISOString();
     const trainStart = new Date(Date.parse(trainEnd) - 365 * 86400 * 1000).toISOString();
 

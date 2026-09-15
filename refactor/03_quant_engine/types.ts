@@ -611,6 +611,10 @@ export interface OosCalibrationSample {
   outcome: number;
   predicted_lambda: number;
   observed_goals: number;
+  /** 兼容与测试套件扩展别名 */
+  binary_outcome?: number;
+  predicted_probability?: number;
+  match_id?: string;
 }
 
 /** 可持久化的 OOS 校准档案；仅 VALIDATED 档案可解锁机器候选。 */

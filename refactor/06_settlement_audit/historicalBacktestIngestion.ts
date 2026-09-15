@@ -64,6 +64,7 @@ export function toOosSample(record: HistoricalBacktestRecord): OosCalibrationSam
   const observedGoals = record.stage === 'LIVE'
     ? record.final_score.home + record.final_score.away - record.score_at_recommendation.home - record.score_at_recommendation.away
     : record.final_score.home + record.final_score.away;
+  const outcomeVal = record.settlement_outcome === 'WIN' ? 1 : 0;
   return Object.freeze({
     sample_id: record.record_id,
     model_version: record.model_version,
@@ -77,7 +78,9 @@ export function toOosSample(record: HistoricalBacktestRecord): OosCalibrationSam
     red_card_state: record.red_card_state,
     market: record.market,
     model_probability: record.model_probability,
-    outcome: record.settlement_outcome === 'WIN' ? 1 : 0,
+    outcome: outcomeVal,
+    binary_outcome: outcomeVal,
+    predicted_probability: record.model_probability,
     predicted_lambda: record.predicted_lambda,
     observed_goals: observedGoals
   });

@@ -1,8 +1,8 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
 - **任务编号 (Task)**: `SNAPSHOT-20260914-QUANT-SYSTEMIC-OVERHAUL-04-P3`
-- **当前状态 (Status)**: `IN_PROGRESS`
-- **阶段进度 (Phase)**: `P3 实战闭环级 —— 台账持久化与样本滚雪球 (任务 3.1, 3.2, 3.3)`
+- **当前状态 (Status)**: `DONE`
+- **阶段进度 (Phase)**: `P3 实战闭环级 —— 台账持久化与样本滚雪球 (任务 3.1, 3.2, 3.3) [全面完成]`
 - **任务目标 (Goal)**：
   1. 【任务 3.1 滚球与赛前双轨推荐台账持久化】：
      - 打通 `refactor/runtime/formal_ledger_live.json` 与 `formal_ledger_prematch.json` 统一写盘契约；
@@ -19,7 +19,10 @@
      - 在 `historicalBacktestIngestion.ts` 放行 `COLD_START_PERMISSIVE` + `OOS_COLD_START_EXEMPT` 真实样本，自动触发 `buildOosCalibrationArchive` 增量重建档案，实现样本从 0 到 200 滚雪球增长；
 - **改动文件清单 (Target Files)**：
   - `/refactor/05_portfolio_risk/ledgerPersistence.ts`
+  - `/refactor/06_settlement_audit/formalLedgerAdapter.ts`
   - `/refactor/06_settlement_audit/historicalBacktestIngestion.ts`
+  - `/refactor/03_quant_engine/types.ts`
+  - `/server/services/oosArchiveService.ts`
   - `/server/routes/refactorLedgerRoutes.ts`
   - `/src/types.ts`
   - `/src/components/CanonicalMatchCenter.tsx`
@@ -27,9 +30,13 @@
   - `/refactor/tests/verify_p3_ledger_snowball.ts`
   - `/refactor/HANDOVER_AND_PROGRESS.md`
 - **交付物与成果 (Deliverables)**：
-  - 待执行验证
+  - 双轨推荐台账持久化类 `LedgerPersistence`，具备静态与实例双模支持、幂等覆盖与状态快照；
+  - 前后端测试控制套件已集成（单条删除、批量删除、一键清空测试数据、实时列表刷新）；
+  - 完赛比分核销与真实 OOS 样本雪球自增管道全链路闭环，严格遵守时序窗口约束；
+  - 专属测试套件 `verify_p3_ledger_snowball.ts` 4 项核心测试 100% 验证通过；
+  - 全工程全量单测、`tsc --noEmit`、`compile_applet` 均绿色无错误通过。
 - **下一步计划 (Next Steps)**：
-  - 依次执行任务 3.1、3.2、3.3，运行专属自动化验证套件与系统回归测试。
+  - 进入持续实战数据演练或下一阶段的日常监控与模型迭代优化。
 
 ---
 

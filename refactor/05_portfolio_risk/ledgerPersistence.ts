@@ -8,6 +8,85 @@ const LIVE_LEDGER_PATH = path.join(process.cwd(), 'refactor', 'runtime', 'formal
 const PREMATCH_LEDGER_PATH = path.join(process.cwd(), 'refactor', 'runtime', 'formal_ledger_prematch.json');
 
 export class LedgerPersistence {
+  private filePath?: string;
+
+  constructor(filePath?: string) {
+    this.filePath = filePath;
+  }
+
+  public readLedger(): FormalRecommendation[] {
+    if (!this.filePath) return [];
+    if (!fs.existsSync(this.filePath)) return [];
+    try {
+      const data = fs.readFileSync(this.filePath, 'utf8');
+      return JSON.parse(data) as FormalRecommendation[];
+    } catch (e) {
+      console.error(`[Ledger] Error reading ledger ${this.filePath}:`, e);
+      return [];
+    }
+  }
+
+  public appendApprovedLegs(records: FormalRecommendation[]): { appended_count: number; records: FormalRecommendation[] } {
+    if (!this.filePath) {
+      throw new Error('[Ledger] Instance appendApprovedLegs requires filePath in constructor');
+    }
+    const existing = this.readLedger();
+    let appendedCount = 0;
+    for (const record of records) {
+      const existingIndex = existing.findIndex(r => {
+        if (r.record_id === record.record_id) return true;
+        const sameMatch = Boolean(
+          (record.match_id && r.match_id && r.match_id === record.match_id) ||
+          (record.teams?.home && record.teams?.away && r.teams?.home === record.teams.home && r.teams?.away === record.teams.away)
+        );
+        const sameMarket = r.leg?.market === record.leg?.market && r.leg?.direction === record.leg?.direction;
+        const sameMinute = Boolean(record.condition_snapshot?.match_minute) && r.condition_snapshot?.match_minute === record.condition_snapshot?.match_minute;
+        return sameMatch && sameMarket && sameMinute;
+      });
+      if (existingIndex >= 0) {
+        existing[existingIndex] = record;
+      } else {
+        existing.push(record);
+      }
+      appendedCount++;
+    }
+    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+    fs.writeFileSync(this.filePath, JSON.stringify(existing, null, 2), 'utf8');
+    return { appended_count: appendedCount, records: existing };
+  }
+
+  public deleteRecords(recordIds: string[]): { removed_count: number } {
+    if (!this.filePath) return { removed_count: 0 };
+    const idSet = new Set(recordIds.map(id => String(id).trim()).filter(Boolean));
+    const current = this.readLedger();
+    const remaining = current.filter(r => !idSet.has(r.record_id));
+    const removed = current.length - remaining.length;
+    if (removed > 0) {
+      fs.writeFileSync(this.filePath, JSON.stringify(remaining, null, 2), 'utf8');
+    }
+    return { removed_count: removed };
+  }
+
+  public clearLedger(): { cleared_count: number } {
+    if (!this.filePath) return { cleared_count: 0 };
+    const current = this.readLedger();
+    const count = current.length;
+    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+    fs.writeFileSync(this.filePath, JSON.stringify([], null, 2), 'utf8');
+    return { cleared_count: count };
+  }
+
+  public updateRecord(record: FormalRecommendation): boolean {
+    if (!this.filePath) return false;
+    const current = this.readLedger();
+    const index = current.findIndex(r => r.record_id === record.record_id);
+    if (index >= 0) {
+      current[index] = record;
+      fs.writeFileSync(this.filePath, JSON.stringify(current, null, 2), 'utf8');
+      return true;
+    }
+    return false;
+  }
   
   private static getLedgerPath(stage: BettingStage): string {
     return stage === 'LIVE' ? LIVE_LEDGER_PATH : PREMATCH_LEDGER_PATH;
