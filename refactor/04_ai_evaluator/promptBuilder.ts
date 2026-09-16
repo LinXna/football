@@ -161,6 +161,10 @@ ${modeSpecificRules}
      * OOS_VALIDATED = false -> MAXIMUM GRADE IS B_GRADE (exploratory grade only).
      * Pipeline counters (such as 'oos_validated_count') merely record candidate pipeline entry and MUST NOT be used as evidence for genuine OOS validation!
      * ESS == 0 MUST NOT be used as the sole gate condition (e.g., ESS = 1, 10, 20, 29 are equally NOT OOS VALIDATED).
+     * COLD-START PERMISSIVE EXEMPTION (冷启动豁免准入):
+       When candidate_pipeline.state == 'COLD_START_PERMISSIVE' or oos_status contains 'OOS_COLD_START_EXEMPT':
+       - A_GRADE is strictly prohibited (maximum B_GRADE, confidence capped at 79).
+       - B_GRADE recommendations with positive EV ARE FULLY PERMITTED (actionable = true, recommended_legs non-empty) as exploratory small-stake bets, provided all standard data, model stability (>= 70), and score verification gates pass!
 
 9. ASIAN QUARTER LINE 5-STATE SETTLEMENT & PRICE DISCIPLINE (四分之一盘五态结算与赔率纪律 - P0-01, P0-02, P0-03)
    - QUARTER / SPLIT LINE IDENTIFICATION:
@@ -175,7 +179,7 @@ ${modeSpecificRules}
 10. CONFIRMED_TRAP DUAL-CATEGORY INDEPENDENCE CRITERIA (确诊陷阱双重独立类别标准 - P1-03)
     - COLD START PHASE IS NOT A TRAP (冷启动样本不足绝非诱盘陷阱):
       * System-wide cold start (OOS sample accumulation phase, ESS < 200 / NO_PROFILE) is a platform developmental state, NOT malicious bookmaker trap behavior.
-      * In cold start, lack of mature OOS only gates production execution (actionable = false, maximum B_GRADE for research). It MUST NOT be used as a risk evidence category for declaring a match a 'CONFIRMED_TRAP'!
+      * In cold start, lack of mature OOS only gates A_GRADE execution (A_GRADE prohibited; B_GRADE permitted for small-stake exploratory betting). It MUST NOT be used as a risk evidence category for declaring a match a 'CONFIRMED_TRAP'!
     - Genuine Trap Risk Categories (must be match/market specific):
       * CATEGORY_A = MODEL INSTABILITY (e.g., severe model divergence, model_stability_score < 60)
       * CATEGORY_B = LIVE_PHYSICAL CONTRADICTION (e.g., deceptive possession without penetration, high xT/dangerous attacks strongly favoring the non-EV side)

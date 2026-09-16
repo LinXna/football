@@ -186,30 +186,52 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
       break;
     }
 
-    if (leg.market === 'ASIAN_HANDICAP_MAIN' && statutoryMarkets.ah_main) {
-      const sm = statutoryMarkets.ah_main;
-      const statLine = parseHandicapToFloat(sm.handicap ?? sm.home_selection ?? '');
-      
-      if (statLine !== null && aiLine !== null && Math.abs(aiLine - statLine) < 0.001) {
-        if (
-          (leg.direction === 'HOME' && Math.abs(leg.current_odds - sm.home_odds) < 0.02) ||
-          (leg.direction === 'AWAY' && Math.abs(leg.current_odds - sm.away_odds) < 0.02)
-        ) {
-          isValid = true;
+    const checkAhMatch = (sm: any): boolean => {
+      if (!sm) return false;
+      const homeLine = parseHandicapToFloat(sm.handicap ?? sm.home_selection ?? '');
+      const awayLine = sm.away_selection
+        ? parseHandicapToFloat(sm.away_selection)
+        : (homeLine !== null ? -homeLine : null);
+
+      if (leg.direction === 'HOME' && homeLine !== null && aiLine !== null && Math.abs(aiLine - homeLine) < 0.001) {
+        if (Math.abs(leg.current_odds - sm.home_odds) < 0.02) return true;
+      }
+      if (leg.direction === 'AWAY') {
+        // 允许真实客队盘口 (负于主盘) 或兼容模式校验，且校验客队赔率
+        if (awayLine !== null && aiLine !== null && Math.abs(aiLine - awayLine) < 0.001) {
+          if (Math.abs(leg.current_odds - sm.away_odds) < 0.02) return true;
+        }
+        if (homeLine !== null && aiLine !== null && Math.abs(aiLine - homeLine) < 0.001) {
+          if (Math.abs(leg.current_odds - sm.away_odds) < 0.02) return true;
         }
       }
-    } else if (leg.market === 'TOTAL_GOALS_MAIN' && statutoryMarkets.ou_main) {
-      const sm = statutoryMarkets.ou_main;
+      return false;
+    };
+
+    const checkOuMatch = (sm: any): boolean => {
+      if (!sm) return false;
       const statLine = parseHandicapToFloat(sm.handicap ?? sm.line ?? '');
-      
       if (statLine !== null && aiLine !== null && Math.abs(aiLine - statLine) < 0.001) {
         if (
           (leg.direction === 'OVER' && Math.abs(leg.current_odds - sm.over_odds) < 0.02) ||
           (leg.direction === 'UNDER' && Math.abs(leg.current_odds - sm.under_odds) < 0.02)
         ) {
-          isValid = true;
+          return true;
         }
       }
+      return false;
+    };
+
+    if (leg.market === 'ASIAN_HANDICAP_MAIN' && statutoryMarkets.ah_main) {
+      isValid = checkAhMatch(statutoryMarkets.ah_main);
+    } else if (leg.market === 'ASIAN_HANDICAP_SECONDARY' && statutoryMarkets.ah_secondary) {
+      const subs = Array.isArray(statutoryMarkets.ah_secondary) ? statutoryMarkets.ah_secondary : [statutoryMarkets.ah_secondary];
+      isValid = subs.some(checkAhMatch);
+    } else if (leg.market === 'TOTAL_GOALS_MAIN' && statutoryMarkets.ou_main) {
+      isValid = checkOuMatch(statutoryMarkets.ou_main);
+    } else if (leg.market === 'TOTAL_GOALS_SECONDARY' && statutoryMarkets.ou_secondary) {
+      const subs = Array.isArray(statutoryMarkets.ou_secondary) ? statutoryMarkets.ou_secondary : [statutoryMarkets.ou_secondary];
+      isValid = subs.some(checkOuMatch);
     } else if (leg.market === 'EURO_1X2' && statutoryMarkets.euro_1x2) {
       const sm = statutoryMarkets.euro_1x2 as any;
       const homeVal = sm.home_win ?? sm.home_odds ?? sm.home_win_odds ?? sm.home;
@@ -223,29 +245,9 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
         isValid = true;
       }
     } else if (leg.market === 'ASIAN_HANDICAP_HALF' && statutoryMarkets.ah_half) {
-      const sm = statutoryMarkets.ah_half;
-      const statLine = parseHandicapToFloat(sm.handicap ?? sm.home_selection ?? '');
-      
-      if (statLine !== null && aiLine !== null && Math.abs(aiLine - statLine) < 0.001) {
-        if (
-          (leg.direction === 'HOME' && Math.abs(leg.current_odds - sm.home_odds) < 0.02) ||
-          (leg.direction === 'AWAY' && Math.abs(leg.current_odds - sm.away_odds) < 0.02)
-        ) {
-          isValid = true;
-        }
-      }
+      isValid = checkAhMatch(statutoryMarkets.ah_half);
     } else if (leg.market === 'TOTAL_GOALS_HALF' && statutoryMarkets.ou_half) {
-      const sm = statutoryMarkets.ou_half;
-      const statLine = parseHandicapToFloat(sm.handicap ?? sm.line ?? '');
-      
-      if (statLine !== null && aiLine !== null && Math.abs(aiLine - statLine) < 0.001) {
-        if (
-          (leg.direction === 'OVER' && Math.abs(leg.current_odds - sm.over_odds) < 0.02) ||
-          (leg.direction === 'UNDER' && Math.abs(leg.current_odds - sm.under_odds) < 0.02)
-        ) {
-          isValid = true;
-        }
-      }
+      isValid = checkOuMatch(statutoryMarkets.ou_half);
     }
 
     if (!isValid) {

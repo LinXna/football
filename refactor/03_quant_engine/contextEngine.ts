@@ -266,7 +266,21 @@ export function calculateH2HDecayWeights(
   let totalTacticalCorners = 0;
   let totalClashScore = 0;
 
-  const weights: HistoricalMatchWeight[] = h2hList.map((h2h) => {
+  // 严格实施 365 天历史交锋样本前置物理隔离：进入指标计算前彻底阻断跨赛季超期数据
+  const timeBoundedH2HList = h2hList.filter((h2h) => {
+    let matchTime = 0;
+    if (typeof h2h.match_time === 'number' && h2h.match_time > 0) {
+      matchTime = h2h.match_time > 1e11 ? h2h.match_time : h2h.match_time * 1000;
+    } else if (h2h.match_time) {
+      const parsed = new Date(String(h2h.match_time)).getTime();
+      if (!isNaN(parsed) && parsed > 0) matchTime = parsed;
+    }
+    if (matchTime <= 0) return false;
+    const daysAgo = Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24));
+    return daysAgo >= 0 && daysAgo <= 365;
+  });
+
+  const weights: HistoricalMatchWeight[] = timeBoundedH2HList.map((h2h) => {
     let matchTime = 0;
     let dateStr = '';
     if (typeof h2h.match_time === 'number' && h2h.match_time > 0) {
@@ -280,11 +294,8 @@ export function calculateH2HDecayWeights(
       }
     }
 
-    // 方案 2 严禁假默认值：若时间缺失或无效，严禁赋予 365 天等假值，直接置为无效
     const hasValidTime = matchTime > 0;
-    const daysAgo = hasValidTime
-      ? Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24)))
-      : -1;
+    const daysAgo = Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24)));
 
     const homeScores = h2h.home_scores || [];
     const awayScores = h2h.away_scores || [];
@@ -545,8 +556,22 @@ export function calculateRecentFormWeights(
     let overGoalsCount = 0;
     let validCount = 0;
 
-    const weights: RecentFormContextWeight[] = matches.map((item) => {
-      // 1. 时间过滤与指数衰减 (60天半衰期, >180天强制截断为0)
+    // 严格实施 365 天近期战绩样本前置物理隔离：进入指标计算前彻底阻断超期跨赛季老数据
+    const timeBoundedMatches = matches.filter((item) => {
+      let matchTime = 0;
+      if (typeof item.match_time === 'number' && item.match_time > 0) {
+        matchTime = item.match_time > 1e11 ? item.match_time : item.match_time * 1000;
+      } else if (item.match_date) {
+        const parsed = new Date(String(item.match_date)).getTime();
+        if (!isNaN(parsed) && parsed > 0) matchTime = parsed;
+      }
+      if (matchTime <= 0) return false;
+      const daysAgo = Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24));
+      return daysAgo >= 0 && daysAgo <= 365;
+    });
+
+    const weights: RecentFormContextWeight[] = timeBoundedMatches.map((item) => {
+      // 1. 时间过滤与指数衰减 (60天半衰期, 严禁纳入超 365 天跨赛季老战绩)
       let matchTime = 0;
       let dateStr = '';
       if (typeof item.match_time === 'number' && item.match_time > 0) {
@@ -560,19 +585,15 @@ export function calculateRecentFormWeights(
         }
       }
 
-      // 方案 2 严禁假默认值：若时间缺失或无效，严禁赋予 45 天等假值，直接置为无效
       const hasValidTime = matchTime > 0;
-      const daysAgo = hasValidTime
-        ? Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24)))
-        : -1;
-
-      const isValidTime = hasValidTime && daysAgo >= 0 && daysAgo <= 730;
+      const daysAgo = Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24)));
+      const isValidTime = hasValidTime && daysAgo >= 0 && daysAgo <= 365;
       let timeDecay = 0.0;
       if (isValidTime) {
         if (daysAgo <= 30) {
           timeDecay = 1.0;
         } else {
-          timeDecay = Math.exp(- (Math.LN2 / 120) * (daysAgo - 30)); // 延长半衰期至120天
+          timeDecay = Math.exp(- (Math.LN2 / 120) * (daysAgo - 30)); // 120天半衰期
         }
       }
 
@@ -1083,8 +1104,17 @@ export function calculateLineupImpactScores(
   match: CanonicalMatch
 ): LineupImpactFeatures {
   const lineup = match.reference?.lineups;
-  const homeMv = parseMarketValueToNumber(lineup?.home_market_value);
-  const awayMv = parseMarketValueToNumber(lineup?.away_market_value);
+  let homeMv = parseMarketValueToNumber(lineup?.home_market_value);
+  let awayMv = parseMarketValueToNumber(lineup?.away_market_value);
+
+  // 兜底回退：若 lineups 未提供身价文本，尝试从 tactical_context.squad_market_value 提取
+  const tacticalSquadMv = (match.reference?.tactical_context as any)?.squad_market_value;
+  if (homeMv === 0 && tacticalSquadMv?.home_total_market_value_eur) {
+    homeMv = Number(tacticalSquadMv.home_total_market_value_eur) / 10000; // 换算为万欧元
+  }
+  if (awayMv === 0 && tacticalSquadMv?.away_total_market_value_eur) {
+    awayMv = Number(tacticalSquadMv.away_total_market_value_eur) / 10000;
+  }
 
   const homeStarters = lineup?.home_starters || [];
   const awayStarters = lineup?.away_starters || [];
@@ -1126,37 +1156,116 @@ export function calculateLineupImpactScores(
     };
   }
 
-  const evaluateAbsences = (injuries: ParsedPlayer[], starters: ParsedPlayer[]): {
+  const normalizePositionZone = (posStr?: string | null): 'FW' | 'MF' | 'DF' | 'GK' => {
+    const s = String(posStr || '').toUpperCase();
+    if (s.includes('FW') || s.includes('ST') || s.includes('CF') || s.includes('LW') || s.includes('RW') || s.includes('前锋')) return 'FW';
+    if (s.includes('DF') || s.includes('CB') || s.includes('LB') || s.includes('RB') || s.includes('后卫')) return 'DF';
+    if (s.includes('GK') || s.includes('门将') || s.includes('守门员')) return 'GK';
+    return 'MF'; // 默认中场
+  };
+
+  const getPlayerMv = (p: ParsedPlayer): number => {
+    if (typeof p.market_value === 'number' && p.market_value > 0) return p.market_value;
+    if (p.market_value_text) {
+      const parsed = parseMarketValueToNumber(p.market_value_text);
+      if (parsed > 0) return parsed * 10000; // 换算为欧元
+    }
+    return 0;
+  };
+
+  const evaluateAbsences = (
+    injuries: ParsedPlayer[],
+    starters: ParsedPlayer[],
+    teamSquadMvTenK: number
+  ): {
     lis: number;
     missing: string[];
     strikerMissing: boolean;
     defenderMissing: boolean;
     bestPlayerActive: boolean;
   } => {
-    let deduction = 0.0;
     const missing: string[] = [];
     let strikerMissing = false;
     let defenderMissing = false;
 
     const hasBestInStarters = starters.some((p: ParsedPlayer) => p.best_player === true);
 
+    // 1. 统计首发阵容各战术位置的身价总额与人均身价
+    const posStartersMv: Record<'FW' | 'MF' | 'DF' | 'GK', { total: number; count: number }> = {
+      FW: { total: 0, count: 0 },
+      MF: { total: 0, count: 0 },
+      DF: { total: 0, count: 0 },
+      GK: { total: 0, count: 0 }
+    };
+    let startersTotalMvEur = 0;
+
+    for (const s of starters) {
+      const zone = normalizePositionZone(s.position || s.position_name || s.position_code);
+      const mv = getPlayerMv(s);
+      posStartersMv[zone].total += mv;
+      posStartersMv[zone].count += 1;
+      startersTotalMvEur += mv;
+    }
+
+    // 基准参考全队总身价 (欧元)
+    const teamSquadMvEur = teamSquadMvTenK > 0 ? teamSquadMvTenK * 10000 : startersTotalMvEur * 1.35;
+    const effectiveSquadMvEur = Math.max(100000, teamSquadMvEur);
+
+    let totalWeightedInjuryLoss = 0.0;
+
+    // 2. 逐一遍历伤停名单，比对伤停人员身价 vs 首发同位置平均身价，并结合占全队身价权重
     for (const p of injuries) {
       const name = p.name || 'Unknown';
-      const pos = String(p.position || p.position_name || '').toUpperCase();
+      const zone = normalizePositionZone(p.position || p.position_name || p.position_code);
       missing.push(name);
 
-      if (pos.includes('FW') || pos.includes('ST') || pos.includes('前锋')) {
-        deduction += 0.20;
-        strikerMissing = true;
-      } else if (pos.includes('DF') || pos.includes('CB') || pos.includes('GK') || pos.includes('后卫') || pos.includes('门将')) {
-        deduction += 0.22;
-        defenderMissing = true;
+      const pMv = getPlayerMv(p);
+      const posStat = posStartersMv[zone];
+      const posStarterAvgMv = posStat.count > 0 ? posStat.total / posStat.count : 0;
+
+      let posDropRatio = 1.0;
+      let squadValueShare = 0.05; // 默认中性 5%
+
+      if (pMv > 0) {
+        // (A) 位置替代落差：若伤停球员身价比首发同位置均价高，说明该位置替补无法弥补，产生实质战力空洞；
+        // 反之，若豪门替补首发实力与伤员相当（posStarterAvgMv 足够大），posDropRatio 趋于 1.0 甚至更低
+        if (posStarterAvgMv > 0) {
+          posDropRatio = Math.max(0.5, Math.min(2.5, pMv / posStarterAvgMv));
+        } else {
+          posDropRatio = 1.2;
+        }
+        // (B) 占全队总身价的比重 (如 5000万欧巨星在 1亿欧小队占比 50%，在 10亿欧豪门占比仅 5%)
+        squadValueShare = Math.max(0.01, Math.min(0.35, pMv / effectiveSquadMvEur));
       } else {
-        deduction += 0.10;
+        // 无身价数据时，依首发/核心身份与主力战术地位估算
+        posDropRatio = p.best_player ? 1.6 : (p.captain ? 1.3 : 1.0);
+        squadValueShare = p.best_player ? 0.08 : (p.captain ? 0.06 : 0.04);
+      }
+
+      // 核心特征乘子
+      let roleMultiplier = 1.0;
+      if (p.best_player === true) roleMultiplier *= 1.35;
+      if (p.captain === true) roleMultiplier *= 1.20;
+      if (p.starter === true) roleMultiplier *= 1.15;
+
+      // 单人实际折损点数 = 位置替代落差 * 全队身价占比 * 战术核心系数 * 缩放因子
+      const singlePlayerLoss = posDropRatio * squadValueShare * roleMultiplier * 6.0;
+      totalWeightedInjuryLoss += singlePlayerLoss;
+
+      if (zone === 'FW' && (p.starter || p.best_player || pMv > 0)) {
+        strikerMissing = true;
+      }
+      if ((zone === 'DF' || zone === 'GK') && (p.starter || p.best_player || pMv > 0)) {
+        defenderMissing = true;
       }
     }
 
-    const lis = Math.max(0.40, Number((1.0 - deduction).toFixed(3)));
+    // 3. 严格指数饱和保底模型：LIS = 0.75 + 0.25 * exp(-0.35 * totalWeightedInjuryLoss)
+    // 确保 LIS 恒定落入 [0.75, 1.0]，强队伤停多名球员时依然凭借雄厚替补深度保底 0.75 以上
+    const lis = totalWeightedInjuryLoss > 0
+      ? Math.max(0.75, Number((0.75 + 0.25 * Math.exp(-0.35 * totalWeightedInjuryLoss)).toFixed(3)))
+      : 1.0;
+
     return {
       lis,
       missing,
@@ -1169,8 +1278,8 @@ export function calculateLineupImpactScores(
   const homeInjuries = lineup?.home_injuries || [];
   const awayInjuries = lineup?.away_injuries || [];
 
-  const homeRes = evaluateAbsences(homeInjuries, homeStarters);
-  const awayRes = evaluateAbsences(awayInjuries, awayStarters);
+  const homeRes = evaluateAbsences(homeInjuries, homeStarters, homeMv);
+  const awayRes = evaluateAbsences(awayInjuries, awayStarters, awayMv);
 
   return {
     home_lis: homeRes.lis,

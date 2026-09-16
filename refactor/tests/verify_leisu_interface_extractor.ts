@@ -153,19 +153,19 @@ function runTests() {
     throw new Error(`球员进球事件解析错误: ${JSON.stringify(awayGoalInc)}`);
   }
 
-  // 参考赔率矩阵断言
+  // 参考赔率矩阵断言（Master Home Line: 主让0.25映射为-0.25，亚盘净水转欧盘赔率+1.0）
   if (m1.odds_matrix.company_name !== "3*") throw new Error("第1场赔率公司解析错误");
-  if (m1.odds_matrix.initial.asian_handicap?.line !== 0.25 || m1.odds_matrix.initial.asian_handicap?.home_odds !== 1.0) {
-    throw new Error("第1场初盘让球解析错误");
+  if (m1.odds_matrix.initial.asian_handicap?.line !== -0.25 || m1.odds_matrix.initial.asian_handicap?.home_odds !== 2.0) {
+    throw new Error(`第1场初盘让球解析错误: line=${m1.odds_matrix.initial.asian_handicap?.line}, home_odds=${m1.odds_matrix.initial.asian_handicap?.home_odds}`);
   }
-  if (m1.odds_matrix.initial.total_goals?.line !== 2.5 || m1.odds_matrix.initial.total_goals?.over_odds !== 1.0) {
-    throw new Error("第1场初盘大小球解析错误");
+  if (m1.odds_matrix.initial.total_goals?.line !== 2.5 || m1.odds_matrix.initial.total_goals?.over_odds !== 2.0) {
+    throw new Error(`第1场初盘大小球解析错误: line=${m1.odds_matrix.initial.total_goals?.line}, over_odds=${m1.odds_matrix.initial.total_goals?.over_odds}`);
   }
-  if (m1.odds_matrix.live.asian_handicap?.line !== 0.25 || m1.odds_matrix.live.asian_handicap?.home_odds !== 1.2) {
-    throw new Error("第1场即盘让球解析错误");
+  if (m1.odds_matrix.live.asian_handicap?.line !== -0.25 || m1.odds_matrix.live.asian_handicap?.home_odds !== 2.2) {
+    throw new Error(`第1场即盘让球解析错误: line=${m1.odds_matrix.live.asian_handicap?.line}, home_odds=${m1.odds_matrix.live.asian_handicap?.home_odds}`);
   }
-  if (m1.odds_matrix.live.total_goals?.line !== 2.0 || m1.odds_matrix.live.total_goals?.over_odds !== 0.92) {
-    throw new Error("第1场即盘大小球解析错误");
+  if (m1.odds_matrix.live.total_goals?.line !== 2.0 || m1.odds_matrix.live.total_goals?.over_odds !== 1.92) {
+    throw new Error(`第1场即盘大小球解析错误: line=${m1.odds_matrix.live.total_goals?.line}, over_odds=${m1.odds_matrix.live.total_goals?.over_odds}`);
   }
 
   // 战术上下文与历史直接交锋断言 (含 shots, was_shots 被射门数与各项攻防指标)

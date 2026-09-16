@@ -421,7 +421,8 @@ export function calculateAsianHandicapEV(
   handicapLineStr: string,
   homeOdds: number,
   awayOdds: number,
-  poisson: PoissonExpectation
+  poisson: PoissonExpectation,
+  awaySelectionStr?: string
 ): SpreadEVAssessment {
   const line = parseAsianHandicapLine(handicapLineStr);
   const lambdaHome = requireFiniteNonNegative(poisson.lambda_home_rest, 'lambda_home_rest');
@@ -512,9 +513,9 @@ export function calculateAsianHandicapEV(
     preferredSide = 'none';
   }
 
-  const selectedOdds = preferredSide === 'home' ? homeOdds : awayOdds;
-  const selectedEV = preferredSide === 'home' ? effectiveHomeEV : effectiveAwayEV;
-  const kellyFraction = (preferredSide !== 'none' && selectedOdds > 1.0 && selectedEV > 0)
+  const selectedOdds = preferredSide === 'home' ? homeOdds : (preferredSide === 'away' ? awayOdds : undefined);
+  const selectedEV = preferredSide === 'home' ? effectiveHomeEV : (preferredSide === 'away' ? effectiveAwayEV : 0);
+  const kellyFraction = (preferredSide !== 'none' && selectedOdds !== undefined && selectedOdds > 1.0 && selectedEV > 0)
     ? Number(Math.max(0.0, Math.min(0.05, selectedEV / (4.0 * (selectedOdds - 1.0)))).toFixed(4))
     : 0.0;
 
@@ -525,8 +526,15 @@ export function calculateAsianHandicapEV(
   const anyShrinkage = homeShrink.isApplied || awayShrink.isApplied;
   const shrinkFactor = homeShrink.isApplied ? homeShrink.shrinkageFactor : (awayShrink.isApplied ? awayShrink.shrinkageFactor : 1.0);
 
+  const resolvedAwayLine = awaySelectionStr || invertHandicapString(handicapLineStr);
+  const selectedLine = preferredSide === 'away' ? resolvedAwayLine : (preferredSide === 'home' ? handicapLineStr : undefined);
+
   return Object.freeze({
     line: handicapLineStr,
+    home_line: handicapLineStr,
+    away_line: resolvedAwayLine,
+    selected_line: selectedLine,
+    selected_odds: selectedOdds,
     home_odds: homeOdds,
     away_odds: awayOdds,
     home_ev: effectiveHomeEV,
@@ -926,14 +934,14 @@ export function calculateDeviggedMarketFeatures(
   const spreadMarket = activeMarkets?.full_spread_main;
   let spreadMain: SpreadEVAssessment | undefined;
   if (spreadMarket && spreadMarket.home_selection && spreadMarket.home_odds && spreadMarket.away_odds) {
-    spreadMain = calculateAsianHandicapEV(spreadMarket.home_selection, spreadMarket.home_odds, spreadMarket.away_odds, poisson);
+    spreadMain = calculateAsianHandicapEV(spreadMarket.home_selection, spreadMarket.home_odds, spreadMarket.away_odds, poisson, spreadMarket.away_selection);
   }
 
   const spreadSecondaryEV: SpreadEVAssessment[] = [];
   if (activeMarkets?.full_spread_subs) {
     for (const sub of activeMarkets.full_spread_subs) {
       if (sub.home_selection && sub.home_odds && sub.away_odds) {
-        spreadSecondaryEV.push(calculateAsianHandicapEV(sub.home_selection, sub.home_odds, sub.away_odds, poisson));
+        spreadSecondaryEV.push(calculateAsianHandicapEV(sub.home_selection, sub.home_odds, sub.away_odds, poisson, sub.away_selection));
       }
     }
   }

@@ -299,13 +299,39 @@ export function parseLineups(rawLineup?: LeisuRawFormal["lineup"] | null): Parse
   };
 }
 
+function normalizeAsianOdds(odds: number | null): number | null {
+  if (odds === null || !Number.isFinite(odds) || odds <= 0) return null;
+  // 雷速亚盘水位净水（如 0.85, 1.05）转换为欧洲十进制赔率：欧盘赔率 = 亚盘净水 + 1.0
+  return odds < 1.5 ? Number((odds + 1.0).toFixed(3)) : odds;
+}
+
 export function parseHandicap(raw?: LeisuRawOddsHandicap | null): ParsedHandicapMarket | null {
   if (!raw) return null;
-  const home_odds = safeNullableNumber(raw.home);
-  const line = safeNullableNumber(raw.line);
-  const away_odds = safeNullableNumber(raw.away);
-  if (home_odds === null && line === null && away_odds === null) return null;
-  return { home_odds, line, away_odds };
+  const raw_home_odds = safeNullableNumber(raw.home);
+  const raw_line = safeNullableNumber(raw.line);
+  const raw_away_odds = safeNullableNumber(raw.away);
+  if (raw_home_odds === null && raw_line === null && raw_away_odds === null) return null;
+
+  // 1. 雷速亚盘解析准则（Master Home Line 统一物理坐标系投影）：
+  //    - 纯数字 / 正数（如 1.0, 1.25, 0.25） -> 权威唯一物理含义：主队让球 (L = -abs(val))
+  //    - 显式负数（如 -0.25, -0.75）        -> 权威唯一物理含义：主队受让 (L = +abs(val))
+  //    - 0 或 -0                           -> 0.0 (平手)
+  let normalizedLine: number | null = null;
+  if (raw_line !== null) {
+    if (raw_line === 0 || Object.is(raw_line, -0)) {
+      normalizedLine = 0.0;
+    } else if (raw_line > 0) {
+      normalizedLine = -Math.abs(raw_line);
+    } else {
+      normalizedLine = Math.abs(raw_line);
+    }
+  }
+
+  // 2. 赔率归一化（欧盘十进制赔率 = 亚盘净水 + 1.0）
+  const home_odds = normalizeAsianOdds(raw_home_odds);
+  const away_odds = normalizeAsianOdds(raw_away_odds);
+
+  return { home_odds, line: normalizedLine, away_odds };
 }
 
 export function parseWinner(raw?: LeisuRawOddsWinner | null): ParsedWinnerMarket | null {
@@ -319,20 +345,28 @@ export function parseWinner(raw?: LeisuRawOddsWinner | null): ParsedWinnerMarket
 
 export function parseTotal(raw?: LeisuRawOddsTotal | null): ParsedTotalMarket | null {
   if (!raw) return null;
-  const over_odds = safeNullableNumber(raw.over);
+  const raw_over_odds = safeNullableNumber(raw.over);
   const line = safeNullableNumber(raw.line);
-  const under_odds = safeNullableNumber(raw.under);
-  if (over_odds === null && line === null && under_odds === null) return null;
-  return { over_odds, line, under_odds };
+  const raw_under_odds = safeNullableNumber(raw.under);
+  if (raw_over_odds === null && line === null && raw_under_odds === null) return null;
+  return {
+    over_odds: normalizeAsianOdds(raw_over_odds),
+    line,
+    under_odds: normalizeAsianOdds(raw_under_odds)
+  };
 }
 
 export function parseCorners(raw?: LeisuRawOddsCorners | null): ParsedCornerMarket | null {
   if (!raw) return null;
-  const over_odds = safeNullableNumber(raw.over);
+  const raw_over_odds = safeNullableNumber(raw.over);
   const line = safeNullableNumber(raw.line);
-  const under_odds = safeNullableNumber(raw.under);
-  if (over_odds === null && line === null && under_odds === null) return null;
-  return { over_odds, line, under_odds };
+  const raw_under_odds = safeNullableNumber(raw.under);
+  if (raw_over_odds === null && line === null && raw_under_odds === null) return null;
+  return {
+    over_odds: normalizeAsianOdds(raw_over_odds),
+    line,
+    under_odds: normalizeAsianOdds(raw_under_odds)
+  };
 }
 
 export function parseOddsPhaseGroup(

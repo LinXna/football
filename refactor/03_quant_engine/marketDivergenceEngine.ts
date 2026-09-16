@@ -44,11 +44,6 @@ function requiredOdds(odds: number | null): number {
   return odds;
 }
 
-function normalizeAsianOdds(odds: number | null): number | null {
-  if (odds === null || !Number.isFinite(odds) || odds < 0) return null;
-  return odds < 1 ? Number((odds + 1).toFixed(3)) : odds;
-}
-
 function proportionalFairOdds(firstOdds: number, secondOdds: number): readonly [number, number] {
   const overround = 1 / firstOdds + 1 / secondOdds;
   return [firstOdds * overround, secondOdds * overround];
@@ -113,10 +108,9 @@ function jointMarketLambdaEstimate(
         error += ev.over_ev ** 2 + ev.under_ev ** 2;
       }
       if (handicapFairOdds !== undefined && handicap !== undefined && handicap.line !== null) {
-        // 雷速浮点数值规范: line > 0 为主让 (如 1.0 为主让1球, 0.75 为主让半一).
-        // calculateAsianHandicapEV 与 YBTY 规范: 负数表示主让 (如 "-1", "-0.5/1").
-        // 故在此严格符号对齐: -handicap.line
-        const handicapLineStr = formatAsianHandicapLine(-handicap.line);
+        // 雷速亚盘已在 Layer 01 数据摄入层彻底归一化为 Master Home Line 物理基准 (负数表示主让, 正数表示主受让)
+        // 与 calculateAsianHandicapEV 及 YBTY 选项规范完全一致，直接通过 formatAsianHandicapLine 格式化
+        const handicapLineStr = formatAsianHandicapLine(handicap.line);
         const ev = calculateAsianHandicapEV(handicapLineStr, handicapFairOdds[0], handicapFairOdds[1], poisson);
         error += ev.home_ev ** 2 + ev.away_ev ** 2;
       }
@@ -155,22 +149,8 @@ export function calibrateWithMarketOdds(
   const selectedMarket = liveMarket ?? fallbackMarket;
   const isInPlayMarket = liveMarket !== undefined && selectedMarket === liveMarket;
   const winnerMarket = selectedMarket?.match_winner;
-  const totalRaw = selectedMarket?.total_goals;
-  const handicapRaw = selectedMarket?.asian_handicap;
-  const totalMarket = totalRaw
-    ? {
-        ...totalRaw,
-        over_odds: normalizeAsianOdds(totalRaw.over_odds),
-        under_odds: normalizeAsianOdds(totalRaw.under_odds)
-      }
-    : undefined;
-  const handicapMarket = handicapRaw
-    ? {
-        ...handicapRaw,
-        home_odds: normalizeAsianOdds(handicapRaw.home_odds),
-        away_odds: normalizeAsianOdds(handicapRaw.away_odds)
-      }
-    : undefined;
+  const totalMarket = selectedMarket?.total_goals ?? undefined;
+  const handicapMarket = selectedMarket?.asian_handicap ?? undefined;
 
   // 若缺失雷速机构赔率数据，回退到纯理论先验
   if (!winnerMarket || !hasValidOdds(winnerMarket.home_odds, winnerMarket.draw_odds, winnerMarket.away_odds)) {

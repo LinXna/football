@@ -78,20 +78,27 @@ function getEventThreatWeight(event: CanonicalTimelineEvent): number {
     return 2.5;
   }
 
-  // 3. 红黄牌与纪律事件 (防线压力征兆)
+  // 3. 红黄牌与纪律事件 (防线压力征兆与语义语义分级)
   if (
     event.canonical_type === CanonicalEventType.RED_CARD_DIRECT ||
     event.canonical_type === CanonicalEventType.RED_CARD_SECOND_YELLOW ||
     event.type === 4
   ) {
-    return 2.0;
+    return 2.5;
   }
 
   if (
     event.canonical_type === CanonicalEventType.YELLOW_CARD ||
     event.type === 3
   ) {
-    return event.is_on_pitch !== false ? 0.6 : 0.0;
+    if (event.is_on_pitch === false) return 0.0;
+    // 语义分级：战术犯规/破坏绝佳机会 (0.75) vs 情绪抗议/拖延时间 (0.25)
+    const reason = String(event.text || '').toLowerCase();
+    const isTacticalFoul = /foul|tactical|trip|pull|holding|breakaway|handball|阻挡|犯规|战术|拉拽/i.test(reason);
+    const isEmotionalOrDissent = /dissent|argument|delay|time|protest|争吵|抗议|拖延|时间/i.test(reason);
+    if (isTacticalFoul) return 0.75;
+    if (isEmotionalOrDissent) return 0.25;
+    return 0.50;
   }
 
   // 4. 战术角球与射正
@@ -99,14 +106,14 @@ function getEventThreatWeight(event: CanonicalTimelineEvent): number {
     event.canonical_type === CanonicalEventType.CORNER ||
     event.type === 2
   ) {
-    return 0.65;
+    return 0.70;
   }
 
   if (
     event.canonical_type === CanonicalEventType.SHOT_ON_TARGET ||
     event.type === 21
   ) {
-    return 1.4;
+    return 1.5;
   }
 
   if (
@@ -190,16 +197,22 @@ export function calculateLiveThreatTrinity(
     const eventSupport = eventScore > 0
       ? bounded(1 - Math.exp(-eventScore / 2.2))
       : 0.35;
+    const pe = (side === 'home' ? physical.possession_effectiveness?.home_pe : physical.possession_effectiveness?.away_pe) ?? 0;
     const tti = (side === 'home' ? physical.threat_transformation_index?.home_tti : physical.threat_transformation_index?.away_tti) ?? 0;
+    // 提升角球权重至 0.20 (现代 xG 理论标准)，并与渗透率及转化指数结合
+    const rawStatsValue = xt * 0.25 + penetration * 1.0 + accuracy * 1.2 + corners * 0.20 + tti * 0.20 + pe * 0.20;
+    // 比赛前35分钟射门与角球基数处于自然累积期，引入平滑基准，避免因样本未满而将正常控球推进误判为重大冲突
+    const earlyPhaseBaseline = (currentMinute > 0 && currentMinute < 35) ? Math.max(0, 0.25 * (1 - currentMinute / 35.0)) : 0;
     const statsSupport = physical.stats_available
-      ? bounded(1 - Math.exp(-Math.max(0, xt * 0.25 + penetration * 1.0 + accuracy * 1.2 + corners * 0.06 + tti * 0.15))) : 0;
+      ? bounded(Math.max(earlyPhaseBaseline, 1 - Math.exp(-Math.max(0, rawStatsValue)))) : 0;
     const activeSupports = physical.stats_available
       ? [momentumSupport, eventSupport, statsSupport]
       : [momentumSupport, eventSupport];
     const minSupport = Math.min(...activeSupports);
     const maxSupport = Math.max(...activeSupports);
     const alignmentScore = bounded(1 - (maxSupport - minSupport));
-    const conflict = momentumSupport >= 0.62 && (eventSupport < 0.20 || (physical.stats_available && statsSupport < 0.20));
+    // 仅在比赛进入中后段(>=30分钟)且极端高动量长期得不到任何事件与数据支持时，方判定为实质性冲突
+    const conflict = momentumSupport >= 0.70 && currentMinute >= 30 && (eventSupport < 0.15 || (physical.stats_available && statsSupport < 0.15));
     const baseThreat = physical.stats_available
       ? (0.45 * momentumSupport + 0.30 * eventSupport + 0.25 * statsSupport)
       : (0.60 * momentumSupport + 0.40 * eventSupport);
@@ -429,9 +442,11 @@ export function evaluateTacticalRegime(
   let regimeMultiplierHome = 1.0;
   let regimeMultiplierAway = 1.0;
 
-  // 叠加红牌效应
-  regimeMultiplierHome += (0.35 * aRedAway - 0.35 * aRedHome);
-  regimeMultiplierAway += (0.35 * aRedHome - 0.35 * aRedAway);
+  // 叠加红牌 10 打 11 物理效应: 防线漏洞大幅泄漏 (+40% 承压), 进攻转化锐减 (-60%)
+  // 若客队染红 (aRedAway > 0): 主队进攻获得 +40% 空间 (1.40), 客队进攻削减 -60% (0.40)
+  // 若主队染红 (aRedHome > 0): 主队进攻削减 -60% (0.40), 客队进攻获得 +40% 空间 (1.40)
+  regimeMultiplierHome += (0.40 * aRedAway - 0.60 * aRedHome);
+  regimeMultiplierAway += (0.40 * aRedHome - 0.60 * aRedAway);
 
   // 叠加防反效应
   regimeMultiplierHome += (-0.15 * aCounterHome + 0.15 * aCounterAway);
@@ -515,6 +530,46 @@ export function evaluateGoalClimax(
   // (C) 近 5 分钟高密度事件指数饱和势能 (最高 30 分)
   const phiDensity = 30.0 * (1.0 - Math.exp(-recentIncidentDensity / 2.2));
 
+  // (C.1) 连续角球与密集射门高危滑动窗口物理加成 (Sliding Window High-Threat Cluster)
+  // 规则：
+  // 1. 连续角球簇：≤3分钟内累计 2 个角球 (+6分), 或 ≤7分钟内累计 3 个角球 (+10分)
+  // 2. 密集射门簇：≤5分钟内累计 2 次射正/射门 (+8分)
+  const isCornerEvent = (e: CanonicalTimelineEvent) =>
+    e.canonical_type === CanonicalEventType.CORNER || e.type === 2;
+  const isShotEvent = (e: CanonicalTimelineEvent) =>
+    e.canonical_type === CanonicalEventType.SHOT_ON_TARGET || e.type === 21 || e.canonical_type === CanonicalEventType.SHOT_OFF_TARGET;
+
+  const validEventsRecent = events.filter((e: CanonicalTimelineEvent) => {
+    const m = getEventMinute(e);
+    return m !== null && m <= currentMinute && !e.is_cancelled && !e.is_var_overturned;
+  });
+
+  let cornerClusterBonus = 0.0;
+  let shotBarrageBonus = 0.0;
+
+  for (const side of ['home', 'away'] as const) {
+    const sideEvents = validEventsRecent.filter(e => getEventSide(e) === side);
+
+    // 角球滑动窗口
+    const sideCorners = sideEvents.filter(isCornerEvent);
+    const corners3m = sideCorners.filter(e => currentMinute - (getEventMinute(e) ?? 0) <= 3).length;
+    const corners7m = sideCorners.filter(e => currentMinute - (getEventMinute(e) ?? 0) <= 7).length;
+    if (corners7m >= 3) {
+      cornerClusterBonus = Math.max(cornerClusterBonus, 10.0);
+    } else if (corners3m >= 2) {
+      cornerClusterBonus = Math.max(cornerClusterBonus, 6.0);
+    }
+
+    // 射门滑动窗口 (≤5分钟内2次及以上射门)
+    const sideShots = sideEvents.filter(isShotEvent);
+    const shots5m = sideShots.filter(e => currentMinute - (getEventMinute(e) ?? 0) <= 5).length;
+    if (shots5m >= 2) {
+      shotBarrageBonus = Math.max(shotBarrageBonus, 8.0);
+    }
+  }
+
+  const phiCluster = Math.min(15.0, cornerClusterBonus + shotBarrageBonus);
+
   // (D) EPI 转化势能平滑加权 (最高 20 分)
   const maxRatio = Math.max(epi.home.conversion_ratio, epi.away.conversion_ratio);
   const integrity = Math.max(trinity.home.calibrated_threat, trinity.away.calibrated_threat);
@@ -531,7 +586,7 @@ export function evaluateGoalClimax(
     }
   }
   const postGoalCooldownActive = lastGoalMinute !== undefined && currentMinute >= lastGoalMinute && currentMinute - lastGoalMinute < 4;
-  const rawClimax = (15.0 + phiSlope + phiAcceleration + phiDensity + phiEpi) * (postGoalCooldownActive ? 0.55 : 1.0);
+  const rawClimax = (15.0 + phiSlope + phiAcceleration + phiDensity + phiCluster + phiEpi) * (postGoalCooldownActive ? 0.55 : 1.0);
   const climaxScore = Number(Math.min(100.0, Math.max(0.0, rawClimax)).toFixed(1));
 
   // (E) 判定主要进攻方 (基于连续动量与能量比率，金字塔复合斜率提供稳健方向)

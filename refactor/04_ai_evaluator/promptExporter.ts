@@ -2,7 +2,7 @@ import { CanonicalMatch } from '../02_canonical_model/types.js';
 import { MatchStage } from '../02_canonical_model/enums.js';
 import { extractAiEvaluationBrief } from '../02_canonical_model/canonicalMatchAssembler.js';
 import { calculateQuantitativeFeatures, isMatchQuantEligible } from '../03_quant_engine/index.js';
-import { parseAsianHandicapLine } from '../03_quant_engine/devigCalculator.js';
+import { parseAsianHandicapLine, invertHandicapString } from '../03_quant_engine/devigCalculator.js';
 import { buildSystemPrompt } from './promptBuilder.js';
 import { EvaluatorPayload, EvaluatorLineupMatrix, EvaluatorTeamProfiling } from './types.js';
 
@@ -212,12 +212,24 @@ export function generateRefactoredPrompt(
       if (!marketItem && !evAssessment) return undefined;
       const merged = { ...marketItem, ...evAssessment };
       const rawLine = merged.handicap ?? merged.line ?? merged.home_selection ?? merged.away_selection ?? '';
-      const isQuarter = checkQuarterLine(merged) || checkQuarterLine(rawLine);
-      const qDist = evAssessment?.preferred_side === 'away'
+      const isAwayPreferred = evAssessment?.preferred_side === 'away';
+      const homeLine = marketItem?.home_selection ?? evAssessment?.home_line ?? rawLine;
+      const awayLine = marketItem?.away_selection ?? evAssessment?.away_line ?? (homeLine ? invertHandicapString(homeLine) : '');
+      const selectedLine = isAwayPreferred ? awayLine : homeLine;
+      const selectedOdds = isAwayPreferred
+        ? (marketItem?.away_odds ?? evAssessment?.away_odds)
+        : (marketItem?.home_odds ?? evAssessment?.home_odds);
+
+      const isQuarter = checkQuarterLine(merged) || checkQuarterLine(rawLine) || checkQuarterLine(selectedLine);
+      const qDist = isAwayPreferred
         ? evAssessment?.away_settlement_distribution
         : (evAssessment?.home_settlement_distribution ?? evAssessment?.settlement_distribution);
       return {
         ...merged,
+        home_selection: homeLine,
+        away_selection: awayLine,
+        selected_line: selectedLine,
+        current_odds: selectedOdds,
         is_quarter_line: isQuarter,
         quarter_line_settlement_distribution: qDist,
         quarter_line_warning: isQuarter ? "四分之一让球盘具五态结算[全赢/半赢/走/半输/全输]。若无完整五态真实结算分布，settlement_status为SETTLEMENT_UNVERIFIABLE，严禁作为selected_line、不得参与EV排序、不得推荐！(UNVERIFIABLE QUARTER LINE: INVALID FOR VALUE RANKING)" : undefined,

@@ -400,16 +400,30 @@ export function calculateExpectedRemainingMinutesIncludingStoppage(timing?: Cano
   const minute = timing.minute ?? 0;
   const addedMinute = timing.added_minute ?? null;
 
+  // 1. 下半场伤停补时阶段 (90' +)
   if (minute >= 90) {
-    const estimatedStoppage = (addedMinute !== null && addedMinute > 0) ? addedMinute : 5;
-    const remaining = (90 + estimatedStoppage) - minute;
-    return Math.max(1, remaining);
+    const totalStoppage = (addedMinute !== null && addedMinute > 0) ? addedMinute : 5;
+    const remaining = (90 + totalStoppage) - minute;
+    return Math.max(0, remaining);
   }
 
-  // 常规比赛时间: 80 分钟前不盲目预加补时，80 分钟后平滑引入合理补时
-  const remainingRegulation = Math.max(0, 90 - minute);
-  const stoppageAllowance = minute > 80 ? (addedMinute ?? 5) : 0;
-  return remainingRegulation + stoppageAllowance;
+  // 2. 下半场常规时间 (45' ~ 89')
+  if (minute >= 45) {
+    const remainingRegulation = Math.max(0, 90 - minute);
+    // 下半场预期伤停补时：若已确定公布补时则用公布值，否则依据实战至少预留 4.0~5.0 分钟
+    const expected2HStoppage = (addedMinute !== null && addedMinute > 0)
+      ? addedMinute
+      : (minute >= 80 ? 5.0 : 4.0);
+    return Number((remainingRegulation + expected2HStoppage).toFixed(2));
+  }
+
+  // 3. 上半场阶段 (0' ~ 44')
+  // 真实足球物理建模：上半场常规剩余 + 上半场伤停补时(至少 1.5~2.0 分钟) + 下半场常规 45 分钟 + 下半场伤停补时(至少 4.0 分钟)
+  const remaining1HRegulation = Math.max(0, 45 - minute);
+  const expected1HStoppage = (addedMinute !== null && addedMinute > 0) ? addedMinute : 1.5;
+  const expected2HStoppage = 4.0;
+  const totalRemaining = remaining1HRegulation + expected1HStoppage + 45 + expected2HStoppage;
+  return Number(totalRemaining.toFixed(2));
 }
 
 /**
@@ -439,8 +453,8 @@ export function calculateInPlayPoissonFeatures(
     : Math.min(90, Math.max(0, match.timing.minute as number));
   const remainingMinutes = isPrematch ? 90 : calculateExpectedRemainingMinutesIncludingStoppage(match.timing);
   const isFinished = match.timing.stage === MatchStage.FINISHED;
-  const isUnpriceableStoppageTime = !isFinished && match.timing.stage === MatchStage.LIVE &&
-    (remainingMinutes <= 0 || (match.timing.minute !== null && match.timing.minute !== undefined && match.timing.minute >= 90));
+  // 仅在真实无剩余时间（<= 0）时判定为无法定价；在 90+ 补时剩余时间 > 0 时正常支持泊松定价
+  const isUnpriceableStoppageTime = !isFinished && match.timing.stage === MatchStage.LIVE && remainingMinutes <= 0;
   const currentHomeScore = isPrematch ? 0 : match.score.home_score as number;
   const currentAwayScore = isPrematch ? 0 : match.score.away_score as number;
   const scoreDiff = currentHomeScore - currentAwayScore;

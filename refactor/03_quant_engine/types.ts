@@ -482,6 +482,10 @@ export interface FiveStateSettlementDistribution {
 
 export interface SpreadEVAssessment {
   line: string;
+  home_line?: string;
+  away_line?: string;
+  selected_line?: string;
+  selected_odds?: number;
   home_odds: number;
   away_odds: number;
   home_ev: number;

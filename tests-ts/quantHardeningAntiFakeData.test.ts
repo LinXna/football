@@ -10,6 +10,13 @@ import {
 } from '../refactor/03_quant_engine/contextEngine.js';
 import { synthesizePrematchPrior } from '../refactor/03_quant_engine/prematchPriorEngine.js';
 import { extractCleanedContextFeatures } from '../refactor/03_quant_engine/contextEngine.js';
+import {
+  calculateLiveThreatTrinity,
+  evaluateGoalClimax,
+  evaluateTacticalRegime
+} from '../refactor/03_quant_engine/eventMomentumFusion.ts';
+import { CanonicalTimelineEvent } from '../refactor/02_canonical_model/types.js';
+import { CanonicalIncidentCategory, CanonicalEventType } from '../refactor/02_canonical_model/enums.js';
 
 test('Anti-Fake Data Hardening: Scheme 1 - Team ID Anchoring in H2H & Recent Form', () => {
   // Test H2H venue inversion prevention
@@ -233,3 +240,194 @@ test('Anti-Fake Data Hardening: Scheme 6 - Dynamic Percentile MUI & Cup Isolatio
   assert.ok(kMui.home_mui > 1.0, 'Top team in 12-team league gets positive MUI');
   assert.ok(kMui.away_mui > 1.0, 'Rank 11 in 12-team league gets relegation battle MUI > 1.0');
 });
+
+test('Core Algorithmic Overhaul: 365-Day Historical Cutoff Gate in contextEngine', () => {
+  const nowMs = Date.now();
+  const mockMatch: CanonicalMatch = {
+    canonical_id: 'match_365_cutoff',
+    home_team_name: 'Home FC',
+    away_team_name: 'Away FC',
+    timing: { stage: 'PRE_MATCH' as any },
+    score: { home_score: 0, away_score: 0 },
+    reference: {
+      home_team_id: 100,
+      away_team_id: 200,
+      tactical_context: {
+        home_recent_matches: [
+          {
+            // 200 days ago (<= 365: valid)
+            match_time: Math.floor((nowMs - 200 * 86400 * 1000) / 1000),
+            home_team_id: 100,
+            away_team_id: 301,
+            home_team_name: 'Home FC',
+            away_team_name: 'Opp 1',
+            competition_name: 'Super League',
+            fulltime_score: { home: 2, away: 0 }
+          },
+          {
+            // 497 days ago (> 365: strictly filtered out as invalid)
+            match_time: Math.floor((nowMs - 497 * 86400 * 1000) / 1000),
+            home_team_id: 100,
+            away_team_id: 302,
+            home_team_name: 'Home FC',
+            away_team_name: 'Opp 2',
+            competition_name: 'Super League',
+            fulltime_score: { home: 5, away: 0 }
+          }
+        ]
+      }
+    }
+  } as unknown as CanonicalMatch;
+
+  const result = calculateRecentFormWeights(mockMatch);
+  assert.equal(result.home_analytics.sample_count, 2, 'Total samples parsed is 2');
+  assert.equal(result.home_analytics.valid_count, 1, 'Only 1 sample <= 365 days is valid');
+  assert.equal(result.home[0].is_valid_time_window, true);
+  assert.equal(result.home[1].is_valid_time_window, false, 'Match from 497 days ago must be marked invalid');
+  assert.equal(result.home[1].final_composite_weight, 0, 'Weight of 497 days old match must be 0');
+});
+
+test('Core Algorithmic Overhaul: Underdog Lambda Suppression against Dominant Home in prematchPriorEngine', () => {
+  const match: CanonicalMatch = {
+    canonical_id: 'match_dominance_test',
+    home_team_name: 'Manchester City',
+    away_team_name: 'Luton Town',
+    timing: { stage: 'PRE_MATCH' as any },
+    score: { home_score: 0, away_score: 0 },
+    markets: {
+      full_spread_main: {
+        market_id: 'm1',
+        home_selection: '-2.0',
+        home_odds: 1.95,
+        away_odds: 1.85,
+        raw_spread_value: -2.0,
+        is_in_play: false
+      } as any
+    },
+    reference: {
+      tactical_context: {
+        squad_market_value: {
+          home_total_market_value_eur: 1200000000,
+          away_total_market_value_eur: 80000000
+        }
+      }
+    }
+  } as unknown as CanonicalMatch;
+
+  const context = extractCleanedContextFeatures(match);
+  const prior = synthesizePrematchPrior(match, context);
+
+  assert.ok(prior.lambda_home_theory > prior.lambda_away_theory, 'Dominant home lambda must strictly exceed away lambda');
+  assert.ok(prior.lambda_away_theory <= 1.20, 'Underdog away lambda must be capped under dominance hierarchy');
+  assert.ok(prior.prior_fair_home_win_prob > 0.60, 'Dominant home fair win probability must reflect heavy favoritism');
+});
+
+test('Core Algorithmic Overhaul: Corner and Shot Sliding Window Clusters in Goal Climax', () => {
+  const currentMinute = 65;
+  const events: CanonicalTimelineEvent[] = [
+    // 2 corners within 3 minutes (min 63 and 64)
+    {
+      minute: 63,
+      side: 'home',
+      canonical_type: CanonicalEventType.CORNER,
+      is_cancelled: false
+    } as any,
+    {
+      minute: 64,
+      side: 'home',
+      canonical_type: CanonicalEventType.CORNER,
+      is_cancelled: false
+    } as any,
+    // 2 shots within 5 minutes (min 62 and 64)
+    {
+      minute: 62,
+      side: 'home',
+      canonical_type: CanonicalEventType.SHOT_ON_TARGET,
+      is_cancelled: false
+    } as any,
+    {
+      minute: 64,
+      side: 'home',
+      canonical_type: CanonicalEventType.SHOT_ON_TARGET,
+      is_cancelled: false
+    } as any
+  ];
+
+  const match: CanonicalMatch = {
+    canonical_id: 'cluster_test',
+    timing: { minute: currentMinute, stage: 'SECOND_HALF' as any },
+    score: { home_score: 0, away_score: 0 },
+    reference: { timeline_events: events }
+  } as unknown as CanonicalMatch;
+
+  const dummyTimeline = {
+    slope_5m: 5.0,
+    slope_15m: 3.0,
+    integral_15m: { home: 180, away: 20 },
+    momentum_pyramid: { composite_slope: 5.0, consistency: 'ALIGNED' as const }
+  } as any;
+
+  const dummyEpi = {
+    home: { conversion_ratio: 0.85, classification: 'LETHAL_CONVERSION' as any },
+    away: { conversion_ratio: 0.10, classification: 'LOW_ACTIVITY' as any }
+  } as any;
+
+  const dummyTrinity = {
+    home: { calibrated_threat: 0.82, alignment_score: 0.85 },
+    away: { calibrated_threat: 0.15, alignment_score: 0.70 },
+    dominant_side: 'home' as const,
+    has_material_conflict: false,
+    rationale: []
+  } as any;
+
+  const climax = evaluateGoalClimax(match, dummyTimeline, dummyEpi, dummyTrinity);
+
+  // With both corner cluster (>=6) and shot barrage (>=8), climax score must be high
+  assert.ok(climax.climax_score >= 65.0, `Climax score ${climax.climax_score} must be >= 65.0`);
+  assert.equal(climax.is_imminent_threat, true, 'Imminent threat must be active under corner & shot barrage');
+  assert.equal(climax.attacking_side, 'home');
+});
+
+test('Core Algorithmic Overhaul: Red Card 10v11 Physics (+40% leak, -60% conversion)', () => {
+  const match: CanonicalMatch = {
+    canonical_id: 'red_physics_test',
+    timing: { minute: 55, stage: 'SECOND_HALF' as any },
+    score: { home_score: 0, away_score: 0 },
+    reference: {
+      timeline_events: [
+        {
+          minute: 40,
+          side: 'away',
+          canonical_type: CanonicalEventType.RED_CARD_DIRECT,
+          is_cancelled: false
+        } as any
+      ]
+    }
+  } as unknown as CanonicalMatch;
+
+  const dummyTimeline = {
+    integral_15m: { home: 120, away: 30 },
+    slope_5m: 1.0,
+    slope_15m: 1.0
+  } as any;
+
+  const dummyEpi = {
+    home: { energy_15m: 120 },
+    away: { energy_15m: 30 }
+  } as any;
+
+  const physicalWithRed = {
+    red_card_penalty: {
+      away_attack_multiplier: 0.40,
+      home_attack_multiplier: 1.0
+    }
+  } as any;
+
+  const regime = evaluateTacticalRegime(match, dummyTimeline, dummyEpi, physicalWithRed);
+
+  assert.equal(regime.red_card_active_side, 'away');
+  assert.ok(regime.regime_multiplier_home >= 1.35, `Home regime multiplier ${regime.regime_multiplier_home} must reflect +40% expansion against 10 men`);
+  assert.ok(regime.regime_multiplier_away <= 0.45, `Away regime multiplier ${regime.regime_multiplier_away} must reflect -60% conversion penalty with 10 men`);
+});
+
+

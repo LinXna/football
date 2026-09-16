@@ -625,11 +625,12 @@ export function calculateQuantitativeFeatures(
         0.30 * (timelineFeatures.total_points > 0 ? 1 : 0) +
         0.25 * (match.score.score_verified ? 1 : 0)
       ));
+  const homeAlign = spatioTemporalFeatures.live_threat_trinity.home.alignment_score;
+  const awayAlign = spatioTemporalFeatures.live_threat_trinity.away.alignment_score;
+  const compositeAlignment = 0.5 * homeAlign + 0.5 * awayAlign;
+  const cooldownPenalty = spatioTemporalFeatures.goal_climax.post_goal_cooldown_active ? 0.20 : 0;
   const modelStabilityScore = Math.round(100 * Math.max(0, Math.min(1,
-    0.45 + 0.55 * Math.min(
-      spatioTemporalFeatures.live_threat_trinity.home.alignment_score,
-      spatioTemporalFeatures.live_threat_trinity.away.alignment_score
-    ) - (spatioTemporalFeatures.goal_climax.post_goal_cooldown_active ? 0.20 : 0)
+    0.45 + 0.55 * compositeAlignment - cooldownPenalty
   )));
   const candidatePipeline = evaluateCandidatePipeline({
     rawSignals: resolved_positive_ev_signals,

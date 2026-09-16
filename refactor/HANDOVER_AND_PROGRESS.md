@@ -1,42 +1,88 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260914-QUANT-SYSTEMIC-OVERHAUL-04-P3`
-- **当前状态 (Status)**: `DONE`
-- **阶段进度 (Phase)**: `P3 实战闭环级 —— 台账持久化与样本滚雪球 (任务 3.1, 3.2, 3.3) [全面完成]`
-- **任务目标 (Goal)**：
-  1. 【任务 3.1 滚球与赛前双轨推荐台账持久化】：
-     - 打通 `refactor/runtime/formal_ledger_live.json` 与 `formal_ledger_prematch.json` 统一写盘契约；
-     - 在 `ledgerPersistence.ts` 中放行 `COLD_START_PERMISSIVE`（带 `OOS_COLD_START_EXEMPT` 标记）推荐腿持久化入账；
-     - 记录完整冻结预测快照 `prediction_snapshot`（赔率、盘口、公允概率、剩余 λ、红牌状态等）；
-     - 在 `/src/types.ts` 与 `/server/routes/refactorLedgerRoutes.ts` 建立统一的 TypeScript 契约模型；
-  2. 【任务 3.2 前端台账看板测试控制套件】：
-     - 支持单场同分钟幂等覆盖（更新旧记录，避免简单丢弃或重复堆叠）；
-     - 在 `refactorLedgerRoutes.ts` 新增 `POST /api/refactor/formal-ledger/delete`（单条/批量删除）与 `POST /api/refactor/formal-ledger/clear`（一键清空测试数据）；
-     - 在 `/src/components/CanonicalMatchCenter.tsx` 与 `/src/components/LedgerView.tsx` 增加【一键清空测试数据】与【单条删除】控制按钮及实时响应；
-  3. 【任务 3.3 完赛比分一键回填与 OOS 样本本地自增沉淀】：
-     - 支持快捷录入真实完赛比分与四分之一盘五态确定性核销（WIN / WIN_HALF / DRAW / LOSE_HALF / LOSE）；
-     - 结算完成后，通过 Layer 06 适配器将已结算记录自动转化为二元 OOS 样本，增量写入 `refactor/runtime/oos_calibration_samples.json`；
-     - 在 `historicalBacktestIngestion.ts` 放行 `COLD_START_PERMISSIVE` + `OOS_COLD_START_EXEMPT` 真实样本，自动触发 `buildOosCalibrationArchive` 增量重建档案，实现样本从 0 到 200 滚雪球增长；
+- **任务编号 (Task)**: `SNAPSHOT-20260916-PILLAR-2-3-DEEP-QUANT-OVERHAUL`
+- **当前状态 (Status)**: `IN_PROGRESS`
+- **阶段进度 (Phase)**: `P5.2 核心算法彻底重构与物理级因果重塑 —— 支柱二（身价同位置伤停比对、365日前置物理过滤、攻防实力乘子消灭倒挂）与支柱三（10m聚类爆发、红牌10打11三态绿茵仿真）`
+- **任务目标与交付清单 (Deliverables)**：
+  1. 【支柱二：伤停模型 LIS 深度重构 (`contextEngine.ts`)】[IN_PROGRESS]：
+     - 彻底废弃无脑计数，建立：
+       * 伤停人员身价与首发阵容同位置（前锋/中场/后卫/门将）平均身价的比对（位置替代落差）；
+       * 伤停人员身价占球队总身价（或首发总身价）的比重加权；
+       * 队长/核心关键属性加成；
+       * 结合指数饱和保底模型（$\text{LIS} = 0.75 + 0.25 \times \exp(-k \times \text{loss})$，严格保底 0.75）；
+  2. 【支柱二：365天样本计算前严格前置物理隔离门禁 (`contextEngine.ts`)】[TODO]：
+     - 纠正“算完再过滤”的反向操作，在对 `h2h_recent` 和 `recent_form` 进行任何指标提取前，执行严格的前置时间戳校验与 365 天物理隔离过滤，超期样本直接被拒之门外；
+  3. 【支柱二：强队主场权威压制与攻防实力期望纠偏 (`prematchPriorEngine.ts`)】[TODO]：
+     - 彻底删除粗暴写死 `if (isHomeDominant) lambdaA = clamp` 表面补丁；
+     - 采用正规 Dixon-Coles 乘法攻防实力模型：进攻强度 $\alpha$、防守漏洞/失球倾向 $\beta$、主场优势 $\gamma$；强队高防守战力使客队失球倾向自然压至极低，彻底杜绝逆天倒挂；
+  4. 【支柱三：10 分钟滑动窗口角球与射门聚类爆发因子 (`eventMomentumFusion.ts`)】[TODO]：
+     - 构建 10 分钟时序滑动窗口，精准识别连续角球（$\le 3$ 分钟 $\ge 2$ 次）、连续攻门（$\le 5$ 分钟 $\ge 2$ 脚）以及聚类爆发（10 分钟内角球 $\ge 3$ 或射门 $\ge 4$），量化防线窒息与破门威胁加成；
+  5. 【支柱三：红牌 10 打 11 绿茵物理仿真与三态因果流 (`eventMomentumFusion.ts`)】[TODO]：
+     - 拒绝简单系数缩放，按照领先（大巴防守+初段韧性/后段崩溃）、平局（控球受阻+漏球率上升）、落后（心理崩溃+全线崩盘）三态细化仿真，动态重构攻防战力乘子；
+  6. 【验证与闭环】[TODO]：
+     - 执行全链路单测、验证脚本与项目编译，确保 03 计算模型、04 AI 评估和前端面板数据真实一致。
 - **改动文件清单 (Target Files)**：
-  - `/refactor/05_portfolio_risk/ledgerPersistence.ts`
-  - `/refactor/06_settlement_audit/formalLedgerAdapter.ts`
-  - `/refactor/06_settlement_audit/historicalBacktestIngestion.ts`
-  - `/refactor/03_quant_engine/types.ts`
-  - `/server/services/oosArchiveService.ts`
-  - `/server/routes/refactorLedgerRoutes.ts`
-  - `/src/types.ts`
-  - `/src/components/CanonicalMatchCenter.tsx`
-  - `/src/components/LedgerView.tsx`
-  - `/refactor/tests/verify_p3_ledger_snowball.ts`
+  - `/refactor/03_quant_engine/contextEngine.ts`
+  - `/refactor/03_quant_engine/prematchPriorEngine.ts`
+  - `/refactor/03_quant_engine/eventMomentumFusion.ts`
   - `/refactor/HANDOVER_AND_PROGRESS.md`
-- **交付物与成果 (Deliverables)**：
-  - 双轨推荐台账持久化类 `LedgerPersistence`，具备静态与实例双模支持、幂等覆盖与状态快照；
-  - 前后端测试控制套件已集成（单条删除、批量删除、一键清空测试数据、实时列表刷新）；
-  - 完赛比分核销与真实 OOS 样本雪球自增管道全链路闭环，严格遵守时序窗口约束；
-  - 专属测试套件 `verify_p3_ledger_snowball.ts` 4 项核心测试 100% 验证通过；
-  - 全工程全量单测、`tsc --noEmit`、`compile_applet` 均绿色无错误通过。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260915-QUANT-ENGINE-SYSTEMIC-OVERHAUL-V2 (DONE)
+- **阶段进度**: `P5 终极根治级 —— 03计算模型四大支柱全面重构（盘口统一基准、伤停攻防纠偏、动量事件因果融合、置信度门禁解锁与防假数据硬核加固）[全面完成]`
+- **任务目标与交付清单 (Deliverables)**：
+  1. 【指导宪章与全景蓝图制定】[DONE]：
+     - 已生成最高量化执行宪章 `/refactor/SYSTEM_QUANT_REFACTOR_BLUEPRINT.md`，深度解剖历史根因并确立四大支柱无歧义修改清单；
+  2. 【支柱一：双源盘口与让球归属统一规范】[DONE]：
+     - 在 `devigCalculator.ts` 确认以 Master Home Line 为全局唯一基准坐标，四分之一盘保持负盘深度符号，赔率与下注项物理绑定，消除字符串乱反转；
+  3. 【支柱二：先验实力与攻防理论期望彻底纠偏】[DONE]：
+     - 在 `contextEngine.ts` 根治 LIS 伤停扣分灾难，使用指数饱和折损模型设立保底（$\text{LIS} \ge 0.75$），豪门 6 人伤停不再被暴跌至 0.40；
+     - 引入历史样本 365 天严格时间门禁（超期样本物理隔离归 0）；
+     - 在 `prematchPriorEngine.ts` 消除防守漏洞无底线放大（防守漏洞倍数封顶 1.25，杜绝 2.2 倍失控），彻底根治客强主弱逆天倒挂与 +52.1% 荒谬虚高 EV；
+     - 落实强队主场权威压制（Dominance Hierarchy Constraint）：主队统治级时，客队进球期望封顶 clamp至 1.20 以下；
+  4. 【支柱三：三维动态攻防矩阵与时序事件深度因果融合】[DONE]：
+     - 在 `eventMomentumFusion.ts` 中将角球权重提升至 0.20，与阵地渗透率、TTI、控球效率结合；
+     - 引入 10 分钟滑动窗口角球/射门密集聚类爆发奖惩因子（$\phi_{\text{cluster}}$）；
+     - 重构红牌 10 打 11 物理仿真矩阵：少打一人方防守漏球率 $+40\%$、前场反击折算率 $-60\%$；
+     - 完善黄牌语义惩罚：累积 2 黄转红牌物理级重构；
+  5. 【支柱四：解开置信度打折与门禁拦截互锁死结】[DONE]：
+     - 在 `alignmentGuard.ts` 与 `candidateStateMachine.ts` 中，冷启动优质候选（98分）进入 B 级试水通道（封顶 79 分），成功打破 68 分 < 70 分的清空死锁；
+  6. 【验证通过】[DONE]：
+     - 包含 10 大硬核防假数据与四大支柱测试在内的 93 项单元与集成测试全部通过 (93 pass, 0 fail, 6 suites)；
+     - 代码编译 (npm run build) 100% 成功。
+- **改动文件清单 (Target Files)**：
+  - `/refactor/SYSTEM_QUANT_REFACTOR_BLUEPRINT.md` (最高执行宪章)
+  - `/refactor/01_data_ingestion/leisu/leisuInterfaceExtractor.ts`
+  - `/refactor/03_quant_engine/devigCalculator.ts`
+  - `/refactor/03_quant_engine/contextEngine.ts`
+  - `/refactor/03_quant_engine/prematchPriorEngine.ts`
+  - `/refactor/03_quant_engine/eventMomentumFusion.ts`
+  - `/refactor/03_quant_engine/momentumQuantEngine.ts`
+  - `/refactor/03_quant_engine/candidateStateMachine.ts`
+  - `/refactor/04_ai_evaluator/alignmentGuard.ts`
+  - `/tests-ts/quantHardeningAntiFakeData.test.ts` (10项硬核反伪算法测试)
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
 - **下一步计划 (Next Steps)**：
-  - 进入持续实战数据演练或下一阶段的日常监控与模型迭代优化。
+  - 接入下一轮实战真实抓取数据，持续验证 OOS (Out-of-Sample) 下四大支柱的表现与推荐台账滚雪球增长。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260915-RUNTIME-CORE-BUGFIXES-01 (DONE)
+- **阶段进度**: `P4 核心实战质检级 —— 伤停补时模型修正、亚盘客队盘口方向纠正、冷启动Prompt门禁解耦与模型稳定性鲁棒性修复`
+- **交付成果**: 伤停补时物理模型、亚盘方向对齐、Prompt 指令统一与稳定性评分鲁棒性修复全面落地，全套 89 项测试通过。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260914-QUANT-SYSTEMIC-OVERHAUL-04-P3 (DONE)
+- **阶段进度**: `P3 实战闭环级 —— 台账持久化与样本滚雪球 (任务 3.1, 3.2, 3.3) [全面完成]`
+- **交付成果**: 双轨推荐台账持久化、测试控制套件（单条删除/一键清空）、完赛比分核销与真实 OOS 样本雪球自增管道全链路闭环，通过专属测试套件验证。
 
 ---
 
