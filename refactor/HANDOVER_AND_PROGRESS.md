@@ -1,36 +1,41 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
 - **任务编号 (Task)**: `SNAPSHOT-20260917-YELLOW-CARD-TACTICAL-SEMANTICS-AND-DEFENSIVE-COLLAPSE`
-- **当前状态 (Status)**: `IN_PROGRESS`
-- **阶段进度 (Phase)**: `P5.4 动态黄牌语义重构 —— 区分战术牺牲(反击阻断)与防线崩盘(受迫失位连环染黄)，高频黄牌防守惩罚闭环 [执行中]`
+- **当前状态 (Status)**: `DONE`
+- **阶段进度 (Phase)**: `P5.4 动态黄牌语义重构 —— 区分战术牺牲(反击阻断)与防线崩盘(受迫失位连环染黄)，高频黄牌防守惩罚全链路闭环 & 深度全链路排查确认 [已全面完成并通过全量验证]`
 - **任务目标与交付清单 (Deliverables)**：
-  1. 【事件威胁动态加权上下文重构 (`eventMomentumFusion.ts` -> `getEventThreatWeight`)】[IN_PROGRESS]：
-     - 将原本粗糙的一刀切正则加权重构为感知场上局势的动态函数；
-     - 引入比赛时间 `currentMinute` 与动量优势方 `dominance` 语义：
-       * 战术犯规/阻断反击 (Tactical Foul / Counter Disruption)：本方处于控球/高位压迫或中前场战术犯规，防守阵型并未崩溃，惩罚权重降至极小；
-       * 受迫失位连环犯规 (Defensive Collapse Under Siege)：在对方具有明显动量压制、高位围攻、或防守三区被动失位时连续犯规染黄，大幅提升威胁权重；
-       * 非战术犯规 (拖延时间/抗议裁判/脱衣庆祝等)：不扣减防守质量，维持纯纪律性低威胁权重；
-  2. 【纪律压力时间衰减与10分钟高频连环黄牌聚类 (`momentumQuantEngine.ts`)】[IN_PROGRESS]：
-     - 在 `discipline_pressure` 中重构计算逻辑，追踪 10 分钟滑动窗口内的连续染黄密度与后防线核心 (Defenders) 染黄承压；
-     - 产出高频受迫黄牌标志 `has_yellow_collapse_risk` 与防守承压乘子 `discipline_leak_factor`；
-  3. 【战术相变闭环与防线受迫崩盘相态 (`eventMomentumFusion.ts`)】[IN_PROGRESS]：
-     - 在 `evaluateTacticalRegime` 与 `GoalClimax` 临界态中，消费纪律压力与黄牌连环受迫信号；
-     - 触发高频染黄防线受迫崩盘与攻防期望动态泄漏；
-  4. 【测试用例与全量回归】[IN_PROGRESS]：
-     - 在 `tests-ts/quantHardeningAntiFakeData.test.ts` 中补充针对战术反击牺牲 vs 受迫连环失位崩盘的专属测试；
-     - 确保所有测试 100% 通过，零 any，遵循 SSOT 纯函数原则。
-     - 12 项量化预测核心测试全部通过；
-     - `tsc --noEmit` 全量静态类型检查 0 错误通过。
+  1. 【事件威胁动态加权与四态语义分类 (`eventMomentumFusion.ts`)】[DONE]：
+     - 重构黄牌语义分类器 `classifyYellowCardContext`：精准识别【战术牺牲阻断】(`TACTICAL_DISRUPTION`)、【受迫失位高危】(`DEFENSIVE_PRESSURE_FOUL`)、【非战术情绪/延误】(`NON_TACTICAL_DISSENT`) 与【常规拼抢】(`REGULAR_CONTEST`) 四态；
+     - 彻底修复威胁反转 Bug：犯规事件不再为犯规方增加进攻支持度（`event_support = 0`），战术犯规破坏对方反击，受迫染黄为对手加权进攻威胁（0.40x）；
+     - 支持双方独立战术相变乘子计算，避免 `else if` 遮蔽双边崩溃场景。
+  2. 【首发位置映射与10分钟因果共振崩盘门禁 (`momentumQuantEngine.ts`)】[DONE]：
+     - 首发名单真实位置比对：提取首发名单并建立 `buildPlayerPositionMap`，精准比对 DF/GK/CDM/DM/后腰/防守中场，排除前锋/边锋无害吃牌；
+     - 强因果共振：10 分钟内同一防守方连续吃 ≥2 张受迫失位黄牌，且伴随对手密集攻门/角球压制 (shots+corners >= 2 或危险进攻落后 15+)，判定防线体能崩溃失控 (`yellow_collapse_risk = true`)；
+     - 指数饱和漏洞方程：未崩溃严格维持 1.00；崩溃失控严格在 [1.05, 1.25] 区间动态平滑上浮（`1.05 + 0.20 * (1 - exp(-0.45 * (effectiveSiege - 1)))`），杜绝断崖突变，战术牺牲犯规与情绪性黄牌严格维持 1.00。
+  3. 【动力学、相变与风控全链路闭环 (`index.ts` & `poissonDecayModel.ts`)】[DONE]：
+     - `UnifiedMatchState` 正式注入 `discipline_leak_multiplier` 与 `yellow_collapse_risk`；
+     - `poissonDecayModel.ts` 动态进球期望动力学方程通过 `livePhysicalFactor` 乘入防守漏洞乘子，防守崩盘方漏球率合理上升，本方进攻期望不受虚假污染；
+     - 战术相变激活 `TacticalRegimeType.COLLAPSING_PANIC`，触发 `QuantAlert.COLLAPSING_PANIC_WARNING` 风控预警与置信度校准。
+  4. 【下游 Layer 04 对齐门禁联动与提示词导出 (`alignmentGuard.ts` & `promptExporter.ts`)】[DONE]：
+     - `promptExporter.ts` 结构化导出 `risk_flags` 与 `confidence_score`；
+     - `alignmentGuard.ts` 落地 6.4 硬门禁：触发 `COLLAPSING_PANIC_WARNING` 时强制将 A_GRADE 降为 B_GRADE，置信度上限强制压制至 75 分；
+     - `EvaluatorQuantFeatures` 接口强类型补全，零 `any`，零类型报错。
+  5. 【大模型提示词与测试全量回归 (`quantHardeningAntiFakeData.test.ts` & 全量测试)】[DONE]：
+     - `quantHardeningAntiFakeData.test.ts` 覆盖全部 Schemes 1~16 专项单元测试（战术阻断不漏球、连环受迫失位触发崩盘相变与预警、非战术情绪牌排除、泊松期望闭环消费、后腰/CDM 关键位置识别与多重压迫共振、Layer 04 崩盘风控硬降级门禁），16 个测试用例 100% 通过；
+     - 全量运行 `npm run test:ts`，全仓 6 个测试套件 99 个测试全量通过（99 pass, 0 fail）；
+     - `npm run lint` (`tsc --noEmit`) 与 `compile_applet` 100% 绿灯无报错。
 - **改动文件清单 (Target Files)**：
   - `/refactor/03_quant_engine/types.ts`
-  - `/refactor/03_quant_engine/contextEngine.ts`
-  - `/refactor/03_quant_engine/prematchPriorEngine.ts`
-  - `/refactor/04_ai_evaluator/types.ts`
+  - `/refactor/03_quant_engine/enums.ts`
+  - `/refactor/03_quant_engine/eventMomentumFusion.ts`
+  - `/refactor/03_quant_engine/momentumQuantEngine.ts`
+  - `/refactor/03_quant_engine/index.ts`
+  - `/refactor/03_quant_engine/poissonDecayModel.ts`
   - `/refactor/04_ai_evaluator/promptExporter.ts`
   - `/tests-ts/quantHardeningAntiFakeData.test.ts`
   - `/refactor/HANDOVER_AND_PROGRESS.md`
 - **下一步计划 (Next Steps)**：
-  - 维持当前架构的高水准纯净性，等待实盘输入或进行后续特定模块的指令验证。
+  - 继续保持量化评估系统各模块因果闭环与强类型零 any 契约，迎接下一阶段实盘验证或新需求。
 
 ---
 

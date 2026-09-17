@@ -50,12 +50,14 @@ export interface EvaluatorQuantFeatures {
   candidate_pipeline?: Layer03CandidatePipeline;
   risk_adjusted_ev?: number;
   risk_flags?: QuantAlert[];
+  confidence_score?: number;
   poisson_expected_goals?: string;
   prediction_snapshot?: {
     model_version: string;
     prediction_at: string;
     predicted_lambda: { home: number; away: number };
     red_card_state: string;
+    discipline_state?: string;
     signals: readonly PositiveEVSignal[];
   };
   market_divergence_insights?: string;

@@ -336,6 +336,12 @@ export interface RealTimePhysicalStatsFeatures {
     away_defenders_on_yellow?: number;
     home_yellow_burst_10m?: number;
     away_yellow_burst_10m?: number;
+    home_tactical_foul_yellows?: number;
+    away_tactical_foul_yellows?: number;
+    home_dissent_time_yellows?: number;
+    away_dissent_time_yellows?: number;
+    home_siege_yellows_10m?: number;
+    away_siege_yellows_10m?: number;
     home_yellow_collapse_risk?: boolean;
     away_yellow_collapse_risk?: boolean;
     home_discipline_leak_factor?: number;
@@ -743,6 +749,10 @@ export interface UnifiedMatchState {
   red_card_attack_multiplier_away: number;
   red_card_defense_leak_multiplier_home: number;
   red_card_defense_leak_multiplier_away: number;
+  discipline_leak_multiplier_home?: number;
+  discipline_leak_multiplier_away?: number;
+  yellow_collapse_risk_home?: boolean;
+  yellow_collapse_risk_away?: boolean;
   home_tti?: number;
   away_tti?: number;
   pyramid_slope?: number;

@@ -431,6 +431,18 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
     additionalWarnings.push("SYSTEM QUANT WARNING: 存在红牌战术失衡 (RED_CARD_TACTICAL_COLLAPSE)，严防防线崩溃风险");
   }
 
+  // 6.4 连续受迫失位防线失控崩盘警报 (COLLAPSING_PANIC_WARNING): 防线体能/心态崩溃，禁止 A_GRADE，置信度上限 75
+  if (quantRiskFlags.includes(QuantAlert.COLLAPSING_PANIC_WARNING)) {
+    if (enforcedGrade === RecommendationGrade.A_GRADE) {
+      enforcedGrade = RecommendationGrade.B_GRADE;
+    }
+    additionalWarnings.push("SYSTEM HARD GATE: 触发 Layer 03 连续受迫失位防线失控崩盘警报 (COLLAPSING_PANIC_WARNING)，剥夺 A 级重仓资格降为 B 级试探");
+    if (enforcedConfidence > 75) {
+      enforcedConfidence = 75;
+      additionalWarnings.push("SYSTEM HARD GATE: 防线存在崩盘风险，置信度强制封顶 75 分");
+    }
+  }
+
   // Step 5, 10, 11: 四分之一盘五态真实结算及滚球已结算盘口审查 (P0-01, P0-02, P0-03, P0-04, P1-04, P1-12)
   const auditedRecommendedLegs: typeof result.recommended_legs = [];
 

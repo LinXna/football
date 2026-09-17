@@ -117,6 +117,10 @@ export function buildUnifiedMatchState(
     red_card_attack_multiplier_away: physical?.red_card_penalty?.away_attack_multiplier ?? 1.0,
     red_card_defense_leak_multiplier_home: physical?.red_card_penalty?.home_defense_leak_multiplier ?? 1.0,
     red_card_defense_leak_multiplier_away: physical?.red_card_penalty?.away_defense_leak_multiplier ?? 1.0,
+    discipline_leak_multiplier_home: physical?.discipline_pressure?.home_discipline_leak_factor ?? 1.0,
+    discipline_leak_multiplier_away: physical?.discipline_pressure?.away_discipline_leak_factor ?? 1.0,
+    yellow_collapse_risk_home: physical?.discipline_pressure?.home_yellow_collapse_risk ?? false,
+    yellow_collapse_risk_away: physical?.discipline_pressure?.away_yellow_collapse_risk ?? false,
     home_tti: physical?.threat_transformation_index?.home_tti,
     away_tti: physical?.threat_transformation_index?.away_tti,
     pyramid_slope: timeline?.momentum_pyramid?.composite_slope ?? timeline?.slope_5m,
@@ -226,6 +230,11 @@ export function calculateConfidenceAndAlerts(
 
   if ((physical.red_card_penalty?.home_attack_multiplier ?? 1.0) < 1.0 || (physical.red_card_penalty?.away_attack_multiplier ?? 1.0) < 1.0) {
     riskFlags.push(QuantAlert.RED_CARD_TACTICAL_COLLAPSE);
+  }
+
+  if (physical.discipline_pressure?.home_yellow_collapse_risk || physical.discipline_pressure?.away_yellow_collapse_risk) {
+    score -= 6;
+    riskFlags.push(QuantAlert.COLLAPSING_PANIC_WARNING);
   }
 
   if (devig.bookmaker_posture === BookmakerPosture.TRAP_HIGH_ODDS) {

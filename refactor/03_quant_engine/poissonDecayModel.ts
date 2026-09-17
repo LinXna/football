@@ -675,9 +675,11 @@ export function calculateInPlayPoissonFeatures(
   const priorContextWeight = 1.0 - liveStatsWeight;
 
   // 计算现场实时物理事实所指示的即时进球乘子组合 (Live Physical Signal Factor)
-  // 包含：现场技术威胁张量 (threatDamping)、战术相变乘子 (regimeMultiplier)、红牌影响与进球冷却
-  const livePhysicalFactorHome = threatDampingHome * regimeMultiplierHome * redAttackHome * redLeakAway * postGoalCooldownMultiplier;
-  const livePhysicalFactorAway = threatDampingAway * regimeMultiplierAway * redAttackAway * redLeakHome * postGoalCooldownMultiplier;
+  // 包含：现场技术威胁张量 (threatDamping)、战术相变乘子 (regimeMultiplier)、红牌影响与进球冷却，以及纪律失控漏洞 (disciplineLeak)
+  const discLeakHome = matchState.discipline_leak_multiplier_home ?? 1.0;
+  const discLeakAway = matchState.discipline_leak_multiplier_away ?? 1.0;
+  const livePhysicalFactorHome = threatDampingHome * regimeMultiplierHome * redAttackHome * (redLeakAway * discLeakAway) * postGoalCooldownMultiplier;
+  const livePhysicalFactorAway = threatDampingAway * regimeMultiplierAway * redAttackAway * (redLeakHome * discLeakHome) * postGoalCooldownMultiplier;
 
   // 将现场事实因子与先验中性基准 (1.0) 按照当前分钟对应的主导权重进行加权合成：
   // 当 liveStatsWeight 达到 82.5% 时，现场发生的围攻/死沉/红牌将主导 82.5% 的进球能力变化！

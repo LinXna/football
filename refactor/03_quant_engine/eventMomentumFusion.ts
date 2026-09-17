@@ -31,6 +31,7 @@ import {
   EventPressureConversionType,
   TacticalRegimeFeatures,
   TacticalRegimeType,
+  YellowCardContextType,
   GoalClimaxFeatures,
   GoalClimaxLevel,
   SpatioTemporalEventFeatures,
@@ -55,7 +56,70 @@ function getEventMinute(event: CanonicalTimelineEvent): number | null {
 }
 
 /**
- * 计算单个事件的物理威胁基准度
+ * 黄牌语义与战术情境分类器 (SSOT)
+ * 严格区分：
+ * 1. TACTICAL_DISRUPTION: 战术牺牲犯规（阻断快攻/合理延缓，不判定为防守能力下降，漏洞乘子严格为 1.00）
+ * 2. DEFENSIVE_COLLAPSE_BREACH: 受迫失位高危犯规（后防被动挨打/禁区边缘犯规，计入 10m 崩盘池）
+ * 3. NON_TACTICAL_DISSENT: 非战术情绪/违纪（拖延时间/抗议裁判/脱衣庆祝，零防守漏洞）
+ * 4. ROUTINE_TECHNICAL_FOUL: 常规拼抢争顶犯规
+ */
+export function classifyYellowCardContext(
+  event: CanonicalTimelineEvent,
+  options?: {
+    playerRole?: 'DF' | 'GK' | 'MF' | 'FW' | null;
+    oppMomentumLead?: number;
+    oppRecentShots10m?: number;
+    oppRecentCorners10m?: number;
+  }
+): YellowCardContextType {
+  const isYellow = event.canonical_type === CanonicalEventType.YELLOW_CARD || event.type === 3;
+  const reason = String(event.text || '').toLowerCase();
+  if (!isYellow && !reason.includes('黄牌') && !reason.includes('yellow')) {
+    return YellowCardContextType.ROUTINE_TECHNICAL_FOUL;
+  }
+
+  // 1. 替补席/教练席或离场人员吃牌，直接归为非战术违纪
+  if (event.is_on_pitch === false) {
+    return YellowCardContextType.NON_TACTICAL_DISSENT;
+  }
+
+  // 2. 非战术情绪性 / 拖延时间黄牌 (Non-tactical Dissent / Time Waste)
+  const isEmotionalOrDissent = /dissent|argument|delay|time\s*waste|time\s*wasting|shirt|celebrat|争吵|抗议|抱怨|拖延|时间|延误|脱衣|庆祝/i.test(reason);
+  if (isEmotionalOrDissent) {
+    return YellowCardContextType.NON_TACTICAL_DISSENT;
+  }
+
+  // 3. 战术牺牲犯规判定 (Tactical Disruption Foul)
+  // 3.1 明确文本标识（战术犯规、拉拽战术球衣、破坏反击等）
+  const isExplicitTactical = /tactical|pull|holding|breakaway|counter|trip|cynical|战术|反击|拉拽|阻断|故意拉扯|破坏快攻/i.test(reason);
+  if (isExplicitTactical) {
+    return YellowCardContextType.TACTICAL_DISRUPTION;
+  }
+
+  // 4. 防线受迫失位高危犯规判定 (Defensive Collapse Under Siege)
+  // 当处于对方高强度围攻压制下，后防核心 (DF/GK) 染黄，或发生禁区边缘高危失守犯规
+  const isDangerousAreaFoul = /dangerous|box|penalty area|last man|sliding|reckless|铲球|禁区|防线失守|单刀阻截|禁区前|禁区内|绊倒/i.test(reason);
+  const isDefender = options?.playerRole === 'DF' || options?.playerRole === 'GK';
+  const oppUnderSiege = (options?.oppRecentShots10m ?? 0) >= 2 ||
+                        (options?.oppRecentCorners10m ?? 0) >= 2 ||
+                        (options?.oppMomentumLead ?? 0) >= 30;
+
+  if ((isDefender && oppUnderSiege) || isDangerousAreaFoul || (oppUnderSiege && !options?.playerRole)) {
+    return YellowCardContextType.DEFENSIVE_COLLAPSE_BREACH;
+  }
+
+  // 3.2 如果在中前场且对方处于反击推进中（对手有净动量正值），判定为合理战术延缓
+  const isMidOrForward = options?.playerRole === 'MF' || options?.playerRole === 'FW';
+  if (isMidOrForward && (options?.oppMomentumLead ?? 0) > 0) {
+    return YellowCardContextType.TACTICAL_DISRUPTION;
+  }
+
+  // 5. 常规争抢犯规
+  return YellowCardContextType.ROUTINE_TECHNICAL_FOUL;
+}
+
+/**
+ * 计算单个进攻相关事件的物理威胁基准度 (非进攻性质的纪律牌归零，杜绝威胁方向反向误增)
  */
 function getEventThreatWeight(event: CanonicalTimelineEvent): number {
   if (event.is_cancelled || event.is_var_overturned) return 0.0;
@@ -78,27 +142,15 @@ function getEventThreatWeight(event: CanonicalTimelineEvent): number {
     return 2.5;
   }
 
-  // 3. 红黄牌与纪律事件 (防线压力征兆与语义语义分级)
+  // 3. 纪律事件：吃牌方绝不增加自身进攻威胁（由 calculateDecayedEventScore 专门处理攻守流向）
   if (
     event.canonical_type === CanonicalEventType.RED_CARD_DIRECT ||
     event.canonical_type === CanonicalEventType.RED_CARD_SECOND_YELLOW ||
-    event.type === 4
-  ) {
-    return 2.5;
-  }
-
-  if (
     event.canonical_type === CanonicalEventType.YELLOW_CARD ||
+    event.type === 4 ||
     event.type === 3
   ) {
-    if (event.is_on_pitch === false) return 0.0;
-    // 语义分级：战术犯规/破坏绝佳机会 (0.75) vs 情绪抗议/拖延时间 (0.25)
-    const reason = String(event.text || '').toLowerCase();
-    const isTacticalFoul = /foul|tactical|trip|pull|holding|breakaway|handball|阻挡|犯规|战术|拉拽/i.test(reason);
-    const isEmotionalOrDissent = /dissent|argument|delay|time|protest|争吵|抗议|拖延|时间/i.test(reason);
-    if (isTacticalFoul) return 0.75;
-    if (isEmotionalOrDissent) return 0.25;
-    return 0.50;
+    return 0.0;
   }
 
   // 4. 战术角球与射正
@@ -129,6 +181,7 @@ function getEventThreatWeight(event: CanonicalTimelineEvent): number {
 
 /**
  * 计算带时间半衰期指数衰减的事件威胁积分
+ * 严格修正事件因果流向：吃牌方绝不增加自身进攻积分；受迫失位高危犯规计入攻方突破造险
  * @param events 事件数组
  * @param currentMinute 当前比赛进行分钟
  * @param halfLife 半衰期（分钟，默认 15 分钟）
@@ -149,10 +202,37 @@ export function calculateDecayedEventScore(
     const deltaT = Math.max(0, currentMinute - m);
     // 指数时间衰减权重 e^(-deltaT / halfLife)
     const decayWeight = Math.exp(-deltaT / halfLife);
+    const side = getEventSide(ev);
+
+    // 1. 红牌事件：少打一人，其对手获得前场压迫推进优势（而非吃红牌方增加进攻威胁）
+    const isRed = ev.canonical_type === CanonicalEventType.RED_CARD_DIRECT ||
+                  ev.canonical_type === CanonicalEventType.RED_CARD_SECOND_YELLOW ||
+                  ev.type === 4;
+    if (isRed) {
+      const oppSide = side === 'home' ? 'away' : (side === 'away' ? 'home' : 'neutral');
+      if (oppSide === 'home') homeScore += 1.50 * decayWeight;
+      else if (oppSide === 'away') awayScore += 1.50 * decayWeight;
+      continue;
+    }
+
+    // 2. 黄牌事件：区分战术犯规、非战术情绪与受迫失位
+    const isYellow = ev.canonical_type === CanonicalEventType.YELLOW_CARD || ev.type === 3;
+    if (isYellow) {
+      const yellowCtx = classifyYellowCardContext(ev);
+      if (yellowCtx === YellowCardContextType.DEFENSIVE_COLLAPSE_BREACH) {
+        // 受迫失位高危犯规：对手在进攻压迫中制造危险定位球/前场突破，计入对手的前场造险积分
+        const oppSide = side === 'home' ? 'away' : (side === 'away' ? 'home' : 'neutral');
+        if (oppSide === 'home') homeScore += 0.40 * decayWeight;
+        else if (oppSide === 'away') awayScore += 0.40 * decayWeight;
+      }
+      // 战术犯规 (TACTICAL_DISRUPTION)、非战术情绪黄牌 (NON_TACTICAL_DISSENT) 与常规争抢均不计入前场进攻威胁
+      continue;
+    }
+
+    // 3. 常规进攻与技术事件
     const baseWeight = getEventThreatWeight(ev);
     const effectiveWeight = baseWeight * decayWeight;
 
-    const side = getEventSide(ev);
     if (side === 'home') {
       homeScore += effectiveWeight;
     } else if (side === 'away') {
@@ -598,8 +678,22 @@ export function evaluateTacticalRegime(
 
   // 6. 战术相变类型软投影 (选取最高激活能量状态)
   const aRed = redSide !== 'none' ? 1.0 : 0.0;
+  const yellowCollapseHome = physical.discipline_pressure?.home_yellow_collapse_risk ?? false;
+  const yellowCollapseAway = physical.discipline_pressure?.away_yellow_collapse_risk ?? false;
+  const aPanic = (yellowCollapseHome || yellowCollapseAway) ? 0.90 : 0.0;
+
+  if (yellowCollapseHome) {
+    regimeMultiplierHome -= 0.20;
+    regimeMultiplierAway += 0.25;
+  }
+  if (yellowCollapseAway) {
+    regimeMultiplierAway -= 0.20;
+    regimeMultiplierHome += 0.25;
+  }
+
   const stateCandidates = [
     { regime: TacticalRegimeType.RED_CARD_COLLAPSE, energy: aRed, desc: redSide === 'home' ? '主队染红少打一人，防线深度承压' : (redSide === 'away' ? '客队染红少打一人，主队围攻压制' : (redSide === 'both' ? '双方各罚下一人 (10v10)' : '')) },
+    { regime: TacticalRegimeType.COLLAPSING_PANIC, energy: aPanic, desc: (yellowCollapseHome && yellowCollapseAway) ? '双方防线体能崩溃失控，连环受迫染黄互有漏洞' : (yellowCollapseHome ? '主队防线体能崩溃失控，连环受迫染黄防线洞开' : (yellowCollapseAway ? '客队防线体能崩溃失控，连环受迫染黄防线洞开' : '')) },
     { regime: TacticalRegimeType.ELASTIC_COUNTER, energy: Math.max(aCounterHome, aCounterAway), desc: aCounterHome > aCounterAway ? '主队比分领先转入深度防守，客队大举围攻' : '客队比分领先转入深度防守，主队大举围攻' },
     { regime: TacticalRegimeType.DESPERATION_ASSAULT, energy: aDesperation, desc: scoreDiff < 0 ? '主队一球落后进入终盘绝境搏命，前场全线压上' : '客队一球落后进入终盘绝境搏命，节奏急剧加速' },
     { regime: TacticalRegimeType.GAME_CONTROL_DECELERATION, energy: aControl, desc: '领先优势确立，控场节奏放缓' },

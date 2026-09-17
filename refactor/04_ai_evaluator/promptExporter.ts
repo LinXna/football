@@ -325,6 +325,8 @@ export function generateRefactoredPrompt(
         candidate_pipeline: quantFeatures.candidate_pipeline,
         bdi: quantFeatures.battlefield_dominance_index,
         goal_phase_alert: quantFeatures.goal_phase_alert,
+        risk_flags: quantFeatures.risk_flags,
+        confidence_score: quantFeatures.confidence_score,
         machine_candidate_count: quantFeatures.candidate_pipeline.machine_candidate_count,
         poisson_expected_goals: quantFeatures.poisson ? `Home Rest: ${quantFeatures.poisson.lambda_home_rest?.toFixed(2)}, Away Rest: ${quantFeatures.poisson.lambda_away_rest?.toFixed(2)}` : undefined,
         prediction_snapshot: quantFeatures.poisson ? {

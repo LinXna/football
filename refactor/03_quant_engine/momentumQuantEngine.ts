@@ -15,15 +15,36 @@
 
 import { CanonicalMatch } from '../02_canonical_model/types.js';
 import { CanonicalEventType } from '../02_canonical_model/enums.js';
+import { ParsedPlayer } from '../01_data_ingestion/leisu/types.js';
 import {
   MomentumTimelineFeatures,
   RealTimePhysicalStatsFeatures,
   MomentumTrend,
+  YellowCardContextType,
   Layer03OpId,
   Layer03FeatureId
 } from './types.js';
+import { classifyYellowCardContext } from './eventMomentumFusion.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
+
+/**
+ * 辅助函数：提取首发阵容球员位置映射
+ */
+function buildPlayerPositionMap(starters?: ParsedPlayer[]): Map<string, 'DF' | 'GK' | 'MF' | 'FW'> {
+  const map = new Map<string, 'DF' | 'GK' | 'MF' | 'FW'>();
+  if (!starters || !Array.isArray(starters)) return map;
+  for (const p of starters) {
+    if (!p.name) continue;
+    const posStr = String(p.position || p.position_name || p.position_code || '').toUpperCase();
+    let zone: 'DF' | 'GK' | 'MF' | 'FW' = 'MF';
+    if (posStr.includes('GK') || posStr.includes('门将') || posStr.includes('守门员') || posStr === 'G') zone = 'GK';
+    else if (posStr.includes('DF') || posStr.includes('CB') || posStr.includes('LB') || posStr.includes('RB') || posStr.includes('后卫') || posStr.includes('DM') || posStr.includes('CDM') || posStr.includes('后腰') || posStr === 'D' || posStr.includes('DEF')) zone = 'DF';
+    else if (posStr.includes('FW') || posStr.includes('ST') || posStr.includes('CF') || posStr.includes('LW') || posStr.includes('RW') || posStr.includes('前锋') || posStr === 'F') zone = 'FW';
+    map.set(p.name.trim().toLowerCase(), zone);
+  }
+  return map;
+}
 
 /**
  * 最小二乘法求解一维时间序列的线性回归斜率 (OLS Slope)
@@ -398,23 +419,67 @@ export function extractRealTimePhysicalStats(
   const homePossession = stats?.possession?.home;
   const awayPossession = stats?.possession?.away;
 
-  // 1. 统计时序事件中的越位与明确文本确认的门柱造险（Type 22 仅为射偏），以及黄牌微观聚类
+  // 1. 统计时序事件中的越位、门柱造险、攻防射门角球聚类与黄牌微观语义分类
   const currentMinute = Math.max(0, (match.timing?.minute ?? 0));
   const window10m = Math.max(0, currentMinute - 10);
+  const homeStarters = match.reference?.lineups?.home_starters;
+  const awayStarters = match.reference?.lineups?.away_starters;
+  const homePositionMap = buildPlayerPositionMap(homeStarters);
+  const awayPositionMap = buildPlayerPositionMap(awayStarters);
+
   let homeOffsides = 0;
   let awayOffsides = 0;
   let homeWoodwork = 0;
   let awayWoodwork = 0;
   let homeDefYellows = 0;
   let awayDefYellows = 0;
+  let homeTacticalYellows = 0;
+  let awayTacticalYellows = 0;
+  let homeDissentYellows = 0;
+  let awayDissentYellows = 0;
+  let homeSiegeYellows10m = 0;
+  let awaySiegeYellows10m = 0;
   let homeYellowBurst10m = 0;
   let awayYellowBurst10m = 0;
+  let homeShots10m = 0;
+  let awayShots10m = 0;
+  let homeCorners10m = 0;
+  let awayCorners10m = 0;
 
+  // 第一阶段：先行提取近 10 分钟双方真实射门与角球压制频次（为黄牌因果共振提供依据）
   for (const ev of events) {
-    if (ev.is_cancelled) continue;
+    if (ev.is_cancelled || ev.is_var_overturned) continue;
+    const side = ev.side;
+    const type = ev.type;
+    const evMinute = ev.minute ?? (typeof ev.text === 'string' ? Number(ev.text.match(/\b(\d{1,3})['’]/)?.[1]) : null);
+    const inWindow10m = evMinute !== null && !isNaN(evMinute) && evMinute >= window10m && evMinute <= currentMinute;
+
+    if (inWindow10m) {
+      const isShot = type === 21 || type === 22 || type === 1 ||
+                     ev.canonical_type === CanonicalEventType.SHOT_ON_TARGET ||
+                     ev.canonical_type === CanonicalEventType.SHOT_OFF_TARGET ||
+                     ev.canonical_type === CanonicalEventType.GOAL_REGULAR ||
+                     ev.canonical_type === CanonicalEventType.GOAL_PENALTY;
+      const isCorner = type === 2 || ev.canonical_type === CanonicalEventType.CORNER;
+      if (isShot) {
+        if (side === 'home') homeShots10m++;
+        else if (side === 'away') awayShots10m++;
+      }
+      if (isCorner) {
+        if (side === 'home') homeCorners10m++;
+        else if (side === 'away') awayCorners10m++;
+      }
+    }
+  }
+
+  // 第二阶段：遍历所有事件，提取越位、门柱险情，并进行黄牌语义精准分流
+  for (const ev of events) {
+    if (ev.is_cancelled || ev.is_var_overturned) continue;
     const side = ev.side;
     const type = ev.type;
     const text = String(ev.text || '');
+    const evMinute = ev.minute ?? (typeof ev.text === 'string' ? Number(ev.text.match(/\b(\d{1,3})['’]/)?.[1]) : null);
+    const inWindow10m = evMinute !== null && !isNaN(evMinute) && evMinute >= window10m && evMinute <= currentMinute;
 
     // 越位 (标准事件代码 5 或标准事件类型)
     if (type === 5 || ev.canonical_type === CanonicalEventType.OFFSIDE || text.includes('越位') || text.includes('Offside')) {
@@ -428,27 +493,85 @@ export function extractRealTimePhysicalStats(
       else if (side === 'away') awayWoodwork++;
     }
 
-    // 纪律黄牌事件：防守球员吃黄牌与近 10 分钟突发聚类统计
+    // 纪律黄牌事件：按语义分类器精确分流
     const isYellow = type === 3 || ev.canonical_type === CanonicalEventType.YELLOW_CARD || text.includes('黄牌') || text.includes('Yellow');
-    if (isYellow) {
-      if (ev.is_on_pitch !== false) {
-        if (side === 'home') homeDefYellows++;
-        else if (side === 'away') awayDefYellows++;
-      }
-      const evMinute = ev.minute ?? (typeof ev.text === 'string' ? Number(ev.text.match(/\b(\d{1,3})['’]/)?.[1]) : null);
-      if (evMinute !== null && !isNaN(evMinute) && evMinute >= window10m && evMinute <= currentMinute) {
+    if (isYellow && ev.is_on_pitch !== false) {
+      if (inWindow10m) {
         if (side === 'home') homeYellowBurst10m++;
         else if (side === 'away') awayYellowBurst10m++;
+      }
+
+      // 获取受罚球员战术位置
+      const pName = String(ev.player_name || '').trim().toLowerCase();
+      const posMap = side === 'home' ? homePositionMap : awayPositionMap;
+      let playerRole: 'DF' | 'GK' | 'MF' | 'FW' | null = (pName && posMap.has(pName)) ? posMap.get(pName)! : null;
+      if (!playerRole) {
+        if (text.includes('门将') || text.includes('守门员')) playerRole = 'GK';
+        else if (text.includes('后卫') || text.includes('中卫') || text.includes('边卫') || text.includes('后腰') || text.includes('防守中场') || text.includes('cdm') || text.includes('dm')) playerRole = 'DF';
+        else if (text.includes('前锋')) playerRole = 'FW';
+      }
+
+      // 获取受罚时刻对方的进攻施压特征 (仅当事件处于近10分钟窗口时，当前窗口围攻数据才具有同窗因果性)
+      const oppShots = side === 'home' ? awayShots10m : homeShots10m;
+      const oppCorners = side === 'home' ? awayCorners10m : homeCorners10m;
+      const oppDALead = side === 'home' ? ((awayDA ?? 0) - (homeDA ?? 0)) : ((homeDA ?? 0) - (awayDA ?? 0));
+
+      const yellowCtx = classifyYellowCardContext(ev, {
+        playerRole,
+        oppRecentShots10m: inWindow10m ? oppShots : 0,
+        oppRecentCorners10m: inWindow10m ? oppCorners : 0,
+        oppMomentumLead: inWindow10m ? oppDALead : 0
+      });
+
+      if (yellowCtx === YellowCardContextType.NON_TACTICAL_DISSENT) {
+        // 非战术情绪/拖延时间黄牌：零防守减损，不计入崩溃池
+        if (side === 'home') homeDissentYellows++;
+        else if (side === 'away') awayDissentYellows++;
+      } else if (yellowCtx === YellowCardContextType.TACTICAL_DISRUPTION) {
+        // 战术牺牲犯规：合理战术延缓，不判定为防守能力下降，不计入崩溃池
+        if (side === 'home') homeTacticalYellows++;
+        else if (side === 'away') awayTacticalYellows++;
+      } else if (yellowCtx === YellowCardContextType.DEFENSIVE_COLLAPSE_BREACH) {
+        // 受迫失位高危犯规：后防失守/被动挨打
+        if (playerRole === 'DF' || playerRole === 'GK' || !playerRole) {
+          if (side === 'home') homeDefYellows++;
+          else if (side === 'away') awayDefYellows++;
+        }
+        if (inWindow10m) {
+          if (side === 'home') homeSiegeYellows10m++;
+          else if (side === 'away') awaySiegeYellows10m++;
+        }
+      } else {
+        // 常规争抢犯规
+        if (playerRole === 'DF' || playerRole === 'GK') {
+          if (side === 'home') homeDefYellows++;
+          else if (side === 'away') awayDefYellows++;
+        }
       }
     }
   }
 
-  // 1.1 判定后防连续受迫染黄崩溃风险与防守漏洞恶化乘子 (Discipline Leak Factor)
-  // 当 10 分钟内连续染黄 >= 2 张或防线核心染黄 >= 3 张，触发受迫失位崩盘高危预警
-  const homeYellowCollapse = homeYellowBurst10m >= 2 || homeDefYellows >= 3;
-  const awayYellowCollapse = awayYellowBurst10m >= 2 || awayDefYellows >= 3;
-  const homeDisciplineLeak = Number(Math.min(1.40, 1.0 + (homeYellowBurst10m * 0.10) + (homeDefYellows >= 3 ? 0.15 : 0.0)).toFixed(3));
-  const awayDisciplineLeak = Number(Math.min(1.40, 1.0 + (awayYellowBurst10m * 0.10) + (awayDefYellows >= 3 ? 0.15 : 0.0)).toFixed(3));
+  // 1.1 因果共振判定后防连续受迫染黄崩溃风险与防守漏洞恶化乘子 (Discipline Leak Factor)
+  // 严格因果共振条件：
+  // 1. 10 分钟内同一方连续吃到 >= 2 张受迫失位高危黄牌 (siegeYellows10m >= 2)
+  // 2. 且伴随对手密集攻门/角球压制 (oppShots10m >= 2 || oppCorners10m >= 2 || (oppDA && teamDA && oppDA >= teamDA + 15))
+  // 或防线核心受迫染黄严重积聚 (defYellows >= 3 且对方持续压迫)
+  const awayHasHeavyPressure = (awayShots10m + awayCorners10m >= 2) || (awayDA !== undefined && homeDA !== undefined && awayDA >= homeDA + 15);
+  const homeHasHeavyPressure = (homeShots10m + homeCorners10m >= 2) || (homeDA !== undefined && awayDA !== undefined && homeDA >= awayDA + 15);
+
+  const homeYellowCollapse = (homeSiegeYellows10m >= 2 && awayHasHeavyPressure) || (homeDefYellows >= 3 && awayHasHeavyPressure);
+  const awayYellowCollapse = (awaySiegeYellows10m >= 2 && homeHasHeavyPressure) || (awayDefYellows >= 3 && homeHasHeavyPressure);
+
+  // 指数平滑饱和漏洞方程：未崩溃为 1.00；崩溃失控严格在 [1.05, 1.25] 区间动态上浮
+  const homeEffectiveSiege = Math.max(homeSiegeYellows10m, homeDefYellows >= 3 ? 2 : 0);
+  const awayEffectiveSiege = Math.max(awaySiegeYellows10m, awayDefYellows >= 3 ? 2 : 0);
+
+  const homeDisciplineLeak = homeYellowCollapse
+    ? Number((Math.min(1.25, Math.max(1.05, 1.05 + 0.20 * (1.0 - Math.exp(-0.45 * Math.max(1, homeEffectiveSiege - 1)))))).toFixed(3))
+    : 1.00;
+  const awayDisciplineLeak = awayYellowCollapse
+    ? Number((Math.min(1.25, Math.max(1.05, 1.05 + 0.20 * (1.0 - Math.exp(-0.45 * Math.max(1, awayEffectiveSiege - 1)))))).toFixed(3))
+    : 1.00;
 
   // 2. 控球有效性 (PE: Possession Effectiveness)
   const homePE = (homeDA !== undefined && homePossession !== undefined) ? Number((homeDA / (homePossession + 1.0)).toFixed(3)) : undefined;
@@ -644,6 +767,12 @@ export function extractRealTimePhysicalStats(
       away_defenders_on_yellow: awayDefYellows,
       home_yellow_burst_10m: homeYellowBurst10m,
       away_yellow_burst_10m: awayYellowBurst10m,
+      home_tactical_foul_yellows: homeTacticalYellows,
+      away_tactical_foul_yellows: awayTacticalYellows,
+      home_dissent_time_yellows: homeDissentYellows,
+      away_dissent_time_yellows: awayDissentYellows,
+      home_siege_yellows_10m: homeSiegeYellows10m,
+      away_siege_yellows_10m: awaySiegeYellows10m,
       home_yellow_collapse_risk: homeYellowCollapse,
       away_yellow_collapse_risk: awayYellowCollapse,
       home_discipline_leak_factor: homeDisciplineLeak,

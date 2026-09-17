@@ -160,3 +160,10 @@ export enum MarketStanceType {
   MARKET_DATA_MISSING = 'MARKET_DATA_MISSING'
 }
 
+export enum YellowCardContextType {
+  TACTICAL_DISRUPTION = 'TACTICAL_DISRUPTION',             // 战术牺牲犯规：阻断快攻/合理延缓
+  DEFENSIVE_COLLAPSE_BREACH = 'DEFENSIVE_COLLAPSE_BREACH', // 受迫失位高危：被动挨打/禁区边缘犯规
+  NON_TACTICAL_DISSENT = 'NON_TACTICAL_DISSENT',           // 非战术违纪：情绪抗议/延误时间/脱衣庆祝
+  ROUTINE_TECHNICAL_FOUL = 'ROUTINE_TECHNICAL_FOUL'         // 常规拼抢争顶犯规
+}
+
