@@ -319,7 +319,10 @@ export function generateRefactoredPrompt(
         real_time_stats: `控球: ${homePossession}%-${awayPossession}% | 射门(正/偏): ${homeShotsOnTarget}(${homeShotsOffTarget})-${awayShotsOnTarget}(${awayShotsOffTarget}) | 危攻: ${homeDA}-${awayDA} | 角球: ${homeCorners}-${awayCorners} | xT威胁: ${homeXtStr}-${awayXtStr}`,
         environment: environmentStr,
         match_timeline_events: tactical_phase_transitions.filter(t => t.includes(']') && !t.includes('战术相变') && !t.includes('比赛初段') && !t.includes('持续围攻')),
-        attack_momentum_time_series: tactical_phase_transitions.filter(t => t.includes('战术相变') || t.includes('比赛初段') || t.includes('持续围攻'))
+        attack_momentum_time_series: tactical_phase_transitions.filter(t => t.includes('战术相变') || t.includes('比赛初段') || t.includes('持续围攻')),
+        adaptive_window_active: quantFeatures.timeline?.is_early_match_dampened ?? false,
+        temporal_lag_minutes: quantFeatures.timeline?.temporal_lag_minutes ?? 0,
+        temporal_inversion_detected: quantFeatures.timeline?.temporal_inversion_detected ?? false
       } : undefined,
       historical_team_profiling: team_profiling,
       lineup_value_matrix: (!hasLineupData || lineupStatus === 'NOT_ANNOUNCED') ? "NO_LINEUP" : lineup_value_matrix,

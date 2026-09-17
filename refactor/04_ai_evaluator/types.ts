@@ -88,6 +88,9 @@ export interface LivePhysicalContext {
   environment?: string;
   match_timeline_events: string[];
   attack_momentum_time_series: string[];
+  adaptive_window_active?: boolean;
+  temporal_lag_minutes?: number;
+  temporal_inversion_detected?: boolean;
 }
 
 export interface EvaluatorPayload {

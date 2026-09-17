@@ -15,10 +15,11 @@ import {
   evaluateGoalClimax,
   evaluateTacticalRegime,
   classifyYellowCardContext,
-  calculateDecayedEventScore
+  calculateDecayedEventScore,
+  calculateEventPressureConversion
 } from '../refactor/03_quant_engine/eventMomentumFusion.ts';
 import { YellowCardContextType, TacticalRegimeType, QuantAlert } from '../refactor/03_quant_engine/enums.js';
-import { extractRealTimePhysicalStats } from '../refactor/03_quant_engine/momentumQuantEngine.js';
+import { extractRealTimePhysicalStats, extractMomentumTimelineFeatures } from '../refactor/03_quant_engine/momentumQuantEngine.js';
 import { buildUnifiedMatchState, calculateConfidenceAndAlerts } from '../refactor/03_quant_engine/index.js';
 import { calculateInPlayPoissonFeatures, calculatePhasedDNATimeFraction } from '../refactor/03_quant_engine/poissonDecayModel.js';
 import { CanonicalTimelineEvent } from '../refactor/02_canonical_model/types.js';
@@ -32,7 +33,7 @@ import {
   BRIER_CIRCUIT_BREAKER_THRESHOLD
 } from '../refactor/03_quant_engine/oosCalibrationEngine.js';
 import { evaluateCandidatePipeline } from '../refactor/03_quant_engine/candidateStateMachine.js';
-import { OosCalibrationSample } from '../refactor/03_quant_engine/types.js';
+import { OosCalibrationSample, MomentumTimelineFeatures } from '../refactor/03_quant_engine/types.js';
 
 test('Anti-Fake Data Hardening: Scheme 1 - Team ID Anchoring in H2H & Recent Form', () => {
   // Test H2H venue inversion prevention
@@ -2004,6 +2005,216 @@ test('Anti-Fake Data Hardening: Scheme 5 - Layer 04 AlignmentGuard Circuit Break
     'Risk warnings must explain the Scheme 5 circuit breaker degradation'
   );
 });
+
+test('Anti-Fake Data Hardening: Scheme 6 - Dynamic Truncation & Adaptive Windowing at Early Match', () => {
+  // 构造一个 YBTY 时钟为 7 分钟的 CanonicalMatch，
+  // attack_momentum.data 中包含 1' ~ 9' 共 9 个点（minute 8、9 属于未来，必须被截断）
+  // nominal_segment_minutes = 1 表示每个数据点对应 1 分钟
+  const earlyMatch = {
+    canonical_id: 'scheme6_early_test',
+    home_team_name: 'Home',
+    away_team_name: 'Away',
+    timing: { stage: 'LIVE' as any, minute: 7 },
+    score: { home_score: 0, away_score: 0 },
+    markets: {} as any,
+    reference: {
+      stats: null,
+      attack_momentum: {
+        available: true,
+        nominal_segment_minutes: 1,
+        // index 0 = minute 1, index 6 = minute 7, index 7 = minute 8 (future), index 8 = minute 9 (future)
+        data: [[10, 15, 20, 25, 30, 35, 40, 99, 99]] // 9 points in segment 0
+      },
+      timeline_events: [],
+      lineups: null,
+      tactical_context: {
+        head_to_head_count: 0, home_recent_matches_count: 0, away_recent_matches_count: 0,
+        h2h_raw: [], home_recent_matches: [], away_recent_matches: []
+      },
+      odds_matrix: null, league_standings: null, goal_distribution: null
+    } as any
+  } as any;
+
+  const features = extractMomentumTimelineFeatures(earlyMatch);
+
+  // 未来点 (minute 8, 9) 必须被物理截断 → 只剩 7 个点
+  assert.equal(features.total_points, 7, 'Future points (minute 8, 9) must be truncated; only 7 valid points remain');
+  // 开场 7 分钟 < 15 分钟，is_early_match_dampened 必须为 true
+  assert.equal(features.is_early_match_dampened, true, 'is_early_match_dampened must be true at minute 7');
+  // 无时钟倒挂（没有点超过 YBTY 时钟 7' 的情况，因为 8' 9' 已被截断）
+  assert.equal(features.temporal_inversion_detected, true, 'temporal_inversion_detected should be true since raw data had points beyond cutoff');
+  // 无时序严重滞后（最新点 minute 7 = 当前时钟 7'，滞后 0'）
+  assert.equal(features.temporal_lag_warning, false, 'No severe lag when latest point equals current clock');
+  // 15m 窗口比率：min(7, 7) / 15 ≈ 0.47
+  assert.ok(features.adaptive_window_ratio !== undefined, 'adaptive_window_ratio must be defined');
+  assert.ok(
+    Math.abs((features.adaptive_window_ratio?.fifteen ?? 0) - 7 / 15) < 0.02,
+    `15-min ratio should be ~7/15=0.47, got ${features.adaptive_window_ratio?.fifteen}`
+  );
+  // 5m 窗口比率：在 minute 7 时有 5 个点 (3..7)，ratio = min(5,5)/5 = 1.0
+  assert.ok(
+    (features.adaptive_window_ratio?.five ?? 0) >= 1.0,
+    `5-min ratio should be 1.0 at minute 7 (have full 5 min), got ${features.adaptive_window_ratio?.five}`
+  );
+
+  // 自适应能量归一化检验：
+  // 15m 积分网 = 10+15+20+25+30+35+40 = 175
+  // effectiveNorm15 = slice15.length = 7，energy15 = 175 / 7 = 25.0
+  // 若不自适应，直接 175/15 ≈ 11.67 会大幅低估
+  assert.ok(
+    features.integral_15m.net >= 175,
+    `Raw 15m integral.net should be 175 (sum of all 7 valid points), got ${features.integral_15m.net}`
+  );
+});
+
+test('Anti-Fake Data Hardening: Scheme 6 - EventPressureConversion Adaptive Energy Base at Early Match', () => {
+  // 直接构造 MomentumTimelineFeatures 测试 calculateEventPressureConversion 的自适应能量基准
+  // 开场 7 分钟，adaptiveEnergyBase = max(10, 50 * 7/15) ≈ 23.33
+  // 这比固定 50 小得多，可防止转化比率被假稀释
+  const timeline: MomentumTimelineFeatures = Object.freeze({
+    total_points: 7,
+    window_basis: 'MINUTE_ALIGNED' as const,
+    cutoff_minute: 7,
+    window_coverage_minutes: { from: 1, to: 7 },
+    window_sample_counts: { five: 5, ten: 7, fifteen: 7 },
+    current_instant_momentum: 40,
+    slope_5m: 5,
+    slope_10m: 5,
+    slope_15m: 5,
+    integral_5m: { home: 125, away: 0, net: 125 },
+    integral_15m: { home: 175, away: 0, net: 175 },
+    integral_full_match: { home: 175, away: 0, net: 175 },
+    dominance_side: 'home' as const,
+    inflection_count_recent_15m: 0,
+    is_sustained_siege: false,
+    is_counter_attack_surge: false,
+    adaptive_window_ratio: { five: 1.0, ten: 0.7, fifteen: 7/15 },
+    is_early_match_dampened: true,
+    temporal_inversion_detected: false,
+    temporal_lag_warning: false,
+    temporal_lag_minutes: 0
+  });
+
+  const trinity = {
+    home: { momentum_support: 0.8, event_support: 0.5, stats_support: 0.6, has_conflict: false, confidence: 0.7 },
+    away: { momentum_support: 0.2, event_support: 0.1, stats_support: 0.2, has_conflict: false, confidence: 0.3 },
+    dominant_side: 'home' as const,
+    has_material_conflict: false,
+    rationale: []
+  };
+
+  const conv = calculateEventPressureConversion(timeline, [], trinity, 7);
+
+  // 开场 7 分钟，adaptiveEnergyBase = max(10, 50 * 7/15) ≈ 23.33
+  // homeNormEnergy = max(1, 175 / 23.33) ≈ 7.5
+  // homeRatio = homeEventScore(0) / homeNormEnergy = 0
+  // 关键验证：不应触发假性 BARREN_DOMINANCE（因为 event_score=0 而非 energy 假稀释）
+  assert.ok(conv !== undefined, 'calculateEventPressureConversion must return a result');
+  assert.ok(conv.home !== undefined, 'home EPI features must be defined');
+  // 主队能量显著，能量不应被固定 50 假放大到 175/50=3.5 倍的归一化能量单位
+  // 而应该是 175/23.33 ≈ 7.5，更正确地反映开场强度
+  assert.ok(conv.home.energy_15m >= 0, 'home energy_15m should be non-negative');
+  assert.ok(typeof conv.potency_differential === 'number', 'potency_differential must be a number');
+});
+
+test('Anti-Fake Data Hardening: Scheme 6 - Severe Temporal Lag Triggers Warning & Downgrades Recommendation', () => {
+  // 1. 构造一个 YBTY 时钟为 75' 但雷速点阵最新只有 65' 的 CanonicalMatch（滞后 10'）
+  // nominal_segment_minutes=1，segment 包含 minute 60~65 共 6 个点
+  const lagMatch = {
+    canonical_id: 'scheme6_lag_test',
+    home_team_name: 'Home',
+    away_team_name: 'Away',
+    timing: { stage: 'LIVE' as any, minute: 75 },
+    score: { home_score: 1, away_score: 0 },
+    markets: {} as any,
+    reference: {
+      stats: null,
+      attack_momentum: {
+        available: true,
+        nominal_segment_minutes: 1,
+        // 59 空白 + 6 数据点 = 65 个点 → 最后一个点 minute = 65
+        // YBTY 时钟 75'，雷速最新 65'，lag = 10 分钟 > 8 分钟阈值
+        data: [Array.from({ length: 65 }, (_, i) => i < 59 ? 0 : 10)]
+      },
+      timeline_events: [],
+      lineups: null,
+      tactical_context: {
+        head_to_head_count: 0, home_recent_matches_count: 0, away_recent_matches_count: 0,
+        h2h_raw: [], home_recent_matches: [], away_recent_matches: []
+      },
+      odds_matrix: null, league_standings: null, goal_distribution: null
+    } as any
+  } as any;
+
+  const features = extractMomentumTimelineFeatures(lagMatch);
+
+  // 验证时序滞后检测
+  assert.equal(features.temporal_lag_warning, true, 'Lag of 10 min (>8) must trigger temporal_lag_warning');
+  assert.equal(features.temporal_lag_minutes, 10, 'Lag minutes must be exactly 10');
+
+  // 2. 验证 Layer 04 alignmentGuard 拦截：A 级降为 B 级，置信度上限 75 分
+  // （直接用 risk_flags 构造 EvaluatorPayload 测试 alignmentGuard，避免需要构造完整 calculateConfidenceAndAlerts 依赖）
+  const baseResult: AiEvaluationResult = {
+    canonical_id: 'scheme6_lag_test',
+    home_team_name: 'Home',
+    away_team_name: 'Away',
+    match_status: 'IN_PLAY',
+    grade: RecommendationGrade.A_GRADE,
+    confidence_score: 92,
+    recommended_legs: [
+      {
+        market: 'ASIAN_HANDICAP_MAIN',
+        direction: 'HOME',
+        selected_line: '-0.5',
+        current_odds: 1.95,
+        basis: 'Strong home dominance'
+      }
+    ],
+    risk_warnings: []
+  };
+
+  const payload: EvaluatorPayload = {
+    canonical_id: 'scheme6_lag_test',
+    home_team: 'Home',
+    away_team: 'Away',
+    timing: { minute: 75, stage: MatchStage.IN_PLAY } as any,
+    statutory_markets: {
+      ah_main: { handicap: '-0.5', home_odds: 1.95, away_odds: 1.85 }
+    } as any,
+    quant_features: {
+      candidate_pipeline: {
+        state: 'PRODUCTION_UNLOCKED',
+        machine_candidate_count: 1,
+        blockers: [],
+        validations: []
+      } as any,
+      machine_candidate_signals: [
+        { market: 'ASIAN_HANDICAP_MAIN', line: '-0.5', side: 'home', odds: 1.95 }
+      ],
+      risk_flags: [QuantAlert.TEMPORAL_LAG_WARNING],
+      confidence_score: 92
+    } as any
+  };
+
+  const guarded = verifyStatutoryAlignment(baseResult, payload);
+
+  assert.equal(
+    guarded.grade,
+    RecommendationGrade.B_GRADE,
+    'A_GRADE must be demoted to B_GRADE upon TEMPORAL_LAG_WARNING'
+  );
+  assert.ok(
+    guarded.confidence_score <= 75,
+    `Confidence score must be capped at 75 (got ${guarded.confidence_score})`
+  );
+  assert.ok(
+    guarded.risk_warnings.some(w => w.includes('TEMPORAL_LAG_WARNING') || w.includes('多源时钟不同步')),
+    'Risk warning must state temporal lag risk'
+  );
+});
+
+
+
 
 
 

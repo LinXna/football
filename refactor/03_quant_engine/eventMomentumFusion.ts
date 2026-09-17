@@ -334,15 +334,27 @@ export function calculateEventPressureConversion(
   currentMinute: number,
   physical?: RealTimePhysicalStatsFeatures
 ): EventPressureConversionFeatures {
-  const windowStart = Math.max(0, currentMinute - 15);
+  // 方案 6：多源截断与自适应时间窗口调和
+  // 当开场时间较短 (如 currentMinute = 7' < 15') 时，有效窗口长度收缩为 [0, currentMinute]
+  const effectiveWindowDuration = Math.min(15, Math.max(1, currentMinute));
+  const windowStart = Math.max(0, currentMinute - effectiveWindowDuration);
+
+  // 严格物理截断：任何超出当前权威时钟的未来事件一律剔除
   const recentEvents = events.filter(e => {
     const m = getEventMinute(e);
-    return m !== null && m >= windowStart && m <= currentMinute && !e.is_cancelled;
+    return m !== null && m >= windowStart && m <= currentMinute && !e.is_cancelled && !e.is_var_overturned;
   });
 
-  // 1. 统计近 15 分钟双方事件加权总分 (带时效半衰期) 与全时序连续衰减事件总分
+  // 1. 统计近 15 分钟双方事件加权总分 (带时效半衰期) 与全时序连续衰减事件总分 (严格 <= currentMinute)
   const decayedScores15m = calculateDecayedEventScore(recentEvents, currentMinute, 15);
-  const fullDecayedScores = calculateDecayedEventScore(events, currentMinute, 15);
+  const fullDecayedScores = calculateDecayedEventScore(
+    events.filter(e => {
+      const m = getEventMinute(e);
+      return m !== null && m <= currentMinute && !e.is_cancelled && !e.is_var_overturned;
+    }),
+    currentMinute,
+    15
+  );
   const homeEventScore = decayedScores15m.home;
   const awayEventScore = decayedScores15m.away;
   const homeFullEventScore = fullDecayedScores.home;
@@ -352,9 +364,14 @@ export function calculateEventPressureConversion(
   const homeEnergy = timeline.integral_15m ? timeline.integral_15m.home : 0;
   const awayEnergy = timeline.integral_15m ? timeline.integral_15m.away : 0;
 
-  // 3. 计算转化比率: EventScore / (Energy / 50)
-  const homeNormEnergy = Math.max(1.0, homeEnergy / 50.0);
-  const awayNormEnergy = Math.max(1.0, awayEnergy / 50.0);
+  // 3. 计算转化比率: 自适应能量基准调整
+  // 标准 15m 窗口下，平均 50 点危攻能量为 1 个基准单位；
+  // 开场早期样本不足时，自适应调整能量基准为 50.0 * (effectiveWindowDuration / 15.0)，杜绝分母假放大
+  const windowScale = effectiveWindowDuration / 15.0;
+  const adaptiveEnergyBase = Math.max(10.0, 50.0 * windowScale);
+
+  const homeNormEnergy = Math.max(1.0, homeEnergy / adaptiveEnergyBase);
+  const awayNormEnergy = Math.max(1.0, awayEnergy / adaptiveEnergyBase);
 
   const homeRatio = Number((homeEventScore / homeNormEnergy).toFixed(3));
   const awayRatio = Number((awayEventScore / awayNormEnergy).toFixed(3));
@@ -537,7 +554,12 @@ export function evaluateTacticalRegime(
   physical: RealTimePhysicalStatsFeatures
 ): TacticalRegimeFeatures {
   const currentMinute = Math.max(0, (match.timing.minute ?? 0));
-  const events = match.reference?.timeline_events ?? [];
+  const rawEvents = match.reference?.timeline_events ?? [];
+  // 严格过滤未来事件与无效事件
+  const events = rawEvents.filter(e => {
+    const m = getEventMinute(e);
+    return m !== null && m <= currentMinute && !e.is_cancelled && !e.is_var_overturned;
+  });
   const homeScore = match.score.home_score ?? 0;
   const awayScore = match.score.away_score ?? 0;
   const scoreDiff = homeScore - awayScore;
@@ -548,7 +570,7 @@ export function evaluateTacticalRegime(
                    e.canonical_type === CanonicalEventType.GOAL_REGULAR ||
              e.canonical_type === CanonicalEventType.GOAL_PENALTY ||
              e.type === 1;
-    return isGoal && !e.is_cancelled;
+    return isGoal;
   });
   let lastGoalMinute: number | undefined = undefined;
   let lastGoalScorer: 'home' | 'away' | undefined = undefined;
@@ -734,7 +756,7 @@ export function evaluateGoalClimax(
   const window5m = Math.max(0, currentMinute - 5);
   const events5m = events.filter((e: CanonicalTimelineEvent) => {
     const m = getEventMinute(e);
-    return m !== null && m >= window5m && m <= currentMinute && !e.is_cancelled;
+    return m !== null && m >= window5m && m <= currentMinute && !e.is_cancelled && !e.is_var_overturned;
   });
 
   const recentIncidentDensity = events5m.length;

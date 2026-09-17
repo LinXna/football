@@ -137,37 +137,69 @@ function getTimedMomentumPoints(match: CanonicalMatch): {
   points: TimedMomentumPoint[];
   basis: MomentumTimelineFeatures['window_basis'];
   cutoffMinute: number | null;
+  temporalLagMinutes: number;
+  temporalInversionDetected: boolean;
 } {
   const momentum = match.reference?.attack_momentum;
-  if (!momentum || !momentum.available || !momentum.data || momentum.data.length === 0) {
-    return { points: [], basis: 'UNAVAILABLE', cutoffMinute: match.timing.minute ?? null };
-  }
-
-  const segmentMinutes = momentum.nominal_segment_minutes;
   const cutoffMinute = match.timing.stage === 'LIVE'
     ? match.timing.minute
     : null;
-  if (segmentMinutes === null || segmentMinutes === undefined || !Number.isFinite(segmentMinutes) || segmentMinutes <= 0) {
-    const fallback = flattenMomentumPoints(match).map((value, index) => ({ minute: index + 1, value }));
+
+  if (!momentum || !momentum.available || !momentum.data || momentum.data.length === 0) {
     return {
-      points: cutoffMinute === null ? fallback : fallback.filter((point) => point.minute <= cutoffMinute),
-      basis: 'POINT_COUNT_FALLBACK',
-      cutoffMinute
+      points: [],
+      basis: 'UNAVAILABLE',
+      cutoffMinute,
+      temporalLagMinutes: 0,
+      temporalInversionDetected: false
     };
   }
 
-  const points: TimedMomentumPoint[] = [];
-  momentum.data.forEach((segment, segmentIndex) => {
-    if (!Array.isArray(segment)) return;
-    segment.forEach((value, pointIndex) => {
-      if (typeof value !== 'number' || !Number.isFinite(value)) return;
-      const minute = segmentIndex * segmentMinutes + pointIndex + 1;
-      if (cutoffMinute === null || minute <= cutoffMinute) {
-        points.push({ minute, value });
-      }
+  const segmentMinutes = momentum.nominal_segment_minutes;
+  let allPoints: TimedMomentumPoint[] = [];
+
+  if (segmentMinutes === null || segmentMinutes === undefined || !Number.isFinite(segmentMinutes) || segmentMinutes <= 0) {
+    allPoints = flattenMomentumPoints(match).map((value, index) => ({ minute: index + 1, value }));
+  } else {
+    momentum.data.forEach((segment, segmentIndex) => {
+      if (!Array.isArray(segment)) return;
+      segment.forEach((value, pointIndex) => {
+        if (typeof value !== 'number' || !Number.isFinite(value)) return;
+        const minute = segmentIndex * segmentMinutes + pointIndex + 1;
+        allPoints.push({ minute, value });
+      });
     });
-  });
-  return { points, basis: 'MINUTE_ALIGNED', cutoffMinute };
+  }
+
+  // 方案 6：多源时钟一致性与严格截断
+  // 1. 检查是否存在未来倒挂数据（即雷速点阵分钟 > YBTY 权威滚球时钟 cutoffMinute）
+  let temporalInversionDetected = false;
+  if (cutoffMinute !== null && allPoints.some(p => p.minute > cutoffMinute)) {
+    temporalInversionDetected = true;
+  }
+
+  // 严格物理截断：绝不让未来点进入即时评估
+  const validPoints = cutoffMinute === null
+    ? allPoints
+    : allPoints.filter(p => p.minute <= cutoffMinute);
+
+  // 2. 检查雷速时序是否存在严重滞后
+  const maxAvailableMinute = validPoints.length > 0 ? validPoints[validPoints.length - 1].minute : 0;
+  const temporalLagMinutes = (cutoffMinute !== null && maxAvailableMinute > 0)
+    ? Math.max(0, cutoffMinute - maxAvailableMinute)
+    : 0;
+
+  const basis = (segmentMinutes === null || segmentMinutes === undefined || !Number.isFinite(segmentMinutes) || segmentMinutes <= 0)
+    ? 'POINT_COUNT_FALLBACK'
+    : 'MINUTE_ALIGNED';
+
+  return {
+    points: validPoints,
+    basis,
+    cutoffMinute,
+    temporalLagMinutes,
+    temporalInversionDetected
+  };
 }
 
 function calculateTimedSlope(points: TimedMomentumPoint[]): number {
@@ -234,6 +266,11 @@ export function extractMomentumTimelineFeatures(
       inflection_count_recent_15m: 0,
       is_sustained_siege: false,
       is_counter_attack_surge: false,
+      adaptive_window_ratio: { five: 0, ten: 0, fifteen: 0 },
+      is_early_match_dampened: false,
+      temporal_inversion_detected: timed.temporalInversionDetected,
+      temporal_lag_warning: timed.temporalLagMinutes > 8,
+      temporal_lag_minutes: timed.temporalLagMinutes,
       momentum_pyramid: Object.freeze({
         composite_slope: 0,
         composite_energy: 0,
@@ -250,10 +287,22 @@ export function extractMomentumTimelineFeatures(
   // 1. 即时当前分钟动量值
   const currentInstantMomentum = rawPoints[totalPoints - 1];
 
-  // 2. 按真实分钟坐标提取窗口，不能把点数直接当作分钟数
+  // 2. 方案 6：自适应窗口调和 (Adaptive Window Harmonization)
+  // 当开场时间较短 (如 cutoffMinute = 7' < 15') 时，实际可用时间不足目标 duration
+  const currentElapsed = timed.cutoffMinute ?? (timedPoints[timedPoints.length - 1]?.minute ?? 90);
+  const isEarlyMatch = currentElapsed < 15;
+
+  const actualDuration5 = Math.min(5, Math.max(1, currentElapsed));
+  const actualDuration10 = Math.min(10, Math.max(1, currentElapsed));
+  const actualDuration15 = Math.min(15, Math.max(1, currentElapsed));
+
   const slice5 = selectTimedWindow(timedPoints, timed.cutoffMinute, 5);
   const slice10 = selectTimedWindow(timedPoints, timed.cutoffMinute, 10);
   const slice15 = selectTimedWindow(timedPoints, timed.cutoffMinute, 15);
+
+  const ratio5 = Number((Math.min(slice5.length, actualDuration5) / 5.0).toFixed(2));
+  const ratio10 = Number((Math.min(slice10.length, actualDuration10) / 10.0).toFixed(2));
+  const ratio15 = Number((Math.min(slice15.length, actualDuration15) / 15.0).toFixed(2));
 
   // 3. 计算多尺度最小二乘斜率 (Derivatives)
   const slope5 = calculateTimedSlope(timedPoints.filter((point) => point.minute > (timed.cutoffMinute ?? point.minute) - 5 && point.minute <= (timed.cutoffMinute ?? point.minute)));
@@ -261,9 +310,15 @@ export function extractMomentumTimelineFeatures(
   const slope15 = calculateTimedSlope(timedPoints.filter((point) => point.minute > (timed.cutoffMinute ?? point.minute) - 15 && point.minute <= (timed.cutoffMinute ?? point.minute)));
 
   // 4. 计算多尺度能量积分 (Integrals)
-  const integral5 = calculateMomentumIntegral(slice5);
-  const integral15 = calculateMomentumIntegral(slice15);
+  const rawIntegral5 = calculateMomentumIntegral(slice5);
+  const rawIntegral15 = calculateMomentumIntegral(slice15);
   const integralFull = calculateMomentumIntegral(rawPoints);
+
+  // 自适应能量调和：在开场样本不足时，按实际有效分钟数进行物理等效归一化，杜绝直接除以 15 带来的假稀释
+  const effectiveNorm5 = Math.max(1, slice5.length);
+  const effectiveNorm15 = Math.max(1, slice15.length);
+  const energy5 = Number((rawIntegral5.net / effectiveNorm5).toFixed(2));
+  const energy15 = Number((rawIntegral15.net / effectiveNorm15).toFixed(2));
 
   // 5. 攻守转换拐点识别 (近 15 个点内穿过 0 轴的次数)
   let inflections = 0;
@@ -277,23 +332,21 @@ export function extractMomentumTimelineFeatures(
 
   // 6. 真实掌控方判定 (结合近 15m 净能量与近 5m 斜率)
   let dominanceSide: 'home' | 'away' | 'neutral' = 'neutral';
-  if (integral15.net > 120 || (integral15.net > 50 && slope5 > 5.0)) {
+  if (rawIntegral15.net > 120 || (rawIntegral15.net > 50 && slope5 > 5.0)) {
     dominanceSide = 'home';
-  } else if (integral15.net < -120 || (integral15.net < -50 && slope5 < -5.0)) {
+  } else if (rawIntegral15.net < -120 || (rawIntegral15.net < -50 && slope5 < -5.0)) {
     dominanceSide = 'away';
   }
 
   // 7. 波形形态学识别 (持续围攻 vs 突发反击)
-  const isSustainedSiege = (Math.abs(integral15.net) >= 300) && (inflections <= 2);
+  const isSustainedSiege = (Math.abs(rawIntegral15.net) >= 300) && (inflections <= 2);
   const isCounterAttackSurge = (
-    (integral15.net > 100 && slope5 <= -18.0) ||
-    (integral15.net < -100 && slope5 >= 18.0)
+    (rawIntegral15.net > 100 && slope5 <= -18.0) ||
+    (rawIntegral15.net < -100 && slope5 >= 18.0)
   );
 
   // 8. 多尺度动量金字塔模型 (5m: 40%, 10m: 35%, 15m: 25%)
   const pyramidCompositeSlope = Number((0.40 * slope5 + 0.35 * slope10 + 0.25 * slope15).toFixed(3));
-  const energy5 = integral5.net / 5.0;
-  const energy15 = integral15.net / 15.0;
   const pyramidCompositeEnergy = Number((0.40 * currentInstantMomentum + 0.35 * energy5 + 0.25 * energy15).toFixed(2));
 
   let pyramidConsistency: 'ALIGNED' | 'DIVERGENT' | 'TURNING' = 'DIVERGENT';
@@ -338,13 +391,22 @@ export function extractMomentumTimelineFeatures(
     slope_5m: slope5,
     slope_10m: slope10,
     slope_15m: slope15,
-    integral_5m: integral5,
-    integral_15m: integral15,
+    integral_5m: rawIntegral5,
+    integral_15m: rawIntegral15,
     integral_full_match: integralFull,
     dominance_side: dominanceSide,
     inflection_count_recent_15m: inflections,
     is_sustained_siege: isSustainedSiege,
     is_counter_attack_surge: isCounterAttackSurge,
+    adaptive_window_ratio: {
+      five: ratio5,
+      ten: ratio10,
+      fifteen: ratio15
+    },
+    is_early_match_dampened: isEarlyMatch,
+    temporal_inversion_detected: timed.temporalInversionDetected,
+    temporal_lag_warning: timed.temporalLagMinutes > 8,
+    temporal_lag_minutes: timed.temporalLagMinutes,
     momentum_pyramid: momentumPyramid
   });
 

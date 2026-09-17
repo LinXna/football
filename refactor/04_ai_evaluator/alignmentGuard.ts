@@ -570,7 +570,20 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
     }
   }
 
-  // Step 5, 10, 11: 四分之一盘五态真实结算及滚球已结算盘口审查 (P0-01, P0-02, P0-03, P0-04, P1-04, P1-12)
+  // 6.7 雷速数据严重滞后或时钟倒挂警报 (TEMPORAL_LAG_WARNING): 剥夺 A 级重仓资格，强制降为 B 级，置信度上限 75 分
+  if (quantRiskFlags.includes(QuantAlert.TEMPORAL_LAG_WARNING)) {
+    if (enforcedGrade === RecommendationGrade.A_GRADE) {
+      enforcedGrade = RecommendationGrade.B_GRADE;
+    }
+    additionalWarnings.push(
+      "SYSTEM HARD GATE: 触发 Layer 03 比赛时序严重滞后或时钟倒挂警报 (TEMPORAL_LAG_WARNING)，多源时钟不同步存在潜在信息盲区，剥夺 A 级重仓资格降为 B 级试探"
+    );
+    if (enforcedConfidence > 75) {
+      enforcedConfidence = 75;
+      additionalWarnings.push("SYSTEM HARD GATE: 赛事时序滞后/倒挂风险，置信度强制封顶 75 分");
+    }
+  }
+
   const auditedRecommendedLegs: typeof result.recommended_legs = [];
 
   // P0-01: 实际盘口结构强制优先于 metadata is_quarter_line

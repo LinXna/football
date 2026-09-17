@@ -256,6 +256,14 @@ export function calculateConfidenceAndAlerts(
     }
   }
 
+  // 方案 6: 时空时序滞后或倒挂风控警报
+  if (timeline.temporal_lag_warning || timeline.temporal_inversion_detected) {
+    score -= 8;
+    if (!riskFlags.includes(QuantAlert.TEMPORAL_LAG_WARNING)) {
+      riskFlags.push(QuantAlert.TEMPORAL_LAG_WARNING);
+    }
+  }
+
   if (devig.bookmaker_posture === BookmakerPosture.TRAP_HIGH_ODDS) {
     riskFlags.push(QuantAlert.TRAP_HIGH_ODDS_WARNING);
   } else if (devig.bookmaker_posture === BookmakerPosture.DISPERSED_UNCERTAIN) {
@@ -742,7 +750,10 @@ export function calculateQuantitativeFeatures(
     stats_available: physicalStatsFeatures.stats_available,
     momentum_points: timelineFeatures?.total_points ?? 0,
     timeline_events_count: match.reference?.timeline_events?.length ?? 0,
-    has_odds: Boolean(match.markets.full_h2h || match.markets.full_spread_main || match.markets.full_total_main)
+    has_odds: Boolean(match.markets.full_h2h || match.markets.full_spread_main || match.markets.full_total_main),
+    adaptive_window_active: timelineFeatures?.is_early_match_dampened ?? false,
+    temporal_lag_minutes: timelineFeatures?.temporal_lag_minutes ?? 0,
+    temporal_inversion_detected: timelineFeatures?.temporal_inversion_detected ?? false
   });
 
   const result: QuantitativeFeatures = Object.freeze({

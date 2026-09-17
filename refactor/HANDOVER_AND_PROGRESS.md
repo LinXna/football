@@ -1,37 +1,34 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260917-TWO-PHASE-CALIBRATION-ARCHIVE-ISOLATION`
-- **当前状态 (Status)**: `DONE`
-- **阶段进度 (Phase)**: `P5.8 足球量化系统深度重构工程 —— [原子任务 5/7: 方案 5] 非滚球 Prematch 与 滚球 In-Play 统一两阶段校准档案隔离（Prematch/Live 分流与降级熔断机制） [已全面完成并通过全量验证]`
+- **任务编号 (Task)**: `SNAPSHOT-20260917-MULTI-SOURCE-DYNAMIC-TRUNCATION-AND-ADAPTIVE-WINDOWING`
+- **当前状态 (Status)**: `IN_PROGRESS`
+- **阶段进度 (Phase)**: `P5.8 足球量化系统深度重构工程 —— [原子任务 6/7: 方案 6] 多源动态截断与自适应窗口调和（时钟基准对齐、开场自适应收缩、时序倒挂熔断与跨层快照闭环）`
 - **任务目标与交付清单 (Deliverables)**：
-  1. 【Layer 03 统一两阶段校准档案隔离与分流构建 (`oosCalibrationEngine.ts`, `types.ts`)】[DONE]：
-     - 扩展 `QuantCalibrationProfile` 契约，支持阶段标记 `stage?: 'PREMATCH' | 'LIVE' | 'ALL'`，及熔断状态 `circuit_breaker_triggered?: boolean`、`circuit_breaker_reason?: string`；
-     - 扩展 `OosCalibrationArchive` 引入两阶段独立全局档案集合：`prematch_global_profiles?: readonly QuantCalibrationProfile[]` 与 `live_global_profiles?: readonly QuantCalibrationProfile[]`；
-     - 在 `buildOosCalibrationArchive` 中实现两阶段独立聚合与分流：
-       - 赛前 Prematch 样本与滚球 In-Play 样本严格分流，独立聚合生成 `prematch_global_profiles` 与 `live_global_profiles`，绝不跨阶段污染；
-       - 引入 Brier 评分劣化熔断器（`BRIER_CIRCUIT_BREAKER_THRESHOLD = 0.28`）：若 profile 的 `oos_brier_score > 0.28`（显著劣于二元盲猜基准 0.25），标记为 `REJECTED` 并触发熔断；
-     - 在 `selectOosCalibrationProfile` 中实现两阶段严格分流隔离与防污染闸门：
-       - Prematch 赛事严禁匹配任何 Live Profile，降级回退时严格限缩在 `prematch_global_profiles`，绝不可跨阶段借用 Live Profile；
-       - Live 赛事严禁匹配任何 Prematch Profile，降级回退时严格限缩在 `live_global_profiles`，绝不可跨阶段借用 Prematch Profile；
-       - 若同阶段无有效档案或样本不足，返回 `undefined` 触发熔断保护；
-  2. 【Layer 03 候选状态机与量化主流程分流及熔断闭环 (`candidateStateMachine.ts`, `index.ts`)】[DONE]：
-     - 在 `index.ts` 中透传两阶段分流元数据：`calibration_stage: 'PREMATCH' | 'LIVE'`, `is_stage_isolated: true`；
-     - 在 `candidateStateMachine.ts` 中挂载跨阶段污染熔断校验：若检测到 Profile stage 与赛事 stage 冲突，或 Profile 触发了熔断器（`circuit_breaker_triggered`），判定为 `REJECTED` 并将熔断原因记录至 `blockers`；
-  3. 【Layer 04 对齐门禁刚性熔断拦截 (`alignmentGuard.ts`, `promptExporter.ts`, `types.ts`)】[DONE]：
-     - 在 `promptExporter.ts` 与 `types.ts` 中扩展 `oos_semantic_status`，显式传递 `is_circuit_broken` 与 `circuit_breaker_reason`；
-     - 在 `alignmentGuard.ts` 中增加校准质量劣化熔断（`BRIER_SCORE_DEGRADED`）与阶段污染拦截：若档案熔断，严禁输出 A 级推荐，强制降级至 B 级，置信度上限强制封顶 75 分；
-  4. 【全量单元测试与回归验证 (`tests-ts/quantHardeningAntiFakeData.test.ts`, `refactor/tests/verify_quant_engine.ts`)】[DONE]：
-     - 编写 Scheme 5 专项三组测试用例（Test 26, Test 27, Test 28），涵盖：
-       - 两阶段档案分流隔离无跨阶段交叉借用；
-       - Brier 劣化熔断触发与候选状态机 blockers 拦截；
-       - Layer 04 AlignmentGuard 跨层刚性拦截降级（A 级降 B 级，封顶 75 分）；
-     - `npx tsx refactor/tests/verify_quant_engine.ts`（10 项量化物理测试 100% PASS）；
-     - `npm run test:ts`（全仓 6 套件 111 项测试 100% 绿色全部通过）；
-     - `npm run lint` (`tsc --noEmit`) 零报错，`compile_applet` 100% 成功。
+  1. 【Layer 03 时空时钟基准与多源自适应截断引擎 (`momentumQuantEngine.ts`, `types.ts`)】[IN_PROGRESS]：
+     - 在 `MomentumTimelineFeatures` 中补全多源动态截断契约：`adaptive_window_ratio: { five: number; ten: number; fifteen: number }`，`is_early_match_dampened?: boolean`，`temporal_inversion_detected?: boolean`；
+     - 改进 `getTimedMomentumPoints` 与 `selectTimedWindow`：
+       * 针对滚球比赛开场阶段（`elapsedMinute < 15`，如开场 7 分钟）：将固定 15m/10m 窗口自适应收缩至当前已赛真实有效时间区间，并计算样本覆盖率比值 `actualDuration / targetDuration` 进行物理归一化，杜绝除以 15 造成的假稀释；
+       * 针对倒挂或超前时序点（`point.minute > cutoffMinute`）：物理阻断并剔除，严禁将未来点引入即时评估；
+       * 若雷速点阵最大分钟数大幅落后于 YBTY 时钟（如落后 > 8 分钟），标记 `temporal_lag_warning = true` 并如实记录点阵延迟缺陷；
+  2. 【Layer 03 时空事件与因果转化多源截断对齐 (`eventMomentumFusion.ts`)】[IN_PROGRESS]：
+     - 在 `calculateEventPressureConversion`、`calculate10mBurstCluster` 与 `evaluateTacticalRegime` 中：
+       * 严格对齐 YBTY 权威时钟 `cutoffMinute`：事件时间 `evMinute > cutoffMinute` 的未来事件物理剔除；
+       * 开场早期阶段（`currentMinute < 15`），15 分钟衰减与转化分母自适应调整为 `max(1.0, currentMinute)`，消除开场阶段因固定 15m 窗口分母过大导致的转化率与战术分类失真；
+  3. 【Layer 03 全局快照与置信度自适应调和闭环 (`index.ts`)】[IN_PROGRESS]：
+     - 在 `Layer03LiveSnapshot` 中显式扩展 `adaptive_window_active?: boolean` 与 `temporal_lag_minutes?: number`；
+     - 在 `calculateConfidenceAndAlerts` 中挂载时钟严重滞后（> 10 分钟）或时钟倒挂硬熔断与置信度校准；
+  4. 【Layer 04 对齐门禁联动与提示词导出 (`alignmentGuard.ts`, `promptExporter.ts`, `types.ts`)】[IN_PROGRESS]：
+     - 结构化导出 `live_snapshot` 调和特征，在 `alignmentGuard.ts` 中针对时钟倒挂或严重滞后（`TEMPORAL_LAG_BREACH`）执行 A 级降级为 B 级且置信度上限 75 分；
+  5. 【全量单元测试与回归验证 (`tests-ts/quantHardeningAntiFakeData.test.ts`, `refactor/tests/verify_quant_engine.ts`)】[IN_PROGRESS]：
+     - 编写 Scheme 6 专项测试用例（Test 29, Test 30, Test 31），覆盖：
+       * 开场早期 (如 7') 自适应动态窗口收缩与积分/斜率归一化无假稀释；
+       * 未来事件/未来动量点严格物理截断隔离，杜绝时序泄露；
+       * 时钟严重脱节/滞后熔断触发与 Layer 04 降级门禁闭环；
+     - 运行 `refactor/tests/verify_quant_engine.ts` 与 `npm run test:ts` 保证全量测试 100% 绿灯。
 - **改动文件清单 (Target Files)**：
   - `/refactor/03_quant_engine/types.ts`
-  - `/refactor/03_quant_engine/oosCalibrationEngine.ts`
-  - `/refactor/03_quant_engine/candidateStateMachine.ts`
+  - `/refactor/03_quant_engine/momentumQuantEngine.ts`
+  - `/refactor/03_quant_engine/eventMomentumFusion.ts`
   - `/refactor/03_quant_engine/index.ts`
   - `/refactor/04_ai_evaluator/types.ts`
   - `/refactor/04_ai_evaluator/promptExporter.ts`
@@ -39,7 +36,18 @@
   - `/tests-ts/quantHardeningAntiFakeData.test.ts`
   - `/refactor/HANDOVER_AND_PROGRESS.md`
 - **下一步计划 (Next Steps)**：
-  - 推进模块二【方案 6】多源动态截断与自适应窗口调和。
+  - 方案 6 验证完成后，推进【原子任务 7/7: 方案 7】全链路闭环与最终实盘检验。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260917-TWO-PHASE-CALIBRATION-ARCHIVE-ISOLATION (DONE)
+- **阶段进度**: `P5.8 足球量化系统深度重构工程 —— [原子任务 5/7: 方案 5] 非滚球 Prematch 与 滚球 In-Play 统一两阶段校准档案隔离（Prematch/Live 分流与降级熔断机制） [已全面完成并通过全量验证]`
+- **交付产物**:
+  - 完成 Prematch/Live 档案双阶段隔离与 Brier 劣化熔断；
+  - 完成状态机与对齐门禁闭环；
+  - 111 项全仓自动化测试 100% 绿灯通过。
 
 ---
 

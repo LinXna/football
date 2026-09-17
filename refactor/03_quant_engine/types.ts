@@ -273,6 +273,12 @@ export interface MomentumTimelineFeatures {
   inflection_count_recent_15m: number;
   is_sustained_siege: boolean;
   is_counter_attack_surge: boolean;
+  /** 方案 6：多源动态截断与自适应窗口调和特征 */
+  adaptive_window_ratio?: { five: number; ten: number; fifteen: number };
+  is_early_match_dampened?: boolean;
+  temporal_inversion_detected?: boolean;
+  temporal_lag_warning?: boolean;
+  temporal_lag_minutes?: number;
   /** 多尺度动量金字塔模型 (5m: 40%, 10m: 35%, 15m: 25%) */
   momentum_pyramid?: {
     composite_slope: number;
@@ -783,6 +789,9 @@ export interface Layer03LiveSnapshot {
   momentum_points: number;
   timeline_events_count: number;
   has_odds: boolean;
+  adaptive_window_active?: boolean;
+  temporal_lag_minutes?: number;
+  temporal_inversion_detected?: boolean;
 }
 
 export interface QuantitativeFeatures {
