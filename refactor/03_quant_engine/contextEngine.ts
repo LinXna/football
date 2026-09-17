@@ -247,7 +247,7 @@ export function calculateH2HDecayWeights(
   }
 
   const decayConstant = Math.LN2 / halfLifeDays;
-  const MAX_VALID_DAYS = 730;
+  const MAX_VALID_DAYS = 365;
 
   const currentHomeId = match.reference?.home_team_id ?? match.reference?.league_standings?.home_team?.team_id ?? null;
   const currentAwayId = match.reference?.away_team_id ?? match.reference?.league_standings?.away_team?.team_id ?? null;
@@ -379,7 +379,7 @@ export function calculateH2HDecayWeights(
     const invalidReason = !hasValidTime
       ? 'MISSING_MATCH_TIME'
       : daysAgo > MAX_VALID_DAYS
-        ? 'EXCEEDS_MAX_VALID_DAYS_730'
+        ? 'EXCEEDS_MAX_VALID_DAYS_365'
         : !hasValidScore
           ? 'MISSING_MATCH_SCORE'
           : 'INVALID_H2H_SAMPLE';
@@ -957,12 +957,14 @@ export function extractGoalDistributionDNA(
       confidence = nAll >= 15 ? 'HIGH' : 'MEDIUM';
     } else {
       // 规则 3：专属切片样本过小或缺失 (nVenue < 5) -> 100% 采用总体切片 (All)
-      // 若总体切片样本在 5 ~ 15 之间，向中性先验轻微收缩
+      // 若总体切片样本在 5 ~ 15 之间，采用样本成熟度信度因子平滑向中性均匀先验收缩
       if (nAll >= 15) {
         finalFusedProbs = posteriorAll;
         confidence = 'HIGH';
       } else {
-        const shrinkage = nAll / 15.0; // 5 <= nAll < 15
+        // 当 5 <= nAll < 15 时，信度因子 lambda = (nAll - 5) / 10.0 ∈ [0.0, 1.0)
+        // 确保当 nAll=5 时平滑收敛到中性先验 1/6，当 nAll 逼近 15 时平滑过渡到全狄利克雷后验，消除跳跃阶跃
+        const shrinkage = Math.max(0.0, Math.min(1.0, (nAll - 5.0) / 10.0));
         finalFusedProbs = new Array(6);
         for (let i = 0; i < 6; i++) {
           finalFusedProbs[i] = posteriorAll[i] * shrinkage + (1.0 / 6.0) * (1.0 - shrinkage);
@@ -1147,8 +1149,9 @@ export function calculateLineupImpactScores(
 
   const getPlayerMv = (p: ParsedPlayer): number => {
     if (typeof p.market_value === 'number' && p.market_value > 0) return p.market_value;
-    if (p.market_value_text) {
-      const parsed = parseMarketValueToNumber(p.market_value_text);
+    const mvStr = p.market_value_text || (typeof p.market_value === 'string' ? p.market_value : null);
+    if (mvStr) {
+      const parsed = parseMarketValueToNumber(mvStr);
       if (parsed > 0) return parsed * 10000; // 换算为欧元
     }
     return 0;
@@ -1284,10 +1287,19 @@ export function calculateLineupImpactScores(
         } else if (p.starter === true || isSuspended) {
           singlePlayerLoss = 0.15;
           isSubstantialKeyPlayer = true;
-        } else if (startersTotalMvEur === 0 && injuries.length <= 2) {
-          // 无身价联赛且伤停极少 (<=2人)
-          singlePlayerLoss = 0.10;
-          isSubstantialKeyPlayer = true;
+        } else if (startersTotalMvEur === 0) {
+          // 无身价联赛：按伤员序号阶梯赋予平滑折损，杜绝超过2人时断崖跌入 0.0
+          const injuryIdx = injuries.indexOf(p);
+          if (injuryIdx < 2) {
+            singlePlayerLoss = 0.10;
+            isSubstantialKeyPlayer = true;
+          } else if (injuryIdx < 5) {
+            singlePlayerLoss = 0.06;
+            isSubstantialKeyPlayer = true;
+          } else {
+            singlePlayerLoss = 0.02;
+            isSubstantialKeyPlayer = false;
+          }
         } else {
           // 边缘人员噪声，战力折损严格为 0.0
           singlePlayerLoss = 0.0;
@@ -1295,11 +1307,7 @@ export function calculateLineupImpactScores(
         }
       }
 
-      // 若为全队身价大腿缺阵，追加战术体系坍塌惩罚 (Systemic Collapse Premium)
-      if (isCurrentTalisman) {
-        singlePlayerLoss *= 1.35;
-      }
-
+      // 注：身价大腿/核心球员战术加权已在 roleMultiplier 及无身价分支统一单次赋权 (1.35x)，杜绝二次复合乘算
       totalWeightedInjuryLoss += singlePlayerLoss;
 
       // 分位置解耦：进攻端折损 vs 防守端漏洞加剧

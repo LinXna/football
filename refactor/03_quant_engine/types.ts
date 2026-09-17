@@ -423,6 +423,10 @@ export interface LambdaDecomposition {
   red_leak_away: number;
   post_goal_cooldown_multiplier: number;
   oos_multiplier?: number;
+  coherent_state_home?: number;
+  coherent_state_away?: number;
+  decoherence_applied_home?: boolean;
+  decoherence_applied_away?: boolean;
   live_regime_stage?: 'OPENING' | 'MID_MATCH' | 'LATE_SURGE';
   live_stats_weight?: number;
   prior_context_weight?: number;

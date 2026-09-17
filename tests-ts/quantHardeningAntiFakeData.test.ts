@@ -20,7 +20,7 @@ import {
 import { YellowCardContextType, TacticalRegimeType, QuantAlert } from '../refactor/03_quant_engine/enums.js';
 import { extractRealTimePhysicalStats } from '../refactor/03_quant_engine/momentumQuantEngine.js';
 import { buildUnifiedMatchState, calculateConfidenceAndAlerts } from '../refactor/03_quant_engine/index.js';
-import { calculateInPlayPoissonFeatures } from '../refactor/03_quant_engine/poissonDecayModel.js';
+import { calculateInPlayPoissonFeatures, calculatePhasedDNATimeFraction } from '../refactor/03_quant_engine/poissonDecayModel.js';
 import { CanonicalTimelineEvent } from '../refactor/02_canonical_model/types.js';
 import { CanonicalIncidentCategory, CanonicalEventType, MatchStage } from '../refactor/02_canonical_model/enums.js';
 import { verifyStatutoryAlignment } from '../refactor/04_ai_evaluator/alignmentGuard.js';
@@ -851,6 +851,401 @@ test('Core Algorithmic Overhaul: Scheme 16 - AlignmentGuard Hard Gate for COLLAP
   assert.ok(
     guarded.risk_warnings.some(w => w.includes('COLLAPSING_PANIC_WARNING')),
     'Risk warnings must record COLLAPSING_PANIC_WARNING gate'
+  );
+});
+
+test('Core Algorithmic Overhaul: Scheme 17 - League DNA Substring Matching in Prematch Prior', () => {
+  // 验证完整联赛名称（如“英格兰超级联赛”、“西班牙甲组联赛”）能准确模糊匹配到 LEAGUE_DNA_MAP，杜绝退化为 2.75
+  const mockContext: any = {
+    lineup_impact: {
+      home_lis: 1.0,
+      away_lis: 1.0,
+      home_attack_injury_factor: 1.0,
+      away_attack_injury_factor: 1.0,
+      home_defense_leak_factor: 1.0,
+      away_defense_leak_factor: 1.0,
+      home_market_value_num: 0,
+      away_market_value_num: 0,
+    },
+    motivation_urgency: { home_mui: 1.0, away_mui: 1.0 },
+    h2h_analytics: { net_goal_expectation: 0, historical_h2h_advantage_home: 0.0 },
+    tactical_formation: {
+      wing_space_vulnerability_home: 0.30,
+      wing_space_vulnerability_away: 0.30,
+      midfield_congestion_index: 0.50
+    },
+    recent_form_analytics: {
+      home: { goal_expectancy: 1.5, conceded_expectancy: 1.0 },
+      away: { goal_expectancy: 1.0, conceded_expectancy: 1.5 }
+    }
+  };
+
+  const eplMatch: CanonicalMatch = {
+    canonical_id: 'epl_test_01',
+    league_name: '英格兰超级联赛',
+    match_slug: '英格兰超级联赛_曼城_vs_利物浦',
+    home_team_name: '曼城',
+    away_team_name: '利物浦',
+    timing: { stage: 'PRE_MATCH' as any },
+    score: { home_score: 0, away_score: 0 },
+    markets: {} as any,
+    reference: null,
+    created_at: new Date().toISOString(),
+    completeness_tier: 'COMPLETE' as any,
+    missing_reasons: [],
+    alignment: {} as any
+  };
+
+  const prior = synthesizePrematchPrior(eplMatch, mockContext);
+  // 英超基准进球为 2.85，主场 56% = 1.596, 客场 44% = 1.254 (乘以 gamma 1.18 和 0.85)
+  // 如果退化为 2.75，则基准是 1.54 和 1.21
+  assert.ok(prior.lambda_home_theory > 1.60, `EPL home theory lambda ${prior.lambda_home_theory} must reflect 2.85 DNA`);
+});
+
+test('Core Algorithmic Overhaul: Scheme 18 - Asymmetrical Squad Market Value Ratio', () => {
+  // 验证单边身价缺失（豪门 3500 万 vs 弱旅 0）时，具备保守估算，杜绝强弱被抹平为 1:1 等权
+  const mockContextAsym: any = {
+    lineup_impact: {
+      home_lis: 1.0,
+      away_lis: 1.0,
+      home_attack_injury_factor: 1.0,
+      away_attack_injury_factor: 1.0,
+      home_defense_leak_factor: 1.0,
+      away_defense_leak_factor: 1.0,
+      home_market_value_num: 3500, // 3500 万欧
+      away_market_value_num: 0,    // 缺失
+    },
+    motivation_urgency: { home_mui: 1.0, away_mui: 1.0 },
+    h2h_analytics: { net_goal_expectation: 0, historical_h2h_advantage_home: 0.0 },
+    tactical_formation: {
+      wing_space_vulnerability_home: 0.30,
+      wing_space_vulnerability_away: 0.30,
+      midfield_congestion_index: 0.50
+    },
+    recent_form_analytics: {
+      home: { goal_expectancy: 1.5, conceded_expectancy: 1.0 },
+      away: { goal_expectancy: 1.0, conceded_expectancy: 1.5 }
+    }
+  };
+
+  const match: CanonicalMatch = {
+    canonical_id: 'asym_test_01',
+    league_name: '埃及超级联赛',
+    match_slug: '埃及超级联赛_开罗国民_vs_弱旅',
+    home_team_name: '开罗国民',
+    away_team_name: '弱旅',
+    timing: { stage: 'PRE_MATCH' as any },
+    score: { home_score: 0, away_score: 0 },
+    markets: {} as any,
+    reference: null,
+    created_at: new Date().toISOString(),
+    completeness_tier: 'COMPLETE' as any,
+    missing_reasons: [],
+    alignment: {} as any
+  };
+
+  const prior = synthesizePrematchPrior(match, mockContextAsym);
+  assert.ok(
+    prior.lambda_home_theory > prior.lambda_away_theory * 1.5,
+    `Home theory lambda (${prior.lambda_home_theory}) must dominate away (${prior.lambda_away_theory}) when home has 3500M and away 0`
+  );
+  assert.ok(prior.prior_fair_home_win_prob > 0.60, `Home win prob (${prior.prior_fair_home_win_prob}) must be > 60% due to squad value superiority`);
+});
+
+test('Core Algorithmic Overhaul: Scheme 19 - Talisman Single Tactical Multiplication Dedup', () => {
+  // 验证身价大腿缺阵时单次乘算 (1.35x)，杜绝复合乘算 (1.8225x)
+  const mockMatch: CanonicalMatch = {
+    canonical_id: 'talisman_test',
+    home_team_name: 'Real Madrid',
+    away_team_name: 'Getafe',
+    timing: { stage: 'PRE_MATCH' as any },
+    score: { home_score: 0, away_score: 0 },
+    markets: {} as any,
+    reference: {
+      lineups: {
+        confirmed: true,
+        home_starters: [
+          { name: 'Vinicius', position: 'FW', market_value: 150000000 },
+          { name: 'Bellingham', position: 'MF', market_value: 150000000 }
+        ],
+        away_starters: [
+          { name: 'Mayoral', position: 'FW', market_value: 15000000 }
+        ],
+        home_market_value: '50000万',
+        home_injuries: [
+          {
+            name: 'Mbappe',
+            market_value_text: '18000万', // 占 36% 身价，判定为断层大腿
+            position: 'FW',
+            best_player: true
+          }
+        ]
+      }
+    } as any,
+    created_at: new Date().toISOString(),
+    completeness_tier: 'COMPLETE' as any,
+    missing_reasons: [],
+    alignment: {} as any
+  };
+
+  const result = calculateLineupImpactScores(mockMatch);
+  assert.equal(result.home_talisman_missing, true);
+  // 单次 1.35x 乘算下，Mbappe 折损约为 0.40 左右，LIS 处于 [0.80, 0.90] 区间，绝不至于因为二次 1.35 乘算暴跌至 < 0.78
+  assert.ok(result.home_lis >= 0.80, `Home LIS (${result.home_lis}) must not suffer duplicate talisman penalty`);
+  assert.ok(result.home_attack_injury_factor < 1.0, 'Attack injury factor must be depressed for missing striker');
+});
+
+test('Core Algorithmic Overhaul: Scheme 20 - Tiered Injury Loss for Unvalued Leagues', () => {
+  // 验证在无身价联赛 (startersTotalMvEur === 0) 中，伤员达 3 人时具有阶梯递减折损，不归零
+  const mockMatch: CanonicalMatch = {
+    canonical_id: 'unvalued_league_test',
+    home_team_name: 'Small Club A',
+    away_team_name: 'Small Club B',
+    timing: { stage: 'PRE_MATCH' as any },
+    score: { home_score: 0, away_score: 0 },
+    markets: {} as any,
+    reference: {
+      lineups: {
+        confirmed: true,
+        home_starters: [
+          { name: 'HS1', position: 'FW' },
+          { name: 'HS2', position: 'MF' }
+        ],
+        away_starters: [
+          { name: 'AS1', position: 'FW' }
+        ],
+        home_injuries: [
+          { name: 'Player 1', position: 'MF' },
+          { name: 'Player 2', position: 'DF' },
+          { name: 'Player 3', position: 'FW' }
+        ]
+      }
+    } as any,
+    created_at: new Date().toISOString(),
+    completeness_tier: 'COMPLETE' as any,
+    missing_reasons: [],
+    alignment: {} as any
+  };
+
+  const result = calculateLineupImpactScores(mockMatch);
+  assert.ok(result.home_lis < 1.0, `Home LIS (${result.home_lis}) for 3 injuries in unvalued league must reflect tiered loss`);
+  assert.ok(result.home_lis <= 0.98, `Home LIS (${result.home_lis}) must be less than or equal to 0.98`);
+  assert.ok(result.home_lis >= 0.85, `Home LIS (${result.home_lis}) must be reasonably bounded`);
+});
+
+test('Core Algorithmic Overhaul: Scheme 21 - Preceding 15m Siege Window for Yellow Collapse Resonance', () => {
+  // 验证前置 15 分钟发生的攻门压迫（如第 62、64 分钟）能与第 68、70 分钟的后卫受迫黄牌形成有效因果共振
+  const events: CanonicalTimelineEvent[] = [
+    { minute: 62, side: 'away', type: 21, canonical_type: CanonicalEventType.SHOT_ON_TARGET, text: '客队前锋禁区内劲射被扑', is_cancelled: false },
+    { minute: 64, side: 'away', type: 22, canonical_type: CanonicalEventType.SHOT_OFF_TARGET, text: '客队头球攻门稍稍偏出', is_cancelled: false },
+    { minute: 68, side: 'home', type: 3, canonical_type: CanonicalEventType.YELLOW_CARD, text: 'Defender A 禁区防线失守铲球犯规染黄', is_cancelled: false, player_name: 'Defender A' },
+    { minute: 70, side: 'home', type: 3, canonical_type: CanonicalEventType.YELLOW_CARD, text: 'Defender B 门前失位放铲犯规染黄', is_cancelled: false, player_name: 'Defender B' },
+  ];
+
+  const mockMatch: CanonicalMatch = {
+    canonical_id: 'siege_test',
+    home_team_name: 'Home FC',
+    away_team_name: 'Away FC',
+    timing: { minute: 72, stage: 'IN_PLAY' as any },
+    score: { home_score: 0, away_score: 0 },
+    markets: {} as any,
+    reference: {
+      lineups: {
+        home_starters: [
+          { name: 'Defender A', position: 'CB' },
+          { name: 'Defender B', position: 'LB' }
+        ]
+      },
+      timeline_events: events
+    } as any,
+    created_at: new Date().toISOString(),
+    completeness_tier: 'COMPLETE' as any,
+    missing_reasons: [],
+    alignment: {} as any
+  };
+
+  const physical = extractRealTimePhysicalStats(mockMatch);
+  assert.equal(physical.discipline_pressure?.home_yellow_collapse_risk, true, 'Home must trigger yellow collapse risk with 15m preceding siege');
+  assert.ok(
+    physical.discipline_pressure!.home_discipline_leak_factor >= 1.05,
+    `Discipline leak factor (${physical.discipline_pressure!.home_discipline_leak_factor}) must be >= 1.05`
+  );
+});
+
+test('Core Algorithmic Overhaul: Scheme 22 - Formation Decoupling (Wing Exposure vs Midfield Congestion)', () => {
+  const baseMatch: CanonicalMatch = {
+    canonical_id: 'match_formation_test',
+    home_team_name: 'Arsenal',
+    away_team_name: 'Chelsea',
+    league_name: '英超',
+    timing: { minute: 0, stage: 'PRE_MATCH' as any },
+    score: { home_score: 0, away_score: 0 },
+    markets: {} as any,
+    reference: {
+      lineups: {
+        confirmed: true,
+        home_starters: [],
+        away_starters: []
+      }
+    } as any,
+    created_at: new Date().toISOString(),
+    completeness_tier: 'COMPLETE' as any,
+    missing_reasons: [],
+    alignment: {} as any
+  };
+
+  // 1. 基准上下文：双方边肋空档中性 (0.30)，中场绞杀中性 (0.50)
+  const baseContext = extractCleanedContextFeatures(baseMatch);
+  const neutralContext: any = {
+    ...baseContext,
+    squad_value_tier: { home_market_value_eur: 500000000, away_market_value_eur: 500000000 },
+    lineup_impact: { home_lis: 1.0, away_lis: 1.0, home_attack_factor: 1.0, away_attack_factor: 1.0, home_defense_leak: 1.0, away_defense_leak: 1.0 },
+    h2h_analytics: { historical_h2h_advantage_home: 0, tactical_metrics_available: false, tactical_valid_count: 0 },
+    tactical_formation: {
+      wing_space_vulnerability_home: 0.30,
+      wing_space_vulnerability_away: 0.30,
+      midfield_congestion_index: 0.50
+    },
+    motivation_urgency: { home_mui: 1.0, away_mui: 1.0 },
+    recent_form: { home_attack_form: 1.0, away_attack_form: 1.0, home_defense_form: 1.0, away_defense_form: 1.0 }
+  };
+
+  const neutralPrior = synthesizePrematchPrior(baseMatch, neutralContext);
+
+  // 2. 客队边肋大暴露 (0.70)，中场中性
+  const awayWingExposedContext: any = {
+    ...neutralContext,
+    tactical_formation: {
+      wing_space_vulnerability_home: 0.30,
+      wing_space_vulnerability_away: 0.70, // 暴露明显
+      midfield_congestion_index: 0.50
+    }
+  };
+  const awayExposedPrior = synthesizePrematchPrior(baseMatch, awayWingExposedContext);
+
+  // 断言：客队边路漏洞暴露时，主队理论进球期望必须显著提升
+  assert.ok(
+    awayExposedPrior.lambda_home_theory > neutralPrior.lambda_home_theory,
+    `Home theory lambda (${awayExposedPrior.lambda_home_theory}) must increase when away wing space is exposed (neutral was ${neutralPrior.lambda_home_theory})`
+  );
+
+  // 3. 中场高密度绞杀 (0.85)，双边肋中性
+  const congestedContext: any = {
+    ...neutralContext,
+    tactical_formation: {
+      wing_space_vulnerability_home: 0.30,
+      wing_space_vulnerability_away: 0.30,
+      midfield_congestion_index: 0.85 // 强力中场绞杀
+    }
+  };
+  const congestedPrior = synthesizePrematchPrior(baseMatch, congestedContext);
+
+  // 断言：中场绞杀必须对双方总进球期望产生连续平滑的抑制，杜绝加减法对冲
+  assert.ok(
+    congestedPrior.lambda_home_theory < neutralPrior.lambda_home_theory,
+    `Home theory lambda under heavy midfield congestion (${congestedPrior.lambda_home_theory}) must be strictly lower than neutral (${neutralPrior.lambda_home_theory})`
+  );
+  assert.ok(
+    congestedPrior.lambda_away_theory < neutralPrior.lambda_away_theory,
+    `Away theory lambda under heavy midfield congestion (${congestedPrior.lambda_away_theory}) must be strictly lower than neutral (${neutralPrior.lambda_away_theory})`
+  );
+});
+
+test('Anti-Fake Data Hardening: Scheme 23 - Goal DNA Half-Time (45\') Boundary & Bayesian Shrinkage Smoothing', () => {
+  // 1. 验证 45' 半场物理边界积分保护门禁
+  // 设定时段权重分布: 上半场占 40%, 下半场占 60%
+  // [0-15': 0.10, 16-30': 0.15, 31-45': 0.15, 46-60': 0.20, 61-75': 0.20, 76-90': 0.20]
+  const customWeights = [0.10, 0.15, 0.15, 0.20, 0.20, 0.20];
+
+  // (A) 当 elapsedMinute = 45 时，上半场积分严格为 0，剩余积分必须精确等于 0.20 + 0.20 + 0.20 = 0.60
+  const fractionAt45 = calculatePhasedDNATimeFraction(45, customWeights);
+  assert.equal(
+    fractionAt45,
+    0.60,
+    `At exactly 45' half-time, remaining integral (${fractionAt45}) must strictly equal the exact sum of second-half intervals (0.60)`
+  );
+
+  // (B) 当 elapsedMinute = 0 时为 1.0, elapsedMinute = 90 时为 0.0
+  assert.equal(calculatePhasedDNATimeFraction(0, customWeights), 1.0);
+  assert.equal(calculatePhasedDNATimeFraction(90, customWeights), 0.0);
+
+  // 2. 验证小样本后验贝叶斯信度平滑收缩 (5 <= nAll < 15)
+  // 构造总进球只有 5 球的小样本球队：全部进球都堆积在 0-15 分钟
+  const smallSample5Match: CanonicalMatch = {
+    canonical_id: 'match_small_dna_5',
+    home_team_name: 'Alpha FC',
+    away_team_name: 'Beta FC',
+    reference: {
+      goal_distribution: {
+        has_data: true,
+        home_team: {
+          all: {
+            scored_intervals: [
+              { goals: 5 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }
+            ]
+          }
+        },
+        away_team: {
+          all: {
+            scored_intervals: [
+              { goals: 2 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }
+            ]
+          }
+        }
+      }
+    }
+  } as unknown as CanonicalMatch;
+
+  const dna5 = extractGoalDistributionDNA(smallSample5Match);
+  // 当 nAll = 5 时，shrinkage = (5 - 5) / 10 = 0.0，后验必须 100% 收缩至中性先验 1/6 ≈ 0.1667
+  assert.equal(dna5.home_confidence, 'MEDIUM');
+  assert.ok(
+    Math.abs(dna5.home_scored_weights[0] - (1.0 / 6.0)) < 0.005,
+    `At nAll=5 boundary, posterior (${dna5.home_scored_weights[0]}) must shrink toward uniform 1/6 (0.1667)`
+  );
+
+  // 客队总进球 2 球 (< 5)，必须判定为 INSUFFICIENT 且 100% 锁定中性均匀分布
+  assert.equal(dna5.away_confidence, 'INSUFFICIENT');
+  assert.deepEqual(
+    dna5.away_scored_weights,
+    [0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667],
+    'Away with <5 goals must strictly fallback to uniform 6-interval weights'
+  );
+
+  // 构造中等偏大样本 (nAll = 10): shrinkage = (10 - 5) / 10 = 0.50，处于狄利克雷后验与中性先验的一半平滑过渡
+  const midSample10Match: CanonicalMatch = {
+    canonical_id: 'match_small_dna_10',
+    home_team_name: 'Alpha FC',
+    away_team_name: 'Beta FC',
+    reference: {
+      goal_distribution: {
+        has_data: true,
+        home_team: {
+          all: {
+            scored_intervals: [
+              { goals: 10 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }
+            ]
+          }
+        },
+        away_team: {
+          all: {
+            scored_intervals: [
+              { goals: 10 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }
+            ]
+          }
+        }
+      }
+    }
+  } as unknown as CanonicalMatch;
+
+  const dna10 = extractGoalDistributionDNA(midSample10Match);
+  assert.equal(dna10.home_confidence, 'MEDIUM');
+  // 原始频数全部在区间 0: 狄利克雷后验 (10 + 1) / (10 + 6) = 11/16 = 0.6875
+  // 收缩权重 = 0.6875 * 0.50 + (1/6) * 0.50 = 0.34375 + 0.08333 ≈ 0.427
+  // 断言平滑介于 [0.35, 0.50]，杜绝断崖式突变
+  assert.ok(
+    dna10.home_scored_weights[0] > 0.35 && dna10.home_scored_weights[0] < 0.50,
+    `At nAll=10, weight (${dna10.home_scored_weights[0]}) should be smoothly shrunk between uniform and full posterior`
   );
 });
 

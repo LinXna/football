@@ -104,7 +104,7 @@ export function classifyYellowCardContext(
                         (options?.oppRecentCorners10m ?? 0) >= 2 ||
                         (options?.oppMomentumLead ?? 0) >= 30;
 
-  if ((isDefender && oppUnderSiege) || isDangerousAreaFoul || (oppUnderSiege && !options?.playerRole)) {
+  if ((isDefender && oppUnderSiege) || isDangerousAreaFoul) {
     return YellowCardContextType.DEFENSIVE_COLLAPSE_BREACH;
   }
 

@@ -19,7 +19,7 @@ import {
 } from './types.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
-import { calculateBivariatePoissonGrid, LEAGUE_DNA_MAP } from './poissonDecayModel.js';
+import { calculateBivariatePoissonGrid, LEAGUE_DNA_MAP, getLeagueBaseGoals } from './poissonDecayModel.js';
 
 /**
  * 解析身价占比与阵容成色
@@ -77,6 +77,18 @@ export function synthesizePrematchPrior(
     const totalMv = homeMv + awayMv;
     squadRatioH = Math.max(0.6, Math.min(1.4, 1.0 + (homeMv / totalMv - 0.5) * 0.8));
     squadRatioA = Math.max(0.6, Math.min(1.4, 1.0 + (awayMv / totalMv - 0.5) * 0.8));
+  } else if (homeMv > 0 && awayMv <= 0) {
+    // 主队录入显著身价而客队缺失（多为小联赛/保级队未收录）：给予保守估算基准，杜绝强弱悬殊被强制抹平为 1:1 等权
+    const imputedAwayMv = Math.min(homeMv * 0.4, 300);
+    const totalMv = homeMv + imputedAwayMv;
+    squadRatioH = Math.max(0.6, Math.min(1.4, 1.0 + (homeMv / totalMv - 0.5) * 0.8));
+    squadRatioA = Math.max(0.6, Math.min(1.4, 1.0 + (imputedAwayMv / totalMv - 0.5) * 0.8));
+  } else if (awayMv > 0 && homeMv <= 0) {
+    // 客队录入显著身价而主队缺失
+    const imputedHomeMv = Math.min(awayMv * 0.4, 300);
+    const totalMv = imputedHomeMv + awayMv;
+    squadRatioH = Math.max(0.6, Math.min(1.4, 1.0 + (imputedHomeMv / totalMv - 0.5) * 0.8));
+    squadRatioA = Math.max(0.6, Math.min(1.4, 1.0 + (awayMv / totalMv - 0.5) * 0.8));
   }
 
   // 纯进攻战力保持率与防守漏洞恶化乘子 (单一事实来源，杜绝二次重复惩罚)
@@ -120,46 +132,62 @@ export function synthesizePrematchPrior(
 
   // 4. 历史交锋深度加权与球风相克 (仅当战术攻防统计客观有效且具备真实样本时才允许球风相克生效)
   const h2hAnalytics = context.h2h_analytics;
-  const h2hAdvantage = h2hAnalytics.historical_h2h_advantage_home; // [-0.20, +0.20]
+  const h2hAdvantage = h2hAnalytics?.historical_h2h_advantage_home ?? 0.0; // [-0.20, +0.20]
   const stylisticClash = (h2hAnalytics.tactical_metrics_available && h2hAnalytics.tactical_valid_count >= 1)
     ? h2hAnalytics.tactical_stylistic_clash_index // [-1.0, 1.0]
     : 0.0;
 
-  // 5. 阵型空间张力克制与中场绞杀
+  // 5. 阵型空间张力克制回归 Dixon-Coles 攻防解耦模型 (Scheme 1 方案 1 根治)
+  // (A) 边肋部空档暴露 (Wing Space Vulnerability):
+  // 客队边肋空档暴露 (>0.30): 提振主队针对性突击穿透 (提升主队进攻 Alpha)，同时放大客队防线漏球倾向 (提升客队防守 Beta)
+  // 主队边肋空档暴露 (>0.30): 提振客队反击穿透 (提升客队进攻 Alpha)，同时放大主队防守漏洞 (提升主队防守 Beta)
   const formation = context.tactical_formation;
-  const formationFactorH = 1.0 + (formation.wing_space_vulnerability_away - 0.30) * 0.20 - (formation.midfield_congestion_index - 0.50) * 0.10;
-  const formationFactorA = 1.0 + (formation.wing_space_vulnerability_home - 0.30) * 0.20 - (formation.midfield_congestion_index - 0.50) * 0.10;
+  const wingExposureAway = Math.max(0, formation.wing_space_vulnerability_away - 0.30);
+  const wingExposureHome = Math.max(0, formation.wing_space_vulnerability_home - 0.30);
+
+  // 边路穿透与防守撕裂乘子
+  const wingAlphaBonusH = 1.0 + wingExposureAway * 0.15; // 主队进攻增益
+  const wingBetaLeakA = 1.0 + wingExposureAway * 0.12;   // 客队漏球放大
+  const wingAlphaBonusA = 1.0 + wingExposureHome * 0.15; // 客队进攻增益
+  const wingBetaLeakH = 1.0 + wingExposureHome * 0.12;   // 主队漏球放大
+
+  // (B) 中场绞杀密集度 (Midfield Congestion Index):
+  // 物理意义：双后腰或密集绞杀阵型全局压低比赛流动速率与有效射门转化，平滑约束双方整体产出，杜绝简单加减法机械对冲
+  const congestionExcess = Math.max(0, formation.midfield_congestion_index - 0.50);
+  const tempoSuppressionFactor = 1.0 / (1.0 + congestionExcess * 0.35);
 
   // 6. 主客场异构基线 (Iso-Venue Discrepancy & League DNA)
-  // 使用动态联赛 DNA 作为总进球基准锚点，主客场基准遵循现代足球场均分布 (主场 56%，客场 44%)
-  const leagueName = match.match_slug ? match.match_slug.split('_')[0] : '';
-  const dnaTotal = LEAGUE_DNA_MAP[leagueName] || 2.75; // 默认中性 2.75
-  const baseGoalsH = dnaTotal * 0.56;
-  const baseGoalsA = dnaTotal * 0.44;
+  // 使用动态联赛 DNA 作为总进球基准锚点，主客场基准遵循现代足球场均分布 (主场 56%，客场 44%)，并注入中场绞杀流速抑制
+  const leagueQuery = match.league_name || (match.match_slug ? match.match_slug.split('_')[0] : '');
+  const dnaTotal = getLeagueBaseGoals(leagueQuery, 2.75);
+  const baseGoalsH = dnaTotal * 0.56 * tempoSuppressionFactor;
+  const baseGoalsA = dnaTotal * 0.44 * tempoSuppressionFactor;
 
   // 7. 主客场绿茵权威优势乘子 (Home Advantage Gamma)
   const gammaHome = 1.18;
   const gammaAway = 0.85;
 
-  // 8. 战术意图与阵型张力乘子
-  const tacticalFactorH = muiH * (1.0 + h2hAdvantage + stylisticClash * 0.05) * formationFactorH;
-  const tacticalFactorA = muiA * (1.0 - h2hAdvantage * 0.5 - stylisticClash * 0.05) * formationFactorA;
+  // 8. 战术意图乘子 (MUI + 历史交锋深度与球风克制)
+  const tacticalFactorH = muiH * (1.0 + h2hAdvantage + stylisticClash * 0.05);
+  const tacticalFactorA = muiA * (1.0 - h2hAdvantage * 0.5 - stylisticClash * 0.05);
 
   // 9. 现代足球空间场域压制物理定律 (Territorial Authority & Field Tilt Suppression)
   // 物理原理：当主队处于压倒性实力优势 (alphaH > alphaA) 时，高位压迫与半场围攻将客队有效推进空间极度压缩；
   // 客队的进攻产出期望遵循连续平滑的场域压制衰减函数，杜绝使用生硬表面 if-clamp 补丁：
-  const homeAdvantageDifferential = Math.max(0, alphaH - alphaA);
+  const effectiveAlphaH = alphaH * wingAlphaBonusH;
+  const effectiveAlphaA = alphaA * wingAlphaBonusA;
+  const homeAdvantageDifferential = Math.max(0, effectiveAlphaH - effectiveAlphaA);
   const awaySuppressionFactor = 1.0 / (1.0 + homeAdvantageDifferential * 0.55);
 
   // 客强主弱时，主队凭借主场草皮与球迷声浪具备天然韧性，受压制斜率较为平缓 (0.25)
-  const awayAdvantageDifferential = Math.max(0, alphaA - alphaH);
+  const awayAdvantageDifferential = Math.max(0, effectiveAlphaA - effectiveAlphaH);
   const homeSuppressionFactor = 1.0 / (1.0 + awayAdvantageDifferential * 0.25);
 
   // 10. Dixon-Coles 乘法攻防实力模型进球期望综合求解
-  // 主队期望 λ_H = 基准进球 * 主队纯进攻 Alpha * 客队防线漏洞 Beta * 主场优势 Gamma * 战术阵型 * 主场场域系数
-  // 客队期望 λ_A = 基准进球 * 客队纯进攻 Alpha * 主队防线漏洞 Beta * 客场折损 Gamma * 战术阵型 * 客队场域压制系数
-  let lambdaH = baseGoalsH * alphaH * betaA * gammaHome * tacticalFactorH * homeSuppressionFactor;
-  let lambdaA = baseGoalsA * alphaA * betaH * gammaAway * tacticalFactorA * awaySuppressionFactor;
+  // 主队期望 λ_H = 基准进球(含流速抑制) * (主队纯进攻 Alpha * 边路穿透) * (客队防线漏洞 Beta * 边路被突撕裂) * 主场优势 Gamma * 战意交锋 * 主场场域系数
+  // 客队期望 λ_A = 基准进球(含流速抑制) * (客队纯进攻 Alpha * 边路穿透) * (主队防线漏洞 Beta * 边路被突撕裂) * 客场折损 Gamma * 战意交锋 * 客队场域压制系数
+  let lambdaH = baseGoalsH * effectiveAlphaH * (betaA * wingBetaLeakA) * gammaHome * tacticalFactorH * homeSuppressionFactor;
+  let lambdaA = baseGoalsA * effectiveAlphaA * (betaH * wingBetaLeakH) * gammaAway * tacticalFactorA * awaySuppressionFactor;
 
   // 绿茵物理边界自然收敛约束 [0.20, 5.0]
   lambdaH = Math.max(0.20, Math.min(5.0, Number(lambdaH.toFixed(3))));

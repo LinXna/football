@@ -1,8 +1,45 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260917-YELLOW-CARD-TACTICAL-SEMANTICS-AND-DEFENSIVE-COLLAPSE`
-- **当前状态 (Status)**: `DONE`
-- **阶段进度 (Phase)**: `P5.4 动态黄牌语义重构 —— 区分战术牺牲(反击阻断)与防线崩盘(受迫失位连环染黄)，高频黄牌防守惩罚全链路闭环 & 深度全链路排查确认 [已全面完成并通过全量验证]`
+- **任务编号 (Task)**: `SNAPSHOT-20260917-QUANT-ENGINE-ITEM3-COHERENT-STATE-FUSION`
+- **当前状态 (Status)**: `IN_PROGRESS`
+- **阶段进度 (Phase)**: `P5.6 足球量化系统深度重构工程 —— [原子任务 3/7: 方案 3] 滚球终盘“先验 DNA 绝杀特质”与“实时物理场”相干态干涉方程与虚假冲动阻断`
+- **任务目标与交付清单 (Deliverables)**：
+  1. 【相干态物理干涉方程与阻断机制 (`poissonDecayModel.ts`)】：
+     - 痛点根治：终盘阶段（t >= 70'），当某队在先验进球 DNA 具有极高绝杀特质（如 76-90' 进球占比高达 35%+），但现场实时物理场显示该队处于极度萎靡/零射门/被深度围攻压迫（如 `livePhysicalFactor <= 0.70` 或 `intensity <= 0.25` 且 `oppIntensity >= 0.75`）时，该队的绝杀特质无法在物理真空中凭空具象化；
+     - 构建相干度度量方程 $\mathcal{C}_i \in [0.0, 1.0]$：
+       $$\mathcal{C}_i = \text{clamp}\left(\frac{\text{livePhysicalFactor}_i - 0.40}{0.60}, 0.0, 1.0\right)$$
+     - 当相干度极低（$\mathcal{C}_i \to 0$）即现场物理完全不支持时，先验 DNA 绝杀加速权重必须受到相干态干涉衰减，平滑退相干（decohere）至均匀基准权重，防止产生“虚假搏命爆发”冲动推演；
+     - 仅当相干度高（$\mathcal{C}_i \to 1$）且现场伴随攻防动量与压迫支持时，先验绝杀 DNA 才能以相长干涉完整释放其实战爆发力；
+  2. 【分解日志与可解释性增强 (`poissonDecayModel.ts`, `types.ts`)】：
+     - 在 `LambdaDecomposition` 中增加 `coherent_state_home`, `coherent_state_away` 与相干性降维标记，确保每一步数学推导完全透明可审计；
+  3. 【专项数学单元测试验证 (`quantHardeningAntiFakeData.test.ts`)】：
+     - 编写 Scheme 24 针对性测试：构造终盘 75'+ 场景，对比“先验绝杀 DNA 强烈但现场零射门/极低物理活跃度”与“现场高压围攻”，验证退相干方程精准压制虚假冲动、高相干态正常释放进球预期；
+  4. 【工程标准红线】：
+     - 严格遵守纯函数无副作用、强类型零 any、全套测试与生产构建 100% 绿灯。
+- **改动文件清单 (Target Files)**：
+  - `/refactor/03_quant_engine/types.ts`
+  - `/refactor/03_quant_engine/poissonDecayModel.ts`
+  - `/tests-ts/quantHardeningAntiFakeData.test.ts`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **下一步计划 (Next Steps)**：
+  - 任务 3 验证完成后，推进【原子任务 4/7: 方案 4】赛前 Prior 与 滚球 In-Play 统一两阶段校准档案隔离（Prematch/Live 分流与降级熔断）。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260917-QUANT-ENGINE-ITEM2-DNA-HALFTIME-AND-BAYESIAN-SHRINKAGE (DONE)
+- **阶段进度**: `P5.6 足球量化系统深度重构工程 —— [原子任务 2/7: 方案 2] 进球时段 DNA 45' 半场时间积分保护与后验贝叶斯信度平滑收缩 [已全面完成并通过全量验证]`
+
+### Snapshot: SNAPSHOT-20260917-QUANT-ENGINE-ITEM1-FORMATION-DECOUPLING (DONE)
+- **阶段进度**: `P5.6 足球量化系统深度重构工程 —— [原子任务 1/7: 方案 1] 阵型空间张力克制回归 Dixon-Coles 攻防解耦物理模型与中场绞杀流速抑制 [已全面完成并通过全量验证]`
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260917-YELLOW-CARD-TACTICAL-SEMANTICS-AND-DEFENSIVE-COLLAPSE (DONE)
+- **阶段进度**: `P5.4 动态黄牌语义重构 —— 区分战术牺牲(反击阻断)与防线崩盘(受迫失位连环染黄)，高频黄牌防守惩罚全链路闭环 & 深度全链路排查确认 [已全面完成并通过全量验证]`
 - **任务目标与交付清单 (Deliverables)**：
   1. 【事件威胁动态加权与四态语义分类 (`eventMomentumFusion.ts`)】[DONE]：
      - 重构黄牌语义分类器 `classifyYellowCardContext`：精准识别【战术牺牲阻断】(`TACTICAL_DISRUPTION`)、【受迫失位高危】(`DEFENSIVE_PRESSURE_FOUL`)、【非战术情绪/延误】(`NON_TACTICAL_DISSENT`) 与【常规拼抢】(`REGULAR_CONTEST`) 四态；
@@ -21,19 +58,9 @@
      - `alignmentGuard.ts` 落地 6.4 硬门禁：触发 `COLLAPSING_PANIC_WARNING` 时强制将 A_GRADE 降为 B_GRADE，置信度上限强制压制至 75 分；
      - `EvaluatorQuantFeatures` 接口强类型补全，零 `any`，零类型报错。
   5. 【大模型提示词与测试全量回归 (`quantHardeningAntiFakeData.test.ts` & 全量测试)】[DONE]：
-     - `quantHardeningAntiFakeData.test.ts` 覆盖全部 Schemes 1~16 专项单元测试（战术阻断不漏球、连环受迫失位触发崩盘相变与预警、非战术情绪牌排除、泊松期望闭环消费、后腰/CDM 关键位置识别与多重压迫共振、Layer 04 崩盘风控硬降级门禁），16 个测试用例 100% 通过；
+     - `quantHardeningAntiFakeData.test.ts` 覆盖全部 Schemes 1~16 专项单元测试，16 个测试用例 100% 通过；
      - 全量运行 `npm run test:ts`，全仓 6 个测试套件 99 个测试全量通过（99 pass, 0 fail）；
      - `npm run lint` (`tsc --noEmit`) 与 `compile_applet` 100% 绿灯无报错。
-- **改动文件清单 (Target Files)**：
-  - `/refactor/03_quant_engine/types.ts`
-  - `/refactor/03_quant_engine/enums.ts`
-  - `/refactor/03_quant_engine/eventMomentumFusion.ts`
-  - `/refactor/03_quant_engine/momentumQuantEngine.ts`
-  - `/refactor/03_quant_engine/index.ts`
-  - `/refactor/03_quant_engine/poissonDecayModel.ts`
-  - `/refactor/04_ai_evaluator/promptExporter.ts`
-  - `/tests-ts/quantHardeningAntiFakeData.test.ts`
-  - `/refactor/HANDOVER_AND_PROGRESS.md`
 - **下一步计划 (Next Steps)**：
   - 继续保持量化评估系统各模块因果闭环与强类型零 any 契约，迎接下一阶段实盘验证或新需求。
 

@@ -422,6 +422,7 @@ export function extractRealTimePhysicalStats(
   // 1. 统计时序事件中的越位、门柱造险、攻防射门角球聚类与黄牌微观语义分类
   const currentMinute = Math.max(0, (match.timing?.minute ?? 0));
   const window10m = Math.max(0, currentMinute - 10);
+  const pressureWindow15m = Math.max(0, currentMinute - 15); // 覆盖前置 15 分钟围攻压迫与狂轰滥炸
   const homeStarters = match.reference?.lineups?.home_starters;
   const awayStarters = match.reference?.lineups?.away_starters;
   const homePositionMap = buildPlayerPositionMap(homeStarters);
@@ -441,20 +442,20 @@ export function extractRealTimePhysicalStats(
   let awaySiegeYellows10m = 0;
   let homeYellowBurst10m = 0;
   let awayYellowBurst10m = 0;
-  let homeShots10m = 0;
-  let awayShots10m = 0;
-  let homeCorners10m = 0;
-  let awayCorners10m = 0;
+  let homeShots15m = 0;
+  let awayShots15m = 0;
+  let homeCorners15m = 0;
+  let awayCorners15m = 0;
 
-  // 第一阶段：先行提取近 10 分钟双方真实射门与角球压制频次（为黄牌因果共振提供依据）
+  // 第一阶段：先行提取近 15 分钟双方真实射门与角球压制频次（为黄牌因果共振提供依据）
   for (const ev of events) {
     if (ev.is_cancelled || ev.is_var_overturned) continue;
     const side = ev.side;
     const type = ev.type;
     const evMinute = ev.minute ?? (typeof ev.text === 'string' ? Number(ev.text.match(/\b(\d{1,3})['’]/)?.[1]) : null);
-    const inWindow10m = evMinute !== null && !isNaN(evMinute) && evMinute >= window10m && evMinute <= currentMinute;
+    const inWindow15m = evMinute !== null && !isNaN(evMinute) && evMinute >= pressureWindow15m && evMinute <= currentMinute;
 
-    if (inWindow10m) {
+    if (inWindow15m) {
       const isShot = type === 21 || type === 22 || type === 1 ||
                      ev.canonical_type === CanonicalEventType.SHOT_ON_TARGET ||
                      ev.canonical_type === CanonicalEventType.SHOT_OFF_TARGET ||
@@ -462,12 +463,12 @@ export function extractRealTimePhysicalStats(
                      ev.canonical_type === CanonicalEventType.GOAL_PENALTY;
       const isCorner = type === 2 || ev.canonical_type === CanonicalEventType.CORNER;
       if (isShot) {
-        if (side === 'home') homeShots10m++;
-        else if (side === 'away') awayShots10m++;
+        if (side === 'home') homeShots15m++;
+        else if (side === 'away') awayShots15m++;
       }
       if (isCorner) {
-        if (side === 'home') homeCorners10m++;
-        else if (side === 'away') awayCorners10m++;
+        if (side === 'home') homeCorners15m++;
+        else if (side === 'away') awayCorners15m++;
       }
     }
   }
@@ -511,9 +512,9 @@ export function extractRealTimePhysicalStats(
         else if (text.includes('前锋')) playerRole = 'FW';
       }
 
-      // 获取受罚时刻对方的进攻施压特征 (仅当事件处于近10分钟窗口时，当前窗口围攻数据才具有同窗因果性)
-      const oppShots = side === 'home' ? awayShots10m : homeShots10m;
-      const oppCorners = side === 'home' ? awayCorners10m : homeCorners10m;
+      // 获取受罚时刻对方的进攻施压特征 (以 15 分钟窗口覆盖前置高压围攻，确保同窗因果性完整)
+      const oppShots = side === 'home' ? awayShots15m : homeShots15m;
+      const oppCorners = side === 'home' ? awayCorners15m : homeCorners15m;
       const oppDALead = side === 'home' ? ((awayDA ?? 0) - (homeDA ?? 0)) : ((homeDA ?? 0) - (awayDA ?? 0));
 
       const yellowCtx = classifyYellowCardContext(ev, {
@@ -532,8 +533,9 @@ export function extractRealTimePhysicalStats(
         if (side === 'home') homeTacticalYellows++;
         else if (side === 'away') awayTacticalYellows++;
       } else if (yellowCtx === YellowCardContextType.DEFENSIVE_COLLAPSE_BREACH) {
-        // 受迫失位高危犯规：后防失守/被动挨打
-        if (playerRole === 'DF' || playerRole === 'GK' || !playerRole) {
+        // 受迫失位高危犯规：后防失守/被动挨打 (严格限定防守球员或明确高危禁区失守犯规，杜绝未识别人员泛化)
+        const isDangerousFoulText = /dangerous|box|penalty area|last man|sliding|reckless|铲球|禁区|防线失守|单刀阻截|禁区前|禁区内|绊倒/i.test(text);
+        if (playerRole === 'DF' || playerRole === 'GK' || isDangerousFoulText) {
           if (side === 'home') homeDefYellows++;
           else if (side === 'away') awayDefYellows++;
         }
@@ -554,10 +556,10 @@ export function extractRealTimePhysicalStats(
   // 1.1 因果共振判定后防连续受迫染黄崩溃风险与防守漏洞恶化乘子 (Discipline Leak Factor)
   // 严格因果共振条件：
   // 1. 10 分钟内同一方连续吃到 >= 2 张受迫失位高危黄牌 (siegeYellows10m >= 2)
-  // 2. 且伴随对手密集攻门/角球压制 (oppShots10m >= 2 || oppCorners10m >= 2 || (oppDA && teamDA && oppDA >= teamDA + 15))
+  // 2. 且伴随对手密集攻门/角球压制 (oppShots15m + oppCorners15m >= 2 || (oppDA && teamDA && oppDA >= teamDA + 15))
   // 或防线核心受迫染黄严重积聚 (defYellows >= 3 且对方持续压迫)
-  const awayHasHeavyPressure = (awayShots10m + awayCorners10m >= 2) || (awayDA !== undefined && homeDA !== undefined && awayDA >= homeDA + 15);
-  const homeHasHeavyPressure = (homeShots10m + homeCorners10m >= 2) || (homeDA !== undefined && awayDA !== undefined && homeDA >= awayDA + 15);
+  const awayHasHeavyPressure = (awayShots15m + awayCorners15m >= 2) || (awayDA !== undefined && homeDA !== undefined && awayDA >= homeDA + 15);
+  const homeHasHeavyPressure = (homeShots15m + homeCorners15m >= 2) || (homeDA !== undefined && awayDA !== undefined && homeDA >= awayDA + 15);
 
   const homeYellowCollapse = (homeSiegeYellows10m >= 2 && awayHasHeavyPressure) || (homeDefYellows >= 3 && awayHasHeavyPressure);
   const awayYellowCollapse = (awaySiegeYellows10m >= 2 && homeHasHeavyPressure) || (awayDefYellows >= 3 && homeHasHeavyPressure);

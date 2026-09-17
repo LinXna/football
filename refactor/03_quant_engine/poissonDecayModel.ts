@@ -52,14 +52,14 @@ export const LEAGUE_DNA_MAP: Record<string, number> = {
 };
 
 /**
- * 获取联赛基准进球数
+ * 获取联赛基准进球数 (模糊子串匹配，支持全名与别名)
  */
-function getLeagueBaseGoals(leagueName: string): number {
-  if (!leagueName) return 2.70;
+export function getLeagueBaseGoals(leagueName: string, defaultGoals: number = 2.75): number {
+  if (!leagueName) return defaultGoals;
   for (const [key, val] of Object.entries(LEAGUE_DNA_MAP)) {
     if (leagueName.includes(key)) return val;
   }
-  return 2.70;
+  return defaultGoals;
 }
 
 function poissonSupportUpperBound(lambda: number): number {
@@ -127,6 +127,15 @@ export function calculatePhasedDNATimeFraction(
 ): number {
   if (elapsedMinute <= 0) return 1.0;
   if (elapsedMinute >= 90) return 0.0;
+
+  // 45' 半场休息 (Half-Time) 物理边界保护门禁:
+  // 当比赛处于第 45 分钟或中场休息时，上半场 3 个时段 (0-15', 16-30', 31-45') 积分精确归零；
+  // 下半场 3 个时段 (46-60', 61-75', 76-90') 100% 完整保留，剩余积分严格等于区间 3、4、5 权重之和。
+  // 杜绝 45/15=3 时导致的下半场首个时段提前进入消耗。
+  if (elapsedMinute === 45) {
+    const secondHalfIntegral = (weights[3] ?? 0.1667) + (weights[4] ?? 0.1667) + (weights[5] ?? 0.1667);
+    return Number(Math.max(0.0, Math.min(1.0, secondHalfIntegral)).toFixed(4));
+  }
 
   const currentIntervalIndex = Math.min(5, Math.floor(elapsedMinute / 15));
   const intervalEndMinute = (currentIntervalIndex + 1) * 15;
@@ -548,11 +557,16 @@ export function calculateInPlayPoissonFeatures(
   const marketBaseAway = baseAwayLambda;
   const weightedBaseHome = baseHomeLambda;
   const weightedBaseAway = baseAwayLambda;
+  const homeAttackInj = context?.lineup_impact?.home_attack_injury_factor ?? context?.lineup_impact?.home_lis ?? 1;
+  const awayDefenseLeak = context?.lineup_impact?.away_defense_leak_factor ?? 1;
+  const awayAttackInj = context?.lineup_impact?.away_attack_injury_factor ?? context?.lineup_impact?.away_lis ?? 1;
+  const homeDefenseLeak = context?.lineup_impact?.home_defense_leak_factor ?? 1;
+
   const rawContextMultiplierHome = context?.motivation_urgency && context.lineup_impact
-    ? context.motivation_urgency.home_mui * context.lineup_impact.home_lis
+    ? context.motivation_urgency.home_mui * homeAttackInj * awayDefenseLeak
     : 1;
   const rawContextMultiplierAway = context?.motivation_urgency && context.lineup_impact
-    ? context.motivation_urgency.away_mui * context.lineup_impact.away_lis
+    ? context.motivation_urgency.away_mui * awayAttackInj * homeDefenseLeak
     : 1;
   const contextMultiplierHome = contextAlreadyIncluded ? 1 : rawContextMultiplierHome;
   const contextMultiplierAway = contextAlreadyIncluded ? 1 : rawContextMultiplierAway;
