@@ -99,11 +99,19 @@ export function generateRefactoredPrompt(
       home: { 
         total_value_eur: (!hasLineupData || quantFeatures.context.lineup_impact.home_market_value_num === 0) ? '未知' : `${quantFeatures.context.lineup_impact.home_market_value_num}万欧`, 
         lis_score: (!hasLineupData || lineupStatus === 'NOT_ANNOUNCED') ? 1.0 : quantFeatures.context.lineup_impact.home_lis,
+        attack_injury_factor: (!hasLineupData || lineupStatus === 'NOT_ANNOUNCED') ? 1.0 : quantFeatures.context.lineup_impact.home_attack_injury_factor,
+        defense_leak_factor: (!hasLineupData || lineupStatus === 'NOT_ANNOUNCED') ? 1.0 : quantFeatures.context.lineup_impact.home_defense_leak_factor,
+        talisman_missing: quantFeatures.context.lineup_impact.home_talisman_missing,
+        talisman_name: quantFeatures.context.lineup_impact.home_talisman_name,
         status: resolveLineupStatusDesc('home')
       },
       away: { 
         total_value_eur: (!hasLineupData || quantFeatures.context.lineup_impact.away_market_value_num === 0) ? '未知' : `${quantFeatures.context.lineup_impact.away_market_value_num}万欧`, 
         lis_score: (!hasLineupData || lineupStatus === 'NOT_ANNOUNCED') ? 1.0 : quantFeatures.context.lineup_impact.away_lis,
+        attack_injury_factor: (!hasLineupData || lineupStatus === 'NOT_ANNOUNCED') ? 1.0 : quantFeatures.context.lineup_impact.away_attack_injury_factor,
+        defense_leak_factor: (!hasLineupData || lineupStatus === 'NOT_ANNOUNCED') ? 1.0 : quantFeatures.context.lineup_impact.away_defense_leak_factor,
+        talisman_missing: quantFeatures.context.lineup_impact.away_talisman_missing,
+        talisman_name: quantFeatures.context.lineup_impact.away_talisman_name,
         status: resolveLineupStatusDesc('away')
       }
     };

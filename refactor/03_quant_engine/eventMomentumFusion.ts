@@ -358,6 +358,92 @@ export function calculateEventPressureConversion(
   };
 }
 
+// ============================================================================
+// 10 分钟滑动窗口角球与射门聚类爆发计算引擎 (Sliding Window High-Threat Cluster)
+// ============================================================================
+export interface BurstClusterResult {
+  home: {
+    corners_3m: number;
+    corners_7m: number;
+    corners_10m: number;
+    shots_5m: number;
+    shots_10m: number;
+    has_corner_barrage: boolean;
+    has_shot_salvo: boolean;
+    burst_multiplier: number;
+  };
+  away: {
+    corners_3m: number;
+    corners_7m: number;
+    corners_10m: number;
+    shots_5m: number;
+    shots_10m: number;
+    has_corner_barrage: boolean;
+    has_shot_salvo: boolean;
+    burst_multiplier: number;
+  };
+}
+
+/**
+ * 计算 10 分钟滑动窗口角球与密集射门聚类爆发因子
+ * 现代 xG 理论与防线窒息动力学：
+ * 1. 连续角球簇 (Corner Barrage): ≤3m内累计 2 个角球 (+30% 瞬时进球危险度), 或 ≤7m内累计 3 个角球 (+35% 危险度)
+ * 2. 密集射门浪潮 (Shot Salvo): ≤5m内累计 2 次射正/射门 (+25% 瞬时进球危险度)
+ * 3. 10m 复合聚类爆发乘子: 动态提振即时进球期望
+ */
+export function calculate10mBurstCluster(
+  events: CanonicalTimelineEvent[],
+  currentMinute: number
+): BurstClusterResult {
+  const isCornerEvent = (e: CanonicalTimelineEvent) =>
+    e.canonical_type === CanonicalEventType.CORNER || e.type === 2;
+  const isShotEvent = (e: CanonicalTimelineEvent) =>
+    e.canonical_type === CanonicalEventType.SHOT_ON_TARGET || e.type === 21 || e.canonical_type === CanonicalEventType.SHOT_OFF_TARGET;
+
+  const validEvents = events.filter((e: CanonicalTimelineEvent) => {
+    const m = getEventMinute(e);
+    return m !== null && m <= currentMinute && !e.is_cancelled && !e.is_var_overturned;
+  });
+
+  const analyzeSide = (side: 'home' | 'away') => {
+    const sideEvents = validEvents.filter(e => getEventSide(e) === side);
+
+    const corners = sideEvents.filter(isCornerEvent);
+    const corners3m = corners.filter(e => currentMinute - (getEventMinute(e) ?? 0) <= 3).length;
+    const corners7m = corners.filter(e => currentMinute - (getEventMinute(e) ?? 0) <= 7).length;
+    const corners10m = corners.filter(e => currentMinute - (getEventMinute(e) ?? 0) <= 10).length;
+
+    const shots = sideEvents.filter(isShotEvent);
+    const shots5m = shots.filter(e => currentMinute - (getEventMinute(e) ?? 0) <= 5).length;
+    const shots10m = shots.filter(e => currentMinute - (getEventMinute(e) ?? 0) <= 10).length;
+
+    const hasCornerBarrage = corners3m >= 2 || corners7m >= 3;
+    const hasShotSalvo = shots5m >= 2;
+
+    let burstMult = 1.0;
+    if (hasCornerBarrage) burstMult += 0.30;
+    if (hasShotSalvo) burstMult += 0.25;
+    // 累加 10m 密度轻微自然提振 (最高 0.20)
+    burstMult += Math.min(0.20, corners10m * 0.04 + shots10m * 0.05);
+
+    return {
+      corners_3m: corners3m,
+      corners_7m: corners7m,
+      corners_10m: corners10m,
+      shots_5m: shots5m,
+      shots_10m: shots10m,
+      has_corner_barrage: hasCornerBarrage,
+      has_shot_salvo: hasShotSalvo,
+      burst_multiplier: Number(Math.min(1.65, burstMult).toFixed(3))
+    };
+  };
+
+  return {
+    home: analyzeSide('home'),
+    away: analyzeSide('away')
+  };
+}
+
 /**
  * 维度二：计算战术相变与事件后态势 (Tactical Regime)
  * 物理原理：
@@ -417,12 +503,18 @@ export function evaluateTacticalRegime(
     if (minute !== null) redMinute = minute;
   }
 
-  // 3. 连续战术相变激活势能求解 (Continuous Activation Field)
+  const redElapsed = redMinute !== undefined ? Math.max(0, currentMinute - redMinute) : 0;
+
+  // 3. 计算 10 分钟滑动窗口角球与射门聚类爆发
+  const burstCluster = calculate10mBurstCluster(events, currentMinute);
+
+  // 4. 连续战术相变激活势能求解 (Continuous Activation Field)
   const sig = (x: number, x0: number, k: number) => 1.0 / (1.0 + Math.exp(-(x - x0) / k));
 
-  // (A) 红牌相变激活度
-  const aRedHome = redSide === 'home' ? 1.0 : (redSide === 'both' ? 0.5 : 0.0);
-  const aRedAway = redSide === 'away' ? 1.0 : (redSide === 'both' ? 0.5 : 0.0);
+  // (A) 红牌三态动力学激活度与时间韧性函数 (Time Resilience Curve)
+  // 刚染红 0~12 分钟初段保持防守韧性 (resilience 趋近 1.0)，随时间推移体能透支脱节 (exhaustion 增加)
+  const redResilience = Math.exp(-redElapsed / 22.0); // 初段韧性 [0.55 ~ 1.0]
+  const redExhaustion = 1.0 - redResilience; // 后段透支 [0.0 ~ 0.45]
 
   // (B) 领先收缩防反 (弹性防守) 连续激活度
   const aCounterHome = sig(scoreDiff, 0.5, 0.45) * sig(epi.away.energy_15m, 140, 30) * (1.0 - sig(epi.home.energy_15m, 100, 25));
@@ -438,15 +530,50 @@ export function evaluateTacticalRegime(
   const controlDiffSig = sig(Math.abs(scoreDiff), 1.6, 0.45);
   const aControl = controlTimeSig * controlDiffSig;
 
-  // 4. 连续动态期望乘子合成 (平滑可微)
+  // 5. 连续动态期望乘子物理仿真合成
   let regimeMultiplierHome = 1.0;
   let regimeMultiplierAway = 1.0;
 
-  // 叠加红牌 10 打 11 物理效应: 防线漏洞大幅泄漏 (+40% 承压), 进攻转化锐减 (-60%)
-  // 若客队染红 (aRedAway > 0): 主队进攻获得 +40% 空间 (1.40), 客队进攻削减 -60% (0.40)
-  // 若主队染红 (aRedHome > 0): 主队进攻削减 -60% (0.40), 客队进攻获得 +40% 空间 (1.40)
-  regimeMultiplierHome += (0.40 * aRedAway - 0.60 * aRedHome);
-  regimeMultiplierAway += (0.40 * aRedHome - 0.60 * aRedAway);
+  // 叠加 10v11 绿茵物理真实三态因果流：
+  if (redSide === 'home') {
+    // 主队染红少打一人
+    if (scoreDiff > 0) {
+      // 态 1：领先方染红 (收缩大巴，初段韧性极强，反击削减)
+      const homeLeak = 0.15 * redResilience + 0.38 * redExhaustion;
+      regimeMultiplierHome -= 0.50; // 主队进攻削弱
+      regimeMultiplierAway += (0.20 + homeLeak); // 客队围攻获得空间
+    } else if (scoreDiff === 0) {
+      // 态 2：平局方染红 (中场失控，深度被动消耗)
+      const homeLeak = 0.30 * redResilience + 0.45 * redExhaustion;
+      regimeMultiplierHome -= 0.60;
+      regimeMultiplierAway += homeLeak;
+    } else {
+      // 态 3：落后方染红 (心理与战术双重崩溃，防线全线洞开)
+      regimeMultiplierHome -= 0.70;
+      regimeMultiplierAway += 0.55;
+    }
+  } else if (redSide === 'away') {
+    // 客队染红少打一人
+    if (scoreDiff < 0) {
+      // 态 1：客队领先染红 (客队收缩大巴，主队围攻空间扩大)
+      const awayLeak = 0.15 * redResilience + 0.38 * redExhaustion;
+      regimeMultiplierAway -= 0.50;
+      regimeMultiplierHome += (0.20 + awayLeak);
+    } else if (scoreDiff === 0) {
+      // 态 2：平局客队染红 (客队中场失控，主队围攻提振)
+      const awayLeak = 0.30 * redResilience + 0.45 * redExhaustion;
+      regimeMultiplierAway -= 0.60;
+      regimeMultiplierHome += awayLeak;
+    } else {
+      // 态 3：落后客队染红 (客队彻底崩盘)
+      regimeMultiplierAway -= 0.70;
+      regimeMultiplierHome += 0.55;
+    }
+  } else if (redSide === 'both') {
+    // 双方各染红一人 (10v10)，攻防转换空间开阔，双方进攻期望均小幅提振
+    regimeMultiplierHome += 0.12;
+    regimeMultiplierAway += 0.12;
+  }
 
   // 叠加防反效应
   regimeMultiplierHome += (-0.15 * aCounterHome + 0.15 * aCounterAway);
@@ -465,9 +592,14 @@ export function evaluateTacticalRegime(
   regimeMultiplierHome -= 0.10 * aControl;
   regimeMultiplierAway -= 0.10 * aControl;
 
-  // 5. 战术相变类型软投影 (选取最高激活能量状态)
+  // 叠加 10 分钟滑动窗口角球与密集射门聚类爆发因子
+  regimeMultiplierHome *= burstCluster.home.burst_multiplier;
+  regimeMultiplierAway *= burstCluster.away.burst_multiplier;
+
+  // 6. 战术相变类型软投影 (选取最高激活能量状态)
+  const aRed = redSide !== 'none' ? 1.0 : 0.0;
   const stateCandidates = [
-    { regime: TacticalRegimeType.RED_CARD_COLLAPSE, energy: Math.max(aRedHome, aRedAway), desc: aRedHome > aRedAway ? '主队染红少打一人，防线承压增大' : '客队染红少打一人，主队获得压制优势' },
+    { regime: TacticalRegimeType.RED_CARD_COLLAPSE, energy: aRed, desc: redSide === 'home' ? '主队染红少打一人，防线深度承压' : (redSide === 'away' ? '客队染红少打一人，主队围攻压制' : (redSide === 'both' ? '双方各罚下一人 (10v10)' : '')) },
     { regime: TacticalRegimeType.ELASTIC_COUNTER, energy: Math.max(aCounterHome, aCounterAway), desc: aCounterHome > aCounterAway ? '主队比分领先转入深度防守，客队大举围攻' : '客队比分领先转入深度防守，主队大举围攻' },
     { regime: TacticalRegimeType.DESPERATION_ASSAULT, energy: aDesperation, desc: scoreDiff < 0 ? '主队一球落后进入终盘绝境搏命，前场全线压上' : '客队一球落后进入终盘绝境搏命，节奏急剧加速' },
     { regime: TacticalRegimeType.GAME_CONTROL_DECELERATION, energy: aControl, desc: '领先优势确立，控场节奏放缓' },
@@ -484,8 +616,8 @@ export function evaluateTacticalRegime(
     red_card_active_side: redSide,
     red_card_elapsed_minutes: redMinute !== undefined ? Math.max(0, currentMinute - redMinute) : undefined,
     tactical_description: bestState.desc,
-    regime_multiplier_home: Number(Math.max(0.40, Math.min(1.80, regimeMultiplierHome)).toFixed(3)),
-    regime_multiplier_away: Number(Math.max(0.40, Math.min(1.80, regimeMultiplierAway)).toFixed(3))
+    regime_multiplier_home: Number(Math.max(0.35, Math.min(2.0, regimeMultiplierHome)).toFixed(3)),
+    regime_multiplier_away: Number(Math.max(0.35, Math.min(2.0, regimeMultiplierAway)).toFixed(3))
   };
 }
 
@@ -530,45 +662,17 @@ export function evaluateGoalClimax(
   // (C) 近 5 分钟高密度事件指数饱和势能 (最高 30 分)
   const phiDensity = 30.0 * (1.0 - Math.exp(-recentIncidentDensity / 2.2));
 
-  // (C.1) 连续角球与密集射门高危滑动窗口物理加成 (Sliding Window High-Threat Cluster)
-  // 规则：
-  // 1. 连续角球簇：≤3分钟内累计 2 个角球 (+6分), 或 ≤7分钟内累计 3 个角球 (+10分)
-  // 2. 密集射门簇：≤5分钟内累计 2 次射正/射门 (+8分)
-  const isCornerEvent = (e: CanonicalTimelineEvent) =>
-    e.canonical_type === CanonicalEventType.CORNER || e.type === 2;
-  const isShotEvent = (e: CanonicalTimelineEvent) =>
-    e.canonical_type === CanonicalEventType.SHOT_ON_TARGET || e.type === 21 || e.canonical_type === CanonicalEventType.SHOT_OFF_TARGET;
-
-  const validEventsRecent = events.filter((e: CanonicalTimelineEvent) => {
-    const m = getEventMinute(e);
-    return m !== null && m <= currentMinute && !e.is_cancelled && !e.is_var_overturned;
-  });
-
+  // (C.1) 连续角球与密集射门高危滑动窗口物理加成 (统一对接 calculate10mBurstCluster 保持 SSOT)
+  const burstCluster = calculate10mBurstCluster(events, currentMinute);
   let cornerClusterBonus = 0.0;
   let shotBarrageBonus = 0.0;
-
-  for (const side of ['home', 'away'] as const) {
-    const sideEvents = validEventsRecent.filter(e => getEventSide(e) === side);
-
-    // 角球滑动窗口
-    const sideCorners = sideEvents.filter(isCornerEvent);
-    const corners3m = sideCorners.filter(e => currentMinute - (getEventMinute(e) ?? 0) <= 3).length;
-    const corners7m = sideCorners.filter(e => currentMinute - (getEventMinute(e) ?? 0) <= 7).length;
-    if (corners7m >= 3) {
-      cornerClusterBonus = Math.max(cornerClusterBonus, 10.0);
-    } else if (corners3m >= 2) {
-      cornerClusterBonus = Math.max(cornerClusterBonus, 6.0);
-    }
-
-    // 射门滑动窗口 (≤5分钟内2次及以上射门)
-    const sideShots = sideEvents.filter(isShotEvent);
-    const shots5m = sideShots.filter(e => currentMinute - (getEventMinute(e) ?? 0) <= 5).length;
-    if (shots5m >= 2) {
-      shotBarrageBonus = Math.max(shotBarrageBonus, 8.0);
-    }
+  if (burstCluster.home.has_corner_barrage || burstCluster.away.has_corner_barrage) {
+    cornerClusterBonus = 10.0;
   }
-
-  const phiCluster = Math.min(15.0, cornerClusterBonus + shotBarrageBonus);
+  if (burstCluster.home.has_shot_salvo || burstCluster.away.has_shot_salvo) {
+    shotBarrageBonus = 8.0;
+  }
+  const phiCluster = Math.min(18.0, cornerClusterBonus + shotBarrageBonus);
 
   // (D) EPI 转化势能平滑加权 (最高 20 分)
   const maxRatio = Math.max(epi.home.conversion_ratio, epi.away.conversion_ratio);

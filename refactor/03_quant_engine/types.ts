@@ -209,6 +209,15 @@ export interface LineupImpactFeatures {
   away_striker_missing: boolean;
   home_defender_missing: boolean;
   away_defender_missing: boolean;
+  // 核心战力解耦与大腿球员标识 (SSOT 物理契约)
+  home_attack_injury_factor: number;  // 进攻端战力保持率 [0.65, 1.00]
+  away_attack_injury_factor: number;
+  home_defense_leak_factor: number;   // 防守端漏洞恶化乘子 [1.00, 1.50]
+  away_defense_leak_factor: number;
+  home_talisman_missing: boolean;     // 是否全队身价断层第一的大腿缺阵
+  away_talisman_missing: boolean;
+  home_talisman_name?: string;
+  away_talisman_name?: string;
   home_market_value_num: number;
   away_market_value_num: number;
   home_best_player_active: boolean;
@@ -325,6 +334,12 @@ export interface RealTimePhysicalStatsFeatures {
     away_yellows?: number;
     home_defenders_on_yellow?: number;
     away_defenders_on_yellow?: number;
+    home_yellow_burst_10m?: number;
+    away_yellow_burst_10m?: number;
+    home_yellow_collapse_risk?: boolean;
+    away_yellow_collapse_risk?: boolean;
+    home_discipline_leak_factor?: number;
+    away_discipline_leak_factor?: number;
   };
   conversion_efficiency: {
     home_conversion?: number;

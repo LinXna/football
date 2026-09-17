@@ -398,13 +398,17 @@ export function extractRealTimePhysicalStats(
   const homePossession = stats?.possession?.home;
   const awayPossession = stats?.possession?.away;
 
-  // 1. 统计时序事件中的越位与明确文本确认的门柱造险（Type 22 仅为射偏）
+  // 1. 统计时序事件中的越位与明确文本确认的门柱造险（Type 22 仅为射偏），以及黄牌微观聚类
+  const currentMinute = Math.max(0, (match.timing?.minute ?? 0));
+  const window10m = Math.max(0, currentMinute - 10);
   let homeOffsides = 0;
   let awayOffsides = 0;
   let homeWoodwork = 0;
   let awayWoodwork = 0;
   let homeDefYellows = 0;
   let awayDefYellows = 0;
+  let homeYellowBurst10m = 0;
+  let awayYellowBurst10m = 0;
 
   for (const ev of events) {
     if (ev.is_cancelled) continue;
@@ -424,14 +428,27 @@ export function extractRealTimePhysicalStats(
       else if (side === 'away') awayWoodwork++;
     }
 
-    // 防守球员吃黄牌
-    if (type === 3 || text.includes('黄牌') || text.includes('Yellow')) {
+    // 纪律黄牌事件：防守球员吃黄牌与近 10 分钟突发聚类统计
+    const isYellow = type === 3 || ev.canonical_type === CanonicalEventType.YELLOW_CARD || text.includes('黄牌') || text.includes('Yellow');
+    if (isYellow) {
       if (ev.is_on_pitch !== false) {
         if (side === 'home') homeDefYellows++;
         else if (side === 'away') awayDefYellows++;
       }
+      const evMinute = ev.minute ?? (typeof ev.text === 'string' ? Number(ev.text.match(/\b(\d{1,3})['’]/)?.[1]) : null);
+      if (evMinute !== null && !isNaN(evMinute) && evMinute >= window10m && evMinute <= currentMinute) {
+        if (side === 'home') homeYellowBurst10m++;
+        else if (side === 'away') awayYellowBurst10m++;
+      }
     }
   }
+
+  // 1.1 判定后防连续受迫染黄崩溃风险与防守漏洞恶化乘子 (Discipline Leak Factor)
+  // 当 10 分钟内连续染黄 >= 2 张或防线核心染黄 >= 3 张，触发受迫失位崩盘高危预警
+  const homeYellowCollapse = homeYellowBurst10m >= 2 || homeDefYellows >= 3;
+  const awayYellowCollapse = awayYellowBurst10m >= 2 || awayDefYellows >= 3;
+  const homeDisciplineLeak = Number(Math.min(1.40, 1.0 + (homeYellowBurst10m * 0.10) + (homeDefYellows >= 3 ? 0.15 : 0.0)).toFixed(3));
+  const awayDisciplineLeak = Number(Math.min(1.40, 1.0 + (awayYellowBurst10m * 0.10) + (awayDefYellows >= 3 ? 0.15 : 0.0)).toFixed(3));
 
   // 2. 控球有效性 (PE: Possession Effectiveness)
   const homePE = (homeDA !== undefined && homePossession !== undefined) ? Number((homeDA / (homePossession + 1.0)).toFixed(3)) : undefined;
@@ -624,7 +641,13 @@ export function extractRealTimePhysicalStats(
       home_yellows: homeYellow,
       away_yellows: awayYellow,
       home_defenders_on_yellow: homeDefYellows,
-      away_defenders_on_yellow: awayDefYellows
+      away_defenders_on_yellow: awayDefYellows,
+      home_yellow_burst_10m: homeYellowBurst10m,
+      away_yellow_burst_10m: awayYellowBurst10m,
+      home_yellow_collapse_risk: homeYellowCollapse,
+      away_yellow_collapse_risk: awayYellowCollapse,
+      home_discipline_leak_factor: homeDisciplineLeak,
+      away_discipline_leak_factor: awayDisciplineLeak
     }),
     conversion_efficiency: Object.freeze({
       home_conversion: homeConversion,

@@ -12,6 +12,10 @@ export interface OosHistoricalContext {
 export interface EvaluatorLineupTeamInfo {
   total_value_eur: string;
   lis_score: number;
+  attack_injury_factor?: number;
+  defense_leak_factor?: number;
+  talisman_missing?: boolean;
+  talisman_name?: string;
   status: string;
 }
 

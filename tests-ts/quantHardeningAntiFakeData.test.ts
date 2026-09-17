@@ -152,6 +152,51 @@ test('Anti-Fake Data Hardening: Scheme 4 - Lineup Three-State Gate', () => {
   assert.equal(lisConfirmed.lineup_status, 'CONFIRMED');
   assert.equal(lisConfirmed.is_lineup_confirmed, true);
   assert.ok(lisConfirmed.home_lis < 1.0, 'LIS should reflect FW absence deduction when confirmed');
+
+  // Case C: Talisman Systemic Collapse & Position Gap Differentiation & Noise Filtering
+  const matchTalisman: CanonicalMatch = {
+    canonical_id: 'match_talisman',
+    home_team_name: 'Team Alpha',
+    away_team_name: 'Team Beta',
+    reference: {
+      lineups: {
+        confirmed: true,
+        home_market_value: '10000万', // 1亿欧
+        home_starters: [
+          { name: 'S1', position: 'FW', market_value: 10000000 },
+          { name: 'S2', position: 'DF', market_value: 5000000 },
+          { name: 'S3', position: 'GK', market_value: 3000000 }
+        ],
+        away_starters: [
+          { name: 'A1', position: 'FW', market_value: 5000000 }
+        ],
+        home_injuries: [
+          // 大腿断层第一: 3500万欧，超次席 3.5倍，占全队35%，且缺阵
+          { name: 'Superstar Talisman', position: 'FW', market_value: 35000000 },
+          // 边缘杂鱼: 身价 50万欧，连同位置均价(1000万)的 5% 都不到，且无主力/停赛标签，必须被过滤
+          { name: 'Bench Youth', position: 'FW', market_value: 500000 }
+        ],
+        away_injuries: [
+          // 只有后卫防守缺阵 (停赛)
+          { name: 'Key Defender', position: 'DF', starter: true, incidents: [{ type_name: '红牌停赛' }] }
+        ]
+      }
+    }
+  } as unknown as CanonicalMatch;
+
+  const lisTalisman = calculateLineupImpactScores(matchTalisman);
+  assert.equal(lisTalisman.home_talisman_missing, true, 'Home talisman should be detected as missing');
+  assert.equal(lisTalisman.home_talisman_name, 'Superstar Talisman');
+  assert.ok(lisTalisman.home_attack_injury_factor < 0.90, 'Home attack factor should significantly drop due to superstar striker missing');
+  assert.equal(lisTalisman.home_defense_leak_factor, 1.0, 'Home defense leak factor should remain 1.0 when no DF/GK missing');
+  assert.equal(lisTalisman.home_defender_missing, false);
+  assert.equal(lisTalisman.home_striker_missing, true);
+
+  // 客队只有防线受损
+  assert.equal(lisTalisman.away_striker_missing, false);
+  assert.equal(lisTalisman.away_defender_missing, true);
+  assert.equal(lisTalisman.away_attack_injury_factor, 1.0, 'Away attack factor must stay 1.0 without FW absence');
+  assert.ok(lisTalisman.away_defense_leak_factor > 1.0, 'Away defense leak factor must increase due to suspended key defender');
 });
 
 test('Anti-Fake Data Hardening: Scheme 5 - Dirichlet-Multinomial Bayesian Conjugate Smoothing', () => {

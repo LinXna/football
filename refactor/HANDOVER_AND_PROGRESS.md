@@ -1,31 +1,36 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260916-PILLAR-2-3-DEEP-QUANT-OVERHAUL`
+- **任务编号 (Task)**: `SNAPSHOT-20260917-YELLOW-CARD-TACTICAL-SEMANTICS-AND-DEFENSIVE-COLLAPSE`
 - **当前状态 (Status)**: `IN_PROGRESS`
-- **阶段进度 (Phase)**: `P5.2 核心算法彻底重构与物理级因果重塑 —— 支柱二（身价同位置伤停比对、365日前置物理过滤、攻防实力乘子消灭倒挂）与支柱三（10m聚类爆发、红牌10打11三态绿茵仿真）`
+- **阶段进度 (Phase)**: `P5.4 动态黄牌语义重构 —— 区分战术牺牲(反击阻断)与防线崩盘(受迫失位连环染黄)，高频黄牌防守惩罚闭环 [执行中]`
 - **任务目标与交付清单 (Deliverables)**：
-  1. 【支柱二：伤停模型 LIS 深度重构 (`contextEngine.ts`)】[IN_PROGRESS]：
-     - 彻底废弃无脑计数，建立：
-       * 伤停人员身价与首发阵容同位置（前锋/中场/后卫/门将）平均身价的比对（位置替代落差）；
-       * 伤停人员身价占球队总身价（或首发总身价）的比重加权；
-       * 队长/核心关键属性加成；
-       * 结合指数饱和保底模型（$\text{LIS} = 0.75 + 0.25 \times \exp(-k \times \text{loss})$，严格保底 0.75）；
-  2. 【支柱二：365天样本计算前严格前置物理隔离门禁 (`contextEngine.ts`)】[TODO]：
-     - 纠正“算完再过滤”的反向操作，在对 `h2h_recent` 和 `recent_form` 进行任何指标提取前，执行严格的前置时间戳校验与 365 天物理隔离过滤，超期样本直接被拒之门外；
-  3. 【支柱二：强队主场权威压制与攻防实力期望纠偏 (`prematchPriorEngine.ts`)】[TODO]：
-     - 彻底删除粗暴写死 `if (isHomeDominant) lambdaA = clamp` 表面补丁；
-     - 采用正规 Dixon-Coles 乘法攻防实力模型：进攻强度 $\alpha$、防守漏洞/失球倾向 $\beta$、主场优势 $\gamma$；强队高防守战力使客队失球倾向自然压至极低，彻底杜绝逆天倒挂；
-  4. 【支柱三：10 分钟滑动窗口角球与射门聚类爆发因子 (`eventMomentumFusion.ts`)】[TODO]：
-     - 构建 10 分钟时序滑动窗口，精准识别连续角球（$\le 3$ 分钟 $\ge 2$ 次）、连续攻门（$\le 5$ 分钟 $\ge 2$ 脚）以及聚类爆发（10 分钟内角球 $\ge 3$ 或射门 $\ge 4$），量化防线窒息与破门威胁加成；
-  5. 【支柱三：红牌 10 打 11 绿茵物理仿真与三态因果流 (`eventMomentumFusion.ts`)】[TODO]：
-     - 拒绝简单系数缩放，按照领先（大巴防守+初段韧性/后段崩溃）、平局（控球受阻+漏球率上升）、落后（心理崩溃+全线崩盘）三态细化仿真，动态重构攻防战力乘子；
-  6. 【验证与闭环】[TODO]：
-     - 执行全链路单测、验证脚本与项目编译，确保 03 计算模型、04 AI 评估和前端面板数据真实一致。
+  1. 【事件威胁动态加权上下文重构 (`eventMomentumFusion.ts` -> `getEventThreatWeight`)】[IN_PROGRESS]：
+     - 将原本粗糙的一刀切正则加权重构为感知场上局势的动态函数；
+     - 引入比赛时间 `currentMinute` 与动量优势方 `dominance` 语义：
+       * 战术犯规/阻断反击 (Tactical Foul / Counter Disruption)：本方处于控球/高位压迫或中前场战术犯规，防守阵型并未崩溃，惩罚权重降至极小；
+       * 受迫失位连环犯规 (Defensive Collapse Under Siege)：在对方具有明显动量压制、高位围攻、或防守三区被动失位时连续犯规染黄，大幅提升威胁权重；
+       * 非战术犯规 (拖延时间/抗议裁判/脱衣庆祝等)：不扣减防守质量，维持纯纪律性低威胁权重；
+  2. 【纪律压力时间衰减与10分钟高频连环黄牌聚类 (`momentumQuantEngine.ts`)】[IN_PROGRESS]：
+     - 在 `discipline_pressure` 中重构计算逻辑，追踪 10 分钟滑动窗口内的连续染黄密度与后防线核心 (Defenders) 染黄承压；
+     - 产出高频受迫黄牌标志 `has_yellow_collapse_risk` 与防守承压乘子 `discipline_leak_factor`；
+  3. 【战术相变闭环与防线受迫崩盘相态 (`eventMomentumFusion.ts`)】[IN_PROGRESS]：
+     - 在 `evaluateTacticalRegime` 与 `GoalClimax` 临界态中，消费纪律压力与黄牌连环受迫信号；
+     - 触发高频染黄防线受迫崩盘与攻防期望动态泄漏；
+  4. 【测试用例与全量回归】[IN_PROGRESS]：
+     - 在 `tests-ts/quantHardeningAntiFakeData.test.ts` 中补充针对战术反击牺牲 vs 受迫连环失位崩盘的专属测试；
+     - 确保所有测试 100% 通过，零 any，遵循 SSOT 纯函数原则。
+     - 12 项量化预测核心测试全部通过；
+     - `tsc --noEmit` 全量静态类型检查 0 错误通过。
 - **改动文件清单 (Target Files)**：
+  - `/refactor/03_quant_engine/types.ts`
   - `/refactor/03_quant_engine/contextEngine.ts`
   - `/refactor/03_quant_engine/prematchPriorEngine.ts`
-  - `/refactor/03_quant_engine/eventMomentumFusion.ts`
+  - `/refactor/04_ai_evaluator/types.ts`
+  - `/refactor/04_ai_evaluator/promptExporter.ts`
+  - `/tests-ts/quantHardeningAntiFakeData.test.ts`
   - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **下一步计划 (Next Steps)**：
+  - 维持当前架构的高水准纯净性，等待实盘输入或进行后续特定模块的指令验证。
 
 ---
 

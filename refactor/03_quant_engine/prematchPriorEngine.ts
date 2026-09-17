@@ -67,7 +67,7 @@ export function synthesizePrematchPrior(
     match.canonical_id
   );
 
-  // 1. 战力层关联：身价对比 + LIS 分位置伤停折损 (区分 ST 终结 vs CB/GK 漏球)
+  // 1. 战力层关联：身价对比 + SSOT 解耦伤停折损 (进攻保持率 attack_injury_factor vs 防守恶化 defense_leak_factor)
   const homeMv = context.lineup_impact.home_market_value_num;
   const awayMv = context.lineup_impact.away_market_value_num;
 
@@ -79,14 +79,11 @@ export function synthesizePrematchPrior(
     squadRatioA = Math.max(0.6, Math.min(1.4, 1.0 + (awayMv / totalMv - 0.5) * 0.8));
   }
 
-  const lisH = context.lineup_impact.home_lis; // [0.75 ~ 1.0]
-  const lisA = context.lineup_impact.away_lis;
-
-  // 主客攻防战力乘子
-  const strikerPenH = context.lineup_impact.home_striker_missing ? 0.88 : 1.0;
-  const strikerPenA = context.lineup_impact.away_striker_missing ? 0.88 : 1.0;
-  const defenderLeakH = context.lineup_impact.home_defender_missing ? 1.15 : 1.0;
-  const defenderLeakA = context.lineup_impact.away_defender_missing ? 1.15 : 1.0;
+  // 纯进攻战力保持率与防守漏洞恶化乘子 (单一事实来源，杜绝二次重复惩罚)
+  const attackFactorH = context.lineup_impact.home_attack_injury_factor ?? 1.0;
+  const attackFactorA = context.lineup_impact.away_attack_injury_factor ?? 1.0;
+  const defenseLeakH = context.lineup_impact.home_defense_leak_factor ?? 1.0;
+  const defenseLeakA = context.lineup_impact.away_defense_leak_factor ?? 1.0;
 
   // 2. 状态与战意层关联：结合攻防得失球期望、半场突破韧性、赢盘能力与 MUI
   const muiH = context.motivation_urgency.home_mui; // [0.8 ~ 1.35]
@@ -103,19 +100,23 @@ export function synthesizePrematchPrior(
   const awayAttackForm = awayFormAnalytics.valid_count >= 1 ? Math.max(0.70, Math.min(1.35, awayFormAnalytics.weighted_scored_per_game / 1.30)) : 1.0;
   const awayDefenseForm = awayFormAnalytics.valid_count >= 1 ? Math.max(0.70, Math.min(1.35, 1.30 / Math.max(0.40, awayFormAnalytics.weighted_conceded_per_game))) : 1.0;
 
-  // 3. Dixon-Coles 经典攻防解耦因果模型 (彻底根治主弱客强倒挂)
-  // (A) 纯进攻战力 Alpha: 由阵容身价、首发主力完整度 LIS、锋线终结者惩罚与近期攻击态势乘积决定
-  const alphaH = squadRatioH * lisH * strikerPenH * homeAttackForm;
-  const alphaA = squadRatioA * lisA * strikerPenA * awayAttackForm;
+  // 3. Dixon-Coles 经典攻防解耦因果模型 (物理级解耦：进攻归进攻，防守归防守)
+  // (A) 纯进攻战力 Alpha: 由阵容身价、进攻端实质保持率与近期攻击态势决定 (彻底消除重复扣分)
+  const alphaH = squadRatioH * attackFactorH * homeAttackForm;
+  const alphaA = squadRatioA * attackFactorA * awayAttackForm;
 
-  // (B) 纯防守抗击打战力 D: 强队防守体系严密身价高、LIS 完整、后防无漏洞、近期丢球极少
-  const defStrengthH = squadRatioH * lisH * (1.0 / defenderLeakH) * homeDefenseForm;
-  const defStrengthA = squadRatioA * lisA * (1.0 / defenderLeakA) * awayDefenseForm;
+  // (B) 纯防守抗击打战力 D: 强队防守体系严密身价高、防守端漏洞恶化乘子 (1.0 / defenseLeak)、近期丢球极少
+  const defStrengthH = squadRatioH * (1.0 / defenseLeakH) * homeDefenseForm;
+  const defStrengthA = squadRatioA * (1.0 / defenseLeakA) * awayDefenseForm;
 
   // (C) 失球脆弱度 / 漏球倾向 Beta: 依照指数连续函数平滑映射，对立面防守越强，己方面对的 Beta 越小
-  // Beta = exp(-0.60 * (DefStrength - 1.0))，严格收敛于 [0.55, 1.65]
-  const betaA = Math.max(0.55, Math.min(1.65, Math.exp(-0.60 * (defStrengthA - 1.0)))); // 客队防线漏洞 (对主队进攻有提振)
-  const betaH = Math.max(0.55, Math.min(1.65, Math.exp(-0.60 * (defStrengthH - 1.0)))); // 主队防线漏洞 (对客队进攻有提振)
+  // 客队防线漏洞收敛于 [0.50, 1.65]；主队防线漏洞封顶 1.25，杜绝主队防守漏洞无底线放大
+  const betaA = Math.max(0.50, Math.min(1.65, Math.exp(-0.60 * (defStrengthA - 1.0)))); // 客队防线漏洞 (对主队进攻有提振)
+  const betaH = Math.max(0.45, Math.min(1.25, Math.exp(-0.60 * (defStrengthH - 1.0)))); // 主队防线漏洞 (对客队进攻有提振)
+
+  // 综合近态系数 (供特征层输出)
+  const formFactorH = (homeAttackForm * 0.6 + homeDefenseForm * 0.4);
+  const formFactorA = (awayAttackForm * 0.6 + awayDefenseForm * 0.4);
 
   // 4. 历史交锋深度加权与球风相克 (仅当战术攻防统计客观有效且具备真实样本时才允许球风相克生效)
   const h2hAnalytics = context.h2h_analytics;
@@ -129,52 +130,42 @@ export function synthesizePrematchPrior(
   const formationFactorH = 1.0 + (formation.wing_space_vulnerability_away - 0.30) * 0.20 - (formation.midfield_congestion_index - 0.50) * 0.10;
   const formationFactorA = 1.0 + (formation.wing_space_vulnerability_home - 0.30) * 0.20 - (formation.midfield_congestion_index - 0.50) * 0.10;
 
-  // 6. 主客场异构基线 (Iso-Venue Discrepancy)
-  const homeStandings = context.iso_venue_standings?.home_at_home;
-  const awayStandings = context.iso_venue_standings?.away_at_away;
-
-  // 使用动态联赛 DNA 替代硬编码基准
+  // 6. 主客场异构基线 (Iso-Venue Discrepancy & League DNA)
+  // 使用动态联赛 DNA 作为总进球基准锚点，主客场基准遵循现代足球场均分布 (主场 56%，客场 44%)
   const leagueName = match.match_slug ? match.match_slug.split('_')[0] : '';
   const dnaTotal = LEAGUE_DNA_MAP[leagueName] || 2.75; // 默认中性 2.75
-  let baseGoalsH = dnaTotal * 0.55;
-  let baseGoalsA = dnaTotal * 0.45;
-
-  if (homeStandings && awayStandings && homeStandings.matches_played >= 3 && awayStandings.matches_played >= 3) {
-    const scoredH = homeStandings.goals_per_game_scored;
-    const concededA = awayStandings.goals_per_game_conceded;
-    const scoredA = awayStandings.goals_per_game_scored;
-    const concededH = homeStandings.goals_per_game_conceded;
-
-    baseGoalsH = Math.max(0.60, Math.min(3.0, Math.sqrt(scoredH * concededA)));
-    baseGoalsA = Math.max(0.40, Math.min(2.5, Math.sqrt(scoredA * concededH)));
-  } else if (homeFormAnalytics.valid_count >= 2 && awayFormAnalytics.valid_count >= 2) {
-    baseGoalsH = Math.max(0.20, Math.min(3.5, Math.sqrt(homeFormAnalytics.weighted_scored_per_game * awayFormAnalytics.weighted_conceded_per_game)));
-    baseGoalsA = Math.max(0.10, Math.min(3.0, Math.sqrt(awayFormAnalytics.weighted_scored_per_game * homeFormAnalytics.weighted_conceded_per_game)));
-  } else if (homeFormAnalytics.sample_count >= 2 && awayFormAnalytics.sample_count >= 2) {
-    baseGoalsH = Math.max(0.20, Math.min(4.0, Math.sqrt(homeFormAnalytics.weighted_scored_per_game * awayFormAnalytics.weighted_conceded_per_game)));
-    baseGoalsA = Math.max(0.05, Math.min(4.0, Math.sqrt(awayFormAnalytics.weighted_scored_per_game * homeFormAnalytics.weighted_conceded_per_game)));
-  }
-
-  // 综合近态系数 (供特征层输出)
-  const formFactorH = (homeAttackForm * 0.6 + homeDefenseForm * 0.4);
-  const formFactorA = (awayAttackForm * 0.6 + awayDefenseForm * 0.4);
+  const baseGoalsH = dnaTotal * 0.56;
+  const baseGoalsA = dnaTotal * 0.44;
 
   // 7. 主客场绿茵权威优势乘子 (Home Advantage Gamma)
-  const gammaHome = 1.20;
-  const gammaAway = 0.83;
+  const gammaHome = 1.18;
+  const gammaAway = 0.85;
 
-  // 综合进球期望 lambda 合成
+  // 8. 战术意图与阵型张力乘子
   const tacticalFactorH = muiH * (1.0 + h2hAdvantage + stylisticClash * 0.05) * formationFactorH;
   const tacticalFactorA = muiA * (1.0 - h2hAdvantage * 0.5 - stylisticClash * 0.05) * formationFactorA;
 
-  let lambdaH = baseGoalsH * alphaH * betaA * gammaHome * tacticalFactorH;
-  let lambdaA = baseGoalsA * alphaA * betaH * gammaAway * tacticalFactorA;
+  // 9. 现代足球空间场域压制物理定律 (Territorial Authority & Field Tilt Suppression)
+  // 物理原理：当主队处于压倒性实力优势 (alphaH > alphaA) 时，高位压迫与半场围攻将客队有效推进空间极度压缩；
+  // 客队的进攻产出期望遵循连续平滑的场域压制衰减函数，杜绝使用生硬表面 if-clamp 补丁：
+  const homeAdvantageDifferential = Math.max(0, alphaH - alphaA);
+  const awaySuppressionFactor = 1.0 / (1.0 + homeAdvantageDifferential * 0.55);
 
-  // 边界约束 [0.20, 5.0]
+  // 客强主弱时，主队凭借主场草皮与球迷声浪具备天然韧性，受压制斜率较为平缓 (0.25)
+  const awayAdvantageDifferential = Math.max(0, alphaA - alphaH);
+  const homeSuppressionFactor = 1.0 / (1.0 + awayAdvantageDifferential * 0.25);
+
+  // 10. Dixon-Coles 乘法攻防实力模型进球期望综合求解
+  // 主队期望 λ_H = 基准进球 * 主队纯进攻 Alpha * 客队防线漏洞 Beta * 主场优势 Gamma * 战术阵型 * 主场场域系数
+  // 客队期望 λ_A = 基准进球 * 客队纯进攻 Alpha * 主队防线漏洞 Beta * 客场折损 Gamma * 战术阵型 * 客队场域压制系数
+  let lambdaH = baseGoalsH * alphaH * betaA * gammaHome * tacticalFactorH * homeSuppressionFactor;
+  let lambdaA = baseGoalsA * alphaA * betaH * gammaAway * tacticalFactorA * awaySuppressionFactor;
+
+  // 绿茵物理边界自然收敛约束 [0.20, 5.0]
   lambdaH = Math.max(0.20, Math.min(5.0, Number(lambdaH.toFixed(3))));
   lambdaA = Math.max(0.20, Math.min(5.0, Number(lambdaA.toFixed(3))));
 
-  // 6. 泊松 1X2 联合公允胜平负概率
+  // 11. 泊松 1X2 联合公允胜平负概率
   const p1x2 = computePoisson1X2(lambdaH, lambdaA);
 
   const prior: PrematchTheoryPrior = {
