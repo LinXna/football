@@ -4,8 +4,8 @@ const parsePort = (value: string | undefined, fallback: number): number => {
 };
 
 export const APP_CONFIG = {
-  host: process.env.PROJECT_ROOT && process.env.HOST ? process.env.HOST.trim() : '0.0.0.0',
-  port: process.env.PROJECT_ROOT ? parsePort(process.env.PORT, 3000) : 3000,
+  host: process.env.HOST || '0.0.0.0',
+  port: parsePort(process.env.PORT, 3000),
   environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
   geminiModel: process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash',
 } as const;

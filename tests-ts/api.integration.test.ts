@@ -11,16 +11,16 @@ const writeJson = (root: string, relative: string, value: unknown) => {
   fs.writeFileSync(target, JSON.stringify(value), 'utf-8');
 };
 
-const waitForHealth = async (baseUrl: string, child: ChildProcess): Promise<void> => {
-  for (let attempt = 0; attempt < 40; attempt++) {
-    if (child.exitCode !== null) throw new Error(`test server exited with code ${child.exitCode}`);
+const waitForHealth = async (baseUrl: string, child: ChildProcess, getStderr: () => string): Promise<void> => {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (child.exitCode !== null) throw new Error(`test server exited with code ${child.exitCode}: ${getStderr()}`);
     try {
       const response = await fetch(`${baseUrl}/api/health`);
       if (response.ok) return;
     } catch { /* retry */ }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error('test server did not become healthy');
+  throw new Error(`test server did not become healthy: ${getStderr()}`);
 };
 
 test('HTTP API validates, deduplicates, synchronizes, and preserves protected data', async () => {
@@ -44,7 +44,7 @@ test('HTTP API validates, deduplicates, synchronizes, and preserves protected da
   let stderr = '';
   const child = spawn(process.execPath, ['--import', 'tsx', 'server.ts'], {
     cwd: process.cwd(),
-    env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), PROJECT_ROOT: root },
+    env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), PROJECT_ROOT: root, NODE_ENV: 'production' },
     stdio: ['ignore', 'ignore', 'pipe'],
   });
   child.stderr?.on('data', (chunk) => { stderr += String(chunk); });
@@ -54,7 +54,7 @@ test('HTTP API validates, deduplicates, synchronizes, and preserves protected da
   });
 
   try {
-    await waitForHealth(baseUrl, child);
+    await waitForHealth(baseUrl, child, () => stderr);
     const baseRecommendation = {
       match: 'Alpha vs Beta', ybty_home: 'Alpha', ybty_away: 'Beta', grade: 'B',
       prediction_probability: 70,
@@ -122,8 +122,13 @@ test('HTTP API validates, deduplicates, synchronizes, and preserves protected da
       .trim();
     assert.equal(filteredStderr, '');
   } finally {
-    child.kill();
-    await new Promise<void>((resolve) => child.once('exit', () => resolve()));
+    child.kill('SIGTERM');
+    if (child.exitCode === null) {
+      await new Promise<void>((resolve) => {
+        child.once('exit', () => resolve());
+        setTimeout(resolve, 1000);
+      });
+    }
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

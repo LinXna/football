@@ -271,13 +271,17 @@ export function generateRefactoredPrompt(
     };
     delete compressedAiBrief.condensed_features;
 
-    // 显式 OOS 状态与模型稳定性门禁判定 (P0-01)
+    // 显式 OOS 状态与模型稳定性门禁判定 (P0-01, 方案 5 隔离与熔断)
     const pipeline = quantFeatures.candidate_pipeline;
     const validations = pipeline?.validations ?? [];
-    const hasValidOosProfile = validations.some(v => v.status === 'VALIDATED' && v.effective_sample_size > 0);
+    const hasCircuitBreaker = validations.some(v => v.is_circuit_broken || v.status === 'REJECTED');
+    const circuitBreakerReason = validations.find(v => v.is_circuit_broken || v.status === 'REJECTED')?.circuit_breaker_reason;
+    const hasValidOosProfile = !hasCircuitBreaker && validations.some(v => (v.status === 'VALIDATED' || v.status === 'PRODUCTION_MATURE' || v.status === 'OOS_VALIDATED') && v.effective_sample_size > 0);
     const maxEss = validations.reduce((acc, v) => Math.max(acc, v.effective_sample_size ?? 0), 0);
-    const oosProfileStatus: 'NO_PROFILE' | 'VALIDATED' = hasValidOosProfile ? 'VALIDATED' : 'NO_PROFILE';
-    const isOosValidated = oosProfileStatus === 'VALIDATED' && maxEss >= 30;
+    const oosProfileStatus: 'NO_PROFILE' | 'VALIDATED' | 'REJECTED' = hasCircuitBreaker
+      ? 'REJECTED'
+      : (hasValidOosProfile ? 'VALIDATED' : 'NO_PROFILE');
+    const isOosValidated = oosProfileStatus === 'VALIDATED' && maxEss >= 30 && !hasCircuitBreaker;
 
     const modelStability = quantFeatures.confidence_breakdown?.model_stability_score ?? 100;
     const hasMajorConflict = (quantFeatures.risk_flags?.length ?? 0) > 0 || (pipeline?.blockers?.length ?? 0) > 0;
@@ -287,6 +291,8 @@ export function generateRefactoredPrompt(
     let hardGateCeiling: 'A_GRADE' | 'B_GRADE' | 'WATCH' | 'REJECTED' = 'A_GRADE';
     if (blindSpots.length > 0) {
       hardGateCeiling = 'C_GRADE' as any;
+    } else if (hasCircuitBreaker) {
+      hardGateCeiling = 'B_GRADE';
     } else if (modelStability < 70 && (hasMajorConflict || candidateCount === 0 || isPipelineLocked)) {
       hardGateCeiling = 'WATCH';
     } else if (!isOosValidated || modelStability < 70) {
@@ -327,6 +333,8 @@ export function generateRefactoredPrompt(
         goal_phase_alert: quantFeatures.goal_phase_alert,
         risk_flags: quantFeatures.risk_flags,
         confidence_score: quantFeatures.confidence_score,
+        tactical_formation: quantFeatures.context.tactical_formation,
+        devig: quantFeatures.devig,
         machine_candidate_count: quantFeatures.candidate_pipeline.machine_candidate_count,
         poisson_expected_goals: quantFeatures.poisson ? `Home Rest: ${quantFeatures.poisson.lambda_home_rest?.toFixed(2)}, Away Rest: ${quantFeatures.poisson.lambda_away_rest?.toFixed(2)}` : undefined,
         prediction_snapshot: quantFeatures.poisson ? {
@@ -344,7 +352,9 @@ export function generateRefactoredPrompt(
           profile_status: oosProfileStatus,
           is_oos_validated: isOosValidated,
           effective_sample_size: maxEss,
-          audit_rule: `NO_PROFILE ≠ OOS VALIDATED. oos_validated_count (${pipeline?.oos_validated_count ?? 0}) indicates pipeline candidates only. When profile_status is NO_PROFILE or ESS < 30, A_GRADE is strictly prohibited.`
+          is_circuit_broken: hasCircuitBreaker,
+          circuit_breaker_reason: circuitBreakerReason,
+          audit_rule: `NO_PROFILE ≠ OOS VALIDATED. oos_validated_count (${pipeline?.oos_validated_count ?? 0}) indicates pipeline candidates only. When profile_status is NO_PROFILE, REJECTED, or ESS < 30, A_GRADE is strictly prohibited.`
         },
         stability_and_blockers: {
           model_stability_score: modelStability,

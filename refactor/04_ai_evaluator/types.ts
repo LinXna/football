@@ -1,5 +1,5 @@
 import { AiEvaluationBrief } from '../02_canonical_model/types.js';
-import { PositiveEVSignal, QuantAlert, DeviggedMarketFeatures, InPlayPoissonFeatures, SpatioTemporalEventFeatures, Layer03CandidatePipeline } from '../03_quant_engine/types.js';
+import { PositiveEVSignal, QuantAlert, DeviggedMarketFeatures, InPlayPoissonFeatures, SpatioTemporalEventFeatures, Layer03CandidatePipeline, TacticalFormationFeatures } from '../03_quant_engine/types.js';
 import { RecommendationGrade, TrapDetectionResult, TacticalRegimeEvaluation } from './enums.js';
 
 export interface OosHistoricalContext {
@@ -51,6 +51,8 @@ export interface EvaluatorQuantFeatures {
   risk_adjusted_ev?: number;
   risk_flags?: QuantAlert[];
   confidence_score?: number;
+  tactical_formation?: TacticalFormationFeatures;
+  devig?: DeviggedMarketFeatures;
   poisson_expected_goals?: string;
   prediction_snapshot?: {
     model_version: string;
@@ -63,10 +65,12 @@ export interface EvaluatorQuantFeatures {
   market_divergence_insights?: string;
   /** Explicit OOS Semantic Status to prevent NO_PROFILE vs VALIDATED confusion */
   oos_semantic_status?: {
-    profile_status: 'NO_PROFILE' | 'PROFILE_AVAILABLE' | 'VALIDATED';
+    profile_status: 'NO_PROFILE' | 'PROFILE_AVAILABLE' | 'VALIDATED' | 'REJECTED';
     is_oos_validated: boolean;
     effective_sample_size: number;
     audit_rule: string;
+    is_circuit_broken?: boolean;
+    circuit_breaker_reason?: string;
   };
   /** Explicit Model Stability & Pipeline Hard Gate Bounds */
   stability_and_blockers?: {

@@ -303,12 +303,26 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
     }
   }
 
-  // Step 4: OOS 语义与样本量硬门禁 (P0-01)
+  // Step 4: OOS 语义与样本量硬门禁 (P0-01) 及两阶段隔离熔断 (方案 5)
   const oosStatus = payload.quant_features?.oos_semantic_status;
   const oosProfileStatus = oosStatus?.profile_status ?? 'NO_PROFILE';
   const oosEss = oosStatus?.effective_sample_size ?? 0;
-  // P0-01 统一标准定义: OOS_VALIDATED = (profile_status == "VALIDATED") AND (effective_sample_size >= 30)
-  const isOosValidated = (oosProfileStatus === 'VALIDATED') && (oosEss >= 30);
+  const isCircuitBroken = Boolean(oosStatus?.is_circuit_broken) || oosProfileStatus === 'REJECTED';
+
+  if (isCircuitBroken) {
+    if (enforcedGrade === RecommendationGrade.A_GRADE) {
+      enforcedGrade = RecommendationGrade.B_GRADE;
+    }
+    if (enforcedConfidence > 75) {
+      enforcedConfidence = 75;
+    }
+    additionalWarnings.push(
+      `SYSTEM HARD GATE (方案 5 隔离与熔断): OOS 校准档案触发降级熔断 (${oosStatus?.circuit_breaker_reason ?? 'Brier 得分劣化或跨阶段污染'})，严禁 A 级推荐，置信度封顶 75 分。`
+    );
+  }
+
+  // P0-01 统一标准定义: OOS_VALIDATED = (profile_status == "VALIDATED") AND (effective_sample_size >= 30) AND (!isCircuitBroken)
+  const isOosValidated = (oosProfileStatus === 'VALIDATED') && (oosEss >= 30) && !isCircuitBroken;
   if (!isOosValidated && enforcedGrade === RecommendationGrade.A_GRADE) {
     enforcedGrade = RecommendationGrade.B_GRADE;
     enforcedConfidence = Math.min(enforcedConfidence, 80);
@@ -440,6 +454,119 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
     if (enforcedConfidence > 75) {
       enforcedConfidence = 75;
       additionalWarnings.push("SYSTEM HARD GATE: 防线存在崩盘风险，置信度强制封顶 75 分");
+    }
+  }
+
+  // 6.5 中场绞杀密集阻断警报 (MIDFIELD_GRIDLOCK_WARNING): 空间受压，全场大球禁止出 A 级，置信度上限 80
+  if (quantRiskFlags.includes(QuantAlert.MIDFIELD_GRIDLOCK_WARNING)) {
+    const isRecommendedOver = result.recommended_legs.some(
+      leg => (leg.market.includes('TOTAL') || leg.market.includes('OU') || leg.direction === 'OVER') && leg.direction === 'OVER'
+    );
+    const isScanOver = (result.market_scan?.market?.includes('TOTAL') || result.market_scan?.market?.includes('OU') || result.market_scan?.direction === 'OVER') &&
+      result.market_scan?.direction === 'OVER';
+
+    if (isRecommendedOver || isScanOver) {
+      if (enforcedGrade === RecommendationGrade.A_GRADE) {
+        enforcedGrade = RecommendationGrade.B_GRADE;
+      }
+      additionalWarnings.push("SYSTEM HARD GATE: 触发 Layer 03 中场绞杀密集警报 (MIDFIELD_GRIDLOCK_WARNING)，全场大球 (OVER) 缺乏穿透空间，最高评级限缩在 B 级以下，禁止 A 级重仓");
+      if (enforcedConfidence > 80) {
+        enforcedConfidence = 80;
+        additionalWarnings.push("SYSTEM HARD GATE: 中场空间受阻，大球方向置信度强制封顶 80 分");
+      }
+    }
+  }
+
+  // 6.6 边肋防线大空档暴露警报 (WING_DEFENSE_EXPOSURE): 推荐受让下盘且暴露空档、未见防守补强时，禁止出 A 级
+  const formation = payload.quant_features?.tactical_formation;
+  const homeWingExposed = (formation?.wing_space_vulnerability_home ?? 0) > 0.40;
+  const awayWingExposed = (formation?.wing_space_vulnerability_away ?? 0) > 0.40;
+  const anyWingExposed = quantRiskFlags.includes(QuantAlert.WING_DEFENSE_EXPOSURE) || homeWingExposed || awayWingExposed;
+
+  if (anyWingExposed) {
+    const checkUnderdogExposure = (
+      market: string | undefined,
+      direction: string | undefined,
+      selectedLine: string | undefined
+    ): { isUnderdogExposed: boolean; exposedTeam: 'HOME' | 'AWAY' | null } => {
+      if (!market || !direction) return { isUnderdogExposed: false, exposedTeam: null };
+      const isSpread = market.includes('HANDICAP') || market.includes('SPREAD') || market.includes('AH');
+      if (!isSpread) return { isUnderdogExposed: false, exposedTeam: null };
+
+      const lineVal = parseHandicapToFloat(selectedLine ?? '');
+      const statAh = statutoryMarkets?.ah_main;
+      const statHomeLine = statAh ? parseHandicapToFloat(statAh.handicap ?? statAh.home_selection ?? '') : null;
+
+      if (direction === 'HOME') {
+        const isHomeUnderdog = (lineVal !== null && lineVal > 0) || (statHomeLine !== null && statHomeLine > 0);
+        if (isHomeUnderdog) {
+          const isExposed = homeWingExposed || (anyWingExposed && !awayWingExposed);
+          if (isExposed) return { isUnderdogExposed: true, exposedTeam: 'HOME' };
+        }
+      } else if (direction === 'AWAY') {
+        const statAwayLine = statAh?.away_selection ? parseHandicapToFloat(statAh.away_selection) : null;
+        const isAwayUnderdog = (statAwayLine !== null && statAwayLine > 0) ||
+                               (statHomeLine !== null && statHomeLine < 0) ||
+                               (lineVal !== null && lineVal > 0);
+        if (isAwayUnderdog) {
+          const isExposed = awayWingExposed || (anyWingExposed && !homeWingExposed);
+          if (isExposed) return { isUnderdogExposed: true, exposedTeam: 'AWAY' };
+        }
+      }
+      return { isUnderdogExposed: false, exposedTeam: null };
+    };
+
+    let underdogExposedMatch = false;
+    let underdogExposedTeam: 'HOME' | 'AWAY' | null = null;
+
+    for (const leg of result.recommended_legs) {
+      const check = checkUnderdogExposure(leg.market, leg.direction, leg.selected_line);
+      if (check.isUnderdogExposed) {
+        underdogExposedMatch = true;
+        underdogExposedTeam = check.exposedTeam;
+        break;
+      }
+    }
+
+    if (!underdogExposedMatch && result.market_scan) {
+      const check = checkUnderdogExposure(
+        result.market_scan.market,
+        result.market_scan.direction,
+        result.market_scan.selected_line
+      );
+      if (check.isUnderdogExposed) {
+        underdogExposedMatch = true;
+        underdogExposedTeam = check.exposedTeam;
+      }
+    }
+
+    if (underdogExposedMatch) {
+      const textCorpus = [
+        result.internal_logical_audit,
+        result.qualitative_summary,
+        result.blind_spot_analysis?.['2_asian_handicap_reality'],
+        ...(result.recommended_legs?.map(l => l.basis) ?? [])
+      ].filter(Boolean).join(' ').toLowerCase();
+
+      const hasDefensiveReinforcement =
+        textCorpus.includes('防守补强') ||
+        textCorpus.includes('针对性防守') ||
+        textCorpus.includes('defensive reinforcement') ||
+        textCorpus.includes('tactical defensive cover') ||
+        textCorpus.includes('五后卫补强');
+
+      if (!hasDefensiveReinforcement) {
+        if (enforcedGrade === RecommendationGrade.A_GRADE) {
+          enforcedGrade = RecommendationGrade.B_GRADE;
+        }
+        additionalWarnings.push(
+          `SYSTEM HARD GATE: 推荐方向为受让下盘 (${underdogExposedTeam ?? '受让方'}) 且该队触发边肋防线大空档暴露警报 (WING_DEFENSE_EXPOSURE)，在未见针对性防守补强场景下，最高评级限缩在 B 级以下，禁止 A 级重仓`
+        );
+        if (enforcedConfidence > 80) {
+          enforcedConfidence = 80;
+          additionalWarnings.push("SYSTEM HARD GATE: 受让方边肋防守高危，置信度强制封顶 80 分");
+        }
+      }
     }
   }
 

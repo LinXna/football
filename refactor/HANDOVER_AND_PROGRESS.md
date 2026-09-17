@@ -1,32 +1,64 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260917-QUANT-ENGINE-ITEM3-COHERENT-STATE-FUSION`
-- **当前状态 (Status)**: `IN_PROGRESS`
-- **阶段进度 (Phase)**: `P5.6 足球量化系统深度重构工程 —— [原子任务 3/7: 方案 3] 滚球终盘“先验 DNA 绝杀特质”与“实时物理场”相干态干涉方程与虚假冲动阻断`
+- **任务编号 (Task)**: `SNAPSHOT-20260917-TWO-PHASE-CALIBRATION-ARCHIVE-ISOLATION`
+- **当前状态 (Status)**: `DONE`
+- **阶段进度 (Phase)**: `P5.8 足球量化系统深度重构工程 —— [原子任务 5/7: 方案 5] 非滚球 Prematch 与 滚球 In-Play 统一两阶段校准档案隔离（Prematch/Live 分流与降级熔断机制） [已全面完成并通过全量验证]`
 - **任务目标与交付清单 (Deliverables)**：
-  1. 【相干态物理干涉方程与阻断机制 (`poissonDecayModel.ts`)】：
-     - 痛点根治：终盘阶段（t >= 70'），当某队在先验进球 DNA 具有极高绝杀特质（如 76-90' 进球占比高达 35%+），但现场实时物理场显示该队处于极度萎靡/零射门/被深度围攻压迫（如 `livePhysicalFactor <= 0.70` 或 `intensity <= 0.25` 且 `oppIntensity >= 0.75`）时，该队的绝杀特质无法在物理真空中凭空具象化；
-     - 构建相干度度量方程 $\mathcal{C}_i \in [0.0, 1.0]$：
-       $$\mathcal{C}_i = \text{clamp}\left(\frac{\text{livePhysicalFactor}_i - 0.40}{0.60}, 0.0, 1.0\right)$$
-     - 当相干度极低（$\mathcal{C}_i \to 0$）即现场物理完全不支持时，先验 DNA 绝杀加速权重必须受到相干态干涉衰减，平滑退相干（decohere）至均匀基准权重，防止产生“虚假搏命爆发”冲动推演；
-     - 仅当相干度高（$\mathcal{C}_i \to 1$）且现场伴随攻防动量与压迫支持时，先验绝杀 DNA 才能以相长干涉完整释放其实战爆发力；
-  2. 【分解日志与可解释性增强 (`poissonDecayModel.ts`, `types.ts`)】：
-     - 在 `LambdaDecomposition` 中增加 `coherent_state_home`, `coherent_state_away` 与相干性降维标记，确保每一步数学推导完全透明可审计；
-  3. 【专项数学单元测试验证 (`quantHardeningAntiFakeData.test.ts`)】：
-     - 编写 Scheme 24 针对性测试：构造终盘 75'+ 场景，对比“先验绝杀 DNA 强烈但现场零射门/极低物理活跃度”与“现场高压围攻”，验证退相干方程精准压制虚假冲动、高相干态正常释放进球预期；
-  4. 【工程标准红线】：
-     - 严格遵守纯函数无副作用、强类型零 any、全套测试与生产构建 100% 绿灯。
+  1. 【Layer 03 统一两阶段校准档案隔离与分流构建 (`oosCalibrationEngine.ts`, `types.ts`)】[DONE]：
+     - 扩展 `QuantCalibrationProfile` 契约，支持阶段标记 `stage?: 'PREMATCH' | 'LIVE' | 'ALL'`，及熔断状态 `circuit_breaker_triggered?: boolean`、`circuit_breaker_reason?: string`；
+     - 扩展 `OosCalibrationArchive` 引入两阶段独立全局档案集合：`prematch_global_profiles?: readonly QuantCalibrationProfile[]` 与 `live_global_profiles?: readonly QuantCalibrationProfile[]`；
+     - 在 `buildOosCalibrationArchive` 中实现两阶段独立聚合与分流：
+       - 赛前 Prematch 样本与滚球 In-Play 样本严格分流，独立聚合生成 `prematch_global_profiles` 与 `live_global_profiles`，绝不跨阶段污染；
+       - 引入 Brier 评分劣化熔断器（`BRIER_CIRCUIT_BREAKER_THRESHOLD = 0.28`）：若 profile 的 `oos_brier_score > 0.28`（显著劣于二元盲猜基准 0.25），标记为 `REJECTED` 并触发熔断；
+     - 在 `selectOosCalibrationProfile` 中实现两阶段严格分流隔离与防污染闸门：
+       - Prematch 赛事严禁匹配任何 Live Profile，降级回退时严格限缩在 `prematch_global_profiles`，绝不可跨阶段借用 Live Profile；
+       - Live 赛事严禁匹配任何 Prematch Profile，降级回退时严格限缩在 `live_global_profiles`，绝不可跨阶段借用 Prematch Profile；
+       - 若同阶段无有效档案或样本不足，返回 `undefined` 触发熔断保护；
+  2. 【Layer 03 候选状态机与量化主流程分流及熔断闭环 (`candidateStateMachine.ts`, `index.ts`)】[DONE]：
+     - 在 `index.ts` 中透传两阶段分流元数据：`calibration_stage: 'PREMATCH' | 'LIVE'`, `is_stage_isolated: true`；
+     - 在 `candidateStateMachine.ts` 中挂载跨阶段污染熔断校验：若检测到 Profile stage 与赛事 stage 冲突，或 Profile 触发了熔断器（`circuit_breaker_triggered`），判定为 `REJECTED` 并将熔断原因记录至 `blockers`；
+  3. 【Layer 04 对齐门禁刚性熔断拦截 (`alignmentGuard.ts`, `promptExporter.ts`, `types.ts`)】[DONE]：
+     - 在 `promptExporter.ts` 与 `types.ts` 中扩展 `oos_semantic_status`，显式传递 `is_circuit_broken` 与 `circuit_breaker_reason`；
+     - 在 `alignmentGuard.ts` 中增加校准质量劣化熔断（`BRIER_SCORE_DEGRADED`）与阶段污染拦截：若档案熔断，严禁输出 A 级推荐，强制降级至 B 级，置信度上限强制封顶 75 分；
+  4. 【全量单元测试与回归验证 (`tests-ts/quantHardeningAntiFakeData.test.ts`, `refactor/tests/verify_quant_engine.ts`)】[DONE]：
+     - 编写 Scheme 5 专项三组测试用例（Test 26, Test 27, Test 28），涵盖：
+       - 两阶段档案分流隔离无跨阶段交叉借用；
+       - Brier 劣化熔断触发与候选状态机 blockers 拦截；
+       - Layer 04 AlignmentGuard 跨层刚性拦截降级（A 级降 B 级，封顶 75 分）；
+     - `npx tsx refactor/tests/verify_quant_engine.ts`（10 项量化物理测试 100% PASS）；
+     - `npm run test:ts`（全仓 6 套件 111 项测试 100% 绿色全部通过）；
+     - `npm run lint` (`tsc --noEmit`) 零报错，`compile_applet` 100% 成功。
 - **改动文件清单 (Target Files)**：
   - `/refactor/03_quant_engine/types.ts`
-  - `/refactor/03_quant_engine/poissonDecayModel.ts`
+  - `/refactor/03_quant_engine/oosCalibrationEngine.ts`
+  - `/refactor/03_quant_engine/candidateStateMachine.ts`
+  - `/refactor/03_quant_engine/index.ts`
+  - `/refactor/04_ai_evaluator/types.ts`
+  - `/refactor/04_ai_evaluator/promptExporter.ts`
+  - `/refactor/04_ai_evaluator/alignmentGuard.ts`
   - `/tests-ts/quantHardeningAntiFakeData.test.ts`
   - `/refactor/HANDOVER_AND_PROGRESS.md`
 - **下一步计划 (Next Steps)**：
-  - 任务 3 验证完成后，推进【原子任务 4/7: 方案 4】赛前 Prior 与 滚球 In-Play 统一两阶段校准档案隔离（Prematch/Live 分流与降级熔断）。
+  - 推进模块二【方案 6】多源动态截断与自适应窗口调和。
 
 ---
 
 ## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260917-TACTICAL-TENSION-GRIDLOCK-ALERT-CROSS-LAYER (DONE)
+- **阶段进度**: `P5.7 足球量化系统深度重构工程 —— [原子任务 4/7: 方案 4] 阵型张力与攻防绞杀风控警报跨层闭环 (Layer 03 -> Layer 04) [已全面完成并通过全量验证]`
+- **交付产物**:
+  - 在 `QuantAlert` 中扩充 `MIDFIELD_GRIDLOCK_WARNING` 与 `WING_DEFENSE_EXPOSURE`；
+  - 在 Layer 03 `calculateConfidenceAndAlerts` 中挂载阵型张力与绞杀判定；
+  - 在 Layer 04 `alignmentGuard.ts` 中实现中场绞杀大球阻断（封顶 80、剥夺 A 级）与边肋漏洞受让下盘重仓阻断；
+  - 全套 108 项测试 100% 绿色通过。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260917-QUANT-ENGINE-ITEM3-COHERENT-STATE-FUSION (DONE)
+- **阶段进度**: `P5.6 足球量化系统深度重构工程 —— [原子任务 3/7: 方案 3] 滚球终盘“先验 DNA 绝杀特质”与“实时物理场”相干态干涉方程与虚假冲动阻断 [已全面完成并通过全量验证]`
 
 ### Snapshot: SNAPSHOT-20260917-QUANT-ENGINE-ITEM2-DNA-HALFTIME-AND-BAYESIAN-SHRINKAGE (DONE)
 - **阶段进度**: `P5.6 足球量化系统深度重构工程 —— [原子任务 2/7: 方案 2] 进球时段 DNA 45' 半场时间积分保护与后验贝叶斯信度平滑收缩 [已全面完成并通过全量验证]`

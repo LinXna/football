@@ -24,8 +24,15 @@ import { calculateInPlayPoissonFeatures, calculatePhasedDNATimeFraction } from '
 import { CanonicalTimelineEvent } from '../refactor/02_canonical_model/types.js';
 import { CanonicalIncidentCategory, CanonicalEventType, MatchStage } from '../refactor/02_canonical_model/enums.js';
 import { verifyStatutoryAlignment } from '../refactor/04_ai_evaluator/alignmentGuard.js';
-import { RecommendationGrade } from '../refactor/04_ai_evaluator/enums.js';
+import { RecommendationGrade, TacticalRegimeEvaluation } from '../refactor/04_ai_evaluator/enums.js';
 import { AiEvaluationResult, EvaluatorPayload } from '../refactor/04_ai_evaluator/types.js';
+import {
+  buildOosCalibrationArchive,
+  selectOosCalibrationProfile,
+  BRIER_CIRCUIT_BREAKER_THRESHOLD
+} from '../refactor/03_quant_engine/oosCalibrationEngine.js';
+import { evaluateCandidatePipeline } from '../refactor/03_quant_engine/candidateStateMachine.js';
+import { OosCalibrationSample } from '../refactor/03_quant_engine/types.js';
 
 test('Anti-Fake Data Hardening: Scheme 1 - Team ID Anchoring in H2H & Recent Form', () => {
   // Test H2H venue inversion prevention
@@ -1248,6 +1255,757 @@ test('Anti-Fake Data Hardening: Scheme 23 - Goal DNA Half-Time (45\') Boundary &
     `At nAll=10, weight (${dna10.home_scored_weights[0]}) should be smoothly shrunk between uniform and full posterior`
   );
 });
+
+test('Anti-Fake Data Hardening: Scheme 24 - Late-Game Clutch DNA & Live Physical Field Coherent State Fusion', () => {
+  // 构造 78' 终盘 0-0 决战场景
+  const lateMatch: CanonicalMatch = {
+    canonical_id: 'match_clutch_dna_78',
+    home_team_name: 'Clutch Tigers FC',
+    away_team_name: 'Iron Wall FC',
+    timing: { minute: 78, stage: MatchStage.LIVE },
+    score: { home_score: 0, away_score: 0, score_verified: true }
+  } as unknown as CanonicalMatch;
+
+  // 主队具备典型的大样本终盘绝杀 DNA (76-90' 占比高达 35%，先验绝杀特质显著 >= 0.25)
+  const clutchContext = {
+    l0_circuit_breaker: { is_triggered: false },
+    prior_adjustment_multipliers: { home_multiplier: 1.0, away_multiplier: 1.0 },
+    goal_distribution_dna: {
+      has_data: true,
+      home_confidence: 'HIGH',
+      away_confidence: 'HIGH',
+      home_scored_weights: [0.10, 0.10, 0.10, 0.15, 0.20, 0.35],
+      away_scored_weights: [0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667],
+      home_late_game_dna: 0.35,
+      away_late_game_dna: 0.1667
+    }
+  } as any;
+
+  // 场景 1: 现场物理相干推进态 (High Coherence, C_home >= 0.80)
+  // 主队攻势猛烈，动量压制，现场物理完全支撑先验绝杀爆发
+  const coherentActiveState = {
+    home_intensity: 0.85,
+    away_intensity: 0.20,
+    regime_multiplier_home: 1.25,
+    regime_multiplier_away: 0.70,
+    dominance_index: 0.65,
+    imminent_goal: false,
+    post_goal_cooldown_active: false,
+    has_evidence_conflict: false,
+    source_lineage_discount: 1.0,
+    red_card_attack_multiplier_home: 1.0,
+    red_card_attack_multiplier_away: 1.0,
+    red_card_defense_leak_multiplier_home: 1.0,
+    red_card_defense_leak_multiplier_away: 1.0,
+    home_tti: 2.8,
+    away_tti: 0.4,
+    pyramid_slope: 20
+  } as any;
+
+  const poissonCoherent = calculateInPlayPoissonFeatures(
+    lateMatch,
+    clutchContext,
+    coherentActiveState
+  );
+
+  const decompCoherent = poissonCoherent.lambda_decomposition;
+  assert.ok(
+    (decompCoherent.coherent_state_home ?? 0) >= 0.90,
+    `Under strong live attack pressure, home coherent state (${decompCoherent.coherent_state_home}) must be >= 0.90`
+  );
+  assert.equal(
+    decompCoherent.decoherence_applied_home,
+    false,
+    'Decoherence must NOT be applied when live physical field supports clutch DNA'
+  );
+  assert.ok(
+    poissonCoherent.lambda_home_rest >= 0.30,
+    `Coherent clutch team should release potent goal expectancy (lambda_home_rest = ${poissonCoherent.lambda_home_rest} >= 0.30)`
+  );
+
+  // 场景 2: 现场退相干阻断态 (Decoherence Dampening, C_home <= 0.20)
+  // 主队虽有绝杀历史，但现场被客队彻底绞杀/自身染红/零射门萎靡，物理真实彻底否定先验冲动
+  const incoherentDampedState = {
+    home_intensity: 0.15,
+    away_intensity: 0.85,
+    regime_multiplier_home: 0.45,
+    regime_multiplier_away: 1.30,
+    dominance_index: -0.70,
+    imminent_goal: false,
+    post_goal_cooldown_active: false,
+    has_evidence_conflict: false,
+    source_lineage_discount: 1.0,
+    red_card_attack_multiplier_home: 0.40, // 染红大巴
+    red_card_attack_multiplier_away: 1.0,
+    red_card_defense_leak_multiplier_home: 1.40,
+    red_card_defense_leak_multiplier_away: 1.0,
+    home_tti: 0.2,
+    away_tti: 3.2,
+    pyramid_slope: -25
+  } as any;
+
+  const poissonIncoherent = calculateInPlayPoissonFeatures(
+    lateMatch,
+    clutchContext,
+    incoherentDampedState
+  );
+
+  const decompIncoherent = poissonIncoherent.lambda_decomposition;
+  assert.ok(
+    (decompIncoherent.coherent_state_home ?? 1) <= 0.10,
+    `Under deep siege/red card collapse, home coherent state (${decompIncoherent.coherent_state_home}) must be <= 0.10`
+  );
+  assert.equal(
+    decompIncoherent.decoherence_applied_home,
+    true,
+    'Decoherence MUST be strictly marked true when physical field fails to support clutch DNA'
+  );
+  assert.ok(
+    poissonIncoherent.lambda_home_rest <= 0.08,
+    `Decohered clutch team must be strictly suppressed to prevent fake EV (lambda_home_rest = ${poissonIncoherent.lambda_home_rest} <= 0.08)`
+  );
+  assert.ok(
+    poissonIncoherent.lambda_home_rest < poissonCoherent.lambda_home_rest * 0.10,
+    `Incoherent suppressed lambda (${poissonIncoherent.lambda_home_rest}) must be less than 10% of coherent lambda (${poissonCoherent.lambda_home_rest})`
+  );
+});
+
+test('Anti-Fake Data Hardening: Scheme 25 - Tactical Tension & Gridlock Alert Cross-Layer Closure (Scheme 4)', () => {
+  // 1. Layer 03 警报触发检验
+  const dummyTimeline = {
+    canonical_match_id: 'match_tactical_closure',
+    events: [],
+    red_cards: { home: 0, away: 0 },
+    yellow_cards: { home: 0, away: 0 },
+    corners: { home: 0, away: 0 },
+    dangerous_attacks: { home: 0, away: 0 },
+    shots_on_target: { home: 0, away: 0 },
+    shots_off_target: { home: 0, away: 0 },
+    possession: { home: 50, away: 50 }
+  } as any;
+
+  const physicalNormal = {
+    home_intensity: 0.5,
+    away_intensity: 0.5,
+    dominance_index: 0,
+    has_evidence_conflict: false,
+    source_lineage_discount: 1.0,
+    red_card_penalty: { home_attack_multiplier: 1.0, away_attack_multiplier: 1.0 },
+    discipline_pressure: { home_yellow_collapse_risk: false, away_yellow_collapse_risk: false }
+  } as any;
+
+  const devigNormal = {
+    bookmaker_posture: 'BALANCED_NEUTRAL'
+  } as any;
+
+  // 1.1 中场密集绞杀 (> 0.65)
+  const contextGridlock = {
+    circuit_breaker: { is_triggered: false },
+    goal_timing_validity: { requires_bayesian_shrinkage: false },
+    h2h_weights: [],
+    tactical_formation: {
+      formation_home: '5-4-1',
+      formation_away: '4-5-1',
+      midfield_congestion_index: 0.75, // > 0.65
+      wing_space_vulnerability_home: 0.15,
+      wing_space_vulnerability_away: 0.20,
+      formation_attack_multiplier_home: 0.90,
+      formation_attack_multiplier_away: 0.90,
+      formation_defense_leak_multiplier_home: 0.95,
+      formation_defense_leak_multiplier_away: 0.95
+    }
+  } as any;
+
+  const gridlockAlerts = calculateConfidenceAndAlerts(
+    contextGridlock,
+    dummyTimeline,
+    physicalNormal,
+    devigNormal,
+    MatchStage.LIVE
+  );
+
+  assert.ok(
+    gridlockAlerts.risk_flags.includes(QuantAlert.MIDFIELD_GRIDLOCK_WARNING),
+    'When midfield_congestion_index > 0.65, QuantAlert.MIDFIELD_GRIDLOCK_WARNING MUST be triggered'
+  );
+
+  // 1.2 边肋防线大空档暴露 (> 0.40)
+  const contextWingExposed = {
+    circuit_breaker: { is_triggered: false },
+    goal_timing_validity: { requires_bayesian_shrinkage: false },
+    h2h_weights: [],
+    tactical_formation: {
+      formation_home: '3-4-3',
+      formation_away: '4-4-2',
+      midfield_congestion_index: 0.45,
+      wing_space_vulnerability_home: 0.48, // > 0.40
+      wing_space_vulnerability_away: 0.18,
+      formation_attack_multiplier_home: 1.05,
+      formation_attack_multiplier_away: 1.15,
+      formation_defense_leak_multiplier_home: 1.20,
+      formation_defense_leak_multiplier_away: 1.0
+    }
+  } as any;
+
+  const wingAlerts = calculateConfidenceAndAlerts(
+    contextWingExposed,
+    dummyTimeline,
+    physicalNormal,
+    devigNormal,
+    MatchStage.LIVE
+  );
+
+  assert.ok(
+    wingAlerts.risk_flags.includes(QuantAlert.WING_DEFENSE_EXPOSURE),
+    'When wing_space_vulnerability_home > 0.40, QuantAlert.WING_DEFENSE_EXPOSURE MUST be triggered'
+  );
+
+  // 2. Layer 04 AlignmentGuard 跨层刚性拦截检验
+  const basePayload: EvaluatorPayload = {
+    ai_brief: {
+      canonical_id: 'match_tactical_closure',
+      status_summary: 'LIVE 60\'',
+      score_verification: { current_score: '1 - 1' },
+      core_markets: {
+        ah_main: {
+          handicap: '-0.5',
+          home_odds: 1.95,
+          away_odds: 1.92
+        },
+        ou_main: {
+          line: '2.5',
+          over_odds: 1.92,
+          under_odds: 1.92
+        }
+      } as any
+    } as any,
+    lineup_value_matrix: { is_lineup_confirmed: true } as any,
+    quant_features: {
+      candidate_pipeline: { state: 'QUALIFIED_ACTIONABLE' as any },
+      oos_semantic_status: {
+        profile_status: 'VALIDATED',
+        effective_sample_size: 50,
+        is_oos_validated: true,
+        audit_rule: 'PASSED'
+      },
+      machine_candidate_signals: [
+        { market: 'TOTAL_GOALS_MAIN', side: 'OVER', line: '2.5', odds: 1.92 } as any,
+        { market: 'TOTAL_GOALS_MAIN', side: 'UNDER', line: '2.5', odds: 1.92 } as any,
+        { market: 'ASIAN_HANDICAP_MAIN', side: 'HOME', line: '+0.5', odds: 1.92 } as any,
+        { market: 'ASIAN_HANDICAP_MAIN', side: 'AWAY', line: '-0.5', odds: 1.92 } as any
+      ],
+      confidence_score: 85,
+      risk_flags: [QuantAlert.MIDFIELD_GRIDLOCK_WARNING],
+      tactical_formation: contextGridlock.tactical_formation
+    } as any
+  };
+
+  // 2.1 MIDFIELD_GRIDLOCK_WARNING 下全场大球 (OVER) 被拦截降级至 B 级，封顶 80
+  const overResult: AiEvaluationResult = {
+    grade: RecommendationGrade.A_GRADE,
+    confidence_score: 90,
+    risk_warnings: [],
+    recommended_legs: [
+      {
+        market: 'TOTAL_GOALS_MAIN',
+        direction: 'OVER',
+        selected_line: '2.5',
+        current_odds: 1.92,
+        minimum_acceptable_odds: 1.85,
+        basis: 'Model projects high probability of late breakthrough'
+      }
+    ],
+    market_scan: {
+      market: 'TOTAL_GOALS_MAIN',
+      direction: 'OVER',
+      selected_line: '2.5',
+      current_odds: 1.92
+    } as any,
+    internal_logical_audit: 'Valid audit trace',
+    qualitative_summary: 'Match outlook'
+  } as any;
+
+  const guardedOver = verifyStatutoryAlignment(overResult, basePayload);
+  assert.equal(
+    guardedOver.grade,
+    RecommendationGrade.B_GRADE,
+    'Under MIDFIELD_GRIDLOCK_WARNING, OVER recommendation MUST be downgraded from A_GRADE to B_GRADE'
+  );
+  assert.equal(
+    guardedOver.confidence_score,
+    80,
+    'Under MIDFIELD_GRIDLOCK_WARNING, OVER confidence MUST be capped at 80'
+  );
+  assert.ok(
+    guardedOver.risk_warnings?.some(w => w.includes('MIDFIELD_GRIDLOCK_WARNING')),
+    'Warnings must mention MIDFIELD_GRIDLOCK_WARNING'
+  );
+
+  // 2.2 MIDFIELD_GRIDLOCK_WARNING 下全场小球 (UNDER) 不受此拦截
+  const underResult: AiEvaluationResult = {
+    grade: RecommendationGrade.A_GRADE,
+    confidence_score: 90,
+    risk_warnings: [],
+    recommended_legs: [
+      {
+        market: 'TOTAL_GOALS_MAIN',
+        direction: 'UNDER',
+        selected_line: '2.5',
+        current_odds: 1.92,
+        minimum_acceptable_odds: 1.85,
+        basis: 'Midfield gridlock suffocates goal volume'
+      }
+    ],
+    market_scan: {
+      market: 'TOTAL_GOALS_MAIN',
+      direction: 'UNDER',
+      selected_line: '2.5',
+      current_odds: 1.92
+    } as any,
+    internal_logical_audit: 'Valid audit trace',
+    qualitative_summary: 'Match outlook'
+  } as any;
+
+  const guardedUnder = verifyStatutoryAlignment(underResult, basePayload);
+  assert.equal(
+    guardedUnder.grade,
+    RecommendationGrade.A_GRADE,
+    'Under MIDFIELD_GRIDLOCK_WARNING, UNDER direction is aligned with gridlock and MUST NOT be downgraded'
+  );
+
+  // 2.3 WING_DEFENSE_EXPOSURE 下推荐受让下盘（无针对性防守补强）被拦截降级至 B 级
+  const wingPayload: EvaluatorPayload = {
+    ...basePayload,
+    ai_brief: {
+      ...basePayload.ai_brief,
+      core_markets: {
+        ah_main: {
+          handicap: '+0.5', // 主队受让半球 (+0.5)，客队让半球 (-0.5)
+          home_selection: '+0.5',
+          away_selection: '-0.5',
+          home_odds: 1.92,
+          away_odds: 1.92
+        }
+      } as any
+    },
+    quant_features: {
+      ...basePayload.quant_features,
+      risk_flags: [QuantAlert.WING_DEFENSE_EXPOSURE],
+      tactical_formation: contextWingExposed.tactical_formation
+    } as any
+  };
+
+  const underdogNoReinforcementResult: AiEvaluationResult = {
+    grade: RecommendationGrade.A_GRADE,
+    confidence_score: 88,
+    risk_warnings: [],
+    recommended_legs: [
+      {
+        market: 'ASIAN_HANDICAP_MAIN',
+        direction: 'HOME', // 主队是受让方 (+0.5)
+        selected_line: '+0.5',
+        current_odds: 1.92,
+        minimum_acceptable_odds: 1.85,
+        basis: 'Backing home underdogs based on home advantage'
+      }
+    ],
+    market_scan: {
+      market: 'ASIAN_HANDICAP_MAIN',
+      direction: 'HOME',
+      selected_line: '+0.5',
+      current_odds: 1.92
+    } as any,
+    internal_logical_audit: 'Standard tactical view without covering wing space',
+    qualitative_summary: 'Home side has good home record'
+  } as any;
+
+  const guardedUnderdog = verifyStatutoryAlignment(underdogNoReinforcementResult, wingPayload);
+  assert.equal(
+    guardedUnderdog.grade,
+    RecommendationGrade.B_GRADE,
+    'Underdog backing team with WING_DEFENSE_EXPOSURE without reinforcement MUST be downgraded to B_GRADE'
+  );
+  assert.equal(
+    guardedUnderdog.confidence_score,
+    80,
+    'Confidence MUST be capped at 80 for exposed underdog'
+  );
+  assert.ok(
+    guardedUnderdog.risk_warnings?.some(w => w.includes('WING_DEFENSE_EXPOSURE')),
+    'Warnings must mention WING_DEFENSE_EXPOSURE'
+  );
+
+  // 2.4 当存在有效针对性防守补强时，不产生误拦截，保留 A 级资格
+  const underdogWithReinforcementResult: AiEvaluationResult = {
+    ...underdogNoReinforcementResult,
+    internal_logical_audit: '主帅在阵型边肋部署了针对性防守补强，双后腰深度横移保护肋部大空档',
+    qualitative_summary: '有针对性防守补强方案'
+  };
+
+  const guardedReinforced = verifyStatutoryAlignment(underdogWithReinforcementResult, wingPayload);
+  assert.equal(
+    guardedReinforced.grade,
+    RecommendationGrade.A_GRADE,
+    'When explicit defensive reinforcement is documented, A_GRADE is preserved without false positive interception'
+  );
+
+  // 2.5 推荐上盘让球方（客队 -0.5）不受主队边肋暴露惩罚
+  const favoriteResult: AiEvaluationResult = {
+    grade: RecommendationGrade.A_GRADE,
+    confidence_score: 88,
+    risk_warnings: [],
+    recommended_legs: [
+      {
+        market: 'ASIAN_HANDICAP_MAIN',
+        direction: 'AWAY', // 客队是让球强队 (-0.5)
+        selected_line: '-0.5',
+        current_odds: 1.92,
+        minimum_acceptable_odds: 1.85,
+        basis: 'Away favorite can exploit home exposed wing space'
+      }
+    ],
+    market_scan: {
+      market: 'ASIAN_HANDICAP_MAIN',
+      direction: 'AWAY',
+      selected_line: '-0.5',
+      current_odds: 1.92
+    } as any,
+    internal_logical_audit: 'Exploiting wing vulnerabilities of home team',
+    qualitative_summary: 'Away side attack strength'
+  } as any;
+
+  const guardedFavorite = verifyStatutoryAlignment(favoriteResult, wingPayload);
+  assert.equal(
+    guardedFavorite.grade,
+    RecommendationGrade.A_GRADE,
+    'Backing favorite side to exploit exposed opponent MUST NOT be intercepted'
+  );
+});
+
+test('Anti-Fake Data Hardening: Scheme 5 - Two-Phase OOS Archive Partitioning & Stage Isolation', () => {
+  const baseTime = '2026-09-17T12:00:00.000Z';
+  const buildOptions = {
+    generated_at: '2026-09-17T12:00:00.000Z',
+    model_version: 'v1.0.0',
+    training_window_start_at: '2026-01-01T00:00:00.000Z',
+    training_window_end_at: '2026-06-30T23:59:59.000Z',
+    prediction_window_start_at: '2026-07-01T00:00:00.000Z',
+    prediction_window_end_at: '2026-09-17T11:59:59.000Z'
+  };
+
+  const createSampleList = (count: number, stage: 'PREMATCH' | 'LIVE', market: 'ASIAN_HANDICAP_MAIN', prob: number, outcome: number): OosCalibrationSample[] => {
+    return Array.from({ length: count }, (_, i) => ({
+      sample_id: `${stage}_${market}_${i}`,
+      model_version: 'v1.0.0',
+      prediction_at: '2026-08-01T10:00:00.000Z',
+      league_key: 'Premier League',
+      home_team_key: 'Arsenal',
+      away_team_key: 'Chelsea',
+      stage,
+      minute: stage === 'LIVE' ? 45 : null,
+      score_state: '0-0',
+      red_card_state: '0-0',
+      market,
+      model_probability: prob,
+      outcome,
+      predicted_lambda: 1.5,
+      observed_goals: 1.0
+    }));
+  };
+
+  // 210 Prematch samples (well-calibrated: prob 0.6, outcome 1, error = 0.16)
+  const prematchSamples = createSampleList(210, 'PREMATCH', 'ASIAN_HANDICAP_MAIN', 0.6, 1);
+  // 210 Live samples (well-calibrated: prob 0.7, outcome 1, error = 0.09)
+  const liveSamples = createSampleList(210, 'LIVE', 'ASIAN_HANDICAP_MAIN', 0.7, 1);
+
+  const archive = buildOosCalibrationArchive([...prematchSamples, ...liveSamples], buildOptions);
+
+  // 1. 验证归档结构划分：prematch_global_profiles 与 live_global_profiles 独立存在
+  assert.ok(archive.prematch_global_profiles, 'Archive MUST contain prematch_global_profiles');
+  assert.ok(archive.live_global_profiles, 'Archive MUST contain live_global_profiles');
+  assert.equal(archive.prematch_global_profiles.length, 1);
+  assert.equal(archive.live_global_profiles.length, 1);
+  assert.equal(archive.prematch_global_profiles[0].stage, 'PREMATCH');
+  assert.equal(archive.live_global_profiles[0].stage, 'LIVE');
+
+  // 2. 验证 selectOosCalibrationProfile 严格隔离
+  const prematchMatch: CanonicalMatch = {
+    canonical_id: 'match_prematch_iso',
+    league_name: 'Premier League',
+    home_team_name: 'Arsenal',
+    away_team_name: 'Chelsea',
+    created_at: '2026-08-05T10:00:00.000Z',
+    timing: { stage: MatchStage.PREMATCH, minute: null } as any,
+    score: { home_score: 0, away_score: 0 } as any,
+    markets: {} as any
+  } as any;
+
+  const liveMatch: CanonicalMatch = {
+    canonical_id: 'match_live_iso',
+    league_name: 'Premier League',
+    home_team_name: 'Arsenal',
+    away_team_name: 'Chelsea',
+    created_at: '2026-08-05T10:00:00.000Z',
+    timing: { stage: MatchStage.LIVE, minute: 45 } as any,
+    score: { home_score: 0, away_score: 0 } as any,
+    markets: {} as any
+  } as any;
+
+  const selectedPrematch = selectOosCalibrationProfile(archive, prematchMatch, 'ASIAN_HANDICAP_MAIN');
+  assert.ok(selectedPrematch, 'Prematch match should find matching prematch profile');
+  assert.equal(selectedPrematch.stage, 'PREMATCH', 'Selected profile for prematch MUST have stage PREMATCH');
+
+  const selectedLive = selectOosCalibrationProfile(archive, liveMatch, 'ASIAN_HANDICAP_MAIN');
+  assert.ok(selectedLive, 'Live match should find matching live profile');
+  assert.equal(selectedLive.stage, 'LIVE', 'Selected profile for live MUST have stage LIVE');
+
+  // 3. 验证纯 Live 档案在 Prematch 查询时决不跨阶段借用（降级熔断）
+  const liveOnlyArchive = buildOosCalibrationArchive(liveSamples, buildOptions);
+  const crossPrematchAttempt = selectOosCalibrationProfile(liveOnlyArchive, prematchMatch, 'ASIAN_HANDICAP_MAIN');
+  assert.equal(
+    crossPrematchAttempt,
+    undefined,
+    'Prematch match MUST NOT borrow Live profile when no prematch profile exists; must return undefined'
+  );
+
+  // 4. 验证纯 Prematch 档案在 Live 查询时决不跨阶段借用（降级熔断）
+  const prematchOnlyArchive = buildOosCalibrationArchive(prematchSamples, buildOptions);
+  const crossLiveAttempt = selectOosCalibrationProfile(prematchOnlyArchive, liveMatch, 'ASIAN_HANDICAP_MAIN');
+  assert.equal(
+    crossLiveAttempt,
+    undefined,
+    'Live match MUST NOT borrow Prematch profile when no live profile exists; must return undefined'
+  );
+});
+
+test('Anti-Fake Data Hardening: Scheme 5 - Brier Score Circuit Breaker & Candidate State Machine Interception', () => {
+  const buildOptions = {
+    generated_at: '2026-09-17T12:00:00.000Z',
+    model_version: 'v1.0.0',
+    training_window_start_at: '2026-01-01T00:00:00.000Z',
+    training_window_end_at: '2026-06-30T23:59:59.000Z',
+    prediction_window_start_at: '2026-07-01T00:00:00.000Z',
+    prediction_window_end_at: '2026-09-17T11:59:59.000Z'
+  };
+
+  // 生成 210 条严重失准样本：预测概率 0.90，结果为 0 (二元平方误差 = (0.9 - 0)^2 = 0.81 > 0.28)
+  const badSamples: OosCalibrationSample[] = Array.from({ length: 210 }, (_, i) => ({
+    sample_id: `bad_sample_${i}`,
+    model_version: 'v1.0.0',
+    prediction_at: '2026-08-01T10:00:00.000Z',
+    league_key: 'La Liga',
+    home_team_key: 'Real Madrid',
+    away_team_key: 'Barcelona',
+    stage: 'PREMATCH',
+    minute: null,
+    score_state: '0-0',
+    red_card_state: '0-0',
+    market: 'ASIAN_HANDICAP_MAIN',
+    model_probability: 0.90,
+    outcome: 0,
+    predicted_lambda: 2.0,
+    observed_goals: 0.0
+  }));
+
+  const brokenArchive = buildOosCalibrationArchive(badSamples, buildOptions);
+  const brokenProfile = brokenArchive.profiles.find(p => p.league_key === 'La Liga');
+  assert.ok(brokenProfile, 'Profile should exist');
+  assert.equal(brokenProfile.status, 'REJECTED', 'Brier score > 0.28 MUST set status to REJECTED');
+  assert.equal(brokenProfile.circuit_breaker_triggered, true, 'circuit_breaker_triggered MUST be true');
+  assert.ok(
+    (brokenProfile.oos_brier_score ?? 0) > BRIER_CIRCUIT_BREAKER_THRESHOLD,
+    `Brier score must exceed threshold ${BRIER_CIRCUIT_BREAKER_THRESHOLD}`
+  );
+
+  // 检验 candidateStateMachine 对熔断档案与跨阶段污染档案的拦截
+  const dummySignal = {
+    market: 'ASIAN_HANDICAP_MAIN',
+    line: '-0.5',
+    side: 'home',
+    odds: 1.95,
+    ev: 0.08,
+    model_probability: 0.58,
+    confidence: 85,
+    kelly_fraction: 0.04
+  };
+
+  // 1. 跨阶段污染测试：赛事为 LIVE，但 profile.stage 为 PREMATCH
+  const crossStageProfile = {
+    ...brokenProfile,
+    status: 'VALIDATED' as const,
+    circuit_breaker_triggered: false,
+    oos_brier_score: 0.18,
+    effective_sample_size: 250,
+    stage: 'PREMATCH' as const
+  };
+
+  const crossStageEval = evaluateCandidatePipeline({
+    rawSignals: [dummySignal],
+    resolveOosMarket: () => 'ASIAN_HANDICAP_MAIN',
+    resolveOosProfile: () => crossStageProfile,
+    adjustedConfidence: 85,
+    dataQualityScore: 90,
+    modelStabilityScore: 90,
+    canPriceMarket: true,
+    liveStatsAvailable: true,
+    stage: MatchStage.LIVE, // 比赛为滚球
+    hasEvidenceConflict: false,
+    postGoalCooldownActive: false,
+    permissiveOosMode: false,
+    allowSecondaryLines: true,
+    currentScore: '0-0',
+    snapshotTime: '2026-09-17T12:00:00.000Z',
+    momentumPoints: 10,
+    timelineEventsCount: 2
+  });
+
+  assert.equal(crossStageEval.validations[0].status, 'REJECTED');
+  assert.equal(crossStageEval.validations[0].is_circuit_broken, true);
+  assert.ok(
+    crossStageEval.validations[0].blockers.some(b => b.includes('跨阶段校准档案污染熔断')),
+    'Blocker must explicitly report cross-stage calibration archive contamination'
+  );
+
+  // 2. Brier 劣化熔断拦截测试
+  const brierFailingProfile = {
+    ...brokenProfile,
+    stage: 'PREMATCH' as const,
+    circuit_breaker_triggered: true,
+    circuit_breaker_reason: 'OOS Brier score 0.81 > 0.28 触发严重校准质量劣化熔断'
+  };
+
+  const brierFailingEval = evaluateCandidatePipeline({
+    rawSignals: [dummySignal],
+    resolveOosMarket: () => 'ASIAN_HANDICAP_MAIN',
+    resolveOosProfile: () => brierFailingProfile,
+    adjustedConfidence: 85,
+    dataQualityScore: 90,
+    modelStabilityScore: 90,
+    canPriceMarket: true,
+    liveStatsAvailable: true,
+    stage: MatchStage.PREMATCH,
+    hasEvidenceConflict: false,
+    postGoalCooldownActive: false,
+    permissiveOosMode: false,
+    allowSecondaryLines: true,
+    currentScore: '0-0',
+    snapshotTime: '2026-09-17T12:00:00.000Z',
+    momentumPoints: 10,
+    timelineEventsCount: 2
+  });
+
+  assert.equal(brierFailingEval.validations[0].status, 'REJECTED');
+  assert.equal(brierFailingEval.validations[0].is_circuit_broken, true);
+  assert.ok(
+    brierFailingEval.validations[0].blockers.some(b => b.includes('劣化熔断') || b.includes('REJECTED')),
+    'Blocker must report degradation circuit breaker'
+  );
+});
+
+test('Anti-Fake Data Hardening: Scheme 5 - Layer 04 AlignmentGuard Circuit Breaker Downgrade', () => {
+  const baseResult: AiEvaluationResult = {
+    grade: RecommendationGrade.A_GRADE,
+    confidence_score: 90,
+    recommended_legs: [
+      {
+        market: 'ASIAN_HANDICAP_MAIN',
+        direction: 'HOME',
+        selected_line: '-0.5',
+        current_odds: 1.95,
+        minimum_acceptable_odds: 1.88,
+        kelly_percentage: 4.0,
+        edge_percentage: 8.0,
+        risk_tier: 'LOW' as any
+      }
+    ],
+    tactical_regime: TacticalRegimeEvaluation.NEUTRAL_EQUILIBRIUM,
+    posture_audit: 'Valid statutory' as any,
+    risk_warnings: [],
+    key_drivers: ['Strong home offense'],
+    veto_applied: false,
+    action_type: 'PRIMARY_RECOMMENDATION' as any
+  };
+
+  // 触发熔断时的 Payload
+  const brokenPayload: EvaluatorPayload = {
+    lineup_value_matrix: {
+      is_lineup_confirmed: true,
+      home: { starting_xi_market_value: 100 },
+      away: { starting_xi_market_value: 100 }
+    } as any,
+    ai_brief: {
+      canonical_id: 'match_cb_test',
+      status_summary: 'PREMATCH',
+      score_verification: { current_score: '0 - 0' },
+      core_markets: {
+        ah_main: {
+          handicap: '-0.5',
+          home_odds: 1.95,
+          away_odds: 1.90,
+          raw_spread_market: {
+            home_odds: 1.95,
+            away_odds: 1.90,
+            line: '-0.5'
+          }
+        }
+      }
+    } as any,
+    quant_features: {
+      candidate_pipeline: {
+        state: 'PRODUCTION_UNLOCKED',
+        machine_candidate_count: 1,
+        blockers: [],
+        validations: [
+          {
+            market: 'ASIAN_HANDICAP_MAIN',
+            status: 'REJECTED',
+            effective_sample_size: 210,
+            oos_brier_score: 0.35,
+            is_circuit_broken: true,
+            circuit_breaker_reason: 'OOS Brier score 0.35 > 0.28 触发熔断',
+            blockers: ['OOS Brier score 0.35 > 0.28 触发熔断']
+          }
+        ]
+      } as any,
+      machine_candidate_signals: [
+        {
+          market: 'ASIAN_HANDICAP_MAIN',
+          line: '-0.5',
+          side: 'home',
+          odds: 1.95
+        }
+      ],
+      oos_semantic_status: {
+        profile_status: 'REJECTED',
+        is_oos_validated: false,
+        effective_sample_size: 210,
+        is_circuit_broken: true,
+        circuit_breaker_reason: 'OOS Brier score 0.35 > 0.28 触发熔断',
+        audit_rule: 'Circuit breaker active'
+      },
+      confidence_score: 90
+    } as any
+  };
+
+  const guarded = verifyStatutoryAlignment(baseResult, brokenPayload);
+
+  // 验证：强制撤销 A_GRADE 降为 B_GRADE，置信度封顶 75 分
+  assert.equal(
+    guarded.grade,
+    RecommendationGrade.B_GRADE,
+    'When calibration profile is circuit broken, A_GRADE MUST be demoted to B_GRADE'
+  );
+  assert.ok(
+    guarded.confidence_score <= 75,
+    `Confidence score MUST be capped at 75 (got ${guarded.confidence_score})`
+  );
+  assert.ok(
+    guarded.risk_warnings.some(w => w.includes('方案 5 隔离与熔断') || w.includes('触发降级熔断')),
+    'Risk warnings must explain the Scheme 5 circuit breaker degradation'
+  );
+});
+
+
 
 
 

@@ -6,6 +6,7 @@ import {
   OOS_VALIDATION_MIN_ESS,
   PRODUCTION_MATURE_ESS
 } from './types.js';
+import { BRIER_CIRCUIT_BREAKER_THRESHOLD } from './oosCalibrationEngine.js';
 
 export { OOS_VALIDATION_MIN_ESS, PRODUCTION_MATURE_ESS };
 export const OOS_MATURE_THRESHOLD = PRODUCTION_MATURE_ESS;
@@ -27,6 +28,9 @@ export interface CandidateOosValidation {
   status: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'INSUFFICIENT_EVIDENCE' | 'NO_PROFILE' | 'REJECTED' | 'UNSUPPORTED_MARKET' | 'VALIDATED' | 'OOS_COLD_START_EXEMPT';
   effective_sample_size: number;
   oos_brier_score: number | null;
+  stage?: 'PREMATCH' | 'LIVE' | 'ALL';
+  is_circuit_broken?: boolean;
+  circuit_breaker_reason?: string;
   profile?: QuantCalibrationProfile;
   blockers: readonly string[];
 }
@@ -162,7 +166,10 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
       };
     }
 
-    if (profile.status === 'REJECTED') {
+    // 【方案 5】统一两阶段隔离：严格校验 stage 阶段一致性，杜绝跨阶段污染
+    const expectedStage: 'PREMATCH' | 'LIVE' = input.stage === MatchStage.PREMATCH ? 'PREMATCH' : 'LIVE';
+    if (profile.stage !== undefined && profile.stage !== 'ALL' && profile.stage !== expectedStage) {
+      const reason = `跨阶段校准档案污染熔断：赛事处于 ${expectedStage} 但校准档案属于 ${profile.stage}。`;
       return {
         market,
         market_type: signal.market,
@@ -171,10 +178,42 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
         settlement_type: settlementType,
         oos_profile_key: oosProfileKey,
         status: 'REJECTED',
+        stage: profile.stage,
+        is_circuit_broken: true,
+        circuit_breaker_reason: reason,
         effective_sample_size: profile.effective_sample_size,
         oos_brier_score: profile.oos_brier_score,
         profile,
-        blockers: Object.freeze([`OOS profile 状态为 REJECTED。`])
+        blockers: Object.freeze([reason])
+      };
+    }
+
+    // 【方案 5】校准质量劣化熔断硬门禁 (Brier > 0.28 或显式 circuit_breaker_triggered)
+    if (
+      profile.status === 'REJECTED' ||
+      profile.circuit_breaker_triggered ||
+      (profile.oos_brier_score !== null && profile.oos_brier_score > BRIER_CIRCUIT_BREAKER_THRESHOLD)
+    ) {
+      const reason = profile.circuit_breaker_reason || (
+        profile.oos_brier_score !== null && profile.oos_brier_score > BRIER_CIRCUIT_BREAKER_THRESHOLD
+          ? `OOS profile Brier 评分劣化熔断 (score ${profile.oos_brier_score} > ${BRIER_CIRCUIT_BREAKER_THRESHOLD})。`
+          : `OOS profile 状态为 REJECTED。`
+      );
+      return {
+        market,
+        market_type: signal.market,
+        normalized_line: signal.line,
+        side: signal.side,
+        settlement_type: settlementType,
+        oos_profile_key: oosProfileKey,
+        status: 'REJECTED',
+        stage: profile.stage,
+        is_circuit_broken: true,
+        circuit_breaker_reason: reason,
+        effective_sample_size: profile.effective_sample_size,
+        oos_brier_score: profile.oos_brier_score,
+        profile,
+        blockers: Object.freeze([reason])
       };
     }
 
@@ -188,6 +227,7 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
         settlement_type: settlementType,
         oos_profile_key: oosProfileKey,
         status: permissive ? 'OOS_COLD_START_EXEMPT' : 'INSUFFICIENT_EVIDENCE',
+        stage: profile.stage,
         effective_sample_size: profile.effective_sample_size,
         oos_brier_score: profile.oos_brier_score,
         profile,
@@ -208,6 +248,7 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
         settlement_type: settlementType,
         oos_profile_key: oosProfileKey,
         status: 'REJECTED',
+        stage: profile.stage,
         effective_sample_size: profile.effective_sample_size,
         oos_brier_score: null,
         profile,
@@ -227,6 +268,7 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
       settlement_type: settlementType,
       oos_profile_key: oosProfileKey,
       status: tieredStatus,
+      stage: profile.stage,
       effective_sample_size: profile.effective_sample_size,
       oos_brier_score: profile.oos_brier_score,
       profile,

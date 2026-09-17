@@ -219,12 +219,12 @@ export function calculateConfidenceAndAlerts(
     riskFlags.push(QuantAlert.TECHNICAL_METRICS_DEFICIT);
   }
 
-  if (physical.tactical_anomaly.home_barren_dominance || physical.tactical_anomaly.away_barren_dominance) {
+  if (physical.tactical_anomaly?.home_barren_dominance || physical.tactical_anomaly?.away_barren_dominance) {
     score -= 8;
     riskFlags.push(QuantAlert.BARREN_DOMINANCE_WARNING);
   }
 
-  if (physical.tactical_anomaly.home_lethal_counter || physical.tactical_anomaly.away_lethal_counter) {
+  if (physical.tactical_anomaly?.home_lethal_counter || physical.tactical_anomaly?.away_lethal_counter) {
     riskFlags.push(QuantAlert.LETHAL_COUNTER_WARNING);
   }
 
@@ -235,6 +235,25 @@ export function calculateConfidenceAndAlerts(
   if (physical.discipline_pressure?.home_yellow_collapse_risk || physical.discipline_pressure?.away_yellow_collapse_risk) {
     score -= 6;
     riskFlags.push(QuantAlert.COLLAPSING_PANIC_WARNING);
+  }
+
+  // 方案 4: 阵型空间张力与中场绞杀风控警报
+  if (context.tactical_formation) {
+    if (context.tactical_formation.midfield_congestion_index > 0.65) {
+      score -= 5;
+      if (!riskFlags.includes(QuantAlert.MIDFIELD_GRIDLOCK_WARNING)) {
+        riskFlags.push(QuantAlert.MIDFIELD_GRIDLOCK_WARNING);
+      }
+    }
+    if (
+      context.tactical_formation.wing_space_vulnerability_home > 0.40 ||
+      context.tactical_formation.wing_space_vulnerability_away > 0.40
+    ) {
+      score -= 4;
+      if (!riskFlags.includes(QuantAlert.WING_DEFENSE_EXPOSURE)) {
+        riskFlags.push(QuantAlert.WING_DEFENSE_EXPOSURE);
+      }
+    }
   }
 
   if (devig.bookmaker_posture === BookmakerPosture.TRAP_HIGH_ODDS) {
@@ -580,6 +599,11 @@ export function calculateQuantitativeFeatures(
     if (profile && profile.market !== market) {
       return undefined;
     }
+    // 【方案 5】统一两阶段严格隔离：若档案阶段与当前赛事阶段不一致，禁止跨阶段污染
+    const expectedStage: 'PREMATCH' | 'LIVE' = match.timing.stage === MatchStage.PREMATCH ? 'PREMATCH' : 'LIVE';
+    if (profile && profile.stage !== undefined && profile.stage !== 'ALL' && profile.stage !== expectedStage) {
+      return undefined;
+    }
     return profile;
   };
 
@@ -764,12 +788,17 @@ export function calculateQuantitativeFeatures(
       soft_gate_pass_count: candidatePipeline.permissive_unlocked_signals.length,
       machine_candidate_count: candidatePipeline.machine_candidate_signals.length,
       production_eligible: candidatePipeline.production_eligible,
+      calibration_stage: match.timing.stage === MatchStage.PREMATCH ? 'PREMATCH' : 'LIVE',
+      is_stage_isolated: true,
       validations: Object.freeze(candidatePipeline.validations.map((item) => Object.freeze({
         market: item.market,
         oos_profile_key: item.oos_profile_key,
         status: item.status,
         effective_sample_size: item.effective_sample_size,
         oos_brier_score: item.oos_brier_score,
+        stage: item.stage,
+        is_circuit_broken: item.is_circuit_broken,
+        circuit_breaker_reason: item.circuit_breaker_reason,
         blockers: item.blockers
       }))),
       blockers: candidatePipeline.blockers,

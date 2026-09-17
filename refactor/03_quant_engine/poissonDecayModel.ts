@@ -502,7 +502,11 @@ export function calculateInPlayPoissonFeatures(
         red_attack_away: 0,
         red_leak_home: 0,
         red_leak_away: 0,
-        post_goal_cooldown_multiplier: 0
+        post_goal_cooldown_multiplier: 0,
+        coherent_state_home: 1.0,
+        coherent_state_away: 1.0,
+        decoherence_applied_home: false,
+        decoherence_applied_away: false
       },
       top_final_scores: [{
         home: currentHomeScore,
@@ -645,10 +649,83 @@ export function calculateInPlayPoissonFeatures(
   const threatDampingAway = threatTensor.awayThreat;
   const postGoalCooldownMultiplier = matchState.post_goal_cooldown_active ? 0.70 : 1.0;
 
-  // 5. 综合求解滚球 0:0 剩余时段动态进球期望 (lambda_home_rest, lambda_away_rest)
+  // 4.6 计算现场实时物理事实所指示的即时进球乘子组合 (Live Physical Signal Factor)
+  // 包含：现场技术威胁张量 (threatDamping)、战术相变乘子 (regimeMultiplier)、红牌影响与进球冷却，以及纪律失控漏洞 (disciplineLeak)
+  const discLeakHome = matchState.discipline_leak_multiplier_home ?? 1.0;
+  const discLeakAway = matchState.discipline_leak_multiplier_away ?? 1.0;
+  const livePhysicalFactorHome = threatDampingHome * regimeMultiplierHome * redAttackHome * (redLeakAway * discLeakAway) * postGoalCooldownMultiplier;
+  const livePhysicalFactorAway = threatDampingAway * regimeMultiplierAway * redAttackAway * (redLeakHome * discLeakHome) * postGoalCooldownMultiplier;
+
+  // 4.7 终盘“先验 DNA 绝杀特质”与“实时物理场”相干态干涉方程 (Scheme 3 落地)
+  // 当比赛进入 70' 以后终盘决战期 (elapsedMinute >= 70)，先验具备极强绝杀特质 (76'+ 进球占比 >= 0.25) 的球队：
+  // 1) 相干态 (Coherent State): 若现场具备实际进攻压迫事实 (livePhysicalFactor >= 0.70，相干度 C_i >= 0.50)，
+  //    先验绝杀 DNA 与现场物理场相长干涉，激活绝杀共振增强乘子 M_late_res = 1.0 + (late_dna - 0.25) * 1.5 * C_i；
+  // 2) 退相干阻断 (Decoherence Dampening): 若现场极度萎靡/零射门/被深度围攻压制/染红大巴 (livePhysicalFactor <= 0.70，尤其是 C_i -> 0)，
+  //    先验绝杀 DNA 无法在物理真空中凭空具象化，必须平滑退相干衰减至中性均匀时间比例，阻断虚假冲动推演，且 M_late_res = 1.0，记录 decoherence_applied = true。
+  const isLateGameCoherenceWindow = elapsedMinute >= 70;
+  const homeLateDna = dnaFeatures?.home_late_game_dna ?? (reliableHomeWeights ? reliableHomeWeights[5] : 0.1667);
+  const awayLateDna = dnaFeatures?.away_late_game_dna ?? (reliableAwayWeights ? reliableAwayWeights[5] : 0.1667);
+
+  // 相干度度量方程 C_i ∈ [0.0, 1.0]:
+  // 当 livePhysicalFactor >= 1.00 时，C_i = 1.0 (完全相干)；
+  // 当 livePhysicalFactor <= 0.40 时，C_i = 0.0 (完全退相干)；
+  const coherentStateHome = isLateGameCoherenceWindow
+    ? Number(Math.max(0.0, Math.min(1.0, (livePhysicalFactorHome - 0.40) / 0.60)).toFixed(4))
+    : 1.0;
+  const coherentStateAway = isLateGameCoherenceWindow
+    ? Number(Math.max(0.0, Math.min(1.0, (livePhysicalFactorAway - 0.40) / 0.60)).toFixed(4))
+    : 1.0;
+
+  let decoherenceAppliedHome = false;
+  let decoherenceAppliedAway = false;
+  let resonanceMultiplierHome = 1.0;
+  let resonanceMultiplierAway = 1.0;
+
   const marketAlreadyRemaining = calibration?.is_in_play_market === true;
-  const remainingFactorHome = (marketAlreadyRemaining ? 1 : timeDecay.time_fraction_home) * timeDecay.urgency_multiplier;
-  const remainingFactorAway = (marketAlreadyRemaining ? 1 : timeDecay.time_fraction_away) * timeDecay.urgency_multiplier;
+  let effectiveTimeFractionHome = marketAlreadyRemaining ? 1 : timeDecay.time_fraction_home;
+  let effectiveTimeFractionAway = marketAlreadyRemaining ? 1 : timeDecay.time_fraction_away;
+
+  if (isLateGameCoherenceWindow) {
+    const uniformFraction = calculatePhasedDNATimeFraction(elapsedMinute, [1/6, 1/6, 1/6, 1/6, 1/6, 1/6]);
+
+    // 主队相干态与共振/退火分支
+    if (homeLateDna >= 0.25) {
+      if (coherentStateHome >= 0.50) {
+        resonanceMultiplierHome = Number((1.0 + (homeLateDna - 0.25) * 1.5 * coherentStateHome).toFixed(4));
+      } else {
+        decoherenceAppliedHome = true;
+        resonanceMultiplierHome = 1.0;
+      }
+    }
+    // 退相干时间积分平滑阻断：若现场物理不支撑 (coherentStateHome < 1.0 且先验时间偏大)，向均匀中性时间平滑收敛
+    if (coherentStateHome < 1.0 && !marketAlreadyRemaining) {
+      effectiveTimeFractionHome = Number((timeDecay.time_fraction_home * coherentStateHome + uniformFraction * (1.0 - coherentStateHome)).toFixed(4));
+      if (coherentStateHome < 0.50 && homeLateDna > 0.18) {
+        decoherenceAppliedHome = true;
+      }
+    }
+
+    // 客队相干态与共振/退火分支
+    if (awayLateDna >= 0.25) {
+      if (coherentStateAway >= 0.50) {
+        resonanceMultiplierAway = Number((1.0 + (awayLateDna - 0.25) * 1.5 * coherentStateAway).toFixed(4));
+      } else {
+        decoherenceAppliedAway = true;
+        resonanceMultiplierAway = 1.0;
+      }
+    }
+    // 退相干时间积分平滑阻断：若现场物理不支撑 (coherentStateAway < 1.0 且先验时间偏大)，向均匀中性时间平滑收敛
+    if (coherentStateAway < 1.0 && !marketAlreadyRemaining) {
+      effectiveTimeFractionAway = Number((timeDecay.time_fraction_away * coherentStateAway + uniformFraction * (1.0 - coherentStateAway)).toFixed(4));
+      if (coherentStateAway < 0.50 && awayLateDna > 0.18) {
+        decoherenceAppliedAway = true;
+      }
+    }
+  }
+
+  // 5. 综合求解滚球 0:0 剩余时段动态进球期望 (lambda_home_rest, lambda_away_rest)
+  const remainingFactorHome = effectiveTimeFractionHome * timeDecay.urgency_multiplier * resonanceMultiplierHome;
+  const remainingFactorAway = effectiveTimeFractionAway * timeDecay.urgency_multiplier * resonanceMultiplierAway;
 
   const lambdaBeforeLiveContextHome = baseHomeLambda * remainingFactorHome;
   const lambdaBeforeLiveContextAway = baseAwayLambda * remainingFactorAway;
@@ -688,13 +765,6 @@ export function calculateInPlayPoissonFeatures(
 
   const priorContextWeight = 1.0 - liveStatsWeight;
 
-  // 计算现场实时物理事实所指示的即时进球乘子组合 (Live Physical Signal Factor)
-  // 包含：现场技术威胁张量 (threatDamping)、战术相变乘子 (regimeMultiplier)、红牌影响与进球冷却，以及纪律失控漏洞 (disciplineLeak)
-  const discLeakHome = matchState.discipline_leak_multiplier_home ?? 1.0;
-  const discLeakAway = matchState.discipline_leak_multiplier_away ?? 1.0;
-  const livePhysicalFactorHome = threatDampingHome * regimeMultiplierHome * redAttackHome * (redLeakAway * discLeakAway) * postGoalCooldownMultiplier;
-  const livePhysicalFactorAway = threatDampingAway * regimeMultiplierAway * redAttackAway * (redLeakHome * discLeakHome) * postGoalCooldownMultiplier;
-
   // 将现场事实因子与先验中性基准 (1.0) 按照当前分钟对应的主导权重进行加权合成：
   // 当 liveStatsWeight 达到 82.5% 时，现场发生的围攻/死沉/红牌将主导 82.5% 的进球能力变化！
   const blendedLiveFactorHome = 1.0 * priorContextWeight + livePhysicalFactorHome * liveStatsWeight;
@@ -726,8 +796,8 @@ export function calculateInPlayPoissonFeatures(
     observed_pace_multiplier_away: Number(observedPaceMultiplierAway.toFixed(3)),
     observed_pace_weight: Number(observedPaceWeight.toFixed(3)),
     observed_pace_full_match_rate: Number(observedFullMatchRate.toFixed(3)),
-    time_fraction_home: marketAlreadyRemaining ? 1 : timeDecay.time_fraction_home,
-    time_fraction_away: marketAlreadyRemaining ? 1 : timeDecay.time_fraction_away,
+    time_fraction_home: effectiveTimeFractionHome,
+    time_fraction_away: effectiveTimeFractionAway,
     urgency_multiplier: timeDecay.urgency_multiplier,
     threat_home: threatDampingHome,
     threat_away: threatDampingAway,
@@ -739,6 +809,10 @@ export function calculateInPlayPoissonFeatures(
     red_leak_away: redLeakAway,
     post_goal_cooldown_multiplier: postGoalCooldownMultiplier,
     oos_multiplier: Number(oosMultiplier.toFixed(4)),
+    coherent_state_home: coherentStateHome,
+    coherent_state_away: coherentStateAway,
+    decoherence_applied_home: decoherenceAppliedHome,
+    decoherence_applied_away: decoherenceAppliedAway,
     live_regime_stage: liveRegimeStage,
     live_stats_weight: Number(liveStatsWeight.toFixed(3)),
     prior_context_weight: Number(priorContextWeight.toFixed(3)),

@@ -606,6 +606,7 @@ export interface EventPressureConversionFeatures {
 
 export interface QuantCalibrationProfile {
   status: 'VALIDATED' | 'INSUFFICIENT_EVIDENCE' | 'REJECTED';
+  stage?: 'PREMATCH' | 'LIVE' | 'ALL';
   league_key: string;
   team_key?: string;
   minute_band: string;
@@ -616,6 +617,8 @@ export interface QuantCalibrationProfile {
   effective_sample_size: number;
   oos_brier_score: number | null;
   lambda_log_adjustment: number;
+  circuit_breaker_triggered?: boolean;
+  circuit_breaker_reason?: string;
 }
 
 export type OosMarket = 'ASIAN_HANDICAP_MAIN' | 'TOTAL_GOALS_MAIN' | 'MONEYLINE_1X2' | 'EURO_1X2';
@@ -659,6 +662,8 @@ export interface OosCalibrationArchive {
   training_cutoff_at: string;
   global_profile: QuantCalibrationProfile;
   global_profiles?: readonly QuantCalibrationProfile[];
+  prematch_global_profiles?: readonly QuantCalibrationProfile[];
+  live_global_profiles?: readonly QuantCalibrationProfile[];
   profiles: readonly QuantCalibrationProfile[];
 }
 
@@ -844,6 +849,9 @@ export interface Layer03CandidateOosValidation {
   status: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'INSUFFICIENT_EVIDENCE' | 'NO_PROFILE' | 'REJECTED' | 'UNSUPPORTED_MARKET' | 'VALIDATED' | 'OOS_COLD_START_EXEMPT';
   effective_sample_size: number;
   oos_brier_score: number | null;
+  stage?: 'PREMATCH' | 'LIVE' | 'ALL';
+  is_circuit_broken?: boolean;
+  circuit_breaker_reason?: string;
   blockers: readonly string[];
 }
 
@@ -867,6 +875,8 @@ export interface Layer03CandidatePipeline {
   validations: readonly Layer03CandidateOosValidation[];
   blockers: readonly string[];
   transitions: readonly Layer03CandidatePipelineTransition[];
+  calibration_stage?: 'PREMATCH' | 'LIVE';
+  is_stage_isolated?: boolean;
 }
 
 export interface Layer03ProductionGate {
