@@ -324,16 +324,27 @@ export interface RealTimePhysicalStatsFeatures {
     away_accuracy?: number;
     home_woodwork_count?: number; // 仅由明确的门柱/中柱事件确认，Type 22 仅代表射偏
     away_woodwork_count?: number;
+    home_big_chance_threat?: number;       // 射正扑救成色：制造神扑/门线解围/必进球成色加权
+    away_big_chance_threat?: number;
+    home_keeper_saves_severity?: number;   // 守方门将受迫神扑/扑救脱手险情负荷
+    away_keeper_saves_severity?: number;
   };
   corner_pressure: {
     home_corners_total?: number;
     away_corners_total?: number;
     is_corner_cascade?: boolean;
     window_source?: 'SNAPSHOT_DELTA' | 'EVENT_TIMELINE' | 'CUMULATIVE_BASELINE' | 'UNAVAILABLE';
+    home_sterile_corner_discount?: boolean;
+    away_sterile_corner_discount?: boolean;
+    home_corner_quality_factor?: number;
+    away_corner_quality_factor?: number;
   };
   counter_threat_index: {
     home_counter_threat?: number; // 越位 + 单刀打身后指数
     away_counter_threat?: number;
+    home_directness_ratio?: number;       // 纵向反击锐度比 (Directness Ratio)
+    away_directness_ratio?: number;
+    high_directness_counter_side?: 'home' | 'away' | 'none'; // 高锐度反击方标识
   };
   discipline_pressure: {
     home_yellows?: number;
@@ -387,6 +398,16 @@ export interface RealTimePhysicalStatsFeatures {
     elite_override_active?: boolean;
     elite_override_side?: 'home' | 'away' | 'none';
     elite_override_factor?: number;
+    home_role_breakdown?: {
+      defender_or_gk_count: number;
+      forward_count: number;
+      midfielder_count: number;
+    };
+    away_role_breakdown?: {
+      defender_or_gk_count: number;
+      forward_count: number;
+      midfielder_count: number;
+    };
   };
 }
 

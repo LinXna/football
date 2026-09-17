@@ -2174,13 +2174,15 @@ test('Anti-Fake Data Hardening: Scheme 6 - Severe Temporal Lag Triggers Warning 
   };
 
   const payload: EvaluatorPayload = {
-    canonical_id: 'scheme6_lag_test',
-    home_team: 'Home',
-    away_team: 'Away',
-    timing: { minute: 75, stage: MatchStage.IN_PLAY } as any,
-    statutory_markets: {
-      ah_main: { handicap: '-0.5', home_odds: 1.95, away_odds: 1.85 }
+    ai_brief: {
+      canonical_id: 'scheme6_lag_test',
+      status_summary: 'LIVE 75\'',
+      score_verification: { current_score: '1 - 0', is_verified: true },
+      core_markets: {
+        ah_main: { handicap: '-0.5', home_odds: 1.95, away_odds: 1.85 }
+      } as any
     } as any,
+    lineup_value_matrix: { is_lineup_confirmed: true } as any,
     quant_features: {
       candidate_pipeline: {
         state: 'PRODUCTION_UNLOCKED',
@@ -2189,8 +2191,8 @@ test('Anti-Fake Data Hardening: Scheme 6 - Severe Temporal Lag Triggers Warning 
         validations: []
       } as any,
       machine_candidate_signals: [
-        { market: 'ASIAN_HANDICAP_MAIN', line: '-0.5', side: 'home', odds: 1.95 }
-      ],
+        { market: 'ASIAN_HANDICAP_MAIN', line: '-0.5', side: 'HOME', odds: 1.95 }
+      ] as any,
       risk_flags: [QuantAlert.TEMPORAL_LAG_WARNING],
       confidence_score: 92
     } as any
@@ -2210,12 +2212,107 @@ test('Anti-Fake Data Hardening: Scheme 6 - Severe Temporal Lag Triggers Warning 
   assert.ok(
     guarded.risk_warnings.some(w => w.includes('TEMPORAL_LAG_WARNING') || w.includes('多源时钟不同步')),
     'Risk warning must state temporal lag risk'
-  );
 });
 
+test('Anti-Fake Data Hardening: Scheme 8 - Directness Ratio and Shot Quality / Save Severity Extraction', async () => {
+  const dummyMatch: CanonicalMatch = {
+    canonical_id: 'scheme8_test_match',
+    stage: MatchStage.IN_PLAY,
+    match_status: 'IN_PLAY',
+    timing: {
+      minute: 65,
+      kickoff_timestamp_ms: Date.now() - 65 * 60 * 1000,
+      regular_time_remaining_minutes: 25
+    } as any,
+    score: {
+      home_score: 1,
+      away_score: 0,
+      current_score: '1 - 0',
+      is_verified: true,
+      verification_source: 'CANVAS_OCR'
+    } as any,
+    reference: {
+      stats: {
+        dangerous_attacks: { home: 18, away: 28 },
+        attacks: { home: 80, away: 38 },
+        shots: { home: 4, away: 6 },
+        shots_on_target: { home: 1, away: 4 },
+        shots_off_target: { home: 3, away: 2 },
+        corners: { home: 2, away: 3 },
+        possession: { home: 68, away: 32 },
+        yellow_cards: { home: 0, away: 1 },
+        red_cards: { home: 0, away: 0 }
+      } as any,
+      timeline_events: [
+        {
+          id: 'ev1',
+          side: 'away',
+          minute: 48,
+          type: 21,
+          canonical_type: CanonicalEventType.SHOT_ON_TARGET,
+          text: '客队前锋单刀射门，主队门将神勇扑出！'
+        },
+        {
+          id: 'ev2',
+          side: 'away',
+          minute: 55,
+          type: 21,
+          canonical_type: CanonicalEventType.SHOT_ON_TARGET,
+          text: '客队角球传中，后点爆射被门线解围！'
+        },
+        {
+          id: 'ev3',
+          side: 'home',
+          minute: 60,
+          type: 21,
+          canonical_type: CanonicalEventType.SHOT_ON_TARGET,
+          text: '主队远射角度太正，客队守门员轻松抱住。'
+        }
+      ] as any
+    } as any
+  } as any;
 
+  const physical = extractRealTimePhysicalStats(dummyMatch);
 
+  // 1. 验证建议 2：纵向直接度比率 Directness Ratio
+  // 客队：控球率 32% (<=45%), 危险进攻 28, 射正 4 (>=2), 进攻 38.
+  // 客队分母: 38 * (32 + 15) = 1786. 分子: 28 * 4.5 = 126. 126 / 1786 * 100 = 7.055 >= 2.5
+  assert.ok(physical.counter_threat_index.away_directness_ratio !== undefined);
+  assert.ok((physical.counter_threat_index.away_directness_ratio ?? 0) >= 2.5);
+  assert.equal(
+    physical.counter_threat_index.high_directness_counter_side,
+    'away',
+    'Low-possession, high-directness team with 4 SOT must be flagged as high_directness_counter_side away'
+  );
 
+  // 主队：控球率 68%, 慢速传控倒脚, 直接度应当极低且不被判定为 high_directness
+  assert.ok((physical.counter_threat_index.home_directness_ratio ?? 0) < 1.0);
+  assert.notEqual(physical.counter_threat_index.high_directness_counter_side, 'home');
+
+  // 2. 验证建议 3：射正扑救成色代理
+  // 客队 2 次重大险情 (神勇扑出 + 门线解围) -> away_big_chance_threat = 0.45 + 0.45 = 0.90
+  // 主队 1 次常规没收 -> home_big_chance_threat = 0.10
+  assert.equal(physical.shot_efficiency.away_big_chance_threat, 0.9);
+  assert.equal(physical.shot_efficiency.home_big_chance_threat, 0.1);
+  assert.equal(physical.shot_efficiency.home_keeper_saves_severity, 0.9); // 主队门将承受高负荷神扑
+  assert.equal(physical.shot_efficiency.away_keeper_saves_severity, 0.1);
+
+  // 3. 验证三源威胁与 EPI 对成色与高锐度反击的响应
+  const timelineFeatures: any = {
+    integral_15m: { home: 40, away: 30, net: -10 },
+    integral_5m: { home: 10, away: 10, net: 0 }
+  };
+  const trinity = calculateLiveThreatTrinity(timelineFeatures, dummyMatch.reference!.timeline_events as any, physical, 65);
+  assert.ok(trinity.away.calibrated_threat > 0);
+
+  const epi = calculateEventPressureConversion(timelineFeatures, dummyMatch.reference!.timeline_events as any, trinity, 65, physical);
+  // 客队兼具高直接度反击与破门险情，软分类应当识别为刺客反击态 (CLINICAL_COUNTER) 或有效进攻
+  assert.ok(
+    epi.away.classification === EventPressureConversionType.CLINICAL_COUNTER ||
+    epi.away.classification === EventPressureConversionType.LETHAL_SIEGE,
+    `Away team should be classified as CLINICAL_COUNTER or LETHAL_SIEGE, got ${epi.away.classification}`
+  );
+});
 
 
 

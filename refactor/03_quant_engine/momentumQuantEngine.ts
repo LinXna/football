@@ -417,7 +417,7 @@ export function extractMomentumTimelineFeatures(
     {
       total_points: totalPoints,
       slope_5m: slope5,
-      integral_15m_net: integral15.net,
+      integral_15m_net: rawIntegral15.net,
       dominance_side: dominanceSide,
       is_sustained_siege: isSustainedSiege
     },
@@ -508,6 +508,20 @@ export function extractRealTimePhysicalStats(
   let awayShots15m = 0;
   let homeCorners15m = 0;
   let awayCorners15m = 0;
+  let homeRedDefGkCount = 0;
+  let awayRedDefGkCount = 0;
+  let homeRedFwCount = 0;
+  let awayRedFwCount = 0;
+  let homeRedMfCount = 0;
+  let awayRedMfCount = 0;
+  let homeBigChanceThreat = 0;
+  let awayBigChanceThreat = 0;
+  let homeKeeperSavesSeverity = 0;
+  let awayKeeperSavesSeverity = 0;
+
+  // 射正扑救与重大险情正则解析器
+  const BIG_CHANCE_SAVE_REGEX = /神勇|飞身|极限|门线解围|单刀|扑救脱手|脱手险|近距离扑救|必进球|brilliant save|point-blank|off the line|big chance/i;
+  const ROUTINE_SAVE_REGEX = /抱住|没收|角度太正|轻松化解|comfortable save|routine save/i;
 
   // 第一阶段：先行提取近 15 分钟双方真实射门与角球压制频次（为黄牌因果共振提供依据）
   for (const ev of events) {
@@ -535,7 +549,7 @@ export function extractRealTimePhysicalStats(
     }
   }
 
-  // 第二阶段：遍历所有事件，提取越位、门柱险情，并进行黄牌语义精准分流
+  // 第二阶段：遍历所有事件，提取越位、门柱险情、扑救成色，并进行黄牌语义精准分流
   for (const ev of events) {
     if (ev.is_cancelled || ev.is_var_overturned) continue;
     const side = ev.side;
@@ -554,6 +568,25 @@ export function extractRealTimePhysicalStats(
     if (text.includes('门柱') || text.includes('中柱') || text.includes('Woodwork')) {
       if (side === 'home') homeWoodwork++;
       else if (side === 'away') awayWoodwork++;
+    }
+
+    // 建议 3：射正扑救成色代理 (Big Chance Threat & Keeper Saves Severity)
+    if (BIG_CHANCE_SAVE_REGEX.test(text)) {
+      if (side === 'home') {
+        homeBigChanceThreat += 0.45;
+        awayKeeperSavesSeverity += 0.45; // 客队门将承受神扑解围负荷
+      } else if (side === 'away') {
+        awayBigChanceThreat += 0.45;
+        homeKeeperSavesSeverity += 0.45; // 主队门将承受神扑解围负荷
+      }
+    } else if (ROUTINE_SAVE_REGEX.test(text)) {
+      if (side === 'home') {
+        homeBigChanceThreat += 0.10;
+        awayKeeperSavesSeverity += 0.10;
+      } else if (side === 'away') {
+        awayBigChanceThreat += 0.10;
+        homeKeeperSavesSeverity += 0.10;
+      }
     }
 
     // 纪律黄牌事件：按语义分类器精确分流
@@ -613,6 +646,32 @@ export function extractRealTimePhysicalStats(
         }
       }
     }
+
+    // 纪律红牌事件：按球员角色（DF/GK 核心防守 vs FW 前锋 vs MF 中场）分类统计
+    const isRed = type === 4 ||
+                  ev.canonical_type === CanonicalEventType.RED_CARD_DIRECT ||
+                  ev.canonical_type === CanonicalEventType.RED_CARD_SECOND_YELLOW ||
+                  text.includes('红牌') || text.includes('Red');
+    if (isRed && ev.is_on_pitch !== false) {
+      const pName = String(ev.player_name || '').trim().toLowerCase();
+      const posMap = side === 'home' ? homePositionMap : awayPositionMap;
+      let playerRole: 'DF' | 'GK' | 'MF' | 'FW' | null = (pName && posMap.has(pName)) ? posMap.get(pName)! : null;
+      if (!playerRole) {
+        if (text.includes('门将') || text.includes('守门员')) playerRole = 'GK';
+        else if (text.includes('后卫') || text.includes('中卫') || text.includes('边卫') || text.includes('后腰') || text.includes('防守中场') || text.includes('cdm') || text.includes('dm')) playerRole = 'DF';
+        else if (text.includes('前锋')) playerRole = 'FW';
+      }
+
+      if (side === 'home') {
+        if (playerRole === 'DF' || playerRole === 'GK') homeRedDefGkCount++;
+        else if (playerRole === 'FW') homeRedFwCount++;
+        else homeRedMfCount++;
+      } else if (side === 'away') {
+        if (playerRole === 'DF' || playerRole === 'GK') awayRedDefGkCount++;
+        else if (playerRole === 'FW') awayRedFwCount++;
+        else awayRedMfCount++;
+      }
+    }
   }
 
   // 1.1 因果共振判定后防连续受迫染黄崩溃风险与防守漏洞恶化乘子 (Discipline Leak Factor)
@@ -654,6 +713,27 @@ export function extractRealTimePhysicalStats(
   // 5. 刺客防反威胁指数 (结合越位冲刺、射正率与低控球比)
   const homeCounterThreat = (homePossession !== undefined && homeAccuracy !== undefined) ? Number(((homeOffsides * 0.35 + homeAccuracy * 1.2) * (100.0 / (homePossession + 25.0))).toFixed(3)) : undefined;
   const awayCounterThreat = (awayPossession !== undefined && awayAccuracy !== undefined) ? Number(((awayOffsides * 0.35 + awayAccuracy * 1.2) * (100.0 / (awayPossession + 25.0))).toFixed(3)) : undefined;
+
+  // 5.5 建议 2：纵向反击锐度比 (Directness Ratio = DA * (SOT + 0.5) / (max(Attacks, 1) * (Possession + 15)) * 100)
+  let homeDirectnessRatio: number | undefined = undefined;
+  let awayDirectnessRatio: number | undefined = undefined;
+  let highDirectnessSide: 'home' | 'away' | 'none' = 'none';
+
+  if (homeDA !== undefined && homeAttacks !== undefined && homePossession !== undefined && homeOn !== undefined) {
+    const denom = Math.max(homeAttacks, 1) * (homePossession + 15.0);
+    homeDirectnessRatio = Number(((homeDA * (homeOn + 0.5) / denom) * 100.0).toFixed(3));
+  }
+  if (awayDA !== undefined && awayAttacks !== undefined && awayPossession !== undefined && awayOn !== undefined) {
+    const denom = Math.max(awayAttacks, 1) * (awayPossession + 15.0);
+    awayDirectnessRatio = Number(((awayDA * (awayOn + 0.5) / denom) * 100.0).toFixed(3));
+  }
+
+  // 高锐度反击方判定：控球率 <= 45%, 直接度 >= 2.5, 射正 >= 2
+  if (homeDirectnessRatio !== undefined && (homePossession ?? 50) <= 45 && homeDirectnessRatio >= 2.5 && (homeOn ?? 0) >= 2) {
+    highDirectnessSide = 'home';
+  } else if (awayDirectnessRatio !== undefined && (awayPossession ?? 50) <= 45 && awayDirectnessRatio >= 2.5 && (awayOn ?? 0) >= 2) {
+    highDirectnessSide = 'away';
+  }
 
   // 6. xT (Expected Threat Proxy) 真实穿透威胁模型
   const homeXT = (homeDA !== undefined && homeCorners !== undefined && homeOff !== undefined && homeOn !== undefined) ? Number(((homeDA * 0.015) + (homeCorners * 0.035) + (homeOff * 0.040) + (homeOn * 0.280) + (homeWoodwork * 0.15)).toFixed(3)) : undefined;
@@ -730,7 +810,12 @@ export function extractRealTimePhysicalStats(
   const evaluateRedPenaltyWithTactics = (
     redCount: number | undefined,
     teamScoreDiff: number,
-    isEliteFavorite: boolean
+    isEliteFavorite: boolean,
+    roleBreakdown?: {
+      defender_or_gk_count: number;
+      forward_count: number;
+      midfielder_count: number;
+    }
   ) => {
     if (redCount === undefined || redCount <= 0) {
       return {
@@ -760,6 +845,25 @@ export function extractRealTimePhysicalStats(
       baseLeak = Math.exp(0.55 * redCount);
     }
 
+    // 职业战术位置解耦：DF/GK 染红直接造成防线失守与制空权剥夺，FW 染红主要削减反击期望
+    if (roleBreakdown) {
+      const { defender_or_gk_count, forward_count } = roleBreakdown;
+      if (defender_or_gk_count > 0) {
+        // 后防核心每少一人，漏球乘子放大 (落后或平局时防线重组受创更剧烈)
+        const defImpact = teamScoreDiff <= 0 ? 0.15 : 0.08;
+        baseLeak *= Math.pow(1.0 + defImpact, defender_or_gk_count);
+      }
+      if (forward_count > 0 && defender_or_gk_count === 0) {
+        // 仅有前锋染红时，防守结构基本保持完整，防守漏洞虚高上浮抑制 35%
+        const leakExcess = baseLeak - 1.0;
+        if (leakExcess > 0) {
+          baseLeak = 1.0 + leakExcess * 0.65;
+        }
+        // 前锋缺阵更进一步压低反击输出
+        baseAttack *= Math.pow(0.85, forward_count);
+      }
+    }
+
     if (isEliteFavorite) {
       const bufferedLeak = 1.0 + (baseLeak - 1.0) * 0.75;
       const bufferedAttack = 1.0 - (1.0 - baseAttack) * 0.70;
@@ -781,12 +885,29 @@ export function extractRealTimePhysicalStats(
     };
   };
 
-  const homeRedPen = evaluateRedPenaltyWithTactics(homeRed ?? undefined, currentScoreDiff, isHomeElite);
-  const awayRedPen = evaluateRedPenaltyWithTactics(awayRed ?? undefined, -currentScoreDiff, isAwayElite);
+  const homeRoleBreakdown = {
+    defender_or_gk_count: homeRedDefGkCount,
+    forward_count: homeRedFwCount,
+    midfielder_count: homeRedMfCount
+  };
+  const awayRoleBreakdown = {
+    defender_or_gk_count: awayRedDefGkCount,
+    forward_count: awayRedFwCount,
+    midfielder_count: awayRedMfCount
+  };
+
+  const homeRedPen = evaluateRedPenaltyWithTactics(homeRed ?? undefined, currentScoreDiff, isHomeElite, homeRoleBreakdown);
+  const awayRedPen = evaluateRedPenaltyWithTactics(awayRed ?? undefined, -currentScoreDiff, isAwayElite, awayRoleBreakdown);
 
   const isCornerCascade = availableMetrics.corners
     ? ((homeCorners ?? 0) >= 5 || (awayCorners ?? 0) >= 5)
     : undefined;
+
+  // 角球转化成色校准：当近 15m 累计多个角球 (>=3) 但近 15m 射门为 0 时，判定为顺风/追分垃圾角球刷角
+  const homeSterileCornerDiscount = Boolean(availableMetrics.corners && (homeCorners15m >= 3) && (homeShots15m === 0));
+  const awaySterileCornerDiscount = Boolean(availableMetrics.corners && (awayCorners15m >= 3) && (awayShots15m === 0));
+  const homeCornerQualityFactor = homeSterileCornerDiscount ? 0.75 : 1.00;
+  const awayCornerQualityFactor = awaySterileCornerDiscount ? 0.75 : 1.00;
 
   const anyEliteActive = homeRedPen.eliteOverride || awayRedPen.eliteOverride;
   const eliteSide = homeRedPen.eliteOverride ? 'home' : (awayRedPen.eliteOverride ? 'away' : 'none');
@@ -812,17 +933,28 @@ export function extractRealTimePhysicalStats(
       home_accuracy: homeAccuracy,
       away_accuracy: awayAccuracy,
       home_woodwork_count: homeWoodwork,
-      away_woodwork_count: awayWoodwork
+      away_woodwork_count: awayWoodwork,
+      home_big_chance_threat: Number(homeBigChanceThreat.toFixed(3)),
+      away_big_chance_threat: Number(awayBigChanceThreat.toFixed(3)),
+      home_keeper_saves_severity: Number(homeKeeperSavesSeverity.toFixed(3)),
+      away_keeper_saves_severity: Number(awayKeeperSavesSeverity.toFixed(3))
     }),
     corner_pressure: Object.freeze({
       home_corners_total: homeCorners,
       away_corners_total: awayCorners,
       is_corner_cascade: isCornerCascade,
-      window_source: statsAvailable ? 'CUMULATIVE_BASELINE' : 'UNAVAILABLE'
+      window_source: statsAvailable ? 'CUMULATIVE_BASELINE' : 'UNAVAILABLE',
+      home_sterile_corner_discount: homeSterileCornerDiscount,
+      away_sterile_corner_discount: awaySterileCornerDiscount,
+      home_corner_quality_factor: homeCornerQualityFactor,
+      away_corner_quality_factor: awayCornerQualityFactor
     }),
     counter_threat_index: Object.freeze({
       home_counter_threat: homeCounterThreat,
-      away_counter_threat: awayCounterThreat
+      away_counter_threat: awayCounterThreat,
+      home_directness_ratio: homeDirectnessRatio,
+      away_directness_ratio: awayDirectnessRatio,
+      high_directness_counter_side: highDirectnessSide
     }),
     discipline_pressure: Object.freeze({
       home_yellows: homeYellow,
@@ -865,7 +997,9 @@ export function extractRealTimePhysicalStats(
       away_scenario: awayRedPen.scenario,
       elite_override_active: anyEliteActive,
       elite_override_side: eliteSide,
-      elite_override_factor: anyEliteActive ? 0.75 : 1.0
+      elite_override_factor: anyEliteActive ? 0.75 : 1.0,
+      home_role_breakdown: Object.freeze(homeRoleBreakdown),
+      away_role_breakdown: Object.freeze(awayRoleBreakdown)
     })
   });
 

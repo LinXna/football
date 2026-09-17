@@ -1863,7 +1863,8 @@ async function start() {
   const targetHost = HOST;
 
   app.listen(targetPort, targetHost, () => {
-    console.log(`[LX Football System] Express Server running on http://${targetHost}:${targetPort}`);
+    const displayHost = targetHost === '0.0.0.0' ? 'localhost' : targetHost;
+    console.log(`[LX Football System] Express Server running on http://${displayHost}:${targetPort}`);
   });
 }
 

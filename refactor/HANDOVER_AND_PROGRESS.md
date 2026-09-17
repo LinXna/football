@@ -1,42 +1,57 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260917-MULTI-SOURCE-DYNAMIC-TRUNCATION-AND-ADAPTIVE-WINDOWING`
+- **任务编号 (Task)**: `SNAPSHOT-20260918-DIRECTNESS-AND-SHOT-QUALITY-METRICS`
 - **当前状态 (Status)**: `IN_PROGRESS`
-- **阶段进度 (Phase)**: `P5.8 足球量化系统深度重构工程 —— [原子任务 6/7: 方案 6] 多源动态截断与自适应窗口调和（时钟基准对齐、开场自适应收缩、时序倒挂熔断与跨层快照闭环）`
+- **阶段进度 (Phase)**: `P5.9.1 足球量化系统深度重构工程 —— 反击纵向锐度比 (Directness Ratio) 与射正扑救成色代理 (Shot Quality & Save Severity) 落地实施`
 - **任务目标与交付清单 (Deliverables)**：
-  1. 【Layer 03 时空时钟基准与多源自适应截断引擎 (`momentumQuantEngine.ts`, `types.ts`)】[IN_PROGRESS]：
-     - 在 `MomentumTimelineFeatures` 中补全多源动态截断契约：`adaptive_window_ratio: { five: number; ten: number; fifteen: number }`，`is_early_match_dampened?: boolean`，`temporal_inversion_detected?: boolean`；
-     - 改进 `getTimedMomentumPoints` 与 `selectTimedWindow`：
-       * 针对滚球比赛开场阶段（`elapsedMinute < 15`，如开场 7 分钟）：将固定 15m/10m 窗口自适应收缩至当前已赛真实有效时间区间，并计算样本覆盖率比值 `actualDuration / targetDuration` 进行物理归一化，杜绝除以 15 造成的假稀释；
-       * 针对倒挂或超前时序点（`point.minute > cutoffMinute`）：物理阻断并剔除，严禁将未来点引入即时评估；
-       * 若雷速点阵最大分钟数大幅落后于 YBTY 时钟（如落后 > 8 分钟），标记 `temporal_lag_warning = true` 并如实记录点阵延迟缺陷；
-  2. 【Layer 03 时空事件与因果转化多源截断对齐 (`eventMomentumFusion.ts`)】[IN_PROGRESS]：
-     - 在 `calculateEventPressureConversion`、`calculate10mBurstCluster` 与 `evaluateTacticalRegime` 中：
-       * 严格对齐 YBTY 权威时钟 `cutoffMinute`：事件时间 `evMinute > cutoffMinute` 的未来事件物理剔除；
-       * 开场早期阶段（`currentMinute < 15`），15 分钟衰减与转化分母自适应调整为 `max(1.0, currentMinute)`，消除开场阶段因固定 15m 窗口分母过大导致的转化率与战术分类失真；
-  3. 【Layer 03 全局快照与置信度自适应调和闭环 (`index.ts`)】[IN_PROGRESS]：
-     - 在 `Layer03LiveSnapshot` 中显式扩展 `adaptive_window_active?: boolean` 与 `temporal_lag_minutes?: number`；
-     - 在 `calculateConfidenceAndAlerts` 中挂载时钟严重滞后（> 10 分钟）或时钟倒挂硬熔断与置信度校准；
-  4. 【Layer 04 对齐门禁联动与提示词导出 (`alignmentGuard.ts`, `promptExporter.ts`, `types.ts`)】[IN_PROGRESS]：
-     - 结构化导出 `live_snapshot` 调和特征，在 `alignmentGuard.ts` 中针对时钟倒挂或严重滞后（`TEMPORAL_LAG_BREACH`）执行 A 级降级为 B 级且置信度上限 75 分；
-  5. 【全量单元测试与回归验证 (`tests-ts/quantHardeningAntiFakeData.test.ts`, `refactor/tests/verify_quant_engine.ts`)】[IN_PROGRESS]：
-     - 编写 Scheme 6 专项测试用例（Test 29, Test 30, Test 31），覆盖：
-       * 开场早期 (如 7') 自适应动态窗口收缩与积分/斜率归一化无假稀释；
-       * 未来事件/未来动量点严格物理截断隔离，杜绝时序泄露；
-       * 时钟严重脱节/滞后熔断触发与 Layer 04 降级门禁闭环；
-     - 运行 `refactor/tests/verify_quant_engine.ts` 与 `npm run test:ts` 保证全量测试 100% 绿灯。
+  1. 【建议 2：反击纵向锐度比与刺客反击解耦 (`types.ts` & `momentumQuantEngine.ts` & `eventMomentumFusion.ts`)】：
+     - 在 `CounterThreatIndex` 增加 `home_directness_ratio`, `away_directness_ratio`, `high_directness_counter_side`；
+     - 落地公式 $D_{\text{ratio}} = \frac{\text{DA} \times (\text{SOT} + 0.5)}{\max(\text{Attacks}, 1) \times (\text{Possession} + 15.0)} \times 100$；
+     - 低控球 ($\le 45\%$)、高直接度 ($\ge 2.5$)、射正 ($\ge 2$) 时触发直接反击标记，联动 EPI 提振 `CLINICAL_COUNTER`；
+  2. 【建议 3：射正扑救成色代理与文字直播重大险情识别 (`types.ts` & `momentumQuantEngine.ts` & `eventMomentumFusion.ts`)】：
+     - 在 `ShotEfficiencyFeatures` 增加 `home_big_chance_threat`, `away_big_chance_threat`, `home_keeper_saves_severity`, `away_keeper_saves_severity`；
+     - 解析 `timeline_events` 中的文字直播（神扑、飞身扑救、单刀被扑、门线解围、脱手），累加真实险情成色与门将受迫负荷；
+     - 在 `calculateLiveThreatTrinity` 的 `rawStatsValue` 中注入 `big_chance_threat` 加成；
+  3. 【全链路强类型契约与回归自测闭环】：
+     - 零 `any`，运行 `npx tsc --noEmit` 100% 编译通过；
+     - 运行 `npm run test:ts`，`verify_quant_engine.ts` 与 `verify_end_to_end_scheme7.ts` 全量绿灯。
 - **改动文件清单 (Target Files)**：
   - `/refactor/03_quant_engine/types.ts`
   - `/refactor/03_quant_engine/momentumQuantEngine.ts`
   - `/refactor/03_quant_engine/eventMomentumFusion.ts`
-  - `/refactor/03_quant_engine/index.ts`
-  - `/refactor/04_ai_evaluator/types.ts`
-  - `/refactor/04_ai_evaluator/promptExporter.ts`
-  - `/refactor/04_ai_evaluator/alignmentGuard.ts`
-  - `/tests-ts/quantHardeningAntiFakeData.test.ts`
   - `/refactor/HANDOVER_AND_PROGRESS.md`
 - **下一步计划 (Next Steps)**：
-  - 方案 6 验证完成后，推进【原子任务 7/7: 方案 7】全链路闭环与最终实盘检验。
+  - 代码落地后自测全部通过，更新快照为 DONE。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260918-PHYSICAL-STATS-METRIC-OPTIMIZATION (DONE)
+- **阶段进度**: `P5.9 足球量化系统深度重构工程 —— 实时攻防 9 大指标实盘深度优化（红牌防守/前锋角色物理拆解与顺风/追分垃圾角球成色校准）[已全面完成并通过全量验证]`
+- **交付产物**:
+  - 完成红牌战术角色解耦（DF/GK vs FW）与防守漏洞分流；
+  - 完成顺风/追分垃圾角球虚火衰减；
+  - 全套 114 项测试与端到端集成 100% 绿灯通过。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260917-SCHEME-7-END-TO-END-PIPELINE-CLOSURE-AND-VERIFICATION (DONE)
+- **阶段进度**: `P5.8 足球量化系统深度重构工程 —— [原子任务 7/7: 方案 7] 全链路闭环验证与最终实盘检验（Layer 00~06 端到端穿透、黄金基准固件校验、方案1~6融合核验与全仓绿灯闭环）[已全面完成并通过全量验证]`
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260917-MULTI-SOURCE-DYNAMIC-TRUNCATION-AND-ADAPTIVE-WINDOWING (DONE)
+- **阶段进度**: `P5.8 足球量化系统深度重构工程 —— [原子任务 6/7: 方案 6] 多源动态截断与自适应窗口调和（时钟基准对齐、开场自适应收缩、时序倒挂熔断与跨层快照闭环） [已全面完成并通过全量验证]`
+- **交付产物**:
+  - 在 `MomentumTimelineFeatures` 补全自适应截断契约，完成开场动态收缩归一化，剔除倒挂/未来时序点；
+  - 在 Layer 03 事件转化中实现早期 15m 分母自适应；
+  - 在 Layer 04 对齐门禁中实现时序延迟/倒挂降级拦截；
+  - 包含 Scheme 6 专项测试在内的 114 项测试 100% 绿灯通过。
 
 ---
 

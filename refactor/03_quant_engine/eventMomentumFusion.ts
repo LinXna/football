@@ -269,8 +269,11 @@ export function calculateLiveThreatTrinity(
     const xt = (side === 'home' ? physical.xt_proxy?.home_xt : physical.xt_proxy?.away_xt) ?? 0;
     const penetration = (side === 'home' ? physical.penetration_rate?.home_penetration : physical.penetration_rate?.away_penetration) ?? 0;
     const accuracy = (side === 'home' ? physical.shot_efficiency?.home_accuracy : physical.shot_efficiency?.away_accuracy) ?? 0;
-    const corners = (physical.corner_pressure?.window_source === 'SNAPSHOT_DELTA' || physical.corner_pressure?.window_source === 'EVENT_TIMELINE')
+    const rawCorners = (physical.corner_pressure?.window_source === 'SNAPSHOT_DELTA' || physical.corner_pressure?.window_source === 'EVENT_TIMELINE')
       ? ((side === 'home' ? physical.corner_pressure.home_corners_total : physical.corner_pressure.away_corners_total) ?? 0) : 0;
+    const cornerQuality = (side === 'home' ? physical.corner_pressure?.home_corner_quality_factor : physical.corner_pressure?.away_corner_quality_factor) ?? 1.0;
+    const corners = rawCorners * cornerQuality;
+    const bigChanceThreat = (side === 'home' ? physical.shot_efficiency?.home_big_chance_threat : physical.shot_efficiency?.away_big_chance_threat) ?? 0;
     const momentumSupport = bounded(1 - Math.exp(-Math.max(0, energy) / 150));
     // An empty key-event window is not proof of zero attacking threat: feeds
     // commonly omit non-scoring attacks. Keep silence as weak evidence.
@@ -279,8 +282,8 @@ export function calculateLiveThreatTrinity(
       : 0.35;
     const pe = (side === 'home' ? physical.possession_effectiveness?.home_pe : physical.possession_effectiveness?.away_pe) ?? 0;
     const tti = (side === 'home' ? physical.threat_transformation_index?.home_tti : physical.threat_transformation_index?.away_tti) ?? 0;
-    // 提升角球权重至 0.20 (现代 xG 理论标准)，并与渗透率及转化指数结合
-    const rawStatsValue = xt * 0.25 + penetration * 1.0 + accuracy * 1.2 + corners * 0.20 + tti * 0.20 + pe * 0.20;
+    // 提升角球权重至 0.20 (现代 xG 理论标准)，并与渗透率、转化指数及重大险情成色结合
+    const rawStatsValue = xt * 0.25 + penetration * 1.0 + accuracy * 1.2 + corners * 0.20 + tti * 0.20 + pe * 0.20 + bigChanceThreat * 0.35;
     // 比赛前35分钟射门与角球基数处于自然累积期，引入平滑基准，避免因样本未满而将正常控球推进误判为重大冲突
     const earlyPhaseBaseline = (currentMinute > 0 && currentMinute < 35) ? Math.max(0, 0.25 * (1 - currentMinute / 35.0)) : 0;
     const statsSupport = physical.stats_available
@@ -391,7 +394,8 @@ export function calculateEventPressureConversion(
     conflict: boolean,
     fullDecayedScore: number,
     sideTTI?: number,
-    sideTTIClass?: 'LETHAL_PENETRATION' | 'EFFECTIVE_ATTACK' | 'STERILE_POSSESSION' | 'LOW_ACTIVITY'
+    sideTTIClass?: 'LETHAL_PENETRATION' | 'EFFECTIVE_ATTACK' | 'STERILE_POSSESSION' | 'LOW_ACTIVITY',
+    isHighDirectness?: boolean
   ): EventPressureConversionType => {
     // 连续 Sigmoid 激活函数 S(x, x0, k)
     const sig = (x: number, x0: number, k: number) => 1.0 / (1.0 + Math.exp(-(x - x0) / k));
@@ -418,8 +422,10 @@ export function calculateEventPressureConversion(
     const barrenSuppression = Math.exp(-fullDecayedScore / 0.45);
     const pBarren = sig(energy, 150, 25) * (1.0 - sig(effectiveRatio, 0.40, 0.12)) * (conflict ? 1.35 : 1.0) * barrenSuppression * ttiBarrenMultiplier;
 
-    const pCounter = (1.0 - sig(energy, 130, 25)) * sig(effectiveScore, 1.20, 0.35);
-    const pLow = (1.0 - sig(energy, 60, 18)) * (1.0 - sig(effectiveScore, 0.60, 0.20));
+    // 建议 2：高锐度反击加成 (纵向推进极简且射正充足)
+    const directnessMultiplier = isHighDirectness ? 1.45 : 1.0;
+    const pCounter = (1.0 - sig(energy, 130, 25)) * sig(effectiveScore, 1.20, 0.35) * directnessMultiplier;
+    const pLow = (1.0 - sig(energy, 60, 18)) * (1.0 - sig(effectiveScore, 0.60, 0.20)) * (isHighDirectness ? 0.50 : 1.0);
     const pBalanced = 0.20; // 基础均衡先验
 
     const scores = [
@@ -434,18 +440,21 @@ export function calculateEventPressureConversion(
     return scores[0].type;
   };
 
+  const isHomeHighDirectness = physical?.counter_threat_index?.high_directness_counter_side === 'home';
+  const isAwayHighDirectness = physical?.counter_threat_index?.high_directness_counter_side === 'away';
+
   const homeTeam: TeamEPIFeatures = {
     conversion_ratio: homeRatio,
     event_score_15m: Number(homeEventScore.toFixed(2)),
     energy_15m: homeEnergy,
-    classification: classify(homeEnergy, homeEventScore, homeRatio, trinity.home.calibrated_threat, trinity.home.has_conflict, homeFullEventScore, homeTTI, homeTTIClass)
+    classification: classify(homeEnergy, homeEventScore, homeRatio, trinity.home.calibrated_threat, trinity.home.has_conflict, homeFullEventScore, homeTTI, homeTTIClass, isHomeHighDirectness)
   };
 
   const awayTeam: TeamEPIFeatures = {
     conversion_ratio: awayRatio,
     event_score_15m: Number(awayEventScore.toFixed(2)),
     energy_15m: awayEnergy,
-    classification: classify(awayEnergy, awayEventScore, awayRatio, trinity.away.calibrated_threat, trinity.away.has_conflict, awayFullEventScore, awayTTI, awayTTIClass)
+    classification: classify(awayEnergy, awayEventScore, awayRatio, trinity.away.calibrated_threat, trinity.away.has_conflict, awayFullEventScore, awayTTI, awayTTIClass, isAwayHighDirectness)
   };
 
   return {
@@ -518,7 +527,11 @@ export function calculate10mBurstCluster(
     const hasShotSalvo = shots5m >= 2;
 
     let burstMult = 1.0;
-    if (hasCornerBarrage) burstMult += 0.30;
+    if (hasCornerBarrage) {
+      // 顺风/追分垃圾角球成色校准：若频繁出现角球簇 (>=2) 但近 10m 完全没有射门/攻门转化，角球爆发提振适度折半衰减
+      const isSterileCornerBarrage = shots10m === 0;
+      burstMult += (isSterileCornerBarrage ? 0.15 : 0.30);
+    }
     if (hasShotSalvo) burstMult += 0.25;
     // 累加 10m 密度轻微自然提振 (最高 0.20)
     burstMult += Math.min(0.20, corners10m * 0.04 + shots10m * 0.05);
