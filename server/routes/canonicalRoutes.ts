@@ -54,6 +54,17 @@ export type RefactorRuntimeBatch = {
   matches: CanonicalMatch[];
   ai_briefs: AiEvaluationBrief[];
   quantitative_features?: Record<string, QuantitativeFeatures>;
+  leisu_candidates?: Array<{
+    match_id: string;
+    competition: string;
+    home_team: string;
+    away_team: string;
+    minute: number | null;
+    score: { home: number; away: number } | null;
+    commence_time: string | null;
+    status_text: string;
+    is_live: boolean;
+  }>;
   metadata: {
     mode: string;
     ybtySource: string;
@@ -74,6 +85,7 @@ function persistRuntimeBatch(
     canonicalMatches: CanonicalMatch[];
     aiBriefs: AiEvaluationBrief[];
     quantitativeFeatures?: Record<string, QuantitativeFeatures>;
+    leisuCandidates?: RefactorRuntimeBatch["leisu_candidates"];
     metadata: RefactorRuntimeBatch["metadata"];
   }
 ): RefactorRuntimeBatch {
@@ -107,6 +119,7 @@ function persistRuntimeBatch(
     matches: result.canonicalMatches,
     ai_briefs: result.aiBriefs,
     quantitative_features: quantitativeFeatures,
+    leisu_candidates: result.leisuCandidates || [],
     metadata: result.metadata,
   };
   if (!writeJsonFile(runtimePath(mode), batch)) {
@@ -255,22 +268,49 @@ export function assembleMatchesForMode(mode: "live" | "prematch"): {
       leagueAliases
     );
 
-    if (!decision || !best_match) continue;
+    const effectiveDecision: MatchAlignmentDecision = decision || {
+      status: MatchAlignmentStatus.UNMATCHED,
+      confidence_score: 0,
+      home_team_match: {
+        ybty_name: ybtyMatch.home,
+        leisu_name: "",
+        is_alias_exact_hit: false,
+        raw_text_similarity: 0,
+      },
+      away_team_match: {
+        ybty_name: ybtyMatch.away,
+        leisu_name: "",
+        is_alias_exact_hit: false,
+        raw_text_similarity: 0,
+      },
+      league_match: {
+        ybty_league: ybtyMatch.league,
+        leisu_league: "",
+        status: LeagueMatchStatus.UNMATCHED,
+        similarity: 0,
+        is_alias_exact_hit: false,
+      },
+      league_match_score: 0,
+      is_swapped_suspected: false,
+      alignment_reason: "未匹配到雷速对应赛事，需人工在向导中核验与选择",
+    };
 
     const canonical = assembleCanonicalMatch(
       ybtyMatch,
       best_match,
-      decision
+      effectiveDecision
     );
 
     const brief = extractAiEvaluationBrief(canonical);
 
     canonicalMatches.push(canonical);
     aiBriefs.push(brief);
-    const matchedIndex = availableLeisuMatches.findIndex(
-      (candidate) => candidate.match_id === best_match.match_id
-    );
-    if (matchedIndex >= 0) availableLeisuMatches.splice(matchedIndex, 1);
+    if (best_match) {
+      const matchedIndex = availableLeisuMatches.findIndex(
+        (candidate) => candidate.match_id === best_match.match_id
+      );
+      if (matchedIndex >= 0) availableLeisuMatches.splice(matchedIndex, 1);
+    }
   }
 
   const leisuCandidates = parsedLeisuMatches.map((m) => ({
@@ -311,7 +351,11 @@ export function assembleMatchesForMode(mode: "live" | "prematch"): {
       leisuSource,
       ybtyMatchCount: parsedYbtyMatches.length,
       leisuMatchCount: parsedLeisuMatches.length,
-      alignedCount: canonicalMatches.length,
+      alignedCount: canonicalMatches.filter(
+        (m) =>
+          m.alignment?.status === MatchAlignmentStatus.MATCHED_BY_ALIAS ||
+          m.alignment?.status === MatchAlignmentStatus.MATCHED_AUTO
+      ).length,
     },
   };
 }
@@ -417,6 +461,10 @@ export function registerCanonicalRoutes(app: express.Express): void {
         metadata: result.metadata,
         batch_id: "batch_id" in result ? result.batch_id : null,
         imported_at: "imported_at" in result ? result.imported_at : null,
+        leisu_candidates:
+          runtimeBatch?.leisu_candidates && runtimeBatch.leisu_candidates.length > 0
+            ? runtimeBatch.leisu_candidates
+            : assembleMatchesForMode(mode).leisuCandidates,
       });
     } catch (error: any) {
       console.error("[CanonicalRoutes] Error assembling canonical matches:", error);
@@ -597,11 +645,19 @@ export function registerCanonicalRoutes(app: express.Express): void {
         ? new Set(selected_match_ids.map((id: unknown) => String(id)))
         : null;
       const selectedMatches = selectedIds && selectedIds.size > 0
-        ? assembled.canonicalMatches.filter((match) => selectedIds.has(String(match.canonical_id)))
+        ? assembled.canonicalMatches.filter((match) => {
+            if (selectedIds.has(String(match.canonical_id))) return true;
+            if (match.reference?.leisu_match_id && selectedIds.has(String(match.reference.leisu_match_id))) return true;
+            for (const id of selectedIds) {
+              if (id.startsWith("ybty_") && id.includes(match.home_team_name.slice(0, 4))) return true;
+            }
+            return false;
+          })
         : assembled.canonicalMatches;
-      const selectedBriefs = selectedIds && selectedIds.size > 0
-        ? assembled.aiBriefs.filter((brief) => selectedIds.has(String(brief.match_id)))
-        : assembled.aiBriefs;
+      const selectedBriefs = selectedMatches.map((m) => {
+        const found = assembled.aiBriefs.find((b) => b.match_id === m.canonical_id);
+        return found || extractAiEvaluationBrief(m);
+      });
       const selectedQuant: Record<string, QuantitativeFeatures> = {};
       for (const match of selectedMatches) {
         if (assembled.quantitativeFeatures[match.canonical_id]) {
@@ -623,6 +679,7 @@ export function registerCanonicalRoutes(app: express.Express): void {
         canonicalMatches: selectedMatches,
         aiBriefs: selectedBriefs,
         quantitativeFeatures: selectedQuant,
+        leisuCandidates: assembled.leisuCandidates,
         metadata: {
           ...assembled.metadata,
           alignedCount: selectedMatches.length,
@@ -646,6 +703,7 @@ export function registerCanonicalRoutes(app: express.Express): void {
         metadata: result.metadata,
         batch_id: result.batch_id,
         imported_at: result.imported_at,
+        leisu_candidates: assembled.leisuCandidates,
       });
     } catch (error: any) {
       console.error("[CanonicalRoutes] Error importing data:", error);

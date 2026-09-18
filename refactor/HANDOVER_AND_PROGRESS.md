@@ -1,19 +1,40 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260918-QUANT-CALCULATION-ISSUES-1-2-4`
-- **当前状态 (Status)**: `DONE`
-- **阶段进度 (Phase)**: `P5.11 足球量化系统深度重构工程 —— 03 量化引擎核心计算三源容错弹性、攻守对偶破防与防线疲劳连环崩溃修正 (问题1, 2, 4 根治落地并全面通过自测与回归)`
+- **任务编号 (Task)**: `SNAPSHOT-20260918-ALIGNMENT-WIZARD-UNMATCHED-PARSING-FIX`
+- **当前状态 (Status)**: `IN_PROGRESS`
+- **阶段进度 (Phase)**: `Layer 02 实体对齐与向导解析完整性修复 —— 解决导入对齐确认向导中未达置信度阈值赛事被后端丢弃导致面板漏场的问题`
+- **任务目标与交付清单 (Deliverables)**：
+  1. 【根治后端组装过度过滤】：
+     - 在 `server/routes/canonicalRoutes.ts` 的 `assembleMatchesForMode` 中，去除 `if (!decision || !best_match) continue;`。当 `best_match` 为 null（如置信度低于 50 分未自动匹配）时，依然完整组装 `CanonicalMatch` 并赋予 `UNMATCHED` / `NEEDS_MANUAL_SELECTION` 对齐判定与候选决策，确保用户导入的所有 YBTY 赛事 100% 进入对齐确认向导供人工核对、挑选或绑定。
+  2. 【规范未匹配赛事 Canonical ID 契约】：
+     - 在 `refactor/02_canonical_model/canonicalMatchAssembler.ts` 中，当 `leisuMatch` 为 null 时，禁止输出空字符串 `""`，生成合法唯一的 `ybty_${cleanSlug}_${hash}` 格式 ID，防止 React Key、选择状态和 API 交互发生 ID 碰撞。
+  3. 【贯通雷速全量候选池与别名持久化】：
+     - 确保 `RefactorRuntimeBatch`、`POST /api/refactor/import-data` 与 `GET /api/refactor/canonical-matches` 均透传 `leisu_candidates`，使得前端向导的“更换雷速关联 / 手动搜索选择”模态窗能够即时展现雷速赛事池。
+     - 修复向导单场确认与批量确认在联赛状态为 `UNMATCHED` 时仍能正确保存联赛别名，并支持通过 slug/临时 ID 准确回查选中赛事。
+- **改动文件清单 (Target Files)**：
+  - `/refactor/02_canonical_model/canonicalMatchAssembler.ts`
+  - `/server/routes/canonicalRoutes.ts`
+  - `/src/components/CanonicalMatchCenter.tsx`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **验证结论 (Verification Results)**：
+  - 待验证。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260918-QUANT-CALCULATION-ISSUES-1-2-4 (DONE)
+- **阶段进度**: `P5.11 足球量化系统深度重构工程 —— 03 量化引擎核心计算三源容错弹性、攻守对偶破防与防线疲劳连环崩溃修正 (问题1, 2, 4 根治落地并全面通过自测与回归)`
 - **任务目标与交付清单 (Deliverables)**：
   1. 【问题 1: 动量与三源层 (`eventMomentumFusion.ts`)】：
-     - 实现事件流缺失/未采集时的自适应弹性降级（Dual-Source Fallback）：当 `events` 缺失或为空时，无缝切换为“动量 + 物理统计”双源模型，消除因缺少 Timeline 事件而将围攻误判为假性冲突及威胁度被严重误杀压制；
-     - 攻防势能转化指数 (`calculateEventPressureConversion` / EPI) 引入物理统计代理：在缺乏事件流但物理技术统计强劲（TTI >= 1.2、危攻能量高、控球占优）时，有效抑制假性 `BARREN_DOMINANCE`（无效空占），评定真实围攻转化；
-     - 战术相变态识别引入单边高压围攻态 (`CRUSHING_EXPANSION`)：当两队比分维持 0-0 但一方控球/倾斜极度占优（Field Tilt >= 68% 且危攻能量充足）时，准确判定为单边围攻，打破不合理的 `NEUTRAL_EQUILIBRIUM`（势均力敌均势）。
+     - 实现事件流缺失/未采集时的自适应弹性降级（Dual-Source Fallback）；
+     - 攻防势能转化指数 (`calculateEventPressureConversion` / EPI) 引入物理统计代理；
+     - 战术相变态识别引入单边高压围攻态 (`CRUSHING_EXPANSION`)。
   2. 【问题 2: 泊松衰减与破防层 (`poissonDecayModel.ts`)】：
-     - 引入“攻守对偶破防与防线疲劳渗漏模型 (Dual Siege Breakthrough & Fatigue Leak)”：当场面倾斜极度失衡（一方零射门且 Field Tilt <= 0.30 遭受深度压制）时，不仅衰减被压制弱队的进球期望，同步赋予围攻强队下半场破防与疲劳渗漏增益 (`siegeBreakthroughBoost`)，彻底根治因双方进球期望人为双向衰减导致的总进球期望虚假塌缩与小球极高假 EV。
+     - 引入“攻守对偶破防与防线疲劳渗漏模型 (Dual Siege Breakthrough & Fatigue Leak)”。
   3. 【问题 4: 弱队防守崩溃与深盘走盘连环失球修正 (`poissonDecayModel.ts`)】：
-     - 针对半场 0-0 龟缩且零射门的被压制弱队，在生成二元泊松网格联合分布时，引入防线疲劳与连环失球修正（Cascade Conceding）：一旦攻方打入第一球打破僵局，守方防守纪律崩塌或被迫压出导致多球失球 ($a \ge 2$) 概率显著升高，消除弱队在受让深盘下依靠走盘机制产生的虚假数学安全边际。
-  4. 【时效半衰期传参兼容修复 (`contextEngine.ts` & `globalTierMatrix.ts`)】：
-     - 确保 `calculateH2HDecayWeights` 优先遵循明确传入的 `halfLifeDays`；`calculateRecentFormWeights` 区分常规俱乐部联赛（365天硬性门禁）与青年/赛会制赛事自适应扩展。
+     - 针对半场 0-0 龟缩且零射门的被压制弱队，引入防线疲劳与连环失球修正（Cascade Conceding）。
+  4. 【时效半衰期传参兼容修复 (`contextEngine.ts` & `globalTierMatrix.ts`)】。
 - **改动文件清单 (Target Files)**：
   - `/refactor/03_quant_engine/eventMomentumFusion.ts`
   - `/refactor/03_quant_engine/poissonDecayModel.ts`
@@ -21,13 +42,9 @@
   - `/refactor/03_quant_engine/globalTierMatrix.ts`
   - `/refactor/HANDOVER_AND_PROGRESS.md`
 - **验证结论 (Verification Results)**：
-  - `npx tsx refactor/tests/verify_quant_engine.ts`: 全部 10 项量化与博弈引擎专项回归测试 100% 通过；
+  - `npx tsx refactor/tests/verify_quant_engine.ts`: 全部 10 项专项回归测试 100% 通过；
   - `node --import tsx --test tests-ts/*.test.ts`: 全部 115 项全系统单元与集成测试 100% 通过；
   - `lint_applet` & `compile_applet`: 0 TS 错误，构建与类型校验 100% 成功。
-
----
-
-## 历史快照存盘 (Previous Snapshots)
 
 ### Snapshot: SNAPSHOT-20260918-GLOBAL-TIER-ADAPTIVE-WINDOW-COUPLED-POISSON (DONE)
 - **阶段进度**: `P5.10 足球量化系统深度重构工程 —— 全球全量联赛/国家队档次矩阵、赛会自适应回溯窗口、连续微积分场面剥夺泊松与中轴骨干战力拓扑全面重构落地 [已全面完成并通过全量验证]`

@@ -530,9 +530,16 @@ export function assembleCanonicalMatch(
   }
 
   const matchSlug = `${ybtyMatch.league}_${ybtyMatch.home}_vs_${ybtyMatch.away}`;
-  const canonicalId = leisuMatch?.match_id ? String(leisuMatch.match_id) : "";
+  let canonicalId = leisuMatch?.match_id ? String(leisuMatch.match_id) : "";
   if (!canonicalId) {
     missingReasons.push(MissingDataReason.NO_LEISU_MATCH);
+    let hash = 0;
+    for (let i = 0; i < matchSlug.length; i++) {
+      hash = ((hash << 5) - hash) + matchSlug.charCodeAt(i);
+      hash |= 0;
+    }
+    const clean = matchSlug.replace(/[^\w\u4e00-\u9fa5]/g, "_").slice(0, 30);
+    canonicalId = `ybty_${clean}_${Math.abs(hash)}`;
   }
 
   return {
