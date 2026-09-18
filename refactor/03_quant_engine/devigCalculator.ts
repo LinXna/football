@@ -699,20 +699,37 @@ export function identifyBookmakerPosture(
     return BookmakerPosture.HEAVY_DEFENSIVE;
   }
 
-  // 2. 异常高赔诱盘陷阱 (赔率极诱人但理论胜率支撑不足)
-  // 亚洲让球盘口高赔陷阱
+  // 2. 异常高赔/低赔诱盘陷阱 (Trap Odds Assessment)
+  // 结合两种专业口径：
+  // 口径 A (Model vs Market 期望差): 高赔方 (>= 4.0) 真实 EV 极度负偏 (EV < -0.12)，或低赔方 (<= 1.50) 严重负 EV (EV < -0.10) 导致散户盲信大热；
+  // 口径 B (Pure Market 极端赔率非对称): 强队独赢压至 <= 1.50，弱队顶到 >= 7.00，抽水与风险敞口极度非对称诱导博冷。
   if (spreadEV && ((spreadEV.home_ev < -0.08 && spreadEV.home_odds > 2.20) || (spreadEV.away_ev < -0.08 && spreadEV.away_odds > 2.20))) {
     return BookmakerPosture.TRAP_HIGH_ODDS;
   }
 
-  // 1X2 独赢高赔诱盘陷阱：极端高赔 (>= 4.5) 且模型预测胜率过低 (< 25%)，或者严重负 EV
-  if (h2hDevig?.market_odds && h2hDevig.model_probabilities) {
+  if (h2hDevig?.market_odds) {
     const odds = h2hDevig.market_odds;
     const probs = h2hDevig.model_probabilities;
-    // 检查是否有低胜率高赔率诱盘
-    for (let i = 0; i < 3; i++) {
-      if (odds[i] >= 4.5 && probs[i] < 0.25) {
-        return BookmakerPosture.TRAP_HIGH_ODDS;
+    const minOdds = Math.min(...odds);
+    const maxOdds = Math.max(...odds);
+
+    // 口径 B: 纯盘口极端非对称诱盘 (低赔 <= 1.50 且高赔 >= 7.00)
+    if (minOdds <= 1.50 && maxOdds >= 7.00) {
+      return BookmakerPosture.TRAP_HIGH_ODDS;
+    }
+
+    // 口径 A: 模型 vs 盘口严重背离判定 (低胜率虚抬高赔诱盘 或 低赔过热诱盘)
+    if (probs && probs.length === 3) {
+      for (let i = 0; i < 3; i++) {
+        const ev = probs[i] * odds[i] - 1.0;
+        // 高赔方虚高但胜率极低：赔率 >= 4.5 且严重负 EV (< -0.15)
+        if (odds[i] >= 4.5 && ev < -0.15) {
+          return BookmakerPosture.TRAP_HIGH_ODDS;
+        }
+        // 低赔方名气泡沫：赔率 <= 1.50 且严重负 EV (< -0.10)
+        if (odds[i] <= 1.50 && ev < -0.10) {
+          return BookmakerPosture.TRAP_HIGH_ODDS;
+        }
       }
     }
   }

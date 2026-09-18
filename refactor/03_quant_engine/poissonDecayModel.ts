@@ -259,7 +259,13 @@ export function calculateTimeDecayAndUrgencyMultiplier(
 export function calculateBivariatePoissonGrid(
   lambdaHome: number,
   lambdaAway: number,
-  maxGoals: number = 7
+  maxGoals: number = 7,
+  couplingState?: {
+    field_tilt_home?: number;
+    field_tilt_away?: number;
+    zero_shot_deprivation_home?: boolean;
+    zero_shot_deprivation_away?: boolean;
+  }
 ): {
   grid: number[][];
   prob_home_win_rest: number;
@@ -286,6 +292,11 @@ export function calculateBivariatePoissonGrid(
   const tau_1_0 = Math.max(0, 1 + lambdaAway * rho);
   const tau_1_1 = Math.max(0, 1 - rho);
 
+  const homeDeprived = couplingState?.zero_shot_deprivation_home === true;
+  const awayDeprived = couplingState?.zero_shot_deprivation_away === true;
+  const homeTilt = couplingState?.field_tilt_home ?? 0.5;
+  const awayTilt = couplingState?.field_tilt_away ?? 0.5;
+
   for (let h = 0; h <= maxGoals; h++) {
     const row: number[] = [];
     const pHome = poissonPMF(h, lambdaHome);
@@ -302,6 +313,16 @@ export function calculateBivariatePoissonGrid(
         prob *= tau_1_0;
       } else if (h === 1 && a === 1) {
         prob *= tau_1_1;
+      }
+
+      // 场面剥夺攻防耦合：零射门且深陷半场围攻的球队，在对方零进球时逆势破门零封的概率被物理抑制
+      if (homeDeprived && h >= 1 && a === 0) {
+        const homeDeprivationFactor = Math.max(0.15, Math.min(1.0, Math.pow(homeTilt / 0.35, 1.5)));
+        prob *= homeDeprivationFactor;
+      }
+      if (awayDeprived && a >= 1 && h === 0) {
+        const awayDeprivationFactor = Math.max(0.15, Math.min(1.0, Math.pow(awayTilt / 0.35, 1.5)));
+        prob *= awayDeprivationFactor;
       }
       
       row.push(prob);
@@ -770,8 +791,18 @@ export function calculateInPlayPoissonFeatures(
   const blendedLiveFactorHome = 1.0 * priorContextWeight + livePhysicalFactorHome * liveStatsWeight;
   const blendedLiveFactorAway = 1.0 * priorContextWeight + livePhysicalFactorAway * liveStatsWeight;
 
-  const lambdaAfterLiveContextHome = lambdaBeforeLiveContextHome * blendedLiveFactorHome * oosMultiplier;
-  const lambdaAfterLiveContextAway = lambdaBeforeLiveContextAway * blendedLiveFactorAway * oosMultiplier;
+  // 5.3 场面剥夺与零射门连续衰减修正 (Field-Tilt Deprivation Damping)
+  let deprivationDampHome = 1.0;
+  let deprivationDampAway = 1.0;
+  if (matchState.zero_shot_deprivation_home && (matchState.field_tilt_home ?? 0.5) <= 0.30) {
+    deprivationDampHome = Math.max(0.15, Math.min(1.0, Math.pow((matchState.field_tilt_home ?? 0.20) / 0.35, 1.8)));
+  }
+  if (matchState.zero_shot_deprivation_away && (matchState.field_tilt_away ?? 0.5) <= 0.30) {
+    deprivationDampAway = Math.max(0.15, Math.min(1.0, Math.pow((matchState.field_tilt_away ?? 0.20) / 0.35, 1.8)));
+  }
+
+  const lambdaAfterLiveContextHome = lambdaBeforeLiveContextHome * blendedLiveFactorHome * oosMultiplier * deprivationDampHome;
+  const lambdaAfterLiveContextAway = lambdaBeforeLiveContextAway * blendedLiveFactorAway * oosMultiplier * deprivationDampAway;
 
   // 极值安全钳位
   const lambdaHomeRest = Math.max(0.01, Math.min(3.50, Number(lambdaAfterLiveContextHome.toFixed(3))));
@@ -832,7 +863,17 @@ export function calculateInPlayPoissonFeatures(
     poissonSupportUpperBound(lambdaHomeRest),
     poissonSupportUpperBound(lambdaAwayRest)
   );
-  const poissonResult = calculateBivariatePoissonGrid(lambdaHomeRest, lambdaAwayRest, poissonSupport);
+  const poissonResult = calculateBivariatePoissonGrid(
+    lambdaHomeRest,
+    lambdaAwayRest,
+    poissonSupport,
+    {
+      field_tilt_home: matchState.field_tilt_home,
+      field_tilt_away: matchState.field_tilt_away,
+      zero_shot_deprivation_home: matchState.zero_shot_deprivation_home,
+      zero_shot_deprivation_away: matchState.zero_shot_deprivation_away
+    }
+  );
   const poissonGrid = poissonResult.grid;
 
   // 7. 投影全场最终比分与 Top 3~5 概率分布

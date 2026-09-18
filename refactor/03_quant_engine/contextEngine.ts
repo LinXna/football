@@ -43,6 +43,11 @@ import {
 } from './types.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
+import {
+  getAdaptiveLookbackWindow,
+  getTeamStrengthProfile,
+  resolveTeamTier
+} from './globalTierMatrix.js';
 
 /**
  * 校验 L0 级不可缺失要素 (一票否决熔断器)
@@ -246,8 +251,14 @@ export function calculateH2HDecayWeights(
     };
   }
 
-  const decayConstant = Math.LN2 / halfLifeDays;
-  const MAX_VALID_DAYS = 365;
+  const adaptiveWindow = getAdaptiveLookbackWindow(
+    match.league_name || match.reference?.leisu_league_name,
+    match.home_team_name,
+    match.away_team_name
+  );
+  const maxValidDays = adaptiveWindow.maxDays;
+  const effectiveHalfLife = halfLifeDays === 365 ? adaptiveWindow.halfLifeDays : halfLifeDays;
+  const decayConstant = Math.LN2 / effectiveHalfLife;
 
   const currentHomeId = match.reference?.home_team_id ?? match.reference?.league_standings?.home_team?.team_id ?? null;
   const currentAwayId = match.reference?.away_team_id ?? match.reference?.league_standings?.away_team?.team_id ?? null;
@@ -266,7 +277,21 @@ export function calculateH2HDecayWeights(
   let totalTacticalCorners = 0;
   let totalClashScore = 0;
 
-  // 严格实施 365 天历史交锋样本前置物理隔离：在进入任何指标统计前严格执行时间硬门禁
+  // 预判近 365 天内有效样本数，若近 1 年内对战极其稀缺 (<= 1 场)，启动赛会/大赛周期历史样本稀缺度补偿
+  const recentH2HCount = h2hList.filter((item) => {
+    let matchTime = 0;
+    if (typeof item.match_time === 'number' && item.match_time > 0) {
+      matchTime = item.match_time > 1e11 ? item.match_time : item.match_time * 1000;
+    } else if (item.match_time) {
+      const parsed = new Date(String(item.match_time)).getTime();
+      if (!isNaN(parsed)) matchTime = parsed;
+    }
+    const days = matchTime > 0 ? Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24))) : 9999;
+    return days <= 365;
+  }).length;
+  const isH2HScarcity = recentH2HCount <= 1;
+
+  // 自适应多级历史交锋时间窗 (青年队/杯赛/大赛 1460 天，俱乐部常规联赛 730 天)
   const weights: HistoricalMatchWeight[] = h2hList.map((h2h) => {
     let matchTime = 0;
     let dateStr = '';
@@ -283,7 +308,7 @@ export function calculateH2HDecayWeights(
 
     const hasValidTime = matchTime > 0;
     const daysAgo = hasValidTime ? Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24))) : 9999;
-    const isValidTimeWindow = hasValidTime && daysAgo >= 0 && daysAgo <= 365;
+    const isValidTimeWindow = hasValidTime && daysAgo >= 0 && daysAgo <= maxValidDays;
 
     const homeScores = h2h.home_scores || [];
     const awayScores = h2h.away_scores || [];
@@ -303,10 +328,14 @@ export function calculateH2HDecayWeights(
       (Boolean(currentAwayName) && (h2hHomeName === currentAwayName || h2hAwayName === currentAwayName));
 
     let decayWeight = 0.0;
-    // 只有在通过 365 天前置物理时间隔离门禁、身份匹配、比分有效时才赋予非零指数衰减权重
+    // 只有在通过自适应前置物理时间隔离门禁、身份匹配、比分有效时才赋予非零指数衰减权重
     const isValid = identityMatched && isValidTimeWindow && hasValidScore;
     if (isValid) {
       decayWeight = Math.exp(-decayConstant * daysAgo);
+      // 稀缺度加权补偿：当近 365 天内对战记录极少/为零时，两年或四年周期大赛历史交锋赋予有效保底权重 (>= 0.20)
+      if (isH2HScarcity && daysAgo <= maxValidDays) {
+        decayWeight = Math.max(decayWeight, 0.20 * Math.exp(- (daysAgo / maxValidDays)));
+      }
     }
 
     const h2hCompName = String(h2h.league_name || (h2h as any).competition_name || (h2h as any).competition || '');
@@ -378,8 +407,8 @@ export function calculateH2HDecayWeights(
     // 执行深层战术全指标双向真实门禁检验
     const invalidReason = !hasValidTime
       ? 'MISSING_MATCH_TIME'
-      : daysAgo > MAX_VALID_DAYS
-        ? 'EXCEEDS_MAX_VALID_DAYS_365'
+      : daysAgo > maxValidDays
+        ? (maxValidDays === 365 ? 'EXCEEDS_MAX_VALID_DAYS_365' : `EXCEEDS_MAX_VALID_DAYS_${maxValidDays}`)
         : !hasValidScore
           ? 'MISSING_MATCH_SCORE'
           : 'INVALID_H2H_SAMPLE';
@@ -531,6 +560,23 @@ export function calculateRecentFormWeights(
 
     const currentLeagueName = match.league_name || match.reference?.leisu_league_name || '';
     const isCurrentMatchFriendly = /友谊|Friendly|球会友谊/i.test(currentLeagueName);
+    const adaptiveWindow = getAdaptiveLookbackWindow(currentLeagueName, targetTeamName);
+    const maxLookbackDays = adaptiveWindow.maxDays;
+    const halfLifeDays = adaptiveWindow.halfLifeDays;
+
+    // 预判近 365 天内有效样本数，若近 1 年正赛极其稀缺 (<= 2 场)，启动赛会/大赛周期历史样本稀缺度补偿
+    const recent365Count = matches.filter((item) => {
+      let matchTime = 0;
+      if (typeof item.match_time === 'number' && item.match_time > 0) {
+        matchTime = item.match_time > 1e11 ? item.match_time : item.match_time * 1000;
+      } else if (item.match_date) {
+        const parsed = new Date(String(item.match_date)).getTime();
+        if (!isNaN(parsed)) matchTime = parsed;
+      }
+      const days = matchTime > 0 ? Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24))) : 9999;
+      return days <= 365;
+    }).length;
+    const isSampleScarcity = recent365Count <= 2;
 
     let totalEffectiveWeight = 0;
     let sumScored = 0;
@@ -546,7 +592,7 @@ export function calculateRecentFormWeights(
     let validCount = 0;
 
     const weights: RecentFormContextWeight[] = matches.map((item) => {
-      // 1. 时间过滤与指数衰减 (60天半衰期, 严禁纳入超 365 天跨赛季老战绩)
+      // 1. 时间过滤与指数衰减 (自适应半衰期, 青年队/杯赛/大赛自适应扩展至 1460 天)
       let matchTime = 0;
       let dateStr = '';
       if (typeof item.match_time === 'number' && item.match_time > 0) {
@@ -562,13 +608,17 @@ export function calculateRecentFormWeights(
 
       const hasValidTime = matchTime > 0;
       const daysAgo = Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24)));
-      const isValidTime = hasValidTime && daysAgo >= 0 && daysAgo <= 365;
+      const isValidTime = hasValidTime && daysAgo >= 0 && daysAgo <= maxLookbackDays;
       let timeDecay = 0.0;
       if (isValidTime) {
         if (daysAgo <= 30) {
           timeDecay = 1.0;
         } else {
-          timeDecay = Math.exp(- (Math.LN2 / 120) * (daysAgo - 30)); // 120天半衰期
+          timeDecay = Math.exp(- (Math.LN2 / halfLifeDays) * (daysAgo - 30));
+          // 稀缺度加权补偿：当近 1 年正赛少于 3 场时，前置 1~4 年比赛保留有效基线权重
+          if (isSampleScarcity && daysAgo <= maxLookbackDays) {
+            timeDecay = Math.max(timeDecay, 0.25 * Math.exp(- (daysAgo / maxLookbackDays)));
+          }
         }
       }
 
@@ -617,6 +667,13 @@ export function calculateRecentFormWeights(
 
       const finalWeight = Number((timeDecay * compWeight * venueWeight).toFixed(4));
 
+      // 对手层级与战力归一化 (Opponent Tier / Strength Normalization)
+      const opponentName = (itemIsHome ? item.away_team_name : item.home_team_name) || undefined;
+      const oppProfile = getTeamStrengthProfile(opponentName || '', compName);
+      const oppTier = oppProfile.tier;
+      const oppStrengthFactor = oppProfile.defense_toughness_multiplier;
+      const oppAttackFactor = oppProfile.attack_strength_multiplier;
+
       // 4. 解析进球明细 (全场、半场、下半场)
       const ftHome = item.fulltime_score?.home;
       const ftAway = item.fulltime_score?.away;
@@ -651,7 +708,10 @@ export function calculateRecentFormWeights(
           is_clean_sheet: false,
           is_failed_to_score: false,
           handicap_result: 'UNKNOWN' as const,
-          goals_trend_result: 'UNKNOWN' as const
+          goals_trend_result: 'UNKNOWN' as const,
+          opponent_name: opponentName,
+          opponent_tier: oppTier,
+          opponent_strength_factor: oppStrengthFactor
         });
       }
       const scoredFull = itemIsHome ? ftHome : ftAway;
@@ -676,13 +736,17 @@ export function calculateRecentFormWeights(
       else if (item.goals_trend?.result === '小') goalsTrendRes = 'SMALL';
 
       if (teamIdentityMatched && hasValidScore && isValidTime && finalWeight > 0) {
+        // 对手防守坚韧度归一化进球，对手进攻强度归一化失球
+        const normalizedScored = scoredFull * oppStrengthFactor;
+        const normalizedConceded = concededFull / Math.max(0.40, oppAttackFactor);
+
         totalEffectiveWeight += finalWeight;
-        sumScored += scoredFull * finalWeight;
-        sumConceded += concededFull * finalWeight;
-        sumHalfScored += scoredHalf * finalWeight;
-        sumHalfConceded += concededHalf * finalWeight;
-        sumSecondHalfScored += scoredSecondHalf * finalWeight;
-        sumSecondHalfConceded += concededSecondHalf * finalWeight;
+        sumScored += normalizedScored * finalWeight;
+        sumConceded += normalizedConceded * finalWeight;
+        sumHalfScored += (scoredHalf * oppStrengthFactor) * finalWeight;
+        sumHalfConceded += (concededHalf / Math.max(0.40, oppAttackFactor)) * finalWeight;
+        sumSecondHalfScored += (scoredSecondHalf * oppStrengthFactor) * finalWeight;
+        sumSecondHalfConceded += (concededSecondHalf / Math.max(0.40, oppAttackFactor)) * finalWeight;
 
         if (isCleanSheet) cleanSheetCount += finalWeight;
         if (isFailedToScore) failedToScoreCount += finalWeight;
@@ -709,13 +773,23 @@ export function calculateRecentFormWeights(
         is_clean_sheet: isCleanSheet,
         is_failed_to_score: isFailedToScore,
         handicap_result: handicapRes,
-        goals_trend_result: goalsTrendRes
+        goals_trend_result: goalsTrendRes,
+        opponent_name: opponentName,
+        opponent_tier: oppTier,
+        opponent_strength_factor: oppStrengthFactor
       });
     });
 
     const denom = totalEffectiveWeight > 0 ? totalEffectiveWeight : 1.0;
-    const avgScored = totalEffectiveWeight > 0 ? Number((sumScored / denom).toFixed(2)) : 0;
-    const avgConceded = totalEffectiveWeight > 0 ? Number((sumConceded / denom).toFixed(2)) : 0;
+    let avgScored = totalEffectiveWeight > 0 ? Number((sumScored / denom).toFixed(2)) : 0;
+    let avgConceded = totalEffectiveWeight > 0 ? Number((sumConceded / denom).toFixed(2)) : 0;
+
+    // 弱样本/小样本经验贝叶斯平滑收缩 (Empirical Bayes Shrinkage toward 1.30 baseline)
+    if (validCount > 0 && validCount < 4) {
+      const shrinkWeight = validCount / (validCount + 2.0);
+      avgScored = Number((shrinkWeight * avgScored + (1.0 - shrinkWeight) * 1.30).toFixed(2));
+      avgConceded = Number((shrinkWeight * avgConceded + (1.0 - shrinkWeight) * 1.30).toFixed(2));
+    }
     const avgHalfScored = totalEffectiveWeight > 0 ? Number((sumHalfScored / denom).toFixed(2)) : 0;
     const avgHalfConceded = totalEffectiveWeight > 0 ? Number((sumHalfConceded / denom).toFixed(2)) : 0;
     const avgSecondScored = totalEffectiveWeight > 0 ? Number((sumSecondHalfScored / denom).toFixed(2)) : 0;
@@ -1364,6 +1438,42 @@ export function calculateLineupImpactScores(
   const homeRes = evaluateAbsences(homeInjuries, homeStarters, homeMv);
   const awayRes = evaluateAbsences(awayInjuries, awayStarters, awayMv);
 
+  // 战术中轴骨干身价 (Spine: GK - CB - CM/DM - CF)
+  const calcSpineMv = (starters: ParsedPlayer[]): number => {
+    let sum = 0;
+    for (const s of starters) {
+      const pos = String(s.position || s.position_name || s.position_code || '').toUpperCase();
+      const isSpine = pos.includes('GK') || pos.includes('CB') || pos.includes('DM') || pos.includes('CM') || pos.includes('CF') || pos.includes('ST') || pos.includes('门将') || pos.includes('中卫') || pos.includes('后腰') || pos.includes('中锋');
+      if (isSpine) {
+        sum += getPlayerMv(s);
+      }
+    }
+    return sum;
+  };
+  const homeSpineMv = calcSpineMv(homeStarters);
+  const awaySpineMv = calcSpineMv(awayStarters);
+
+  // 平均年龄与体能/经验差
+  const calcAvgAge = (starters: ParsedPlayer[], fallbackAge?: number): number | undefined => {
+    if (typeof fallbackAge === 'number' && fallbackAge > 15 && fallbackAge < 50) return fallbackAge;
+    const ages = starters.map(p => typeof p.age === 'number' && p.age > 15 && p.age < 50 ? p.age : 0).filter(a => a > 0);
+    if (ages.length >= 5) {
+      return Number((ages.reduce((a, b) => a + b, 0) / ages.length).toFixed(1));
+    }
+    return undefined;
+  };
+  const homeAvgAge = calcAvgAge(homeStarters, (lineup as any)?.home_average_age);
+  const awayAvgAge = calcAvgAge(awayStarters, (lineup as any)?.away_average_age);
+  const ageGap = (homeAvgAge && awayAvgAge) ? Number(Math.abs(homeAvgAge - awayAvgAge).toFixed(1)) : undefined;
+
+  // 阵型相克风险 (如 4-1-4-1 单后腰遭遇 3 中场绞杀)
+  const homeFormationStr = String(lineup?.home_formation || '').trim();
+  const awayFormationStr = String(lineup?.away_formation || '').trim();
+  const formationClashRisk = Boolean(
+    (homeFormationStr === '4-1-4-1' && (awayFormationStr === '4-3-3' || awayFormationStr === '4-2-3-1')) ||
+    (awayFormationStr === '4-1-4-1' && (homeFormationStr === '4-3-3' || homeFormationStr === '4-2-3-1'))
+  );
+
   return {
     home_lis: homeRes.lis,
     away_lis: awayRes.lis,
@@ -1386,7 +1496,13 @@ export function calculateLineupImpactScores(
     home_market_value_num: homeMv,
     away_market_value_num: awayMv,
     home_best_player_active: homeRes.bestPlayerActive,
-    away_best_player_active: awayRes.bestPlayerActive
+    away_best_player_active: awayRes.bestPlayerActive,
+    home_spine_market_value: homeSpineMv,
+    away_spine_market_value: awaySpineMv,
+    home_average_age: homeAvgAge,
+    away_average_age: awayAvgAge,
+    age_gap: ageGap,
+    formation_clash_risk: formationClashRisk
   };
 }
 

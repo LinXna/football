@@ -20,6 +20,7 @@ import {
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
 import { calculateBivariatePoissonGrid, LEAGUE_DNA_MAP, getLeagueBaseGoals } from './poissonDecayModel.js';
+import { getTeamStrengthProfile } from './globalTierMatrix.js';
 
 /**
  * 解析身价占比与阵容成色
@@ -67,28 +68,57 @@ export function synthesizePrematchPrior(
     match.canonical_id
   );
 
-  // 1. 战力层关联：身价对比 + SSOT 解耦伤停折损 (进攻保持率 attack_injury_factor vs 防守恶化 defense_leak_factor)
+  // 1. 战力层关联：队伍静态档次矩阵 + 身价倍数非线性映射 + 战术中轴骨干加权 + SSOT 解耦伤停折损
+  const currentLeague = match.league_name || match.reference?.leisu_league_name || '';
+  const homeProfile = getTeamStrengthProfile(match.home_team_name, currentLeague);
+  const awayProfile = getTeamStrengthProfile(match.away_team_name, currentLeague);
+
   const homeMv = context.lineup_impact.home_market_value_num;
   const awayMv = context.lineup_impact.away_market_value_num;
+  const homeSpine = context.lineup_impact.home_spine_market_value || 0;
+  const awaySpine = context.lineup_impact.away_spine_market_value || 0;
 
-  let squadRatioH = 1.0;
-  let squadRatioA = 1.0;
-  if (homeMv > 0 && awayMv > 0) {
-    const totalMv = homeMv + awayMv;
-    squadRatioH = Math.max(0.6, Math.min(1.4, 1.0 + (homeMv / totalMv - 0.5) * 0.8));
-    squadRatioA = Math.max(0.6, Math.min(1.4, 1.0 + (awayMv / totalMv - 0.5) * 0.8));
-  } else if (homeMv > 0 && awayMv <= 0) {
-    // 主队录入显著身价而客队缺失（多为小联赛/保级队未收录）：给予保守估算基准，杜绝强弱悬殊被强制抹平为 1:1 等权
-    const imputedAwayMv = Math.min(homeMv * 0.4, 300);
-    const totalMv = homeMv + imputedAwayMv;
-    squadRatioH = Math.max(0.6, Math.min(1.4, 1.0 + (homeMv / totalMv - 0.5) * 0.8));
-    squadRatioA = Math.max(0.6, Math.min(1.4, 1.0 + (imputedAwayMv / totalMv - 0.5) * 0.8));
-  } else if (awayMv > 0 && homeMv <= 0) {
+  // 基础球队档次攻防乘子 (基线先验，解决小联赛/青年队无身价时被机械拉平为 1:1 的系统缺陷)
+  const tierAttackH = homeProfile.attack_strength_multiplier;
+  const tierAttackA = awayProfile.attack_strength_multiplier;
+  const tierDefenseH = homeProfile.defense_toughness_multiplier;
+  const tierDefenseA = awayProfile.defense_toughness_multiplier;
+
+  // 有效综合身价 (常规总身价 70% + 战术中轴骨干身价 30%)
+  const effectiveMvH = homeMv > 0 ? (homeMv * 0.7 + homeSpine * 0.3) : 0;
+  const effectiveMvA = awayMv > 0 ? (awayMv * 0.7 + awaySpine * 0.3) : 0;
+
+  let squadRatioH = tierAttackH;
+  let squadRatioA = tierAttackA;
+  let defSquadRatioH = tierDefenseH;
+  let defSquadRatioA = tierDefenseA;
+
+  if (effectiveMvH > 0 && effectiveMvA > 0) {
+    const ratio = effectiveMvH / effectiveMvA;
+    // 使用双曲正切非线性连续映射：对数倍数差连续平滑，杜绝小幅差距被机械放大或巨幅差距被截断
+    const mvFactor = Math.tanh(0.45 * Math.log(ratio));
+    squadRatioH = Math.max(0.40, Math.min(2.50, tierAttackH * (1.0 + mvFactor * 0.65)));
+    squadRatioA = Math.max(0.40, Math.min(2.50, tierAttackA * (1.0 - mvFactor * 0.65)));
+    defSquadRatioH = Math.max(0.40, Math.min(2.50, tierDefenseH * (1.0 + mvFactor * 0.50)));
+    defSquadRatioA = Math.max(0.40, Math.min(2.50, tierDefenseA * (1.0 - mvFactor * 0.50)));
+  } else if (effectiveMvH > 0 && effectiveMvA <= 0) {
+    // 主队录入显著身价而客队缺失（多为小联赛/保级队未收录）：给予保守估算基准与档次校正
+    const imputedAway = Math.min(effectiveMvH * 0.3, 200);
+    const ratio = effectiveMvH / imputedAway;
+    const mvFactor = Math.tanh(0.40 * Math.log(ratio));
+    squadRatioH = Math.max(0.50, Math.min(2.20, tierAttackH * (1.0 + mvFactor * 0.50)));
+    squadRatioA = Math.max(0.50, Math.min(2.20, tierAttackA * (1.0 - mvFactor * 0.50)));
+    defSquadRatioH = Math.max(0.50, Math.min(2.20, tierDefenseH * (1.0 + mvFactor * 0.40)));
+    defSquadRatioA = Math.max(0.50, Math.min(2.20, tierDefenseA * (1.0 - mvFactor * 0.40)));
+  } else if (effectiveMvA > 0 && effectiveMvH <= 0) {
     // 客队录入显著身价而主队缺失
-    const imputedHomeMv = Math.min(awayMv * 0.4, 300);
-    const totalMv = imputedHomeMv + awayMv;
-    squadRatioH = Math.max(0.6, Math.min(1.4, 1.0 + (imputedHomeMv / totalMv - 0.5) * 0.8));
-    squadRatioA = Math.max(0.6, Math.min(1.4, 1.0 + (awayMv / totalMv - 0.5) * 0.8));
+    const imputedHome = Math.min(effectiveMvA * 0.3, 200);
+    const ratio = imputedHome / effectiveMvA;
+    const mvFactor = Math.tanh(0.40 * Math.log(ratio));
+    squadRatioH = Math.max(0.50, Math.min(2.20, tierAttackH * (1.0 + mvFactor * 0.50)));
+    squadRatioA = Math.max(0.50, Math.min(2.20, tierAttackA * (1.0 - mvFactor * 0.50)));
+    defSquadRatioH = Math.max(0.50, Math.min(2.20, tierDefenseH * (1.0 + mvFactor * 0.40)));
+    defSquadRatioA = Math.max(0.50, Math.min(2.20, tierDefenseA * (1.0 - mvFactor * 0.40)));
   }
 
   // 纯进攻战力保持率与防守漏洞恶化乘子 (单一事实来源，杜绝二次重复惩罚)
@@ -113,13 +143,13 @@ export function synthesizePrematchPrior(
   const awayDefenseForm = awayFormAnalytics.valid_count >= 1 ? Math.max(0.70, Math.min(1.35, 1.30 / Math.max(0.40, awayFormAnalytics.weighted_conceded_per_game))) : 1.0;
 
   // 3. Dixon-Coles 经典攻防解耦因果模型 (物理级解耦：进攻归进攻，防守归防守)
-  // (A) 纯进攻战力 Alpha: 由阵容身价、进攻端实质保持率与近期攻击态势决定 (彻底消除重复扣分)
+  // (A) 纯进攻战力 Alpha: 由阵容身价/静态档次、进攻端实质保持率与近期攻击态势决定 (彻底消除重复扣分)
   const alphaH = squadRatioH * attackFactorH * homeAttackForm;
   const alphaA = squadRatioA * attackFactorA * awayAttackForm;
 
-  // (B) 纯防守抗击打战力 D: 强队防守体系严密身价高、防守端漏洞恶化乘子 (1.0 / defenseLeak)、近期丢球极少
-  const defStrengthH = squadRatioH * (1.0 / defenseLeakH) * homeDefenseForm;
-  const defStrengthA = squadRatioA * (1.0 / defenseLeakA) * awayDefenseForm;
+  // (B) 纯防守抗击打战力 D: 强队防守体系与静态档次韧性、防守端漏洞恶化乘子 (1.0 / defenseLeak)、近期丢球极少
+  const defStrengthH = defSquadRatioH * (1.0 / defenseLeakH) * homeDefenseForm;
+  const defStrengthA = defSquadRatioA * (1.0 / defenseLeakA) * awayDefenseForm;
 
   // (C) 失球脆弱度 / 漏球倾向 Beta: 依照指数连续函数平滑映射，对立面防守越强，己方面对的 Beta 越小
   // 客队防线漏洞收敛于 [0.50, 1.65]；主队防线漏洞封顶 1.25，杜绝主队防守漏洞无底线放大

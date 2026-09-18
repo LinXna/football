@@ -124,7 +124,11 @@ export function buildUnifiedMatchState(
     home_tti: physical?.threat_transformation_index?.home_tti,
     away_tti: physical?.threat_transformation_index?.away_tti,
     pyramid_slope: timeline?.momentum_pyramid?.composite_slope ?? timeline?.slope_5m,
-    elite_override_applied: physical?.red_card_penalty?.elite_override_active ?? false
+    elite_override_applied: physical?.red_card_penalty?.elite_override_active ?? false,
+    field_tilt_home: physical?.field_tilt?.home_tilt_share,
+    field_tilt_away: physical?.field_tilt?.away_tilt_share,
+    zero_shot_deprivation_home: physical?.field_tilt?.home_zero_shot_deprivation ?? false,
+    zero_shot_deprivation_away: physical?.field_tilt?.away_zero_shot_deprivation ?? false
   });
 }
 

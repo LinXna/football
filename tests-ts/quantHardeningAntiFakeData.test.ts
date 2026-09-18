@@ -18,7 +18,7 @@ import {
   calculateDecayedEventScore,
   calculateEventPressureConversion
 } from '../refactor/03_quant_engine/eventMomentumFusion.ts';
-import { YellowCardContextType, TacticalRegimeType, QuantAlert } from '../refactor/03_quant_engine/enums.js';
+import { YellowCardContextType, TacticalRegimeType, QuantAlert, EventPressureConversionType } from '../refactor/03_quant_engine/enums.js';
 import { extractRealTimePhysicalStats, extractMomentumTimelineFeatures } from '../refactor/03_quant_engine/momentumQuantEngine.js';
 import { buildUnifiedMatchState, calculateConfidenceAndAlerts } from '../refactor/03_quant_engine/index.js';
 import { calculateInPlayPoissonFeatures, calculatePhasedDNATimeFraction } from '../refactor/03_quant_engine/poissonDecayModel.js';
@@ -2212,6 +2212,7 @@ test('Anti-Fake Data Hardening: Scheme 6 - Severe Temporal Lag Triggers Warning 
   assert.ok(
     guarded.risk_warnings.some(w => w.includes('TEMPORAL_LAG_WARNING') || w.includes('多源时钟不同步')),
     'Risk warning must state temporal lag risk'
+  );
 });
 
 test('Anti-Fake Data Hardening: Scheme 8 - Directness Ratio and Shot Quality / Save Severity Extraction', async () => {

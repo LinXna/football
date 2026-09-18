@@ -110,6 +110,9 @@ export interface RecentFormContextWeight {
   is_failed_to_score: boolean;           // 是否被零封
   handicap_result: 'WIN' | 'LOSS' | 'DRAW' | 'UNKNOWN';
   goals_trend_result: 'BIG' | 'SMALL' | 'UNKNOWN';
+  opponent_name?: string;
+  opponent_tier?: number;
+  opponent_strength_factor?: number;
 }
 
 export interface RecentFormDetailedAnalytics {
@@ -222,6 +225,13 @@ export interface LineupImpactFeatures {
   away_market_value_num: number;
   home_best_player_active: boolean;
   away_best_player_active: boolean;
+  // 中轴骨干战力拓扑 (GK-CB-CM-CF) 与年龄解耦
+  home_spine_market_value?: number;
+  away_spine_market_value?: number;
+  home_average_age?: number;
+  away_average_age?: number;
+  age_gap?: number;
+  formation_clash_risk?: boolean;
 }
 
 export interface CleanedContextFeatures {
@@ -289,6 +299,15 @@ export interface MomentumTimelineFeatures {
       medium_term_10m: number;
       macro_15m: number;
     };
+  };
+  /** 时空时序波段微积分 (Momentum Waveform Calculus) */
+  waveform_calculus?: {
+    first_derivative_dM_dt: number;     // 一阶动量导数速度
+    second_derivative_d2M_dt2: number;  // 二阶动量导数加速度
+    waveform_auc_5m: { home: number; away: number; net: number };  // 梯形数值微积分面积
+    waveform_auc_15m: { home: number; away: number; net: number };
+    is_pressure_crest: boolean;         // 破门浪涌
+    is_choking_siege: boolean;          // 窒息围攻
   };
 }
 
@@ -409,6 +428,14 @@ export interface RealTimePhysicalStatsFeatures {
       midfielder_count: number;
     };
   };
+  /** 场面倾斜与零射门剥夺模型 (Field-Tilt & Deprivation) */
+  field_tilt?: {
+    home_tilt_share: number;             // 主队前场三十米危攻/射门/角球综合占比 [0, 1]
+    away_tilt_share: number;             // 客队前场三十米危攻/射门/角球综合占比 [0, 1]
+    tilt_differential: number;           // 场面倾斜差值 [-1, 1]
+    home_zero_shot_deprivation: boolean; // 主队 0 射门且深陷全面压制
+    away_zero_shot_deprivation: boolean; // 客队 0 射门且深陷全面压制
+  };
 }
 
 export interface ScoreProbabilityItem {
@@ -481,6 +508,10 @@ export interface InPlayPoissonFeatures {
   lambda_away_rest: number;
   expected_goals_rest: number;
   lambda_source: 'MARKET_IMPLIED' | 'LEAGUE_DNA' | 'FALLBACK';
+  field_tilt_index?: number;
+  open_play_suppression_home?: number;
+  open_play_suppression_away?: number;
+  bivariate_copula_applied?: boolean;
   rho_used?: number;
   rho_source?: 'CALIBRATED' | 'DEFAULT_ASSUMPTION';
   dixon_coles_tau?: DixonColesCorrectionTau;
@@ -793,6 +824,10 @@ export interface UnifiedMatchState {
   away_tti?: number;
   pyramid_slope?: number;
   elite_override_applied?: boolean;
+  field_tilt_home?: number;
+  field_tilt_away?: number;
+  zero_shot_deprivation_home?: boolean;
+  zero_shot_deprivation_away?: boolean;
 }
 
 export interface Layer03LiveSnapshot {

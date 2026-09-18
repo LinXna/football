@@ -271,6 +271,14 @@ export function extractMomentumTimelineFeatures(
       temporal_inversion_detected: timed.temporalInversionDetected,
       temporal_lag_warning: timed.temporalLagMinutes > 8,
       temporal_lag_minutes: timed.temporalLagMinutes,
+      waveform_calculus: Object.freeze({
+        first_derivative_dM_dt: 0,
+        second_derivative_d2M_dt2: 0,
+        waveform_auc_5m: Object.freeze({ home: 0, away: 0, net: 0 }),
+        waveform_auc_15m: Object.freeze({ home: 0, away: 0, net: 0 }),
+        is_pressure_crest: false,
+        is_choking_siege: false
+      }),
       momentum_pyramid: Object.freeze({
         composite_slope: 0,
         composite_energy: 0,
@@ -363,6 +371,74 @@ export function extractMomentumTimelineFeatures(
     pyramidConsistency = 'DIVERGENT';
   }
 
+  // 9. 时空时序波段微积分 (Momentum Waveform Calculus)
+  const calcWaveformCalculus = () => {
+    const points = timedPoints.length >= 2
+      ? timedPoints.map(p => ({ t: p.minute, v: p.value }))
+      : rawPoints.map((v, i) => ({ t: i, v }));
+    const n = points.length;
+    if (n < 2) {
+      return {
+        first_derivative_dM_dt: 0,
+        second_derivative_d2M_dt2: 0,
+        waveform_auc_5m: { home: 0, away: 0, net: 0 },
+        waveform_auc_15m: { home: 0, away: 0, net: 0 },
+        is_pressure_crest: false,
+        is_choking_siege: false
+      };
+    }
+
+    const calcAuc = (windowSize: number) => {
+      const windowSlice = points.slice(-Math.min(n, windowSize));
+      let hAuc = 0;
+      let aAuc = 0;
+      for (let i = 0; i < windowSlice.length - 1; i++) {
+        const p1 = windowSlice[i];
+        const p2 = windowSlice[i + 1];
+        const dt = Math.max(0.5, Math.abs(p2.t - p1.t));
+        const avgM = (p1.v + p2.v) / 2.0;
+        if (avgM > 0) hAuc += avgM * dt;
+        else if (avgM < 0) aAuc += Math.abs(avgM) * dt;
+      }
+      return {
+        home: Number(hAuc.toFixed(2)),
+        away: Number(aAuc.toFixed(2)),
+        net: Number((hAuc - aAuc).toFixed(2))
+      };
+    };
+
+    const auc5 = calcAuc(5);
+    const auc15 = calcAuc(15);
+
+    const lastPt = points[n - 1];
+    const prevPt = points[Math.max(0, n - 3)];
+    const dtVel = Math.max(0.5, lastPt.t - prevPt.t);
+    const dM_dt = Number(((lastPt.v - prevPt.v) / dtVel).toFixed(3));
+
+    let d2M_dt2 = 0;
+    if (n >= 5) {
+      const priorPt = points[Math.max(0, n - 5)];
+      const dtPrior = Math.max(0.5, prevPt.t - priorPt.t);
+      const prior_dM = (prevPt.v - priorPt.v) / dtPrior;
+      d2M_dt2 = Number(((dM_dt - prior_dM) / dtVel).toFixed(3));
+    }
+
+    const is_pressure_crest = (Math.abs(dM_dt) >= 12.0 && Math.abs(lastPt.v) >= 35.0) ||
+      (Math.abs(dM_dt) >= 8.0 && Math.abs(d2M_dt2) >= 2.0 && Math.abs(lastPt.v) >= 40.0);
+    const is_choking_siege = (Math.abs(auc15.net) >= 220.0) && (inflections <= 1);
+
+    return {
+      first_derivative_dM_dt: dM_dt,
+      second_derivative_d2M_dt2: d2M_dt2,
+      waveform_auc_5m: auc5,
+      waveform_auc_15m: auc15,
+      is_pressure_crest,
+      is_choking_siege
+    };
+  };
+
+  const waveformCalculus = calcWaveformCalculus();
+
   const momentumPyramid = Object.freeze({
     composite_slope: pyramidCompositeSlope,
     composite_energy: pyramidCompositeEnergy,
@@ -407,6 +483,7 @@ export function extractMomentumTimelineFeatures(
     temporal_inversion_detected: timed.temporalInversionDetected,
     temporal_lag_warning: timed.temporalLagMinutes > 8,
     temporal_lag_minutes: timed.temporalLagMinutes,
+    waveform_calculus: Object.freeze(waveformCalculus),
     momentum_pyramid: momentumPyramid
   });
 
@@ -912,10 +989,37 @@ export function extractRealTimePhysicalStats(
   const anyEliteActive = homeRedPen.eliteOverride || awayRedPen.eliteOverride;
   const eliteSide = homeRedPen.eliteOverride ? 'home' : (awayRedPen.eliteOverride ? 'away' : 'none');
 
+  // 场面倾斜 (Field Tilt) 与 零射门剥夺模型 (Zero-Shot Deprivation)
+  const homeTiltVolume = 0.50 * (homeDA ?? 0) + 0.30 * (homeOn ?? 0) * 10 + 0.20 * (homeCorners ?? 0) * 8;
+  const awayTiltVolume = 0.50 * (awayDA ?? 0) + 0.30 * (awayOn ?? 0) * 10 + 0.20 * (awayCorners ?? 0) * 8;
+  const totalTiltVolume = homeTiltVolume + awayTiltVolume;
+
+  let homeTiltShare = 0.50;
+  let awayTiltShare = 0.50;
+  if (totalTiltVolume > 0) {
+    homeTiltShare = Number((homeTiltVolume / totalTiltVolume).toFixed(3));
+    awayTiltShare = Number((awayTiltVolume / totalTiltVolume).toFixed(3));
+  }
+  const tiltDifferential = Number((homeTiltShare - awayTiltShare).toFixed(3));
+
+  // 零射门剥夺判定：若比赛已进行 >= 25 分钟，且某队射门为 0，且场面倾斜严重倒向对手 (Tilt Share <= 0.28)
+  const isDeprivationTime = currentMinute >= 25;
+  const homeZeroShotDeprivation = Boolean(isDeprivationTime && ((homeShots ?? 0) === 0) && (homeTiltShare <= 0.28));
+  const awayZeroShotDeprivation = Boolean(isDeprivationTime && ((awayShots ?? 0) === 0) && (awayTiltShare <= 0.28));
+
+  const fieldTilt = Object.freeze({
+    home_tilt_share: homeTiltShare,
+    away_tilt_share: awayTiltShare,
+    tilt_differential: tiltDifferential,
+    home_zero_shot_deprivation: homeZeroShotDeprivation,
+    away_zero_shot_deprivation: awayZeroShotDeprivation
+  });
+
   const result: RealTimePhysicalStatsFeatures = Object.freeze({
     stats_available: statsAvailable,
     stats_basis: statsAvailable ? 'CUMULATIVE_QUALITY_BASELINE' : 'UNAVAILABLE',
     available_metrics: availableMetrics,
+    field_tilt: fieldTilt,
     xt_proxy: Object.freeze({
       home_xt: homeXT,
       away_xt: awayXT,
