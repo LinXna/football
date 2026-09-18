@@ -261,10 +261,16 @@ export function calculateLiveThreatTrinity(
   physical: RealTimePhysicalStatsFeatures,
   currentMinute: number
 ): LiveThreatTrinityFeatures {
-  const eventScores = calculateDecayedEventScore(events, currentMinute, 15);
+  const eventsAvailable = Array.isArray(events) && events.length > 0;
+  const eventScores = eventsAvailable ? calculateDecayedEventScore(events, currentMinute, 15) : { home: 0, away: 0 };
   const bounded = (value: number) => Math.max(0, Math.min(1, value));
   const solveTeam = (side: 'home' | 'away') => {
-    const energy = (timeline.integral_15m?.[side] ?? timeline.integral_5m?.[side] ?? 0) as number;
+    let energy = (timeline.integral_15m?.[side] ?? timeline.integral_5m?.[side] ?? 0) as number;
+    if (energy === 0 && (timeline.total_points ?? 0) === 0 && physical.stats_available && currentMinute > 0) {
+      const tilt = (side === 'home' ? physical.field_tilt?.home_tilt_share : physical.field_tilt?.away_tilt_share) ?? 0.5;
+      const basePool = Math.min(300, currentMinute * 6);
+      energy = basePool * tilt;
+    }
     const eventScore = eventScores[side];
     const xt = (side === 'home' ? physical.xt_proxy?.home_xt : physical.xt_proxy?.away_xt) ?? 0;
     const penetration = (side === 'home' ? physical.penetration_rate?.home_penetration : physical.penetration_rate?.away_penetration) ?? 0;
@@ -275,11 +281,7 @@ export function calculateLiveThreatTrinity(
     const corners = rawCorners * cornerQuality;
     const bigChanceThreat = (side === 'home' ? physical.shot_efficiency?.home_big_chance_threat : physical.shot_efficiency?.away_big_chance_threat) ?? 0;
     const momentumSupport = bounded(1 - Math.exp(-Math.max(0, energy) / 150));
-    // An empty key-event window is not proof of zero attacking threat: feeds
-    // commonly omit non-scoring attacks. Keep silence as weak evidence.
-    const eventSupport = eventScore > 0
-      ? bounded(1 - Math.exp(-eventScore / 2.2))
-      : 0.35;
+
     const pe = (side === 'home' ? physical.possession_effectiveness?.home_pe : physical.possession_effectiveness?.away_pe) ?? 0;
     const tti = (side === 'home' ? physical.threat_transformation_index?.home_tti : physical.threat_transformation_index?.away_tti) ?? 0;
     // 提升角球权重至 0.20 (现代 xG 理论标准)，并与渗透率、转化指数及重大险情成色结合
@@ -288,19 +290,27 @@ export function calculateLiveThreatTrinity(
     const earlyPhaseBaseline = (currentMinute > 0 && currentMinute < 35) ? Math.max(0, 0.25 * (1 - currentMinute / 35.0)) : 0;
     const statsSupport = physical.stats_available
       ? bounded(Math.max(earlyPhaseBaseline, 1 - Math.exp(-Math.max(0, rawStatsValue)))) : 0;
+
+    const statsCorroboration = physical.stats_available ? Math.max(0, statsSupport - 0.35) * 0.6 : 0;
+    const neutralEventSupport = bounded(0.35 + statsCorroboration);
+
+    const eventSupport = (eventsAvailable && eventScore > 0)
+      ? bounded(1 - Math.exp(-eventScore / 2.2))
+      : neutralEventSupport;
+
     const activeSupports = physical.stats_available
       ? [momentumSupport, eventSupport, statsSupport]
       : [momentumSupport, eventSupport];
-    const minSupport = Math.min(...activeSupports);
-    const maxSupport = Math.max(...activeSupports);
-    const alignmentScore = bounded(1 - (maxSupport - minSupport));
+
     // 仅在比赛进入中后段(>=30分钟)且极端高动量长期得不到任何事件与数据支持时，方判定为实质性冲突
     const conflict = momentumSupport >= 0.70 && currentMinute >= 30 && (eventSupport < 0.15 || (physical.stats_available && statsSupport < 0.15));
     const baseThreat = physical.stats_available
       ? (0.45 * momentumSupport + 0.30 * eventSupport + 0.25 * statsSupport)
       : (0.60 * momentumSupport + 0.40 * eventSupport);
-    // Conflicting feeds increase uncertainty without turning every mismatch
-    // into a deterministic low-scoring signal.
+
+    const minSupport = Math.min(...activeSupports);
+    const maxSupport = Math.max(...activeSupports);
+    const alignmentScore = bounded(1 - (maxSupport - minSupport));
     const alignmentFactor = conflict ? 1.0 : (0.55 + 0.45 * alignmentScore);
     const conflictDamping = conflict ? 0.95 : 1.0;
     const calibratedThreat = bounded(baseThreat * alignmentFactor * conflictDamping);
@@ -364,8 +374,15 @@ export function calculateEventPressureConversion(
   const awayFullEventScore = fullDecayedScores.away;
 
   // 2. 获取近 15 分钟危攻能量
-  const homeEnergy = timeline.integral_15m ? timeline.integral_15m.home : 0;
-  const awayEnergy = timeline.integral_15m ? timeline.integral_15m.away : 0;
+  let homeEnergy = timeline.integral_15m ? timeline.integral_15m.home : 0;
+  let awayEnergy = timeline.integral_15m ? timeline.integral_15m.away : 0;
+  if (homeEnergy === 0 && awayEnergy === 0 && (timeline.total_points ?? 0) === 0 && physical?.stats_available && currentMinute > 0) {
+    const homeTilt = physical.field_tilt?.home_tilt_share ?? 0.5;
+    const awayTilt = physical.field_tilt?.away_tilt_share ?? 0.5;
+    const baseEnergyPool = Math.min(300, currentMinute * 6);
+    homeEnergy = Number((baseEnergyPool * homeTilt).toFixed(1));
+    awayEnergy = Number((baseEnergyPool * awayTilt).toFixed(1));
+  }
 
   // 3. 计算转化比率: 自适应能量基准调整
   // 标准 15m 窗口下，平均 50 点危攻能量为 1 个基准单位；
@@ -400,9 +417,16 @@ export function calculateEventPressureConversion(
     // 连续 Sigmoid 激活函数 S(x, x0, k)
     const sig = (x: number, x0: number, k: number) => 1.0 / (1.0 + Math.exp(-(x - x0) / k));
 
-    // 结合全场时序事件支撑（如 27 分钟进球）：提供平滑的时序事件转化补偿与得分支撑
-    const effectiveRatio = Math.max(ratio, Math.min(1.0, fullDecayedScore / 1.5));
-    const effectiveScore = Math.max(score, fullDecayedScore * 0.8);
+    // 检查事件流是否存在
+    const eventsAvailable = Array.isArray(events) && events.length > 0;
+    // 若事件流缺失，但物理统计（TTI、渗透、威胁度）充足，构建物理攻势转化代理，消除对事件流缺失的单点脆弱性
+    const statsConversionProxy = (!eventsAvailable && physical?.stats_available)
+      ? Math.min(1.0, (sideTTI ?? 1.0) * 0.40 + integrity * 0.60)
+      : 0;
+
+    // 结合全场时序事件支撑（如 27 分钟进球）与物理转化代理：提供平滑的时序事件转化补偿与得分支撑
+    const effectiveRatio = Math.max(ratio, statsConversionProxy, Math.min(1.0, fullDecayedScore / 1.5));
+    const effectiveScore = Math.max(score, statsConversionProxy * 1.5, fullDecayedScore * 0.8);
 
     // TTI 物理特征加成
     let ttiLethalBonus = 1.0;
@@ -418,8 +442,9 @@ export function calculateEventPressureConversion(
     const pLethal = sig(energy, 150, 25) * sig(effectiveRatio, 0.70, 0.12) * sig(integrity, 0.55, 0.12) * ttiLethalBonus;
 
     // 虚假繁荣 (BARREN_DOMINANCE) 核心特征是“空有危攻/控球，但全场时序缺乏转化”
-    // 若全场时序已有实质事件且尚未完全湮灭（fullDecayedScore > 0），则按其显著度指数压制虚假繁荣的误判
-    const barrenSuppression = Math.exp(-fullDecayedScore / 0.45);
+    // 若全场时序已有实质事件或物理转化代理充足（fullDecayedScore > 0 或 statsConversionProxy > 0.5），则按其显著度指数压制虚假繁荣的误判
+    const suppressionSignal = Math.max(fullDecayedScore, statsConversionProxy * 1.2);
+    const barrenSuppression = Math.exp(-suppressionSignal / 0.45);
     const pBarren = sig(energy, 150, 25) * (1.0 - sig(effectiveRatio, 0.40, 0.12)) * (conflict ? 1.35 : 1.0) * barrenSuppression * ttiBarrenMultiplier;
 
     // 建议 2：高锐度反击加成 (纵向推进极简且射正充足)
@@ -707,6 +732,25 @@ export function evaluateTacticalRegime(
   regimeMultiplierHome -= 0.10 * aControl;
   regimeMultiplierAway -= 0.10 * aControl;
 
+  // (E) 单边持续高压围攻态 (场面倾斜 >= 68% 且危攻能量强劲)
+  const homeTilt = physical.field_tilt?.home_tilt_share ?? 0.5;
+  const awayTilt = physical.field_tilt?.away_tilt_share ?? 0.5;
+  const aCrushHome = (homeTilt >= 0.68 && epi.home.energy_15m >= 180)
+    ? Math.min(0.85, (homeTilt - 0.50) * 2.2 * sig(epi.home.energy_15m, 180, 40))
+    : 0.0;
+  const aCrushAway = (awayTilt >= 0.68 && epi.away.energy_15m >= 180)
+    ? Math.min(0.85, (awayTilt - 0.50) * 2.2 * sig(epi.away.energy_15m, 180, 40))
+    : 0.0;
+
+  if (aCrushHome > 0) {
+    regimeMultiplierHome += 0.18 * aCrushHome;
+    regimeMultiplierAway -= 0.15 * aCrushHome;
+  }
+  if (aCrushAway > 0) {
+    regimeMultiplierAway += 0.18 * aCrushAway;
+    regimeMultiplierHome -= 0.15 * aCrushAway;
+  }
+
   // 叠加 10 分钟滑动窗口角球与密集射门聚类爆发因子
   regimeMultiplierHome *= burstCluster.home.burst_multiplier;
   regimeMultiplierAway *= burstCluster.away.burst_multiplier;
@@ -729,6 +773,7 @@ export function evaluateTacticalRegime(
   const stateCandidates = [
     { regime: TacticalRegimeType.RED_CARD_COLLAPSE, energy: aRed, desc: redSide === 'home' ? '主队染红少打一人，防线深度承压' : (redSide === 'away' ? '客队染红少打一人，主队围攻压制' : (redSide === 'both' ? '双方各罚下一人 (10v10)' : '')) },
     { regime: TacticalRegimeType.COLLAPSING_PANIC, energy: aPanic, desc: (yellowCollapseHome && yellowCollapseAway) ? '双方防线体能崩溃失控，连环受迫染黄互有漏洞' : (yellowCollapseHome ? '主队防线体能崩溃失控，连环受迫染黄防线洞开' : (yellowCollapseAway ? '客队防线体能崩溃失控，连环受迫染黄防线洞开' : '')) },
+    { regime: TacticalRegimeType.CRUSHING_EXPANSION, energy: Math.max(aCrushHome, aCrushAway), desc: aCrushHome > aCrushAway ? '主队半场深度围攻压制，持续施加高压撕扯防线' : '客队半场深度围攻压制，持续施加高压撕扯防线' },
     { regime: TacticalRegimeType.ELASTIC_COUNTER, energy: Math.max(aCounterHome, aCounterAway), desc: aCounterHome > aCounterAway ? '主队比分领先转入深度防守，客队大举围攻' : '客队比分领先转入深度防守，主队大举围攻' },
     { regime: TacticalRegimeType.DESPERATION_ASSAULT, energy: aDesperation, desc: scoreDiff < 0 ? '主队一球落后进入终盘绝境搏命，前场全线压上' : '客队一球落后进入终盘绝境搏命，节奏急剧加速' },
     { regime: TacticalRegimeType.GAME_CONTROL_DECELERATION, energy: aControl, desc: '领先优势确立，控场节奏放缓' },

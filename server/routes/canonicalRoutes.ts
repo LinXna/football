@@ -360,6 +360,7 @@ export function registerCanonicalRoutes(app: express.Express): void {
   app.get("/api/refactor/canonical-matches", (req, res) => {
     try {
       const mode = (req.query.mode as string) === "prematch" ? "prematch" : "live";
+      const isRefresh = req.query.refresh === "true" || req.query.recalculate === "true";
       let runtimeBatch = readRuntimeBatch(mode);
 
       // 如果 runtimeBatch 不存在，则执行初次懒加载装配
@@ -369,8 +370,8 @@ export function registerCanonicalRoutes(app: express.Express): void {
         } catch (e) {
           console.warn("[CanonicalRoutes] Initial assemble failed:", e);
         }
-      } else if (!runtimeBatch.quantitative_features || Object.keys(runtimeBatch.quantitative_features).length === 0) {
-        // 增量自动升级已有历史批次，预计算 Layer 03 特征集并更新磁盘持久化
+      } else {
+        // 始终使用最新量化与博弈引擎动态核算 Layer 03 特征集并同步磁盘，确保界面永远反映最新算法结果
         const quantitativeFeatures: Record<string, QuantitativeFeatures> = {};
         for (const match of runtimeBatch.matches) {
           const eligibility = isMatchQuantEligible(match);
@@ -378,9 +379,12 @@ export function registerCanonicalRoutes(app: express.Express): void {
             continue;
           }
           try {
-            quantitativeFeatures[match.canonical_id] = calculateQuantitativeFeatures(match, { calibration_archive: getLoadedOosArchive(), permissive_oos_mode: true });
+            quantitativeFeatures[match.canonical_id] = calculateQuantitativeFeatures(match, {
+              calibration_archive: getLoadedOosArchive(),
+              permissive_oos_mode: true,
+            });
           } catch (err: any) {
-            console.warn(`[CanonicalRoutes] Upgrade quant deferred for ${match.canonical_id}:`, err?.message || err);
+            console.warn(`[CanonicalRoutes] Refresh quant failed for ${match.canonical_id}:`, err?.message || err);
           }
         }
         runtimeBatch.quantitative_features = quantitativeFeatures;

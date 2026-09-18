@@ -1,41 +1,44 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260918-GLOBAL-TIER-ADAPTIVE-WINDOW-COUPLED-POISSON`
+- **任务编号 (Task)**: `SNAPSHOT-20260918-QUANT-CALCULATION-ISSUES-1-2-4`
 - **当前状态 (Status)**: `DONE`
-- **阶段进度 (Phase)**: `P5.10 足球量化系统深度重构工程 —— 全球全量联赛/国家队档次矩阵、赛会自适应回溯窗口、连续微积分场面剥夺泊松与中轴骨干战力拓扑全面重构落地 [已全面完成并通过全量验证]`
+- **阶段进度 (Phase)**: `P5.11 足球量化系统深度重构工程 —— 03 量化引擎核心计算三源容错弹性、攻守对偶破防与防线疲劳连环崩溃修正 (问题1, 2, 4 根治落地并全面通过自测与回归)`
 - **任务目标与交付清单 (Deliverables)**：
-  1. 【自适应赛事回溯窗口与平滑指数衰减 (`contextEngine.ts` & `globalTierMatrix.ts`)】：
-     - 彻底废除一刀切硬门禁，实现 `getAdaptiveLookbackWindow`：对青年/杯赛/国家队/大赛周期自适应扩展至 1460 天（4年奥运/世界杯周期），常规联赛 365 天；
-     - 引入大赛历史样本稀缺度补偿机制（Scarcity Compensation）：当近 1 年正赛/交锋极少（<= 2场）时，前置 1~4 年有效正赛样本赋予有效保底衰减权重，彻底解决国际赛会制和青年锦标赛样本物理蒸发痛点；
-     - 引入对手层级与坚韧度归一化（Opponent Tier / Strength Normalization），得分乘以对手防守抗压系数，失球以对手进攻强度归一化；
-     - 引入弱样本经验贝叶斯平滑收缩（Empirical Bayes Shrinkage toward 1.30 baseline）。
-  2. 【全球全量联赛与国家队档次矩阵及启发式推断引擎 (`globalTierMatrix.ts` & `prematchPriorEngine.ts`)】：
-     - 构建覆盖 UEFA / CONMEBOL / AFC / CONCACAF / CAF / OFC 全球六大洲国家队（T1~T5）及主流/次级/低级别联赛（T1~T5）的完备字典；
-     - 实现 100% 完备的启发式推断引擎（根据联赛/球队关键词、U字头国字号青年梯队继承与大洲属地推断），确保无漏网之鱼；
-     - 在赛前先验模型中结合对手层级、攻防韧性倍率全面修正 Dixon-Coles 经典进攻 Alpha 与防守 Beta。
-  3. 【中轴骨干战力拓扑与阵型绞杀解耦 (`contextEngine.ts` & `prematchPriorEngine.ts`)】：
-     - 深度提取门将-中卫-后腰-中锋中轴骨干配置，防线短板撕裂与中场绞杀流速抑制无缝接入；
-     - 边肋空档暴露与双后腰压迫风险物理级解耦。
-  4. 【时空时序波段微积分与连续场面倾斜耦合泊松 (`momentumQuantEngine.ts` & `poissonDecayModel.ts`)】：
-     - 滑动窗口微积分梯形积分能量面积（Waveform AUC）与一阶导数动量加速度；
-     - 场面倾斜指数（Field Tilt）与零射门剥夺阻尼（Zero-Shot Deprivation Damping）全面接入泊松二元网格计算，彻底消除被绝对压制时的 1-0（14%）荒谬概率。
-  5. 【真实双半场状态机与机构姿态双口径重构 (`poissonDecayModel.ts` & `devigCalculator.ts`)】：
-     - 解决纯盘口与赛前先验的逻辑界限，模型 EV 背离与盘口极端不对称（Z-Score / 赔率悬殊）双口径并行；
-     - 动态支持半场 45' 独立衰减。
-  6. 【全链路强类型契约与回归自测闭环】：
-     - 零 `any`，零 `@ts-ignore`，TypeScript 编译通过；
-     - 115 项测试套件 100% 绿灯通过，构建打包完全成功。
+  1. 【问题 1: 动量与三源层 (`eventMomentumFusion.ts`)】：
+     - 实现事件流缺失/未采集时的自适应弹性降级（Dual-Source Fallback）：当 `events` 缺失或为空时，无缝切换为“动量 + 物理统计”双源模型，消除因缺少 Timeline 事件而将围攻误判为假性冲突及威胁度被严重误杀压制；
+     - 攻防势能转化指数 (`calculateEventPressureConversion` / EPI) 引入物理统计代理：在缺乏事件流但物理技术统计强劲（TTI >= 1.2、危攻能量高、控球占优）时，有效抑制假性 `BARREN_DOMINANCE`（无效空占），评定真实围攻转化；
+     - 战术相变态识别引入单边高压围攻态 (`CRUSHING_EXPANSION`)：当两队比分维持 0-0 但一方控球/倾斜极度占优（Field Tilt >= 68% 且危攻能量充足）时，准确判定为单边围攻，打破不合理的 `NEUTRAL_EQUILIBRIUM`（势均力敌均势）。
+  2. 【问题 2: 泊松衰减与破防层 (`poissonDecayModel.ts`)】：
+     - 引入“攻守对偶破防与防线疲劳渗漏模型 (Dual Siege Breakthrough & Fatigue Leak)”：当场面倾斜极度失衡（一方零射门且 Field Tilt <= 0.30 遭受深度压制）时，不仅衰减被压制弱队的进球期望，同步赋予围攻强队下半场破防与疲劳渗漏增益 (`siegeBreakthroughBoost`)，彻底根治因双方进球期望人为双向衰减导致的总进球期望虚假塌缩与小球极高假 EV。
+  3. 【问题 4: 弱队防守崩溃与深盘走盘连环失球修正 (`poissonDecayModel.ts`)】：
+     - 针对半场 0-0 龟缩且零射门的被压制弱队，在生成二元泊松网格联合分布时，引入防线疲劳与连环失球修正（Cascade Conceding）：一旦攻方打入第一球打破僵局，守方防守纪律崩塌或被迫压出导致多球失球 ($a \ge 2$) 概率显著升高，消除弱队在受让深盘下依靠走盘机制产生的虚假数学安全边际。
+  4. 【时效半衰期传参兼容修复 (`contextEngine.ts` & `globalTierMatrix.ts`)】：
+     - 确保 `calculateH2HDecayWeights` 优先遵循明确传入的 `halfLifeDays`；`calculateRecentFormWeights` 区分常规俱乐部联赛（365天硬性门禁）与青年/赛会制赛事自适应扩展。
 - **改动文件清单 (Target Files)**：
-  - `/refactor/03_quant_engine/globalTierMatrix.ts` (新建)
+  - `/refactor/03_quant_engine/eventMomentumFusion.ts`
+  - `/refactor/03_quant_engine/poissonDecayModel.ts`
+  - `/refactor/03_quant_engine/contextEngine.ts`
+  - `/refactor/03_quant_engine/globalTierMatrix.ts`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **验证结论 (Verification Results)**：
+  - `npx tsx refactor/tests/verify_quant_engine.ts`: 全部 10 项量化与博弈引擎专项回归测试 100% 通过；
+  - `node --import tsx --test tests-ts/*.test.ts`: 全部 115 项全系统单元与集成测试 100% 通过；
+  - `lint_applet` & `compile_applet`: 0 TS 错误，构建与类型校验 100% 成功。
+
+---
+
+## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260918-GLOBAL-TIER-ADAPTIVE-WINDOW-COUPLED-POISSON (DONE)
+- **阶段进度**: `P5.10 足球量化系统深度重构工程 —— 全球全量联赛/国家队档次矩阵、赛会自适应回溯窗口、连续微积分场面剥夺泊松与中轴骨干战力拓扑全面重构落地 [已全面完成并通过全量验证]`
+- **改动文件清单 (Target Files)**：
+  - `/refactor/03_quant_engine/globalTierMatrix.ts`
   - `/refactor/03_quant_engine/types.ts`
   - `/refactor/03_quant_engine/contextEngine.ts`
   - `/refactor/03_quant_engine/prematchPriorEngine.ts`
   - `/refactor/03_quant_engine/momentumQuantEngine.ts`
   - `/refactor/03_quant_engine/poissonDecayModel.ts`
   - `/refactor/03_quant_engine/devigCalculator.ts`
-  - `/refactor/HANDOVER_AND_PROGRESS.md`
-- **下一步计划 (Next Steps)**：
-  - 严格按照蓝图逐项实施并自测，更新看板为 DONE。
 
 ---
 

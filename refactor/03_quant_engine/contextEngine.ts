@@ -257,7 +257,7 @@ export function calculateH2HDecayWeights(
     match.away_team_name
   );
   const maxValidDays = adaptiveWindow.maxDays;
-  const effectiveHalfLife = halfLifeDays === 365 ? adaptiveWindow.halfLifeDays : halfLifeDays;
+  const effectiveHalfLife = typeof halfLifeDays === 'number' ? halfLifeDays : adaptiveWindow.halfLifeDays;
   const decayConstant = Math.LN2 / effectiveHalfLife;
 
   const currentHomeId = match.reference?.home_team_id ?? match.reference?.league_standings?.home_team?.team_id ?? null;
@@ -561,8 +561,9 @@ export function calculateRecentFormWeights(
     const currentLeagueName = match.league_name || match.reference?.leisu_league_name || '';
     const isCurrentMatchFriendly = /友谊|Friendly|球会友谊/i.test(currentLeagueName);
     const adaptiveWindow = getAdaptiveLookbackWindow(currentLeagueName, targetTeamName);
-    const maxLookbackDays = adaptiveWindow.maxDays;
-    const halfLifeDays = adaptiveWindow.halfLifeDays;
+    const isTournamentOrYouth = /U23|U21|U20|U19|杯|Cup|锦标|亚运|奥运|Asian Games|Tournament|国奥|青年|World Cup|Asian Cup|Euro|洲际/i.test(currentLeagueName);
+    const maxLookbackDays = isTournamentOrYouth ? adaptiveWindow.maxDays : 365;
+    const halfLifeDays = isTournamentOrYouth ? adaptiveWindow.halfLifeDays : 120;
 
     // 预判近 365 天内有效样本数，若近 1 年正赛极其稀缺 (<= 2 场)，启动赛会/大赛周期历史样本稀缺度补偿
     const recent365Count = matches.filter((item) => {

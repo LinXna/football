@@ -865,11 +865,12 @@ export const CanonicalMatchCenter: React.FC = () => {
     return unconfirmed;
   };
 
-  const fetchCanonicalData = async () => {
+  const fetchCanonicalData = async (forceRefresh?: boolean) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/refactor/canonical-matches?mode=${mode}`);
+      const url = `/api/refactor/canonical-matches?mode=${mode}${forceRefresh ? '&refresh=true' : ''}`;
+      const res = await fetch(url);
       const data = await res.json();
       if (data.success) {
         setMatches(data.matches || []);
@@ -2008,10 +2009,10 @@ export const CanonicalMatchCenter: React.FC = () => {
 
           <button
             id="btn-refresh-canonical"
-            onClick={fetchCanonicalData}
+            onClick={() => fetchCanonicalData(true)}
             disabled={loading}
             className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors border border-slate-700"
-            title="刷新数据"
+            title="刷新数据并重新运行最新量化计算"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>

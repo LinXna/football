@@ -327,6 +327,6 @@ export function getAdaptiveLookbackWindow(leagueName?: string, homeName?: string
   if (/U23|U21|U20|U19|杯|Cup|锦标|亚运|奥运|Asian Games|Tournament|国奥|青年|World Cup|Asian Cup|Euro|洲际/i.test(combined)) {
     return { maxDays: 1460, halfLifeDays: 365 };
   }
-  return { maxDays: 365, halfLifeDays: 120 };
+  return { maxDays: 730, halfLifeDays: 365 };
 }
 

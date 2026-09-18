@@ -324,6 +324,27 @@ export function calculateBivariatePoissonGrid(
         const awayDeprivationFactor = Math.max(0.15, Math.min(1.0, Math.pow(awayTilt / 0.35, 1.5)));
         prob *= awayDeprivationFactor;
       }
+
+      // 弱队防线疲劳与连环失球溃败修正 (Defensive Cascade Conceding):
+      // 当一方被深度剥夺(零射门且 Tilt <= 0.30)且自身未能进球(h=0或a=0)时，
+      // 一旦围攻强队打入首球打破僵局，弱队防守纪律崩塌或被迫压出，多球失球(>=2球)的概率显著升高，
+      // 消除弱队在深盘受让下依赖走盘机制(单球失球退钱)产生的虚假数学安全边际。
+      if (homeDeprived && h === 0 && a >= 1) {
+        const cascadeFactor = Math.max(0.20, (0.35 - homeTilt) / 0.35);
+        if (a === 1) {
+          prob *= (1.0 - 0.25 * cascadeFactor);
+        } else if (a >= 2) {
+          prob *= (1.0 + 0.35 * cascadeFactor);
+        }
+      }
+      if (awayDeprived && a === 0 && h >= 1) {
+        const cascadeFactor = Math.max(0.20, (0.35 - awayTilt) / 0.35);
+        if (h === 1) {
+          prob *= (1.0 - 0.25 * cascadeFactor);
+        } else if (h >= 2) {
+          prob *= (1.0 + 0.35 * cascadeFactor);
+        }
+      }
       
       row.push(prob);
     }
@@ -801,8 +822,24 @@ export function calculateInPlayPoissonFeatures(
     deprivationDampAway = Math.max(0.15, Math.min(1.0, Math.pow((matchState.field_tilt_away ?? 0.20) / 0.35, 1.8)));
   }
 
-  const lambdaAfterLiveContextHome = lambdaBeforeLiveContextHome * blendedLiveFactorHome * oosMultiplier * deprivationDampHome;
-  const lambdaAfterLiveContextAway = lambdaBeforeLiveContextAway * blendedLiveFactorAway * oosMultiplier * deprivationDampAway;
+  // 5.4 攻守对偶破防与防线疲劳渗漏模型 (Dual Siege Breakthrough & Fatigue Leak)
+  // 当一方遭受极度场面剥夺(零射门且 Tilt <= 0.30)时，不仅被压制方的进攻期望塌缩，
+  // 压迫方在后半程(下半场)将显著享受“防线疲劳渗漏与破防红利”，进球期望获得对偶增强，彻底根治总进球期望人为塌缩导致的小球虚假极高 EV
+  let siegeBreakthroughBoostHome = 1.0;
+  let siegeBreakthroughBoostAway = 1.0;
+  if (deprivationDampAway < 0.60 && (matchState.field_tilt_home ?? 0.5) >= 0.65) {
+    const fatigueScale = elapsedMinute >= 45 ? 1.0 + ((elapsedMinute - 45) / 45.0) * 0.45 : 0.85;
+    const leakFactor = (1.0 - deprivationDampAway) * 0.45 * fatigueScale;
+    siegeBreakthroughBoostHome = 1.0 + leakFactor;
+  }
+  if (deprivationDampHome < 0.60 && (matchState.field_tilt_away ?? 0.5) >= 0.65) {
+    const fatigueScale = elapsedMinute >= 45 ? 1.0 + ((elapsedMinute - 45) / 45.0) * 0.45 : 0.85;
+    const leakFactor = (1.0 - deprivationDampHome) * 0.45 * fatigueScale;
+    siegeBreakthroughBoostAway = 1.0 + leakFactor;
+  }
+
+  const lambdaAfterLiveContextHome = lambdaBeforeLiveContextHome * blendedLiveFactorHome * oosMultiplier * deprivationDampHome * siegeBreakthroughBoostHome;
+  const lambdaAfterLiveContextAway = lambdaBeforeLiveContextAway * blendedLiveFactorAway * oosMultiplier * deprivationDampAway * siegeBreakthroughBoostAway;
 
   // 极值安全钳位
   const lambdaHomeRest = Math.max(0.01, Math.min(3.50, Number(lambdaAfterLiveContextHome.toFixed(3))));
