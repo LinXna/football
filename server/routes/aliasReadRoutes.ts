@@ -59,6 +59,62 @@ export function registerAliasMutationRoutes(app: express.Express, deps: AliasMut
     }
   });
 
+  app.post('/api/aliases/batch', (req, res) => {
+    try {
+      const items: Array<{ canonical_name: string; alias: string }> = Array.isArray(req.body?.aliases)
+        ? req.body.aliases
+        : Array.isArray(req.body)
+        ? req.body
+        : [];
+      if (items.length === 0) {
+        return res.json({ success: true, count: 0, message: 'No aliases provided' });
+      }
+
+      const manual = readJsonFile<Record<string, string[]>>(DATA_FILES.aliases.manual, {});
+      let modified = false;
+      let addedCount = 0;
+
+      for (const item of items) {
+        const canonicalName = String(item.canonical_name || '').trim();
+        const alias = String(item.alias || '').trim();
+        if (!canonicalName || !alias) continue;
+        if (normalize(canonicalName) === normalize(alias)) continue;
+
+        // 清理已有别名中占用该 alias 的其他实体
+        for (const [existingCanonical, aliases] of Object.entries(manual)) {
+          if (existingCanonical === canonicalName || !Array.isArray(aliases)) continue;
+          const filtered = aliases.filter((value) => value !== alias);
+          if (filtered.length !== aliases.length) {
+            manual[existingCanonical] = filtered;
+            modified = true;
+          }
+        }
+        if (Array.isArray(manual[alias])) {
+          manual[alias] = manual[alias].filter((value) => value !== canonicalName);
+          if (manual[alias].length === 0) delete manual[alias];
+          modified = true;
+        }
+
+        const currentList = manual[canonicalName] || [];
+        if (!currentList.includes(alias)) {
+          manual[canonicalName] = Array.from(new Set([...currentList, alias]));
+          modified = true;
+          addedCount++;
+        }
+        removeSuppression(canonicalName);
+      }
+
+      if (modified) {
+        requireJsonWrites([[DATA_FILES.aliases.manual, manual]]);
+        deps.synchronizeDecisions();
+      }
+
+      res.json({ success: true, count: addedCount, total_processed: items.length });
+    } catch (error: any) {
+      res.status(500).json({ error: error?.message || 'Failed to save batch aliases' });
+    }
+  });
+
   app.put('/api/aliases', (req, res) => {
     try {
       const oldCanonical = String(req.body?.old_canonical_name || '').trim();

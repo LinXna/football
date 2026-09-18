@@ -48,7 +48,10 @@ function buildMomentumAudit(
   if (available && timeline.window_basis !== 'MINUTE_ALIGNED') {
     defects.push('当前窗口不是按真实分钟坐标计算');
   }
-  const status = !available ? 'REJECTED' : defects.length > 0 ? 'DEGRADED' : 'USED';
+  if (match.data_consistency_audit?.is_timeline_stale) {
+    defects.push(`时序严重断流：时序点阵落后比赛时钟 ${match.data_consistency_audit.timeline_stale_lag} 分钟`);
+  }
+  const status = !available || match.data_consistency_audit?.is_timeline_stale ? 'REJECTED' : defects.length > 0 ? 'DEGRADED' : 'USED';
   return item(
     'ATTACK_MOMENTUM',
     'LEISU',

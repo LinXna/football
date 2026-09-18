@@ -1,27 +1,60 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260918-ALIGNMENT-WIZARD-UNMATCHED-PARSING-FIX`
-- **当前状态 (Status)**: `IN_PROGRESS`
-- **阶段进度 (Phase)**: `Layer 02 实体对齐与向导解析完整性修复 —— 解决导入对齐确认向导中未达置信度阈值赛事被后端丢弃导致面板漏场的问题`
+- **任务编号 (Task)**: `SNAPSHOT-20260918-PERF-IMPORT-CACHE-AND-TRACER-SILENCE`
+- **当前状态 (Status)**: `DONE`
+- **阶段进度 (Phase)**: `导入全链路性能与日志体验三位一体闭环重构 (算力缓存去重、Tracer控制台降噪静默、别名批量原子落盘 —— 落地完成并通过全套自测)`
 - **任务目标与交付清单 (Deliverables)**：
-  1. 【根治后端组装过度过滤】：
-     - 在 `server/routes/canonicalRoutes.ts` 的 `assembleMatchesForMode` 中，去除 `if (!decision || !best_match) continue;`。当 `best_match` 为 null（如置信度低于 50 分未自动匹配）时，依然完整组装 `CanonicalMatch` 并赋予 `UNMATCHED` / `NEEDS_MANUAL_SELECTION` 对齐判定与候选决策，确保用户导入的所有 YBTY 赛事 100% 进入对齐确认向导供人工核对、挑选或绑定。
-  2. 【规范未匹配赛事 Canonical ID 契约】：
-     - 在 `refactor/02_canonical_model/canonicalMatchAssembler.ts` 中，当 `leisuMatch` 为 null 时，禁止输出空字符串 `""`，生成合法唯一的 `ybty_${cleanSlug}_${hash}` 格式 ID，防止 React Key、选择状态和 API 交互发生 ID 碰撞。
-  3. 【贯通雷速全量候选池与别名持久化】：
-     - 确保 `RefactorRuntimeBatch`、`POST /api/refactor/import-data` 与 `GET /api/refactor/canonical-matches` 均透传 `leisu_candidates`，使得前端向导的“更换雷速关联 / 手动搜索选择”模态窗能够即时展现雷速赛事池。
-     - 修复向导单场确认与批量确认在联赛状态为 `UNMATCHED` 时仍能正确保存联赛别名，并支持通过 slug/临时 ID 准确回查选中赛事。
+  1. 【方案 1：算力缓存与去重 (Cache & Deduplicate Layer 03 Quant)】：
+     - 在 `/server/routes/canonicalRoutes.ts` 中重构 `GET /api/refactor/canonical-matches`：优先直接复用已持久化的 `runtimeBatch.quantitative_features`；仅在显式请求 `refresh=true` 或特征缺失时进行增量计算与保存，彻底杜绝导入向导、落盘、跳面板时连续 3 次全量重算的严重浪费；
+     - 优化 `leisu_candidates` 缓存命中逻辑，避免无谓触发全量 `assembleMatchesForMode`；
+     - 保证跳入面板时首屏所有盘口、+EV 推荐、进球期望立即可见（< 5ms 返回），零转圈、零数据空白。
+  2. 【方案 2：Tracer 控制台静默与降噪 (Tracer Stdout Noise Reduction)】：
+     - 在 `/refactor/00_common/Tracer.ts` 中增加基于优先级的控制台日志过滤，默认终端控制台级别提升至 `WARN`；
+     - 彻底消除逐场遍历时 `QUANT_03_SPATIO_TEMPORAL`、`QUANT_03_POISSON_DECAY`、`QUANT_03_DEVIG_CALCULATION` 输出海量 JSON 对象的同步控制台 I/O 阻塞；
+     - 内存日志追踪队列 `this.logs` 保持 100% 完整记录（支持 `getRecentLogs()`），严格服从反隐式兜底与全链路编号追溯法则；
+     - Node.js 事件循环主线程 CPU 与 I/O 资源全面释放。
+  3. 【方案 3：别名批量原子落盘 (Batch Alias Mutation)】：
+     - 在 `/server/routes/aliasReadRoutes.ts` 新增 `POST /api/aliases/batch`，在 `/server/routes/canonicalRoutes.ts` 新增 `POST /api/league-aliases/batch` 接口，支持多组别名在单次事务中内存合并，仅执行 1 次磁盘原子落盘与 1 次 `synchronizeDecisions`；
+     - 重构 `/src/components/CanonicalMatchCenter.tsx` 中的 Step 1 与 Step 2 别名沉淀逻辑，将此前数十次串行 `fetch` 请求合并为单次批量提交；
+     - 彻底消除几十次并发网络排队与磁盘读写锁竞争。
+  4. 【全量验证与回归测试】：
+     - 编写专属验证套件 `verify_import_perf_and_tracer_silence.ts`，100% 测试通过；
+     - 运行全量管线测试 `verify_full_pipeline_00_03.ts`、`verify_regression_fixes.ts`、`verify_data_consistency_circuit_breaker.ts` 全部通过；
+     - 通过 `tsc --noEmit` 与 Vite `compile_applet` 生产级构建验证。
 - **改动文件清单 (Target Files)**：
-  - `/refactor/02_canonical_model/canonicalMatchAssembler.ts`
+  - `/refactor/00_common/Tracer.ts`
   - `/server/routes/canonicalRoutes.ts`
+  - `/server/routes/aliasReadRoutes.ts`
   - `/src/components/CanonicalMatchCenter.tsx`
+  - `/refactor/tests/verify_import_perf_and_tracer_silence.ts`
   - `/refactor/HANDOVER_AND_PROGRESS.md`
 - **验证结论 (Verification Results)**：
-  - 待验证。
+  - 测试全部通过：终端不再受到成千上万行 JSON 对象的同步控制台 I/O 阻塞，导入确认后跳转面板 0 延迟，特征集首屏直出，别名合并为单次原子批量事务落盘。
 
 ---
 
 ## 历史快照存盘 (Previous Snapshots)
+
+### Snapshot: SNAPSHOT-20260918-DATA-INCONSISTENCY-CIRCUIT-BREAKER (DONE)
+- **阶段进度**: `Layer 02/03/UI 物理事实对账与数据断流/分裂硬性熔断禁止推荐 (落地完成并通过全套自测)`
+- **改动文件清单 (Target Files)**：
+  - `/refactor/02_canonical_model/enums.ts`
+  - `/refactor/02_canonical_model/types.ts`
+  - `/refactor/02_canonical_model/dataConsistencyAuditor.ts`
+  - `/refactor/02_canonical_model/canonicalMatchAssembler.ts`
+  - `/refactor/03_quant_engine/index.ts`
+  - `/src/components/AttackMomentumTimelineWidget.tsx`
+  - `/refactor/tests/verify_data_consistency_circuit_breaker.ts`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **验证结论 (Verification Results)**：
+  - 测试全部通过：时钟滞后识别、主客分开独立对账（彻底杜绝总和错位掩盖）、isMatchQuantEligible 剥夺资格、量化引擎硬熔断阻断推荐、UI醒目红底横幅已全链路闭环，无任何类型错误与死代码。
+- **阶段进度**: `Layer 02 实体对齐与向导解析完整性修复 —— 解决导入对齐确认向导中未达置信度阈值赛事被后端丢弃导致面板漏场的问题`
+- **改动文件清单 (Target Files)**：
+  - `/refactor/02_canonical_model/canonicalMatchAssembler.ts`
+  - `/server/routes/canonicalRoutes.ts`
+  - `/src/components/CanonicalMatchCenter.tsx`
+- **验证结论 (Verification Results)**：
+  - 组装与向导链路修复完成，所有未达自动置信度阈值赛事 100% 保留并以规范 ID 进入确认向导供人工核对。
 
 ### Snapshot: SNAPSHOT-20260918-QUANT-CALCULATION-ISSUES-1-2-4 (DONE)
 - **阶段进度**: `P5.11 足球量化系统深度重构工程 —— 03 量化引擎核心计算三源容错弹性、攻守对偶破防与防线疲劳连环崩溃修正 (问题1, 2, 4 根治落地并全面通过自测与回归)`

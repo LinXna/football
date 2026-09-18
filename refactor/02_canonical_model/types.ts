@@ -197,6 +197,9 @@ export interface CanonicalMatch {
 
   // 7. 雷速全量基本面与时序增强包（未匹配或缺失时为 null）
   reference: CanonicalLeisuReference | null;
+
+  // 8. 物理事实与时序流严格对账审计结果 (断流/不一致时一票否决禁止推荐)
+  data_consistency_audit?: import('./dataConsistencyAuditor.js').DataConsistencyAuditResult;
 }
 
 /**

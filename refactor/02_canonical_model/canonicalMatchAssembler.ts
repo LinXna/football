@@ -30,6 +30,7 @@ import {
 } from "./types";
 
 import { ParsedLeisuMatch, ParsedLeisuTimelineEvent } from "../01_data_ingestion/leisu/types";
+import { auditDataConsistency } from "./dataConsistencyAuditor";
 
 /**
  * 格式化时间戳/ISO字符串/相对时间为标准北京时间字符串 (YYYY-MM-DD HH:mm:ss 或 YYYY-MM-DD HH:mm)
@@ -542,7 +543,7 @@ export function assembleCanonicalMatch(
     canonicalId = `ybty_${clean}_${Math.abs(hash)}`;
   }
 
-  return {
+  const preliminaryMatch: CanonicalMatch = {
     canonical_id: canonicalId,
     match_slug: matchSlug,
     created_at: new Date().toISOString(),
@@ -556,6 +557,32 @@ export function assembleCanonicalMatch(
     score,
     markets: ybtyMatch.markets,
     reference,
+  };
+
+  const consistencyAudit = auditDataConsistency(preliminaryMatch);
+  if (consistencyAudit.has_critical_inconsistency) {
+    if (consistencyAudit.is_timeline_stale && !missingReasons.includes(MissingDataReason.TIMELINE_STALE)) {
+      missingReasons.push(MissingDataReason.TIMELINE_STALE);
+    }
+    const hasFactMismatch = (
+      consistencyAudit.is_home_goal_mismatch ||
+      consistencyAudit.is_away_goal_mismatch ||
+      consistencyAudit.is_home_corner_mismatch ||
+      consistencyAudit.is_away_corner_mismatch ||
+      consistencyAudit.is_home_red_card_mismatch ||
+      consistencyAudit.is_away_red_card_mismatch
+    );
+    if (hasFactMismatch && !missingReasons.includes(MissingDataReason.EVENT_FACTS_MISMATCH)) {
+      missingReasons.push(MissingDataReason.EVENT_FACTS_MISMATCH);
+    }
+    completenessTier = DataCompletenessTier.TIER_INVALID;
+  }
+
+  return {
+    ...preliminaryMatch,
+    completeness_tier: completenessTier,
+    missing_reasons: missingReasons,
+    data_consistency_audit: consistencyAudit,
   };
 }
 
@@ -661,6 +688,9 @@ export function extractAiEvaluationBrief(canonical: CanonicalMatch): AiEvaluatio
   }
 
   const dataDeficits = (canonical.missing_reasons ?? []).map(r => String(r));
+  if (canonical.data_consistency_audit?.has_critical_inconsistency) {
+    dataDeficits.push(...canonical.data_consistency_audit.block_reasons);
+  }
 
   let kickoffTimeDisplay = canonical.timing.beijing_start_time ?? "缺失";
   if (canonical.timing.start_time_source === 'YBTY_ESTIMATED') {

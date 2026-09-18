@@ -53,6 +53,7 @@ import { buildLayer03DataAudit, buildLayer03ProductionGate } from './dataAudit.j
 import { evaluateCandidatePipeline } from './candidateStateMachine.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
+import { auditDataConsistency } from '../02_canonical_model/dataConsistencyAuditor.js';
 
 export * from './enums.js';
 export * from './types.js';
@@ -508,6 +509,15 @@ export function isMatchQuantEligible(match: CanonicalMatch): { eligible: boolean
     };
   }
 
+  // 物理事实与时序流一致性硬对账 (时钟滞后>3分、主客进球/角球/红牌事实分裂一票否决)
+  const consistencyAudit = match.data_consistency_audit ?? auditDataConsistency(match);
+  if (consistencyAudit.has_critical_inconsistency) {
+    return {
+      eligible: false,
+      reason: consistencyAudit.summary_reason,
+    };
+  }
+
   return { eligible: true };
 }
 
@@ -552,6 +562,12 @@ export function calculateQuantitativeFeatures(
         (match.score.home_score === null || match.score.home_score === undefined || match.score.away_score === null || match.score.away_score === undefined || !match.score.score_verified))) {
     collector?.record('UNPRICEABLE_MATCH', Layer03OpId.ORCHESTRATE_QUANT, 'RC-005', 'Core pricing data (minute or verified score) is missing. Cannot evaluate expected values.', undefined, match.canonical_id);
     throw new Error(`UNPRICEABLE_MATCH: Core pricing data is missing, blocking Quantitative Engine execution for match ${match.canonical_id}.`);
+  }
+
+  const consistencyAudit = match.data_consistency_audit ?? auditDataConsistency(match);
+  if (consistencyAudit.has_critical_inconsistency) {
+    collector?.record('DATA_CONSISTENCY_BREACH', Layer03OpId.ORCHESTRATE_QUANT, 'RC-006', consistencyAudit.summary_reason, undefined, match.canonical_id);
+    throw new Error(`DATA_CONSISTENCY_BREACH: Match ${match.canonical_id} failed physical data consistency audit: ${consistencyAudit.summary_reason}`);
   }
 
   // 1. M2: 数据时效衰减与情境清洗

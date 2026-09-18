@@ -11,9 +11,14 @@ import {
   extractAiEvaluationBrief,
 } from "../../refactor/02_canonical_model/canonicalMatchAssembler";
 import {
+  MatchAlignmentStatus,
+  LeagueMatchStatus,
+} from "../../refactor/02_canonical_model/enums";
+import {
   GenericYbtyMatch,
   CanonicalMatch,
   AiEvaluationBrief,
+  MatchAlignmentDecision,
 } from "../../refactor/02_canonical_model/types";
 import { ParsedLeisuMatch } from "../../refactor/01_data_ingestion/leisu/types";
 import { calculateQuantitativeFeatures, isMatchQuantEligible } from "../../refactor/03_quant_engine";
@@ -415,24 +420,31 @@ export function registerCanonicalRoutes(app: express.Express): void {
           console.warn("[CanonicalRoutes] Initial assemble failed:", e);
         }
       } else {
-        // 始终使用最新量化与博弈引擎动态核算 Layer 03 特征集并同步磁盘，确保界面永远反映最新算法结果
-        const quantitativeFeatures: Record<string, QuantitativeFeatures> = {};
+        // 增量检查：仅当显式请求强制刷新 (isRefresh) 或存在未计算特征的赛事时，才调用量化引擎并落盘
+        let needSave = false;
+        if (!runtimeBatch.quantitative_features) {
+          runtimeBatch.quantitative_features = {};
+        }
         for (const match of runtimeBatch.matches) {
-          const eligibility = isMatchQuantEligible(match);
-          if (!eligibility.eligible) {
-            continue;
-          }
-          try {
-            quantitativeFeatures[match.canonical_id] = calculateQuantitativeFeatures(match, {
-              calibration_archive: getLoadedOosArchive(),
-              permissive_oos_mode: true,
-            });
-          } catch (err: any) {
-            console.warn(`[CanonicalRoutes] Refresh quant failed for ${match.canonical_id}:`, err?.message || err);
+          if (isRefresh || !runtimeBatch.quantitative_features[match.canonical_id]) {
+            const eligibility = isMatchQuantEligible(match);
+            if (!eligibility.eligible) {
+              continue;
+            }
+            try {
+              runtimeBatch.quantitative_features[match.canonical_id] = calculateQuantitativeFeatures(match, {
+                calibration_archive: getLoadedOosArchive(),
+                permissive_oos_mode: true,
+              });
+              needSave = true;
+            } catch (err: any) {
+              console.warn(`[CanonicalRoutes] Refresh quant failed for ${match.canonical_id}:`, err?.message || err);
+            }
           }
         }
-        runtimeBatch.quantitative_features = quantitativeFeatures;
-        writeJsonFile(runtimePath(mode), runtimeBatch);
+        if (needSave) {
+          writeJsonFile(runtimePath(mode), runtimeBatch);
+        }
       }
 
       const result = runtimeBatch ?? {
@@ -464,7 +476,7 @@ export function registerCanonicalRoutes(app: express.Express): void {
         leisu_candidates:
           runtimeBatch?.leisu_candidates && runtimeBatch.leisu_candidates.length > 0
             ? runtimeBatch.leisu_candidates
-            : assembleMatchesForMode(mode).leisuCandidates,
+            : [],
       });
     } catch (error: any) {
       console.error("[CanonicalRoutes] Error assembling canonical matches:", error);
@@ -528,6 +540,59 @@ export function registerCanonicalRoutes(app: express.Express): void {
 
       writeJsonFile(REFACTOR_STORAGE.leagueAliases, aliases);
       res.json({ success: true, message: `联赛别名已保存: ${canonical_name} -> ${alias}`, aliases });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/league-aliases/batch
+   * 批量新增或更新联赛别名映射
+   */
+  app.post("/api/league-aliases/batch", (req, res) => {
+    try {
+      const items: Array<{ canonical_name: string; alias: string }> = Array.isArray(req.body?.aliases)
+        ? req.body.aliases
+        : Array.isArray(req.body)
+        ? req.body
+        : [];
+      if (items.length === 0) {
+        return res.json({ success: true, count: 0, message: "No league aliases provided" });
+      }
+
+      const aliases = readJsonFile<Record<string, string | string[]>>(REFACTOR_STORAGE.leagueAliases, {});
+      let modified = false;
+      let addedCount = 0;
+
+      for (const item of items) {
+        const canonical_name = String(item.canonical_name || "").trim();
+        const alias = String(item.alias || "").trim();
+        if (!canonical_name || !alias || canonical_name === alias) continue;
+
+        const existing = aliases[canonical_name];
+        if (Array.isArray(existing)) {
+          if (!existing.includes(alias)) {
+            aliases[canonical_name] = [...existing, alias];
+            modified = true;
+            addedCount++;
+          }
+        } else if (typeof existing === "string") {
+          if (existing !== alias) {
+            aliases[canonical_name] = [existing, alias];
+            modified = true;
+            addedCount++;
+          }
+        } else {
+          aliases[canonical_name] = [alias];
+          modified = true;
+          addedCount++;
+        }
+      }
+
+      if (modified) {
+        writeJsonFile(REFACTOR_STORAGE.leagueAliases, aliases);
+      }
+      res.json({ success: true, count: addedCount, total_processed: items.length });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
     }

@@ -1183,31 +1183,31 @@ export const CanonicalMatchCenter: React.FC = () => {
             message: `数据初筛装配完成！共识别并载入 ${newMatches.length} 场赛事，请勾选需要导入的赛事（高置信度赛事已自动勾选）。`,
           });
         } else {
-          // 100% 赛事完全对齐：后台并发静默沉淀全部新别名映射，实现一次导入永久自动对齐
+          // 100% 赛事完全对齐：后台批量沉淀全部新别名映射，实现一次导入永久自动对齐
           (async () => {
+            const batchAliases: Array<{ canonical_name: string; alias: string }> = [];
             for (const m of newMatches) {
               if (m.reference) {
                 if (!m.alignment?.home_team_match?.is_alias_exact_hit && m.reference.leisu_home_name) {
-                  fetch("/api/aliases", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      canonical_name: m.home_team_name,
-                      alias: m.reference.leisu_home_name,
-                    }),
-                  }).catch(() => {});
+                  batchAliases.push({
+                    canonical_name: m.home_team_name,
+                    alias: m.reference.leisu_home_name,
+                  });
                 }
                 if (!m.alignment?.away_team_match?.is_alias_exact_hit && m.reference.leisu_away_name) {
-                  fetch("/api/aliases", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      canonical_name: m.away_team_name,
-                      alias: m.reference.leisu_away_name,
-                    }),
-                  }).catch(() => {});
+                  batchAliases.push({
+                    canonical_name: m.away_team_name,
+                    alias: m.reference.leisu_away_name,
+                  });
                 }
               }
+            }
+            if (batchAliases.length > 0) {
+              fetch("/api/aliases/batch", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ aliases: batchAliases }),
+              }).catch(() => {});
             }
           })();
 
@@ -1470,42 +1470,25 @@ export const CanonicalMatchCenter: React.FC = () => {
     setImportBatchProcessing(true);
     let successAliasCount = 0;
 
+    const teamAliasesBatch: Array<{ canonical_name: string; alias: string }> = [];
+    const leagueAliasesBatch: Array<{ canonical_name: string; alias: string }> = [];
+
     for (const matchId of selectedImportMatchIds) {
       const matchCand = importPendingMatches.find((m) => m.canonical_id === matchId);
       if (!matchCand) continue;
 
       if (!matchCand.home_alias_hit && matchCand.leisu_home) {
-        try {
-          const res = await fetch("/api/aliases", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              canonical_name: matchCand.ybty_home,
-              alias: matchCand.leisu_home,
-            }),
-          });
-          const d = await res.json();
-          if (d.success) successAliasCount++;
-        } catch {
-          // ignore
-        }
+        teamAliasesBatch.push({
+          canonical_name: matchCand.ybty_home,
+          alias: matchCand.leisu_home,
+        });
       }
 
       if (!matchCand.away_alias_hit && matchCand.leisu_away) {
-        try {
-          const res = await fetch("/api/aliases", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              canonical_name: matchCand.ybty_away,
-              alias: matchCand.leisu_away,
-            }),
-          });
-          const d = await res.json();
-          if (d.success) successAliasCount++;
-        } catch {
-          // ignore
-        }
+        teamAliasesBatch.push({
+          canonical_name: matchCand.ybty_away,
+          alias: matchCand.leisu_away,
+        });
       }
 
       if (
@@ -1513,20 +1496,38 @@ export const CanonicalMatchCenter: React.FC = () => {
         matchCand.leisu_league &&
         matchCand.ybty_league !== matchCand.leisu_league
       ) {
-        try {
-          const res = await fetch("/api/league-aliases", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              canonical_name: matchCand.ybty_league,
-              alias: matchCand.leisu_league,
-            }),
-          });
-          const d = await res.json();
-          if (d.success) successAliasCount++;
-        } catch {
-          // ignore
-        }
+        leagueAliasesBatch.push({
+          canonical_name: matchCand.ybty_league,
+          alias: matchCand.leisu_league,
+        });
+      }
+    }
+
+    if (teamAliasesBatch.length > 0) {
+      try {
+        const res = await fetch("/api/aliases/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ aliases: teamAliasesBatch }),
+        });
+        const d = await res.json();
+        if (d.success) successAliasCount += (d.count ?? teamAliasesBatch.length);
+      } catch {
+        // ignore
+      }
+    }
+
+    if (leagueAliasesBatch.length > 0) {
+      try {
+        const res = await fetch("/api/league-aliases/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ aliases: leagueAliasesBatch }),
+        });
+        const d = await res.json();
+        if (d.success) successAliasCount += (d.count ?? leagueAliasesBatch.length);
+      } catch {
+        // ignore
       }
     }
 

@@ -94,6 +94,13 @@ export interface ParsedTimelineData {
   trend: 'HOME_HEAVY_PRESSURE' | 'AWAY_HEAVY_PRESSURE' | 'BALANCED_CONTEST';
   tacticalConversionZh: string;
   verdictZh: string;
+  consistencyAudit: {
+    isStale: boolean;
+    staleLagMins: number;
+    hasCriticalInconsistency: boolean;
+    blockReasons: string[];
+    summary: string;
+  };
 }
 
 /**
@@ -334,6 +341,13 @@ export function extractAttackMomentumTimeline(match?: DecisionItem | any): Parse
       trend: 'BALANCED_CONTEST',
       tacticalConversionZh: '',
       verdictZh: '暂无数据',
+      consistencyAudit: {
+        isStale: false,
+        staleLagMins: 0,
+        hasCriticalInconsistency: false,
+        blockReasons: [],
+        summary: '',
+      },
     };
   }
 
@@ -462,6 +476,13 @@ export function extractAttackMomentumTimeline(match?: DecisionItem | any): Parse
       trend,
       tacticalConversionZh: '',
       verdictZh: isPrematch ? '赛前待开赛，攻势曲线尚未生成' : '雷速暂未返回分分钟动能打分点阵（已展示即时技术统计与事件流）',
+      consistencyAudit: {
+        isStale: false,
+        staleLagMins: 0,
+        hasCriticalInconsistency: false,
+        blockReasons: [],
+        summary: '',
+      },
     };
   }
 
@@ -725,7 +746,92 @@ export function extractAttackMomentumTimeline(match?: DecisionItem | any): Parse
     tacticalConversion = '攻势窗口期伴随角球与持续定位球威胁，不断向对方禁区施压。';
   }
 
-  const currentMin = match?.minute && match.minute > 0 ? match.minute : (allPoints[allPoints.length - 1]?.min || 0);
+  const currentMin = Number(match?.minute ?? std?.minute ?? (allPoints[allPoints.length - 1]?.min || 0));
+
+  // 物理事实与时钟严格对账审计 (时钟硬对账 + 主客进球/角球/红牌独立对账)
+  const isLive = !isPrematch;
+  const totalMomentumPoints = allPoints.length;
+  const isTimelineStale = isLive && (currentMin - totalMomentumPoints > 3);
+  const staleLagMins = isLive ? Math.max(0, currentMin - totalMomentumPoints) : 0;
+
+  // 记分牌与技术统计主客事实
+  const scoreboardHomeGoals = Number(match?.home_score ?? std?.home_score ?? match?.score?.home_score ?? 0);
+  const scoreboardAwayGoals = Number(match?.away_score ?? std?.away_score ?? match?.score?.away_score ?? 0);
+  const statsHomeCorners = std?.unified_stats?.corners?.home ?? match?.reference?.stats?.corners?.home ?? null;
+  const statsAwayCorners = std?.unified_stats?.corners?.away ?? match?.reference?.stats?.corners?.away ?? null;
+  const statsHomeRedCards = std?.unified_stats?.red_cards?.home ?? match?.reference?.stats?.red_cards?.home ?? null;
+  const statsAwayRedCards = std?.unified_stats?.red_cards?.away ?? match?.reference?.stats?.red_cards?.away ?? null;
+
+  // 事件流主客事实
+  let evHomeGoals = 0;
+  let evAwayGoals = 0;
+  let evHomeCorners = 0;
+  let evAwayCorners = 0;
+  let evHomeRedCards = 0;
+  let evAwayRedCards = 0;
+
+  for (const inc of incidents) {
+    if (inc.isGoal) {
+      if (inc.side === 'home') evHomeGoals++;
+      else if (inc.side === 'away') evAwayGoals++;
+    }
+    if (inc.isCorner) {
+      if (inc.side === 'home') evHomeCorners++;
+      else if (inc.side === 'away') evAwayCorners++;
+    }
+    if (inc.isCard && inc.icon === '🟥') {
+      if (inc.side === 'home') evHomeRedCards++;
+      else if (inc.side === 'away') evAwayRedCards++;
+    }
+  }
+
+  const isHomeGoalMismatch = scoreboardHomeGoals !== evHomeGoals;
+  const isAwayGoalMismatch = scoreboardAwayGoals !== evAwayGoals;
+  const isHomeCornerMismatch = (statsHomeCorners !== null && statsHomeCorners !== undefined) && (statsHomeCorners !== evHomeCorners);
+  const isAwayCornerMismatch = (statsAwayCorners !== null && statsAwayCorners !== undefined) && (statsAwayCorners !== evAwayCorners);
+  const isHomeRedCardMismatch = (statsHomeRedCards !== null && statsHomeRedCards !== undefined) && (statsHomeRedCards !== evHomeRedCards);
+  const isAwayRedCardMismatch = (statsAwayRedCards !== null && statsAwayRedCards !== undefined) && (statsAwayRedCards !== evAwayRedCards);
+
+  const blockReasons: string[] = [];
+  if (isTimelineStale) {
+    blockReasons.push(`时序严重断流：当前比赛第 ${currentMin} 分钟，但危攻时序仅提供 ${totalMomentumPoints} 分钟数据（滞后 ${staleLagMins} 分钟）`);
+  }
+  if (isHomeGoalMismatch) {
+    blockReasons.push(`主队进球不自洽：记分牌显示 ${scoreboardHomeGoals} 球，但事件轴仅记录 ${evHomeGoals} 球`);
+  }
+  if (isAwayGoalMismatch) {
+    blockReasons.push(`客队进球不自洽：记分牌显示 ${scoreboardAwayGoals} 球，但事件轴仅记录 ${evAwayGoals} 球`);
+  }
+  if (isHomeCornerMismatch) {
+    blockReasons.push(`主队角球不自洽：技术统计显示 ${statsHomeCorners} 个，但事件轴记录 ${evHomeCorners} 个`);
+  }
+  if (isAwayCornerMismatch) {
+    blockReasons.push(`客队角球不自洽：技术统计显示 ${statsAwayCorners} 个，但事件轴记录 ${evAwayCorners} 个`);
+  }
+  if (isHomeRedCardMismatch) {
+    blockReasons.push(`主队红牌不自洽：技术统计显示 ${statsHomeRedCards} 张，但事件轴记录 ${evHomeRedCards} 张`);
+  }
+  if (isAwayRedCardMismatch) {
+    blockReasons.push(`客队红牌不自洽：技术统计显示 ${statsAwayRedCards} 张，但事件轴记录 ${evAwayRedCards} 张`);
+  }
+
+  // 融合底层 CanonicalMatch 中的 audit
+  if (match?.data_consistency_audit?.block_reasons) {
+    for (const r of match.data_consistency_audit.block_reasons) {
+      if (!blockReasons.includes(r)) {
+        blockReasons.push(r);
+      }
+    }
+  }
+
+  const hasCriticalInconsistency = blockReasons.length > 0;
+  const consistencyAudit = {
+    isStale: isTimelineStale,
+    staleLagMins,
+    hasCriticalInconsistency,
+    blockReasons,
+    summary: hasCriticalInconsistency ? `底层数据物理断流/事实分裂（已硬性熔断禁止推荐）：${blockReasons.join('；')}` : '物理事实校验一致',
+  };
 
   return {
     hasTimeline: true,
@@ -742,6 +848,7 @@ export function extractAttackMomentumTimeline(match?: DecisionItem | any): Parse
     trend,
     tacticalConversionZh: tacticalConversion,
     verdictZh,
+    consistencyAudit,
   };
 }
 
@@ -816,6 +923,12 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
 
     return (
       <div className="bg-slate-950/90 border border-indigo-900/40 rounded px-2.5 py-2 font-mono text-[10px] space-y-1.5 shadow-sm">
+        {parsed.consistencyAudit.hasCriticalInconsistency && (
+          <div className="bg-rose-950/80 border border-rose-600/60 rounded px-2 py-1 text-rose-200 text-[9px] flex items-center gap-1.5 font-bold">
+            <ShieldAlert className="w-3 h-3 text-rose-400 shrink-0" />
+            <span>数据严重断流/事实分裂 (已熔断禁止推荐)</span>
+          </div>
+        )}
         {/* Compact Top Row: Title + Pattern + Trend Badge */}
         <div className="flex items-center justify-between gap-1.5">
           <div className="flex items-center gap-1 font-bold text-slate-200">
@@ -875,6 +988,19 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
 
     return (
       <div className="bg-slate-950/80 border border-slate-800/80 rounded-lg p-2.5 font-mono text-[11px] space-y-2">
+        {parsed.consistencyAudit.hasCriticalInconsistency && (
+          <div className="bg-rose-950/80 border border-rose-500/70 rounded p-2 text-rose-200 text-[10px] space-y-1">
+            <div className="flex items-center gap-1.5 font-bold text-rose-300">
+              <ShieldAlert className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+              <span>底层数据严重断流 / 事实分裂（系统已硬性熔断禁止推荐）</span>
+            </div>
+            <div className="text-rose-300/90 pl-5 text-[9.5px]">
+              {parsed.consistencyAudit.blockReasons.map((r, i) => (
+                <div key={i}>• {r}</div>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 font-bold text-slate-300">
             <Activity className="w-3.5 h-3.5 text-slate-400" />
@@ -930,6 +1056,27 @@ export const AttackMomentumTimelineWidget: React.FC<WidgetProps> = ({ match, com
 
   return (
     <div className="bg-slate-950/95 border border-indigo-900/40 rounded-lg p-3 space-y-2.5 font-mono text-[11px] shadow-sm">
+      {/* 物理事实与时序一致性硬熔断警示条 (消除用户误解，显式说明禁止推荐) */}
+      {parsed.consistencyAudit.hasCriticalInconsistency && (
+        <div className="bg-rose-950/90 border border-rose-500/80 rounded-md p-2.5 text-rose-100 shadow-md">
+          <div className="flex items-center gap-2 font-bold text-rose-300 text-xs">
+            <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>底层数据严重断流 / 物理事实分裂（系统已硬性熔断禁止推荐）</span>
+          </div>
+          <div className="mt-1.5 space-y-1 text-[11px] text-rose-200/90 pl-5">
+            {parsed.consistencyAudit.blockReasons.map((reason, idx) => (
+              <div key={idx} className="flex items-start gap-1.5">
+                <span className="text-rose-400 font-bold">•</span>
+                <span>{reason}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 pt-1.5 border-t border-rose-800/50 text-[10px] text-rose-300/80 font-sans pl-1">
+            * <strong>风控与量化红线说明</strong>：当时钟与危攻时序严重脱节或进球/角球/红牌事实分裂时，任何量化定价模型与大模型提示词都会被垃圾数据污染并产生致命误判。依据系统硬契约，此赛事已一票否决剥夺推荐资格 (<strong>NO_BET</strong>)。
+          </div>
+        </div>
+      )}
+
       {/* Header bar: Title, Share & Status */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 font-bold text-slate-200">

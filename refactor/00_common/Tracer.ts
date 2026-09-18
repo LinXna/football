@@ -9,6 +9,13 @@
 
 export type TraceLogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 
+const LEVEL_PRIORITY: Record<TraceLogLevel, number> = {
+  DEBUG: 0,
+  INFO: 1,
+  WARN: 2,
+  ERROR: 3,
+};
+
 export interface TraceEntry {
   timestamp: string;
   level: TraceLogLevel;
@@ -23,6 +30,7 @@ export class Tracer {
   private static instance: Tracer;
   private logs: TraceEntry[] = [];
   private isSilent: boolean = false;
+  private minConsoleLevel: TraceLogLevel = (process.env.TRACER_CONSOLE_LEVEL as TraceLogLevel) || 'WARN';
 
   private constructor() {}
 
@@ -35,6 +43,14 @@ export class Tracer {
 
   public setSilent(silent: boolean): void {
     this.isSilent = silent;
+  }
+
+  public setMinConsoleLevel(level: TraceLogLevel): void {
+    this.minConsoleLevel = level;
+  }
+
+  public getMinConsoleLevel(): TraceLogLevel {
+    return this.minConsoleLevel;
   }
 
   public log(
@@ -57,7 +73,7 @@ export class Tracer {
 
     this.logs.push(entry);
 
-    if (!this.isSilent) {
+    if (!this.isSilent && LEVEL_PRIORITY[level] >= LEVEL_PRIORITY[this.minConsoleLevel]) {
       const matchPrefix = matchId !== undefined ? `[MATCH:${matchId}]` : '';
       const formatted = `[${entry.timestamp}][${level}][${operatorId}][${ruleId}]${matchPrefix} ${message}`;
       

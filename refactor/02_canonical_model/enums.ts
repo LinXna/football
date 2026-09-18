@@ -58,6 +58,8 @@ export enum MissingDataReason {
   MISSING_LIVE_MINUTE = "MISSING_LIVE_MINUTE",           // 滚球状态下 YBTY 缺少有效进行中时钟/分钟数
   MISSING_START_TIME = "MISSING_START_TIME",             // 缺少可确认的开赛时间
   MISSING_SCORE = "MISSING_SCORE",                       // 缺少完整比分事实
+  TIMELINE_STALE = "TIMELINE_STALE",                     // 实时危攻时序点阵严重滞后于比赛时钟 (>3分钟)
+  EVENT_FACTS_MISMATCH = "EVENT_FACTS_MISMATCH",         // 进球/角球/红牌主客事实与记分牌/技术统计分裂不自洽
 }
 
 /**
