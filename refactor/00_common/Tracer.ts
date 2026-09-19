@@ -16,6 +16,10 @@ const LEVEL_PRIORITY: Record<TraceLogLevel, number> = {
   ERROR: 3,
 };
 
+function isTraceLogLevel(value: string): value is TraceLogLevel {
+  return value in LEVEL_PRIORITY;
+}
+
 export interface TraceEntry {
   timestamp: string;
   level: TraceLogLevel;
@@ -26,11 +30,22 @@ export interface TraceEntry {
   payload?: unknown;
 }
 
+function getConfiguredConsoleLevel(): TraceLogLevel {
+  if (typeof process === 'undefined') {
+    return 'WARN';
+  }
+
+  const configuredLevel = process.env.TRACER_CONSOLE_LEVEL;
+  return configuredLevel && isTraceLogLevel(configuredLevel)
+    ? configuredLevel
+    : 'WARN';
+}
+
 export class Tracer {
   private static instance: Tracer;
   private logs: TraceEntry[] = [];
   private isSilent: boolean = false;
-  private minConsoleLevel: TraceLogLevel = (process.env.TRACER_CONSOLE_LEVEL as TraceLogLevel) || 'WARN';
+  private minConsoleLevel: TraceLogLevel = getConfiguredConsoleLevel();
 
   private constructor() {}
 

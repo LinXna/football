@@ -1,35 +1,28 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260918-PERF-IMPORT-CACHE-AND-TRACER-SILENCE`
+- **任务编号 (Task)**: `SNAPSHOT-20260919-BROWSER-TRACER-PROCESS-GUARD`
 - **当前状态 (Status)**: `DONE`
-- **阶段进度 (Phase)**: `导入全链路性能与日志体验三位一体闭环重构 (算力缓存去重、Tracer控制台降噪静默、别名批量原子落盘 —— 落地完成并通过全套自测)`
+- **阶段进度 (Phase)**: `修复浏览器启动时 Tracer 无条件访问 process 导致的模块初始化崩溃`
 - **任务目标与交付清单 (Deliverables)**：
-  1. 【方案 1：算力缓存与去重 (Cache & Deduplicate Layer 03 Quant)】：
-     - 在 `/server/routes/canonicalRoutes.ts` 中重构 `GET /api/refactor/canonical-matches`：优先直接复用已持久化的 `runtimeBatch.quantitative_features`；仅在显式请求 `refresh=true` 或特征缺失时进行增量计算与保存，彻底杜绝导入向导、落盘、跳面板时连续 3 次全量重算的严重浪费；
-     - 优化 `leisu_candidates` 缓存命中逻辑，避免无谓触发全量 `assembleMatchesForMode`；
-     - 保证跳入面板时首屏所有盘口、+EV 推荐、进球期望立即可见（< 5ms 返回），零转圈、零数据空白。
-  2. 【方案 2：Tracer 控制台静默与降噪 (Tracer Stdout Noise Reduction)】：
-     - 在 `/refactor/00_common/Tracer.ts` 中增加基于优先级的控制台日志过滤，默认终端控制台级别提升至 `WARN`；
-     - 彻底消除逐场遍历时 `QUANT_03_SPATIO_TEMPORAL`、`QUANT_03_POISSON_DECAY`、`QUANT_03_DEVIG_CALCULATION` 输出海量 JSON 对象的同步控制台 I/O 阻塞；
-     - 内存日志追踪队列 `this.logs` 保持 100% 完整记录（支持 `getRecentLogs()`），严格服从反隐式兜底与全链路编号追溯法则；
-     - Node.js 事件循环主线程 CPU 与 I/O 资源全面释放。
-  3. 【方案 3：别名批量原子落盘 (Batch Alias Mutation)】：
-     - 在 `/server/routes/aliasReadRoutes.ts` 新增 `POST /api/aliases/batch`，在 `/server/routes/canonicalRoutes.ts` 新增 `POST /api/league-aliases/batch` 接口，支持多组别名在单次事务中内存合并，仅执行 1 次磁盘原子落盘与 1 次 `synchronizeDecisions`；
-     - 重构 `/src/components/CanonicalMatchCenter.tsx` 中的 Step 1 与 Step 2 别名沉淀逻辑，将此前数十次串行 `fetch` 请求合并为单次批量提交；
-     - 彻底消除几十次并发网络排队与磁盘读写锁竞争。
-  4. 【全量验证与回归测试】：
-     - 编写专属验证套件 `verify_import_perf_and_tracer_silence.ts`，100% 测试通过；
-     - 运行全量管线测试 `verify_full_pipeline_00_03.ts`、`verify_regression_fixes.ts`、`verify_data_consistency_circuit_breaker.ts` 全部通过；
-     - 通过 `tsc --noEmit` 与 Vite `compile_applet` 生产级构建验证。
+  1. 让 `Tracer` 在浏览器环境中安全初始化，并保持 Node.js 的 `TRACER_CONSOLE_LEVEL` 配置行为。
+  2. 运行 TypeScript 检查、重构专项测试和生产构建，确认浏览器 bundle 不再产生 `process is not defined`。
 - **改动文件清单 (Target Files)**：
   - `/refactor/00_common/Tracer.ts`
-  - `/server/routes/canonicalRoutes.ts`
-  - `/server/routes/aliasReadRoutes.ts`
-  - `/src/components/CanonicalMatchCenter.tsx`
-  - `/refactor/tests/verify_import_perf_and_tracer_silence.ts`
   - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **执行步骤 (Action Plan)**：
+  1. 在读取 `process.env` 前增加运行环境守卫，并校验配置值属于支持的日志级别。
+  2. 运行最小相关测试、类型检查和 Vite 生产构建。
+  3. 检查变更边界并将快照归档为 `DONE`。
 - **验证结论 (Verification Results)**：
-  - 测试全部通过：终端不再受到成千上万行 JSON 对象的同步控制台 I/O 阻塞，导入确认后跳转面板 0 延迟，特征集首屏直出，别名合并为单次原子批量事务落盘。
+  - `npx tsx refactor/tests/verify_import_perf_and_tracer_silence.ts` 通过；
+  - `npx tsc --noEmit` 通过；
+  - `npm run build` 通过，Vite 客户端生产构建完成；
+  - `git diff --check` 通过，变更仅涉及登记的两个目标文件。
+
+## 历史活动快照 (Historical Active Snapshots)
+
+### SNAPSHOT-20260918-PERF-IMPORT-CACHE-AND-TRACER-SILENCE (DONE)
+- 导入缓存、Tracer 控制台降噪和别名批量原子落盘已完成并通过专项验证。
 
 ---
 
