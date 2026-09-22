@@ -19,6 +19,7 @@ import { registerBatchSupplementRoutes } from './server/routes/batchSupplementRo
 import { registerCanonicalRoutes } from './server/routes/canonicalRoutes';
 import { registerRefactorLedgerRoutes } from './server/routes/refactorLedgerRoutes';
 import { registerRefactorAiRoutes } from './server/routes/refactorAiRoutes';
+import { registerMatchArchiveRoutes } from './server/routes/matchArchiveRoutes';
 import { synchronizeDecisionAliases } from './server/services/aliasDecisionSynchronizer';
 import { parseModelJson } from './server/services/modelJson';
 import { generateGeminiViaWindowsNetwork as generateGeminiViaWindowsNetworkService } from './server/services/geminiWindowsFallback';
@@ -1837,6 +1838,7 @@ registerGeminiEvaluationRoutes(app, handleGeminiEvaluation);
 registerCanonicalRoutes(app);
 registerRefactorLedgerRoutes(app);
 registerRefactorAiRoutes(app);
+registerMatchArchiveRoutes(app);
 
 // ---------------- VITE & SERVER SETUP ----------------
 

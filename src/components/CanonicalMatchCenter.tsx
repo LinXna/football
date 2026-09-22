@@ -62,6 +62,8 @@ import { QuantBettingDecisionMatrix } from "./QuantBettingDecisionMatrix";
 import { TimelineIncidentLegend, parseIncidentMeta, ProMatchEventIcon } from "./TimelineIncidentBadge";
 import { GenericTimelineEventPin } from "./IncidentIconsHelper";
 import { QuantitativeFeatures } from "../../refactor/03_quant_engine/types";
+import { MatchArchiveCenter } from "./MatchArchiveCenter";
+import { ManualLedgerModal } from "./ManualLedgerModal";
 
 function getMarketsSummary(mkts?: CleanMarketsGroup | null) {
   if (!mkts) return { count: 0, text: "0个玩法" };
@@ -304,6 +306,13 @@ export const CanonicalMatchCenter: React.FC = () => {
     val: number;
     events: any[];
   } | null>(null);
+
+  // 主视图 Tab: 比赛对齐流转 / 赛事档案与赛后反思
+  const [mainViewTab, setMainViewTab] = useState<"matches" | "archive">("matches");
+  // 专家手动录入与 OOS 录入弹窗
+  const [showManualLedgerModal, setShowManualLedgerModal] = useState<boolean>(false);
+  const [manualLedgerDefaultMatch, setManualLedgerDefaultMatch] = useState<any>(undefined);
+  const [autoSettlingLeisu, setAutoSettlingLeisu] = useState<boolean>(false);
 
   // 持续加载 AI 评估历史（优先重构版专用，回退兼容旧版）
   const loadAiEvaluations = useCallback(() => {
@@ -1946,9 +1955,12 @@ export const CanonicalMatchCenter: React.FC = () => {
           <div className="bg-slate-950 p-1 rounded-lg flex items-center text-xs font-medium border border-slate-800">
             <button
               id="tab-mode-live"
-              onClick={() => setMode("live")}
+              onClick={() => {
+                setMode("live");
+                setMainViewTab("matches");
+              }}
               className={`px-3 py-1.5 rounded-md transition-all ${
-                mode === "live"
+                mainViewTab === "matches" && mode === "live"
                   ? "bg-blue-600 text-white font-semibold shadow-xs"
                   : "text-slate-400 hover:text-slate-200"
               }`}
@@ -1957,14 +1969,29 @@ export const CanonicalMatchCenter: React.FC = () => {
             </button>
             <button
               id="tab-mode-prematch"
-              onClick={() => setMode("prematch")}
+              onClick={() => {
+                setMode("prematch");
+                setMainViewTab("matches");
+              }}
               className={`px-3 py-1.5 rounded-md transition-all ${
-                mode === "prematch"
+                mainViewTab === "matches" && mode === "prematch"
                   ? "bg-blue-600 text-white font-semibold shadow-xs"
                   : "text-slate-400 hover:text-slate-200"
               }`}
             >
               📅 赛前赛事对齐 ({mode === "prematch" ? matches.length : "-"})
+            </button>
+            <button
+              id="tab-mode-archive"
+              onClick={() => setMainViewTab("archive")}
+              className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
+                mainViewTab === "archive"
+                  ? "bg-indigo-600 text-white font-semibold shadow-xs"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>📚 赛事建档与赛后反思</span>
             </button>
           </div>
 
@@ -2020,6 +2047,17 @@ export const CanonicalMatchCenter: React.FC = () => {
         </div>
       </div>
 
+      {mainViewTab === "archive" ? (
+        <MatchArchiveCenter
+          currentMode={mode}
+          onRefreshParent={() => {
+            fetchCanonicalData(false);
+            fetchRefactorLedger();
+            fetchOosStatus();
+          }}
+        />
+      ) : (
+        <>
       {/* 重构体系：OOS 样本校准档案与实盘自增监控看板 */}
       <div className="bg-slate-900/80 rounded-xl border border-blue-950/80 p-3.5 space-y-3 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2142,6 +2180,49 @@ export const CanonicalMatchCenter: React.FC = () => {
                 已结算 ({formalLedger.filter(r => r.settlement?.is_settled).length})
               </button>
             </div>
+
+            <button
+              onClick={() => {
+                setManualLedgerDefaultMatch(undefined);
+                setShowManualLedgerModal(true);
+              }}
+              className="px-2.5 py-1 text-xs rounded border border-indigo-600 bg-indigo-900/60 text-indigo-200 hover:bg-indigo-800 transition-colors flex items-center gap-1 font-semibold shadow-xs"
+              title="专家核准并手动录入正式推荐台账"
+            >
+              <PlusCircle className="w-3.5 h-3.5 text-indigo-300" />
+              <span>手动推荐入账</span>
+            </button>
+
+            <button
+              onClick={async () => {
+                setAutoSettlingLeisu(true);
+                try {
+                  const res = await fetch("/api/refactor/match-archive/settle-leisu", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({}),
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                    setLedgerFeedback(data.message || `雷速核销完成：已核销 ${data.settled_count} 场比赛！`);
+                    await fetchRefactorLedger();
+                    await fetchOosStatus();
+                  } else {
+                    setLedgerFeedback(`雷速核销提示：${data.error || "未发现可核销的完场数据"}`);
+                  }
+                } catch (e: any) {
+                  setLedgerFeedback(`核销失败：${e?.message}`);
+                } finally {
+                  setAutoSettlingLeisu(false);
+                }
+              }}
+              disabled={autoSettlingLeisu}
+              className="px-2.5 py-1 text-xs rounded border border-emerald-600 bg-emerald-950/80 text-emerald-300 hover:bg-emerald-900/80 transition-colors flex items-center gap-1 font-semibold shadow-xs"
+              title="读取雷速完场数据一键核销正式台账并沉淀 OOS 样本"
+            >
+              <Zap className={`w-3.5 h-3.5 ${autoSettlingLeisu ? "animate-spin" : "text-amber-300"}`} />
+              <span>{autoSettlingLeisu ? "核销中..." : "雷速完场自动核销"}</span>
+            </button>
 
             <button
               onClick={fetchRefactorLedger}
@@ -4829,6 +4910,8 @@ export const CanonicalMatchCenter: React.FC = () => {
           })}
         </div>
       )}
+      </>
+      )}
 
       {/* 弹窗：数据完整度 11 维全景体检面板 (Data Completeness Diagnostic Modal) */}
       {selectedDiagnosticMatch && (
@@ -6625,6 +6708,19 @@ export const CanonicalMatchCenter: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {showManualLedgerModal && (
+        <ManualLedgerModal
+          isOpen={showManualLedgerModal}
+          onClose={() => setShowManualLedgerModal(false)}
+          onSuccess={() => {
+            fetchRefactorLedger();
+            fetchOosStatus();
+          }}
+          mode={mode}
+          defaultMatch={manualLedgerDefaultMatch}
+        />
       )}
 
     </div>

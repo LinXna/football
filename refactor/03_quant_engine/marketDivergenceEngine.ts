@@ -208,10 +208,22 @@ export function calibrateWithMarketOdds(
   const absNetDelta = Math.abs(netDelta);
   let stance = MarketStanceType.CONSENSUS_ALIGNED;
   let penalty = 0;
+  let isInformationAsymmetry = false;
+  let passAdvised = false;
 
-  if (absNetDelta > 0.45) {
+  // 严禁将巨幅偏差单方面判定为庄家诱盘从而反向加重仓！
+  // 在职业博彩中，当机构盘口与理论模型发生极端脱节 (|Δ| > 0.65) 时，
+  // 极大概率是知情交易者 (Smart Money) 或机构掌握了重大的场外非公开信息（突发轮换、伤病隐瞒、更衣室内讧等）。
+  // 此时系统必须判定为 INFORMATION_ASYMMETRY_RISK，扣除高额置信度惩罚并建议避险观望 (Fail-Closed Pass)。
+  if (absNetDelta > 0.65) {
+    stance = MarketStanceType.INFORMATION_ASYMMETRY_RISK;
+    penalty = 25; // 严重信息不对称，直接重罚置信度
+    isInformationAsymmetry = true;
+    passAdvised = true;
+  } else if (absNetDelta > 0.45) {
     stance = MarketStanceType.INSTITUTIONAL_DEFENSE;
     penalty = 15;
+    isInformationAsymmetry = true;
   } else if (absNetDelta > 0.25) {
     stance = MarketStanceType.TRAP_INDUCEMENT;
     penalty = 5;
@@ -219,13 +231,14 @@ export function calibrateWithMarketOdds(
 
   // 融合权重：物理先验优先 (Physics-First Calibration)
   // 赛前市场信息相对有效(60%机构/40%理论)；滚球阶段随时间推进，物理与场面证据增多，市场噪音与流量诱盘增加，
-  // 市场权重随比赛分钟单调衰减 (0.55 -> ~0.28)。当机构与理论偏差极大时，额外触发偏差惩罚进一步削弱市场权重。
+  // 市场权重随比赛分钟单调衰减 (0.55 -> ~0.28)。
   const minute = match.timing.minute ?? 0;
   const baseMarketWeight = isInPlayMarket
     ? Math.max(0.30, 0.55 - minute * 0.003)
     : 0.60;
 
-  // 偏差调制：理论与市场分歧越大，越不信任被庄家/投注流操控的市场盘口
+  // 偏差调制：当存在轻中度分歧时，允许小幅下调市场权重（最多 0.15）；
+  // 但严禁无限制放大理论权重去盲目硬刚市场真实赔率，下调上限严格钳制在 0.15 以内。
   const divergencePenalty = Math.min(0.15, absNetDelta * 0.20);
   const finalMarketWeight = Number(Math.max(0.25, baseMarketWeight - divergencePenalty).toFixed(3));
   const finalTheoryWeight = Number((1.0 - finalMarketWeight).toFixed(3));
@@ -248,7 +261,9 @@ export function calibrateWithMarketOdds(
     implied_market_away_win_prob: Number(pA_mkt.toFixed(4)),
     market_weight_applied: finalMarketWeight,
     theory_weight_applied: finalTheoryWeight,
-    theory_prior: theoryPrior
+    theory_prior: theoryPrior,
+    information_asymmetry_detected: isInformationAsymmetry,
+    pass_recommendation_advised: passAdvised
   };
 
   tracer?.info(

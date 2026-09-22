@@ -113,8 +113,33 @@ export function isSequentialSubsequence(shortStr: string, longStr: string): bool
 }
 
 /**
+ * 提取队伍所属类别/梯队/性别标签 (如 U19, U21, 女足, 青年队, 预备队, B队)
+ */
+export function extractTeamCategory(name: string): string | null {
+  const s = String(name || '').toLowerCase();
+  if (/(?:u-?17|17岁以下)/.test(s)) return 'U17';
+  if (/(?:u-?18|18岁以下)/.test(s)) return 'U18';
+  if (/(?:u-?19|19岁以下)/.test(s)) return 'U19';
+  if (/(?:u-?20|20岁以下)/.test(s)) return 'U20';
+  if (/(?:u-?21|21岁以下)/.test(s)) return 'U21';
+  if (/(?:u-?22|22岁以下)/.test(s)) return 'U22';
+  if (/(?:u-?23|23岁以下)/.test(s)) return 'U23';
+  if (/(?:女足|女子|女队|women|ladies|fem(?:in(?:as?|ine?))?)/.test(s)) return 'WOMEN';
+  if (/(?:预备队|后备队|预备|后备|reserve|reserves)/.test(s)) return 'RESERVE';
+  if (/(?:青年队|青年|少年|youth|juniors?)/.test(s)) return 'YOUTH';
+  if (/(?:b队|二队|team\s*b|\bb\b)/.test(s)) return 'B_TEAM';
+  if (/(?:c队|三队|team\s*c|\bc\b)/.test(s)) return 'C_TEAM';
+  return null;
+}
+
+// 常见通用/无区分度词汇集合（长度短或为纯缀词，不能单凭包含判定为0.75高相似度）
+const GENERIC_FOOTBALL_TOKENS = new Set([
+  'fc', 'sc', 'cf', 'ac', 'cd', 'as', '联', '队', '竞技', '体育', '城', '俱乐部', '联合', '联队', '足球', '足球队', '足球俱乐部', '运动'
+]);
+
+/**
  * 计算两个字符串的最长公共子序列 (LCS) 长度
- * 严格保留字符顺序
+ * 采用滚动单维 Int32Array 缓冲区，彻底杜绝高频 GC 与 2D 矩阵创建开销
  */
 export function calculateLcsLength(str1: string, str2: string): number {
   const s1 = String(str1 || '').trim().toLowerCase();
@@ -122,26 +147,35 @@ export function calculateLcsLength(str1: string, str2: string): number {
   const m = s1.length;
   const n = s2.length;
   if (m === 0 || n === 0) return 0;
+  if (s1 === s2) return m;
 
-  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  let prev = new Int32Array(n + 1);
+  let curr = new Int32Array(n + 1);
 
   for (let i = 1; i <= m; i++) {
+    const charCode1 = s1.charCodeAt(i - 1);
     for (let j = 1; j <= n; j++) {
-      if (s1[i - 1] === s2[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1] + 1;
+      if (charCode1 === s2.charCodeAt(j - 1)) {
+        curr[j] = prev[j - 1] + 1;
       } else {
-        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+        curr[j] = prev[j] > curr[j - 1] ? prev[j] : curr[j - 1];
       }
     }
+    const temp = prev;
+    prev = curr;
+    curr = temp;
+    curr.fill(0);
   }
 
-  return dp[m][n];
+  return prev[n];
 }
 
 /**
  * 基于原文字符顺序的综合文本相似度计算 (0.0 ~ 1.0)
- * 不剔除 U19, U21, B队, 青年队, 女足 等字面后缀
- * 增强：支持按文字顺序匹配 (Sequential Acronym Subsequence)
+ * 严格防范不同赛事/梯队错配：
+ * 1. 梯队/性别标签硬隔离 (U19/U21/青年/后备/女足 vs 一线队)
+ * 2. 消除短通用词 (如“联”、“城”、“FC”) 的 0.75 虚假底分
+ * 3. 极速滚动 LCS 算法与前缀一致性加权
  */
 export function calculateStrictRawTextSimilarity(str1: string, str2: string): number {
   const s1 = String(str1 || '').trim().toLowerCase();
@@ -150,34 +184,47 @@ export function calculateStrictRawTextSimilarity(str1: string, str2: string): nu
   if (s1 === s2) return 1.0;
   if (s1.length === 0 || s2.length === 0) return 0.0;
 
-  // 1. 完全包含关系检查 (如 "狼队" 与 "狼队U21" / "阿森纳" 与 "阿森纳足球俱乐部")
-  if (s1.includes(s2) || s2.includes(s1)) {
-    const minLen = Math.min(s1.length, s2.length);
-    const maxLen = Math.max(s1.length, s2.length);
-    // 包含但长度有差异时，按比例折算，但有包含底分
-    return Number(Math.max(0.75, minLen / maxLen).toFixed(4));
+  // 1. 梯队与性别硬隔离检测：若一方有青年/后备/女足等标签而另一方没有或不同，严禁高相似度
+  const cat1 = extractTeamCategory(s1);
+  const cat2 = extractTeamCategory(s2);
+  const isCategoryMismatch = (cat1 !== null || cat2 !== null) && cat1 !== cat2;
+  if (isCategoryMismatch) {
+    // 梯队或性别冲突（如 巴塞罗那 vs 巴塞罗那女足，阿森纳 vs 阿森纳U21），物理降权阻断
+    return 0.15;
   }
 
-  // 2. 按顺序文字匹配 / 缩写子序列匹配 (如 "俄罗斯甲级联赛" 与 "俄甲", "曼彻斯特联" 与 "曼联")
+  // 2. 包含关系检查 (如 "狼队" 与 "狼队fc" / "阿森纳" 与 "阿森纳足球俱乐部")
   const shortStr = s1.length <= s2.length ? s1 : s2;
   const longStr = s1.length <= s2.length ? s2 : s1;
 
-  if (shortStr.length >= 2 && isSequentialSubsequence(shortStr, longStr)) {
-    // 短文本严格按顺序出现在长文本中
+  if (longStr.includes(shortStr)) {
+    // 若较短字符串属于纯通用无区分度词汇 (如 "联", "队", "fc", "竞技")，不可赋予 0.75 底分
+    if (GENERIC_FOOTBALL_TOKENS.has(shortStr) || shortStr.length <= 1) {
+      return 0.10;
+    }
+    const ratio = shortStr.length / longStr.length;
+    // 只有当短字串长度达到 3 或占长字串比重较高时，才享受包含底分
+    if (shortStr.length >= 3 || ratio >= 0.5) {
+      return Number(Math.max(0.75, ratio).toFixed(4));
+    }
+    return Number(Math.max(0.40, ratio * 1.2).toFixed(4));
+  }
+
+  // 3. 按顺序文字匹配 / 缩写子序列匹配 (如 "俄罗斯甲级联赛" 与 "俄甲", "曼彻斯特联" 与 "曼联")
+  if (shortStr.length >= 2 && !GENERIC_FOOTBALL_TOKENS.has(shortStr) && isSequentialSubsequence(shortStr, longStr)) {
     if (shortStr[0] === longStr[0]) {
-      // 首字完全相同 (如 俄...甲 vs 俄...罗斯甲级联赛)
       const ratio = shortStr.length / longStr.length;
-      const seqScore = Math.min(0.92, 0.75 + ratio * 0.25);
+      const seqScore = Math.min(0.92, 0.70 + ratio * 0.25);
       return Number(seqScore.toFixed(4));
     }
   }
 
-  // 3. 最长公共子序列 (LCS) 与最大长度比值
+  // 4. 最长公共子序列 (LCS) 与最大长度比值
   const lcs = calculateLcsLength(s1, s2);
   const maxLen = Math.max(s1.length, s2.length);
   const lcsRatio = lcs / maxLen;
 
-  // 4. 前缀一致性微加权 (如果开头几个字完全一致，增加 0.05 权重)
+  // 5. 前缀一致性加权
   let prefixBonus = 0;
   if (s1[0] === s2[0] && s1.length > 1 && s2.length > 1 && s1[1] === s2[1]) {
     prefixBonus = 0.05;
@@ -414,7 +461,28 @@ export function alignMatches(
     };
   }
 
-  // 4. 权重分配：主队 40% + 客队 40% + 联赛 20%
+  // 4. 权重分配与门禁核验：主队 40% + 客队 40% + 联赛 20%
+  const minTeamSimilarity = Math.min(homeResult.raw_text_similarity, awayResult.raw_text_similarity);
+  const hasSevereTeamAsymmetry = minTeamSimilarity < 0.38 && !homeResult.is_alias_exact_hit && !awayResult.is_alias_exact_hit;
+  const hasSevereLeagueMismatch = leagueScore < 0.25 && !homeResult.is_alias_exact_hit && !awayResult.is_alias_exact_hit;
+
+  // 严格拦截：如果其中一支球队完全不匹配，或者跨联赛毫不相关，严禁误判为同场比赛！
+  if (hasSevereTeamAsymmetry || hasSevereLeagueMismatch) {
+    const cappedScore = Math.min(35, Math.round(minTeamSimilarity * 50));
+    return {
+      status: MatchAlignmentStatus.UNMATCHED,
+      confidence_score: cappedScore,
+      home_team_match: homeResult,
+      away_team_match: awayResult,
+      league_match: leagueResult,
+      league_match_score: leagueScore,
+      is_swapped_suspected: false,
+      alignment_reason: hasSevereTeamAsymmetry
+        ? `单侧球队名称严重不匹配 (最低球队相似度: ${(minTeamSimilarity * 100).toFixed(0)}%)，判定为未匹配`
+        : `赛事所属联赛不匹配 (联赛相似度: ${(leagueScore * 100).toFixed(0)}%)，判定为未匹配`,
+    };
+  }
+
   const weightedScore = (homeResult.raw_text_similarity * 40) +
                         (awayResult.raw_text_similarity * 40) +
                         (leagueScore * 20);
@@ -424,15 +492,18 @@ export function alignMatches(
   let status: MatchAlignmentStatus;
   let reason: string;
 
-  if (confidence >= 85) {
+  // 只有两队均具备良好相似度 (>= 0.65 或命中别名) 且联赛匹配良好 (>= 0.35) 才能自动放行
+  const isEligibleForAutoMatch = confidence >= 85 && (minTeamSimilarity >= 0.65 || homeResult.is_alias_exact_hit || awayResult.is_alias_exact_hit) && (leagueScore >= 0.35 || leagueResult.is_alias_exact_hit);
+
+  if (isEligibleForAutoMatch) {
     status = MatchAlignmentStatus.MATCHED_AUTO;
     reason = `自动高置信度匹配成功 (综合置信分: ${confidence})`;
-  } else if (confidence >= 50) {
+  } else if (confidence >= 50 && minTeamSimilarity >= 0.40) {
     status = MatchAlignmentStatus.NEEDS_MANUAL_SELECTION;
-    reason = `低置信度候选 (综合置信分: ${confidence})，建议人工核验`;
+    reason = `低置信度候选 (综合置信分: ${confidence})，需人工在向导中确认`;
   } else {
     status = MatchAlignmentStatus.UNMATCHED;
-    reason = `相似度过低 (综合置信分: ${confidence})，判定为未匹配`;
+    reason = `相似度过低或对称度不足 (综合置信分: ${confidence})，判定为未匹配`;
   }
 
   return {
@@ -455,7 +526,11 @@ export function findBestLeisuMatch(
   leisuCandidates: ParsedLeisuMatch[],
   aliases: TeamAliasDictionary = {},
   leagueAliases: LeagueAliasDictionary = {}
-): { best_match: ParsedLeisuMatch | null; decision: MatchAlignmentDecision | null } {
+): {
+  best_match: ParsedLeisuMatch | null;
+  decision: MatchAlignmentDecision | null;
+  manual_candidate?: ParsedLeisuMatch | null;
+} {
   if (!leisuCandidates || leisuCandidates.length === 0) {
     return { best_match: null, decision: null };
   }
@@ -471,14 +546,27 @@ export function findBestLeisuMatch(
     }
   }
 
-  // 若最佳候选未达 50 分阈值且未检测到颠倒警报，视为未匹配
-  if (highestDecision && highestDecision.confidence_score < 50 && !highestDecision.is_swapped_suspected) {
+  // 最佳决策低于 50 分或出现主客颠倒，判定未匹配
+  if (!highestDecision || highestDecision.confidence_score < 50 || highestDecision.is_swapped_suspected) {
     return { best_match: null, decision: highestDecision };
   }
 
+  // 关键防错逻辑：只有达成正式自动匹配 (别名命中或高置信自动) 才返回 best_match (自动装配)
+  // 如果是 50-84 分的低置信度候选，只作为 manual_candidate 返回供向导人工确认，不自动装配！
+  const isAuto = highestDecision.status === MatchAlignmentStatus.MATCHED_BY_ALIAS ||
+                 highestDecision.status === MatchAlignmentStatus.MATCHED_AUTO;
+
+  if (isAuto) {
+    return {
+      best_match: bestCandidate,
+      decision: highestDecision,
+    };
+  }
+
   return {
-    best_match: bestCandidate,
+    best_match: null,
     decision: highestDecision,
+    manual_candidate: bestCandidate,
   };
 }
 

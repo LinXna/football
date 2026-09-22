@@ -1,25 +1,66 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260919-BROWSER-TRACER-PROCESS-GUARD`
-- **当前状态 (Status)**: `DONE`
-- **阶段进度 (Phase)**: `修复浏览器启动时 Tracer 无条件访问 process 导致的模块初始化崩溃`
-- **任务目标与交付清单 (Deliverables)**：
-  1. 让 `Tracer` 在浏览器环境中安全初始化，并保持 Node.js 的 `TRACER_CONSOLE_LEVEL` 配置行为。
-  2. 运行 TypeScript 检查、重构专项测试和生产构建，确认浏览器 bundle 不再产生 `process is not defined`。
-- **改动文件清单 (Target Files)**：
-  - `/refactor/00_common/Tracer.ts`
+- **任务编号 (Task)**: `SNAPSHOT-20260922-CORE-QUANT-ATOMIC-STORAGE-HARDENING`
+- **当前状态 (Status)**: `IN_PROGRESS`
+- **阶段进度 (Phase)**: `修复量化分歧引擎反向硬刚风险、加固底层JSON文件原子落盘防崩溃机制、引入终盘净比赛时间衰减阻尼因子，并封存废弃旧版Python规划文档。`
+- **核心修复要点 (Target Scope)**:
+  1. 【量化分歧引擎纠偏 (`marketDivergenceEngine.ts` & `SYSTEM_QUANT_REFACTOR_BLUEPRINT.md`)】：
+     - 彻底废除“理论与市场分歧越大，越不信任市场盘口而反向加码理论权重”的逆向博弈逻辑（该逻辑在遇到庄家与知情资金掌握重大场外物理突发信息时会被反向绞杀）；
+     - 引入信息不对称风险警告（`informationAsymmetryRisk`）与避险机制：当理论与市场分歧过大时，不盲目调高理论先验，而是降低推荐置信度，实施安全防守。
+  2. 【底层数据持久化原子写入加固 (`ledgerPersistence.ts` & `jsonStore.ts`)】：
+     - 根治直接 `fs.writeFileSync` 裸写导致的断电/并发截断风险；
+     - 统一采用临时文件原子写入并替换机制（`filePath.tmp` -> `fs.renameSync`），提供防崩溃与一致性保障。
+  3. 【终盘有效净比赛时间衰减纠偏 (`poissonDecayModel.ts`)】：
+     - 在 75+ 分钟终盘阶段，结合密集事件、犯规黄牌以及有效比赛净时间（Effective Playing Time）衰减，引入阻尼调节因子，修正终盘大小球进球期望系统性高估的物理脱节问题。
+  4. 【废弃文档归档声明 (`04_STEP_BY_STEP_IMPLEMENTATION_PLAN.md`)】：
+     - 明确标记为 DEPRECATED & ARCHIVED，声明全工程唯一事实来源以 `/refactor/` 目录规范为准，消除双轨认知困惑。
+- **改动文件清单 (Target Files)**:
+  - `/refactor/03_quant_engine/marketDivergenceEngine.ts`
+  - `/refactor/03_quant_engine/types.ts`
+  - `/refactor/03_quant_engine/poissonDecayModel.ts`
+  - `/refactor/05_portfolio_risk/ledgerPersistence.ts`
+  - `/server/jsonStore.ts`
+  - `/refactor/SYSTEM_QUANT_REFACTOR_BLUEPRINT.md`
+  - `/docs/data_audit/04_STEP_BY_STEP_IMPLEMENTATION_PLAN.md`
   - `/refactor/HANDOVER_AND_PROGRESS.md`
-- **执行步骤 (Action Plan)**：
-  1. 在读取 `process.env` 前增加运行环境守卫，并校验配置值属于支持的日志级别。
-  2. 运行最小相关测试、类型检查和 Vite 生产构建。
-  3. 检查变更边界并将快照归档为 `DONE`。
-- **验证结论 (Verification Results)**：
-  - `npx tsx refactor/tests/verify_import_perf_and_tracer_silence.ts` 通过；
-  - `npx tsc --noEmit` 通过；
-  - `npm run build` 通过，Vite 客户端生产构建完成；
-  - `git diff --check` 通过，变更仅涉及登记的两个目标文件。
+  1. 【问题 1 赛事与队名对齐根治 (`matchAligner.ts` & `canonicalRoutes.ts`)】：
+     - 彻底清除短字符串/通用词 (如“联”、“城”、“FC”) 的 0.75 底分误判；
+     - 实施对称性严格约束与单队单边虚假匹配强行归零（单边相似度极低或主客严重失衡直接判不可信）；
+     - 强化 U19/U21/青年/女足/二队与一线队隔离硬性罚分；
+     - 优化候选贪婪消费机制，仅高置信且无冲突者自动对齐，其余规范保留供用户核对。
+  2. 【问题 2 导入性能极大提升 (`matchAligner.ts` & `canonicalRoutes.ts`)】：
+     - LCS 与文本相似度计算算法采用单维滚动数组优化，大幅缩减字符串矩阵比对时间；
+     - 消除 `assembleMatchesForMode` 与 `persistRuntimeBatch` 重复计算 Layer 03 特征的三重循环；
+     - 消除重复磁盘 I/O 写入开销。
+  3. 【问题 3 & 4 正式台账与 OOS 写入透明化与通道打通 (`refactorLedgerRoutes.ts`, `CanonicalMatchCenter.tsx`, `ManualLedgerModal.tsx`)】：
+     - 明确台账准入门禁：由于系统遵循防过拟合与高置信准则，未达 A/B 级或冷启动未锁定的比赛会被安全门禁拦截；
+     - 新增“手动登记正式推荐”与“录入已完场OOS校准样本”弹窗（`ManualLedgerModal`），支持专家自主录入推荐与赛果并直接入账；
+     - 提供后端 `/api/refactor/formal-ledger/manual-entry` 与 `/api/refactor/oos-sample/manual-entry` 接口，自动同步写入台账与校准档案；
+     - 增加雷速完场一键批量核销功能 (`/api/refactor/match-archive/settle-leisu`)，自动将完场赛果结算至台账并生成 OOS 二元样本。
+  4. 【问题 5 赛事持久化建档库与雷速完场反思梳理中心 (`matchArchiveStore.ts`, `matchArchiveRoutes.ts`, `MatchArchiveCenter.tsx`)】：
+     - 建立系统级多批次赛事建档库（`MatchArchiveStore`，持久化至 `refactor/runtime/match_archive.json`），用户每次导入并计算的比赛自动建立永久档案；
+     - 在前端主界面新增“赛事建档与赛后反思”独立视图（`MatchArchiveCenter`），展示所有建档场次、预测快照（泊松期望、Top高概率比分、盘口、BDI等）；
+     - 提供雷速完场数据一键导入核销与手动输入完场比分核销，生成即时反思报告（命中判断、预测偏差归因、盘口实际核销表现）。
+- **改动文件清单 (Target Files)**：
+  - `/refactor/02_canonical_model/matchAligner.ts`
+  - `/server/routes/canonicalRoutes.ts`
+  - `/server/routes/refactorLedgerRoutes.ts`
+  - `/server/services/matchArchiveStore.ts`
+  - `/server/routes/matchArchiveRoutes.ts`
+  - `/server.ts`
+  - `/src/components/CanonicalMatchCenter.tsx`
+  - `/src/components/MatchArchiveCenter.tsx`
+  - `/src/components/ManualLedgerModal.tsx`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+- **下一步行动建议 (Next Steps)**：
+  - 请用户在前端界面体验：
+    1. 切换到“赛事建档与赛后反思”标签页，查看已导入赛事的预测档案与核销反思报告；
+    2. 使用顶部“手动登记推荐”或“手动录入OOS样本”按钮体验人工合规写入；
+    3. 点击“使用雷速完场数据核销”体验自动对比预测比分与实际完场赛果。
 
 ## 历史活动快照 (Historical Active Snapshots)
+
+### SNAPSHOT-20260919-BROWSER-TRACER-PROCESS-GUARD (DONE)
 
 ### SNAPSHOT-20260918-PERF-IMPORT-CACHE-AND-TRACER-SILENCE (DONE)
 - 导入缓存、Tracer 控制台降噪和别名批量原子落盘已完成并通过专项验证。

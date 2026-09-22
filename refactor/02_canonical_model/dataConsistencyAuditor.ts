@@ -98,6 +98,7 @@ export function auditDataConsistency(match: CanonicalMatch): DataConsistencyAudi
 
   // 2. 提取事件轴统计
   const timelineEvents: CanonicalTimelineEvent[] = match.reference?.timeline_events || [];
+  const hasTimelineEvents = timelineEvents.length > 0;
 
   let eventHomeGoals = 0;
   let eventAwayGoals = 0;
@@ -163,25 +164,25 @@ export function auditDataConsistency(match: CanonicalMatch): DataConsistencyAudi
     }
   }
 
-  // 进球事实比对 (主客独立)
+  // 进球事实比对 (主客独立；仅在事件轴已具备事件数据时严格比对，避免事件轴缺省时误报物理事实分裂)
   const homeScore = match.score?.home_score ?? (match.score as any)?.current?.home ?? null;
   const awayScore = match.score?.away_score ?? (match.score as any)?.current?.away ?? null;
-  const isHomeGoalMismatch = (homeScore !== null) && (homeScore !== eventHomeGoals);
-  const isAwayGoalMismatch = (awayScore !== null) && (awayScore !== eventAwayGoals);
+  const isHomeGoalMismatch = hasTimelineEvents && (homeScore !== null) && (homeScore !== eventHomeGoals);
+  const isAwayGoalMismatch = hasTimelineEvents && (awayScore !== null) && (awayScore !== eventAwayGoals);
 
-  // 角球事实比对 (主客独立)
+  // 角球事实比对 (主客独立；仅在事件轴已具备事件数据时严格比对)
   const statsCorners = match.reference?.stats?.corners;
   const statsHomeCorners = statsCorners?.home ?? null;
   const statsAwayCorners = statsCorners?.away ?? null;
-  const isHomeCornerMismatch = (statsHomeCorners !== null && statsHomeCorners !== undefined) && (statsHomeCorners !== eventHomeCorners);
-  const isAwayCornerMismatch = (statsAwayCorners !== null && statsAwayCorners !== undefined) && (statsAwayCorners !== eventAwayCorners);
+  const isHomeCornerMismatch = hasTimelineEvents && (statsHomeCorners !== null && statsHomeCorners !== undefined) && (statsHomeCorners !== eventHomeCorners);
+  const isAwayCornerMismatch = hasTimelineEvents && (statsAwayCorners !== null && statsAwayCorners !== undefined) && (statsAwayCorners !== eventAwayCorners);
 
-  // 红牌事实比对 (主客独立)
+  // 红牌事实比对 (主客独立；仅在事件轴已具备事件数据时严格比对)
   const statsRedCards = match.reference?.stats?.red_cards;
   const statsHomeRedCards = statsRedCards?.home ?? null;
   const statsAwayRedCards = statsRedCards?.away ?? null;
-  const isHomeRedCardMismatch = (statsHomeRedCards !== null && statsHomeRedCards !== undefined) && (statsHomeRedCards !== eventHomeRedCards);
-  const isAwayRedCardMismatch = (statsAwayRedCards !== null && statsAwayRedCards !== undefined) && (statsAwayRedCards !== eventAwayRedCards);
+  const isHomeRedCardMismatch = hasTimelineEvents && (statsHomeRedCards !== null && statsHomeRedCards !== undefined) && (statsHomeRedCards !== eventHomeRedCards);
+  const isAwayRedCardMismatch = hasTimelineEvents && (statsAwayRedCards !== null && statsAwayRedCards !== undefined) && (statsAwayRedCards !== eventAwayRedCards);
 
   // 一票否决判定
   const blockReasons: string[] = [];

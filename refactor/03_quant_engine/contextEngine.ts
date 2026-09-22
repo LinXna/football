@@ -223,12 +223,29 @@ export function checkH2HTacticalIntegrity(
 }
 
 /**
+ * 获取确定性基准时间戳（优先使用快照创建时间或开赛时间，消除 Date.now() 对离线/次日回放的影响）
+ */
+export function resolveMatchAnchorTimestamp(match: CanonicalMatch): number {
+  if (match.created_at) {
+    const t = Date.parse(match.created_at);
+    if (!isNaN(t) && t > 0) return t;
+  }
+  if (match.timing?.beijing_start_time) {
+    const raw = match.timing.beijing_start_time.trim();
+    const formatted = raw.includes('T') ? raw : raw.replace(' ', 'T') + '+08:00';
+    const t = Date.parse(formatted);
+    if (!isNaN(t) && t > 0) return t;
+  }
+  return Date.now();
+}
+
+/**
  * 计算交锋历史时间连续指数衰减权重、赛事级别加权与球风克制指数
  */
 export function calculateH2HDecayWeights(
   match: CanonicalMatch,
   halfLifeDays: number = 365,
-  currentTimestamp: number = Date.now()
+  currentTimestamp: number = resolveMatchAnchorTimestamp(match)
 ): { weights: HistoricalMatchWeight[]; analytics: H2HDetailedAnalytics } {
   const h2hList = match.reference?.tactical_context?.h2h_raw || [];
   if (h2hList.length === 0) {
@@ -519,7 +536,7 @@ export function calculateH2HDecayWeights(
  */
 export function calculateRecentFormWeights(
   match: CanonicalMatch,
-  currentTimestamp: number = Date.now()
+  currentTimestamp: number = resolveMatchAnchorTimestamp(match)
 ): {
   home: RecentFormContextWeight[];
   away: RecentFormContextWeight[];
@@ -1689,9 +1706,10 @@ export function extractCleanedContextFeatures(
   collector?: DeficitCollector,
   tracer?: Tracer
 ): CleanedContextFeatures {
+  const anchorTimestamp = resolveMatchAnchorTimestamp(match);
   const circuitBreaker = checkL0CircuitBreaker(match, collector, tracer);
-  const h2hResult = calculateH2HDecayWeights(match);
-  const recentForm = calculateRecentFormWeights(match);
+  const h2hResult = calculateH2HDecayWeights(match, 365, anchorTimestamp);
+  const recentForm = calculateRecentFormWeights(match, anchorTimestamp);
   const isoStandings = extractIsoVenueStandings(match);
   const goalDna = extractGoalDistributionDNA(match);
   const formationFeatures = extractTacticalFormationFeatures(match);

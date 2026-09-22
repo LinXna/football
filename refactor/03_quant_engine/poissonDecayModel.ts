@@ -838,8 +838,24 @@ export function calculateInPlayPoissonFeatures(
     siegeBreakthroughBoostAway = 1.0 + leakFactor;
   }
 
-  const lambdaAfterLiveContextHome = lambdaBeforeLiveContextHome * blendedLiveFactorHome * oosMultiplier * deprivationDampHome * siegeBreakthroughBoostHome;
-  const lambdaAfterLiveContextAway = lambdaBeforeLiveContextAway * blendedLiveFactorAway * oosMultiplier * deprivationDampAway * siegeBreakthroughBoostAway;
+  // 5.5 终盘 75+ 分钟有效比赛时间衰减阻尼 (Effective Playing Time Damping):
+  // 真实足球比赛中，进入第 75 分钟后，死球停顿（犯规换人、拖延时间、VAR复核、体能下降）大幅增加，
+  // 纯线性或无阻尼衰减会导致模型系统性高估 75+ 分钟时段的剩余期望进球数。
+  // 除非赛场处于破门绝境搏命 (DESPERATION_BURST) 或高压狂攻 (EPI LETHAL_SIEGE) 态势，
+  // 否则引入平滑阻尼因子 (0.85 ~ 0.90)，真实拟合足球运动末段有效运动时间损耗。
+  let effectiveTimeDamping = 1.0;
+  if (elapsedMinute >= 75 && !isPrematch) {
+    const isHighUrgencyGame = timeDecay.urgency_multiplier >= 1.20 || matchState.post_goal_cooldown_active;
+    const isDominantAttacking = (blendedLiveFactorHome >= 1.25) || (blendedLiveFactorAway >= 1.25);
+    if (!isHighUrgencyGame && !isDominantAttacking) {
+      // 随着从 75' 推进到 90'，阻尼从 0.92 平滑递减至 0.85
+      const lateProgress = Math.min(1.0, (elapsedMinute - 75.0) / 15.0);
+      effectiveTimeDamping = Number((0.92 - lateProgress * 0.07).toFixed(3));
+    }
+  }
+
+  const lambdaAfterLiveContextHome = lambdaBeforeLiveContextHome * blendedLiveFactorHome * oosMultiplier * deprivationDampHome * siegeBreakthroughBoostHome * effectiveTimeDamping;
+  const lambdaAfterLiveContextAway = lambdaBeforeLiveContextAway * blendedLiveFactorAway * oosMultiplier * deprivationDampAway * siegeBreakthroughBoostAway * effectiveTimeDamping;
 
   // 极值安全钳位
   const lambdaHomeRest = Math.max(0.01, Math.min(3.50, Number(lambdaAfterLiveContextHome.toFixed(3))));
@@ -884,6 +900,7 @@ export function calculateInPlayPoissonFeatures(
     live_regime_stage: liveRegimeStage,
     live_stats_weight: Number(liveStatsWeight.toFixed(3)),
     prior_context_weight: Number(priorContextWeight.toFixed(3)),
+    late_game_effective_time_damping: effectiveTimeDamping,
     lambda_before_live_context_home: Number(lambdaBeforeLiveContextHome.toFixed(3)),
     lambda_before_live_context_away: Number(lambdaBeforeLiveContextAway.toFixed(3)),
     lambda_after_live_context_home: Number(lambdaAfterLiveContextHome.toFixed(3)),

@@ -32,6 +32,7 @@ import {
 } from "../../refactor/00_common/errors";
 
 import { sniffIngressPayload } from "../../refactor/01_data_ingestion/ingressSniffer";
+import { MatchArchiveStore } from "../services/matchArchiveStore";
 
 // 重构系统专有文件路径（完全物理隔离，零外部 output/ 依赖）
 const REFACTOR_STORAGE = {
@@ -130,6 +131,18 @@ function persistRuntimeBatch(
   if (!writeJsonFile(runtimePath(mode), batch)) {
     throw new Error(`Failed to persist refactor ${mode} runtime batch`);
   }
+
+  // 核心建档：自动为当前批次的所有量化计算赛事建立/增量更新档案，支持赛后复盘反思
+  try {
+    MatchArchiveStore.archiveCanonicalMatches(
+      result.canonicalMatches,
+      quantitativeFeatures,
+      mode
+    );
+  } catch (archErr) {
+    console.warn("[CanonicalRoutes] MatchArchiveStore auto-archive warning:", archErr);
+  }
+
   return batch;
 }
 
@@ -300,9 +313,18 @@ export function assembleMatchesForMode(mode: "live" | "prematch"): {
       alignment_reason: "未匹配到雷速对应赛事，需人工在向导中核验与选择",
     };
 
+    const isAutoMatched = Boolean(
+      best_match && (
+        effectiveDecision.status === MatchAlignmentStatus.MATCHED_BY_ALIAS ||
+        effectiveDecision.status === MatchAlignmentStatus.MATCHED_AUTO
+      )
+    );
+
+    const matchToAttach = isAutoMatched ? best_match : null;
+
     const canonical = assembleCanonicalMatch(
       ybtyMatch,
-      best_match,
+      matchToAttach,
       effectiveDecision
     );
 
@@ -310,7 +332,7 @@ export function assembleMatchesForMode(mode: "live" | "prematch"): {
 
     canonicalMatches.push(canonical);
     aiBriefs.push(brief);
-    if (best_match) {
+    if (isAutoMatched && best_match) {
       const matchedIndex = availableLeisuMatches.findIndex(
         (candidate) => candidate.match_id === best_match.match_id
       );
@@ -444,6 +466,15 @@ export function registerCanonicalRoutes(app: express.Express): void {
         }
         if (needSave) {
           writeJsonFile(runtimePath(mode), runtimeBatch);
+          try {
+            MatchArchiveStore.archiveCanonicalMatches(
+              runtimeBatch.matches,
+              runtimeBatch.quantitative_features,
+              mode
+            );
+          } catch (archErr) {
+            console.warn("[CanonicalRoutes] Refresh auto-archive warning:", archErr);
+          }
         }
       }
 

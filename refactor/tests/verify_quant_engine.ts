@@ -1132,8 +1132,94 @@ async function runQuantEngineTests() {
     console.log('   ✅ 物理先验优先动态权重回归测试 PASS');
   }
 
+  console.log('👉 [Test 11] 信息不对称风控阻断与75+分钟有效比赛时间阻尼测试...');
+  {
+    // 1. 验证 75+ 分钟有效比赛时间阻尼
+    const live78MinMatch: CanonicalMatch = {
+      canonical_id: 'test_late_damping_78m',
+      home_team_name: '热刺',
+      away_team_name: '埃弗顿',
+      league_name: '英超',
+      alignment: { status: MatchAlignmentStatus.MATCHED_AUTO, confidence: 100, method: 'AUTOMATIC_EXACT' },
+      timing: { stage: MatchStage.LIVE, minute: 78, beijing_start_time: null, start_time_source: 'YBTY_EXACT', is_half_time: false, is_extra_time: false, is_overtime_or_penalty: false, ybty_display_clock: '78:00' },
+      score: { home_score: 1, away_score: 0, home_half_score: 0, away_half_score: 0, score_verified: true, score_source: 'LEISU_CANVAS', is_mismatch_detected: false, var_overturned_goals_count: 0 },
+      markets: {
+        full_h2h: { home_odds: 1.25, draw_odds: 4.50, away_odds: 11.0 },
+        full_spread_main: { line_index: 0, home_selection: '-0.5', home_odds: 1.85, away_selection: '+0.5', away_odds: 1.95, settlement_basis: 'FULL_MATCH' as any },
+        full_spread_subs: [],
+        full_total_main: { line_index: 0, line: '1.5', over_odds: 2.10, under_odds: 1.75, settlement_basis: 'FULL_MATCH' as any },
+        full_total_subs: [],
+        half_h2h: null, half_spread_main: null, half_total_main: null
+      },
+      reference: {
+        company_name: '3*',
+        initial: null,
+        pregame: null,
+        live: {
+          match_winner: { home_odds: 1.25, draw_odds: 4.50, away_odds: 11.0 },
+          asian_handicap: { home_odds: 0.85, line: -0.5, away_odds: 0.95 },
+          total_goals: { over_odds: 1.10, line: 1.5, under_odds: 0.75 },
+          corners: null
+        },
+        stats: null,
+        attack_momentum: null,
+        odds_matrix: null,
+        historical_dna: null,
+        prematch_context: null
+      }
+    };
+
+    const qf78 = calculateQuantitativeFeatures(live78MinMatch);
+    const damping78 = qf78.poisson.lambda_decomposition.late_game_effective_time_damping;
+    assert(damping78 !== undefined && damping78 < 1.0, `78分钟必须触发有效比赛时间阻尼 (<1.0)，实际为: ${damping78}`);
+    assert(damping78 >= 0.85 && damping78 <= 0.92, `78分钟阻尼系数必须处于 [0.85, 0.92] 区间，实际为: ${damping78}`);
+
+    // 2. 验证信息不对称风控检测 (Extreme Divergence Delta)
+    const asymmetricMatch: CanonicalMatch = {
+      canonical_id: 'test_info_asymmetry',
+      home_team_name: '主队A',
+      away_team_name: '客队B',
+      league_name: '西甲',
+      alignment: { status: MatchAlignmentStatus.MATCHED_AUTO, confidence: 100, method: 'AUTOMATIC_EXACT' },
+      timing: { stage: MatchStage.PREMATCH, minute: null, beijing_start_time: '2026-09-22 20:00:00', start_time_source: 'YBTY_EXACT', is_half_time: false, is_extra_time: false, is_overtime_or_penalty: false },
+      score: { home_score: 0, away_score: 0, home_half_score: 0, away_half_score: 0, score_verified: true, score_source: 'YBTY_CANVAS', is_mismatch_detected: false, var_overturned_goals_count: 0 },
+      markets: {
+        // 极端赔率：市场暗示主队胜率极低，而理论先验基于常态给出主队高期望，触发极端偏差 |netDelta| > 0.65
+        full_h2h: { home_odds: 15.0, draw_odds: 6.50, away_odds: 1.15 },
+        full_spread_main: { line_index: 0, home_selection: '+2.0', home_odds: 1.90, away_selection: '-2.0', away_odds: 1.90, settlement_basis: 'FULL_MATCH' as any },
+        full_spread_subs: [],
+        full_total_main: { line_index: 0, line: '3.0', over_odds: 1.90, under_odds: 1.90, settlement_basis: 'FULL_MATCH' as any },
+        full_total_subs: [],
+        half_h2h: null, half_spread_main: null, half_total_main: null
+      },
+      reference: {
+        company_name: '3*',
+        initial: null,
+        pregame: null,
+        live: null,
+        stats: null,
+        attack_momentum: null,
+        odds_matrix: null,
+        historical_dna: null,
+        prematch_context: null
+      }
+    };
+
+    const qfAsymm = calculateQuantitativeFeatures(asymmetricMatch);
+    const mcAsymm = qfAsymm.market_calibration;
+    assert(mcAsymm !== undefined, 'Market calibration must exist');
+    assert(mcAsymm.information_asymmetry_detected === true, '极端偏差必须标记 information_asymmetry_detected');
+    assert(mcAsymm.pass_recommendation_advised === true, '极端偏差必须标记 pass_recommendation_advised');
+    assert(mcAsymm.market_stance === MarketStanceType.INFORMATION_ASYMMETRY_RISK, '姿态必须识别为 INFORMATION_ASYMMETRY_RISK');
+    assert(mcAsymm.market_confidence_penalty >= 25, '极端偏差必须施加至少 25 分置信度扣罚');
+
+    console.log(`   🔬 78' 有效时间阻尼系数: ${damping78}`);
+    console.log(`   🔬 极端偏差姿态: ${mcAsymm.market_stance}, 扣分: ${mcAsymm.market_confidence_penalty}, 避险Pass建议: ${mcAsymm.pass_recommendation_advised}`);
+    console.log('   ✅ 信息不对称风控阻断与75+分钟有效时间阻尼测试 PASS');
+  }
+
   console.log('\n================================================================');
-  console.log('🎉 [Layer 03 Test Suite] 全部 10 项确定性量化与博弈引擎测试 100% 通过！');
+  console.log('🎉 [Layer 03 Test Suite] 全部 11 项确定性量化与博弈引擎测试 100% 通过！');
   console.log('================================================================\n');
 }
 

@@ -65,6 +65,8 @@ export interface MarketCalibrationResult {
   market_weight_applied: number;         // 实际生效的市场权重 [0.0 ~ 1.0]
   theory_weight_applied: number;         // 实际生效的理论先验权重 [0.0 ~ 1.0]
   theory_prior?: PrematchTheoryPrior;
+  information_asymmetry_detected?: boolean; // 市场与理论发生重大非对称偏离，知情资金介入预警
+  pass_recommendation_advised?: boolean;    // 是否建议对该场比赛执行避险观望 (Fail-Closed Pass)
 }
 
 export interface HistoricalMatchWeight {
@@ -484,6 +486,7 @@ export interface LambdaDecomposition {
   live_regime_stage?: 'OPENING' | 'MID_MATCH' | 'LATE_SURGE';
   live_stats_weight?: number;
   prior_context_weight?: number;
+  late_game_effective_time_damping?: number; // 75+ 分钟有效比赛时间阻尼因子 (防止死球/换人/拖延导致的进球期望虚高)
   lambda_before_live_context_home?: number;
   lambda_before_live_context_away?: number;
   lambda_after_live_context_home?: number;

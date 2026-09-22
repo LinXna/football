@@ -1,11 +1,52 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { randomUUID } from 'crypto';
 import { FormalRecommendation, BettingStage } from './types.js';
 import { EvaluatorPayload, AiEvaluationResult, RecommendedLeg } from '../04_ai_evaluator/types.js';
 
 const LIVE_LEDGER_PATH = path.join(process.cwd(), 'refactor', 'runtime', 'formal_ledger_live.json');
 const PREMATCH_LEDGER_PATH = path.join(process.cwd(), 'refactor', 'runtime', 'formal_ledger_prematch.json');
+
+/**
+ * 严格原子写入工具函数：
+ * 采用 临时文件写入 + 校验 + 原子性重命名 (fs.renameSync) + 自动备份机制，
+ * 彻底防止多进程竞态或进程异常崩溃导致 JSON 文件损坏或变为空文件。
+ */
+function atomicWriteJsonSync(targetPath: string, data: unknown): void {
+  const fullPath = path.resolve(targetPath);
+  const dir = path.dirname(fullPath);
+  fs.mkdirSync(dir, { recursive: true });
+
+  const jsonStr = JSON.stringify(data, null, 2);
+  const randomSuffix = `${process.pid}.${crypto.randomBytes(6).toString('hex')}`;
+  const tempPath = `${fullPath}.${randomSuffix}.tmp`;
+  const backupPath = `${fullPath}.bak`;
+
+  // 1. 写入临时文件
+  fs.writeFileSync(tempPath, jsonStr, 'utf8');
+
+  // 2. 验证临时文件可正常读取且为有效 JSON
+  try {
+    const verified = fs.readFileSync(tempPath, 'utf8');
+    JSON.parse(verified);
+  } catch (err) {
+    try { fs.unlinkSync(tempPath); } catch {}
+    throw new Error(`[LedgerPersistence] Atomic write verification failed: ${String(err)}`);
+  }
+
+  // 3. 备份现有旧文件（如果存在）
+  if (fs.existsSync(fullPath)) {
+    try {
+      fs.copyFileSync(fullPath, backupPath);
+    } catch (err) {
+      console.warn(`[LedgerPersistence] Failed to create backup at ${backupPath}:`, err);
+    }
+  }
+
+  // 4. 原子替换目标文件
+  fs.renameSync(tempPath, fullPath);
+}
 
 export class LedgerPersistence {
   private filePath?: string;
@@ -50,8 +91,7 @@ export class LedgerPersistence {
       }
       appendedCount++;
     }
-    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-    fs.writeFileSync(this.filePath, JSON.stringify(existing, null, 2), 'utf8');
+    atomicWriteJsonSync(this.filePath, existing);
     return { appended_count: appendedCount, records: existing };
   }
 
@@ -62,7 +102,7 @@ export class LedgerPersistence {
     const remaining = current.filter(r => !idSet.has(r.record_id));
     const removed = current.length - remaining.length;
     if (removed > 0) {
-      fs.writeFileSync(this.filePath, JSON.stringify(remaining, null, 2), 'utf8');
+      atomicWriteJsonSync(this.filePath, remaining);
     }
     return { removed_count: removed };
   }
@@ -71,8 +111,7 @@ export class LedgerPersistence {
     if (!this.filePath) return { cleared_count: 0 };
     const current = this.readLedger();
     const count = current.length;
-    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-    fs.writeFileSync(this.filePath, JSON.stringify([], null, 2), 'utf8');
+    atomicWriteJsonSync(this.filePath, []);
     return { cleared_count: count };
   }
 
@@ -82,7 +121,7 @@ export class LedgerPersistence {
     const index = current.findIndex(r => r.record_id === record.record_id);
     if (index >= 0) {
       current[index] = record;
-      fs.writeFileSync(this.filePath, JSON.stringify(current, null, 2), 'utf8');
+      atomicWriteJsonSync(this.filePath, current);
       return true;
     }
     return false;
@@ -139,8 +178,7 @@ export class LedgerPersistence {
     }
     if (changed) {
       const filePath = this.getLedgerPath(input.stage);
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.writeFileSync(filePath, JSON.stringify(ledger, null, 2), 'utf8');
+      atomicWriteJsonSync(filePath, ledger);
     }
     return updated;
   }
@@ -303,8 +341,7 @@ export class LedgerPersistence {
     }
     
     if (persistedRecords.length > 0) {
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.writeFileSync(filePath, JSON.stringify(existing, null, 2), 'utf8');
+      atomicWriteJsonSync(filePath, existing);
       console.log(`[Ledger] Atomically saved ${persistedRecords.length} records to ${stage} ledger.`);
     }
     
@@ -330,7 +367,7 @@ export class LedgerPersistence {
       liveRemoved = liveLedger.length - nextLive.length;
       if (liveRemoved > 0) {
         const filePath = this.getLedgerPath('LIVE');
-        fs.writeFileSync(filePath, JSON.stringify(nextLive, null, 2), 'utf8');
+        atomicWriteJsonSync(filePath, nextLive);
       }
     }
 
@@ -340,7 +377,7 @@ export class LedgerPersistence {
       prematchRemoved = prematchLedger.length - nextPrematch.length;
       if (prematchRemoved > 0) {
         const filePath = this.getLedgerPath('PREMATCH');
-        fs.writeFileSync(filePath, JSON.stringify(nextPrematch, null, 2), 'utf8');
+        atomicWriteJsonSync(filePath, nextPrematch);
       }
     }
 
@@ -360,16 +397,14 @@ export class LedgerPersistence {
       const liveLedger = this.loadLedger('LIVE');
       liveCleared = liveLedger.length;
       const filePath = this.getLedgerPath('LIVE');
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.writeFileSync(filePath, JSON.stringify([], null, 2), 'utf8');
+      atomicWriteJsonSync(filePath, []);
     }
 
     if (stage === 'PREMATCH' || stage === 'ALL') {
       const prematchLedger = this.loadLedger('PREMATCH');
       prematchCleared = prematchLedger.length;
       const filePath = this.getLedgerPath('PREMATCH');
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.writeFileSync(filePath, JSON.stringify([], null, 2), 'utf8');
+      atomicWriteJsonSync(filePath, []);
     }
 
     return { liveCleared, prematchCleared };

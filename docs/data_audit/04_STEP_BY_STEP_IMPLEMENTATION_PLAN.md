@@ -1,6 +1,19 @@
-# 04. 系统重构与数据迁移分步实施计划 (Step-by-Step Implementation Plan)
+# [DEPRECATED - 已归档废弃] 04. 系统重构与数据迁移分步实施计划 (Legacy Python Plan)
 
-## 一、 实施计划概述与执行铁律
+> ⚠️ **历史文档废弃归档警告 (DOCUMENTATION DEPRECATION NOTICE)**:
+> 本文档记录的是系统早期基于 Python 脚本 (`scripts/python/football_live.py` 等) 的历史过渡方案，**现已全面废弃并仅作历史归档参考**。
+>
+> 系统的单一事实来源 (Single Source of Truth) 与现行重构架构宪章为：
+> 1. `/refactor/SYSTEM_ARCHITECTURE_AND_PIPELINE.md`（原生 TypeScript 分层微服务架构与数学契约）
+> 2. `/refactor/AI_CODING_STANDARDS_AND_RULES.md`（开发准则与工作流法典）
+> 3. `/refactor/HANDOVER_AND_PROGRESS.md`（实时工作快照与进度看板）
+> 4. `/refactor/SYSTEM_QUANT_REFACTOR_BLUEPRINT.md`（核心量化与博弈引擎蓝图）
+>
+> 任何后续开发与 AI 代理**严禁**再依据本文件中已过时的 Python 模块设计和旧规划推进。
+
+---
+
+## 一、 实施计划概述与执行铁律 (历史归档)
 
 本计划是系统全面迁移至 `StandardMatchData` 统一数据契约的执行指南。
 

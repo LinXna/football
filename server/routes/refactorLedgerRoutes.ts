@@ -14,6 +14,7 @@
 import type express from "express";
 import fs from "fs";
 import path from "path";
+import { randomUUID } from "node:crypto";
 import { LedgerPersistence } from "../../refactor/05_portfolio_risk/ledgerPersistence.js";
 import { evaluateQuarterSettlement, parseAsianLine, QuarterMarketCategory } from "../../refactor/06_settlement_audit/settlementEngine.js";
 import { convertFormalLedgerRecords } from "../../refactor/06_settlement_audit/formalLedgerAdapter.js";
@@ -23,7 +24,7 @@ import { BettingStage, FormalRecommendation } from "../../refactor/05_portfolio_
 import { AiEvaluationResult, EvaluatorPayload, RecommendedLeg } from "../../refactor/04_ai_evaluator/types.js";
 import { extractAiEvaluationBrief } from "../../refactor/02_canonical_model/canonicalMatchAssembler.js";
 import { CanonicalMatch } from "../../refactor/02_canonical_model/types.js";
-import { QuantitativeFeatures } from "../../refactor/03_quant_engine/types.js";
+import { QuantitativeFeatures, OosCalibrationSample } from "../../refactor/03_quant_engine/types.js";
 
 function detectRefactorQuarterCategory(record: FormalRecommendation): QuarterMarketCategory {
   const legDir = String(record.leg?.direction || "").toUpperCase();
@@ -241,6 +242,215 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
         success: false,
         error: e?.message || "写入正式台账异常"
       });
+    }
+  });
+
+  /**
+   * POST /api/refactor/formal-ledger/manual-entry
+   * 专家分析师合规手动将推荐写入正式台账 (带冷启动豁免 OOS_COLD_START_EXEMPT)
+   */
+  app.post("/api/refactor/formal-ledger/manual-entry", (req, res) => {
+    try {
+      const {
+        stage = "LIVE",
+        match_id,
+        league,
+        home_team,
+        away_team,
+        kickoff_time,
+        status_summary,
+        current_score = "0 - 0",
+        market,
+        line,
+        direction,
+        odds = 1.95,
+        basis = "REMAINING_GOALS",
+        grade = "A_GRADE",
+        confidence_score = 85,
+        reasoning = "专家基本面复核通过",
+      } = req.body;
+
+      if (!match_id || !home_team || !away_team || !league || !market || !direction) {
+        return res.status(400).json({
+          success: false,
+          error: "缺少必填字段: match_id, league, home_team, away_team, market, direction"
+        });
+      }
+
+      const bettingStage = (stage === "PREMATCH" ? "PREMATCH" : "LIVE") as BettingStage;
+      const ledgerFilePath = path.join(process.cwd(), 'refactor', 'runtime', bettingStage === 'PREMATCH' ? 'formal_ledger_prematch.json' : 'formal_ledger_live.json');
+      const ledgerInstance = new LedgerPersistence(ledgerFilePath);
+
+      const parsedOdds = Number(odds) || 1.95;
+      const parsedLine = typeof line === "number" ? line : (parseFloat(line) || 0);
+
+      const validDirection: 'HOME' | 'AWAY' | 'OVER' | 'UNDER' | 'DRAW' | 'NONE' = 
+        (direction === "HOME" || direction === "AWAY" || direction === "OVER" || direction === "UNDER" || direction === "DRAW")
+          ? direction
+          : "NONE";
+
+      const record: FormalRecommendation = {
+        record_type: "formal_ai_recommendation",
+        formal_recommendation: true,
+        record_id: randomUUID(),
+        stage: bettingStage,
+        created_at_utc: new Date().toISOString(),
+        match_id: String(match_id),
+        kickoff_time: kickoff_time || new Date().toISOString(),
+        league_key: String(league),
+        teams: {
+          home: String(home_team),
+          away: String(away_team),
+        },
+        condition_snapshot: {
+          match_minute: status_summary || (bettingStage === "PREMATCH" ? "PREMATCH" : "LIVE"),
+          current_score: String(current_score),
+          bdi: 0,
+          goal_phase_alert: "NONE",
+          machine_candidate_count: 1,
+          candidate_pipeline_state: "COLD_START_PERMISSIVE",
+          oos_status: "OOS_COLD_START_EXEMPT",
+          score_verified: true,
+          source: "YBTY",
+        },
+        candidate_pipeline_state: "COLD_START_PERMISSIVE",
+        oos_status: "OOS_COLD_START_EXEMPT",
+        ai_assessment: {
+          grade: (grade === "B_GRADE" ? "B_GRADE" : "A_GRADE") as any,
+          confidence_score: Math.max(70, Math.min(100, Number(confidence_score) || 85)),
+          blind_spot_analysis: {
+            "1_global_motivation": "人工核准无异常",
+            "2_asian_handicap_reality": "盘口符合预期",
+            "3_total_goals_reality": "大小球与比赛节奏相符",
+            tactical_regime_evaluation: "FAIR_VALUE" as any,
+            trap_detection_result: "GENUINE_ADVANTAGE" as any,
+          },
+          internal_logical_audit: "专家独立审核通过",
+          qualitative_summary: String(reasoning),
+        },
+        leg: {
+          market: String(market),
+          direction: validDirection,
+          selected_line: String(parsedLine),
+          current_odds: parsedOdds,
+          minimum_acceptable_odds: parsedOdds,
+          basis: String(basis || "EXPERT_ANALYSIS"),
+          oos_status: "OOS_COLD_START_EXEMPT",
+        },
+        prediction_snapshot: {
+          model_version: "expert-review-v1",
+          prediction_at: new Date().toISOString(),
+          predicted_lambda: { home: 1.2, away: 1.0 },
+          red_card_state: "0-0",
+          market: String(market),
+          line: String(parsedLine),
+          odds: parsedOdds,
+          model_probability: 0.55,
+          score_at_recommendation: String(current_score),
+          score_verified: true,
+          score_source: "YBTY",
+          minute: null,
+        },
+        settlement: {
+          is_settled: false,
+          outcome: "PENDING",
+        },
+      };
+
+      ledgerInstance.appendApprovedLegs([record]);
+
+      return res.json({
+        success: true,
+        record,
+        message: `成功将专家推荐写入 ${bettingStage} 正式台账 (获得冷启动豁免)`
+      });
+    } catch (e: any) {
+      console.error("Manual append error:", e);
+      return res.status(500).json({ success: false, error: e?.message || "手动录入台账异常" });
+    }
+  });
+
+  /**
+   * POST /api/refactor/oos-sample/manual-entry
+   * 直接录入已完场结算的真实 OOS 校准样本
+   */
+  app.post("/api/refactor/oos-sample/manual-entry", (req, res) => {
+    try {
+      const {
+        league_key,
+        home_team_key,
+        away_team_key,
+        market = "FULL_SPREAD_MAIN",
+        line = 0,
+        odds = 1.95,
+        model_probability = 0.55,
+        predicted_lambda = 2.4,
+        score_at_recommendation = { home: 0, away: 0 },
+        final_score,
+        outcome = "WIN",
+      } = req.body;
+
+      if (!league_key || !home_team_key || !away_team_key || !final_score) {
+        return res.status(400).json({
+          success: false,
+          error: "缺少必填项: league_key, home_team_key, away_team_key, final_score (home/away)"
+        });
+      }
+
+      if (outcome !== "WIN" && outcome !== "LOSE") {
+        return res.status(400).json({
+          success: false,
+          error: "OOS 概率校准仅接受明确二元胜负结果 (WIN 或 LOSE)，走盘或半赢半输不计入概率校准"
+        });
+      }
+
+      const now = new Date().toISOString();
+      const sampleId = `manual_oos_${Date.now()}_${randomUUID().slice(0, 8)}`;
+
+      const stageVal = (req.body.stage === "PREMATCH" ? "PREMATCH" : "LIVE") as 'PREMATCH' | 'LIVE';
+      const homeKey = String(home_team_key || req.body.teams?.home || "HOME");
+      const awayKey = String(away_team_key || req.body.teams?.away || "AWAY");
+
+      let obsGoals = 0;
+      if (typeof final_score === "string" && final_score.includes("-")) {
+        const parts = final_score.split("-").map(p => parseInt(p.trim(), 10));
+        if (!isNaN(parts[0]) && !isNaN(parts[1])) {
+          obsGoals = parts[0] + parts[1];
+        }
+      }
+
+      const sample: OosCalibrationSample = {
+        sample_id: sampleId,
+        model_version: "refactor-oos-v1",
+        prediction_at: now,
+        league_key: String(league_key),
+        home_team_key: homeKey,
+        away_team_key: awayKey,
+        stage: stageVal,
+        minute: stageVal === "LIVE" ? 45 : null,
+        score_state: typeof score_at_recommendation === "string" ? score_at_recommendation : "0-0",
+        red_card_state: "0-0",
+        market: (market || "FULL_TOTAL_MAIN") as any,
+        model_probability: Number(model_probability) || 0.55,
+        outcome: outcome === "WIN" ? 1 : 0,
+        predicted_lambda: Number(predicted_lambda) || 2.5,
+        observed_goals: obsGoals,
+      };
+
+      const result = appendSampleAndRebuildArchive(sample);
+      if (!result.success) {
+        return res.status(500).json({ success: false, error: result.error || "写入 OOS 校准样本失败" });
+      }
+
+      return res.json({
+        success: true,
+        message: "已成功将真实完场样本写入 OOS 校准库并增量重新编译档案！",
+        sample_id: sampleId,
+        oos_status: getOosStatus()
+      });
+    } catch (e: any) {
+      console.error("Direct OOS sample entry error:", e);
+      return res.status(500).json({ success: false, error: e?.message || "录入 OOS 样本异常" });
     }
   });
 
