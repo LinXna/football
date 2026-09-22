@@ -1,9 +1,23 @@
-# CODEX 足球系统：AI 必读运行与数据契约
+# [历史契约/Legacy V3.0] CODEX 足球系统：AI 必读运行与数据契约
 
-> 状态：当前有效（2026-08-20 最新同步）  
-> 适用对象：首次接手本仓库的 AI、开发者、自动化审查工具  
-> 规范来源：当前 TypeScript、Python、React 和浏览器扩展实现  
-> 目标：读完本文件即可理解系统用途、运行链路、数据来源、导入导出格式、动能与时序引擎和风控边界。
+> [!CAUTION]
+> **【历史契约归档与重构架构声明 (ARCHIVED / DEPRECATED)】**  
+> 本契约制定于 2026-08-20，描述的是基于早期 Python 采集与 `output/*.json` 目录流转的旧版系统规范。  
+> **重构系统的核心数据契约与架构已经全面升级**：
+> - 现行最高代码法典：`/refactor/AI_CODING_STANDARDS_AND_RULES.md`
+> - 现行系统架构与六层管道契约：`/refactor/SYSTEM_ARCHITECTURE_AND_PIPELINE.md`
+> - 现行统一数据契约：`/refactor/DATA_SPECIFICATION.md`
+> - 现行全链路血统追溯：`/refactor/TRACEABILITY_MATRIX.md`
+> - 现行量化重构蓝图：`/refactor/SYSTEM_QUANT_REFACTOR_BLUEPRINT.md`
+> 
+> 在维护 `/refactor/` 体系的代码、算法或运行时数据时，必须以 `/refactor/` 目录中的文档为唯一事实来源 (SSOT)，不得将本文件关于 Python 管道或 `output/` 文件的说明套用至重构体系。
+
+---
+
+> 状态：[历史归档] 早期有效（2026-08-20 旧版契约）  
+> 适用对象：维护旧版兼容逻辑或查阅历史演进的开发者  
+> 规范来源：早期 TypeScript、Python、React 和浏览器扩展实现  
+> 目标：理解早期旧版系统用途、运行链路与风控边界。
 
 ## 0. AI 接手本项目时的固定读取顺序
 

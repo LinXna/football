@@ -2,6 +2,27 @@
 
 本目录是 ChatGPT 项目“lx”的本地工作目录。
 
+## 【核心铁律】重构系统 (Refactor / CODEX) 与旧系统 (Legacy) 绝对物理隔离
+
+全工程存在两套体系，AI 必须严格执行物理隔离，绝对严禁混淆：
+
+1. **重构系统 (Football Match Analysis System / CODEX / Refactor 体系)**：
+   - **用户指示关键词**：“重构系统”、“重构代码/文档”、“CODEX”、“Layer 00~06”。
+   - **唯一合法操作范围（白名单）**：`refactor/**`（含其子目录及文档）。
+   - **绝对禁止触碰禁区（黑名单）**：严禁把 `docs/**`、`server/**`、`src/**` 及根目录旧脚本与文档混入重构系统。
+   - **必须遵循的契约**：`refactor/AI_CODING_STANDARDS_AND_RULES.md`、`refactor/SYSTEM_ARCHITECTURE_AND_PIPELINE.md`、`refactor/DATA_SPECIFICATION.md`、`refactor/HANDOVER_AND_PROGRESS.md`、`refactor/CONTINUATION.md`。
+
+2. **旧系统 (Legacy / 原系统)**：
+   - **用户指示关键词**：“旧系统”、“老系统”、“原系统”、“Legacy”。
+   - **唯一合法操作范围（白名单）**：`docs/**`、`server/**`、`src/**` 及根目录旧脚本与文档。
+   - **绝对禁止触碰禁区（黑名单）**：严禁触碰 `refactor/**` 目录。
+   - **必须遵循的契约**：`docs/AI_SYSTEM_AND_DATA_CONTRACT.md`、`CUSTOM_INSTRUCTIONS_COMPLETE.md`。
+
+3. **【执行前强制第一句话声明】**：
+   AI 在接收到任务并开始调用工具或输出分析前，**第 1 句话必须明确声明【目标系统锁定与物理边界】**：
+   - 示例：`🎯 目标系统锁定：【重构系统 (Refactor)】 | 📂 物理操作范围：/refactor/**（已屏蔽旧系统 docs/server/src）`。
+   若声明不符或越界操作，视为严重违规。
+
 ## 文件边界
 
 - `sources/` 下的全部文件都是只读参考资料。

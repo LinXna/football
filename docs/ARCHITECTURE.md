@@ -1,6 +1,18 @@
-# 项目架构与目录职责
+# [历史备忘/Legacy] 项目架构与目录职责
 
-## 当前运行边界
+> [!CAUTION]
+> **【历史架构与重构体系边界说明 (ARCHIVED NOTICE)】**  
+> 本文档记录的是项目早期的“Python 采集层 + output/ 目录 + 旧版 routes”的运行边界。  
+> 随着重构的推进，**系统核心量化分析与标准化管道已全面迁移至原生 TypeScript 重构目录 (`/refactor/`)**。  
+> - 现行重构架构与数据契约请严格查阅：`/refactor/SYSTEM_ARCHITECTURE_AND_PIPELINE.md`
+> - 现行量化引擎技术蓝图：`/refactor/SYSTEM_QUANT_REFACTOR_BLUEPRINT.md`
+> - 现行工作进度与任务看板：`/refactor/HANDOVER_AND_PROGRESS.md`
+> 
+> 本文档中提及的 `output/` 目录中转机制仅供旧版兼容链路参考，不得与 `/refactor/runtime/` 新运行时混淆。
+
+---
+
+## 历史运行边界 (Legacy Boundary)
 
 ```text
 浏览器扩展 / 外部数据

@@ -845,9 +845,9 @@ export function calculateInPlayPoissonFeatures(
   // 否则引入平滑阻尼因子 (0.85 ~ 0.90)，真实拟合足球运动末段有效运动时间损耗。
   let effectiveTimeDamping = 1.0;
   if (elapsedMinute >= 75 && !isPrematch) {
-    const isHighUrgencyGame = timeDecay.urgency_multiplier >= 1.20 || matchState.post_goal_cooldown_active;
-    const isDominantAttacking = (blendedLiveFactorHome >= 1.25) || (blendedLiveFactorAway >= 1.25);
-    if (!isHighUrgencyGame && !isDominantAttacking) {
+    const isExtremeFrenzy = timeDecay.urgency_multiplier >= 1.40 || matchState.post_goal_cooldown_active;
+    const isDominantAttacking = (blendedLiveFactorHome >= 1.30) || (blendedLiveFactorAway >= 1.30);
+    if (!isExtremeFrenzy && !isDominantAttacking) {
       // 随着从 75' 推进到 90'，阻尼从 0.92 平滑递减至 0.85
       const lateProgress = Math.min(1.0, (elapsedMinute - 75.0) / 15.0);
       effectiveTimeDamping = Number((0.92 - lateProgress * 0.07).toFixed(3));

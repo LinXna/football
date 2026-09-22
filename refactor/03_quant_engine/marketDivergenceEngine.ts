@@ -144,13 +144,41 @@ export function calibrateWithMarketOdds(
   );
 
   const oddsMatrix = match.reference?.odds_matrix;
-  const liveMarket = match.timing.stage === MatchStage.LIVE ? oddsMatrix?.live : undefined;
-  const fallbackMarket = oddsMatrix?.pregame ?? oddsMatrix?.initial;
+  const liveMarket = match.timing.stage === MatchStage.LIVE 
+    ? (oddsMatrix?.live ?? (match.reference as any)?.live) 
+    : undefined;
+  const fallbackMarket = oddsMatrix?.pregame ?? (match.reference as any)?.pregame ?? oddsMatrix?.initial ?? (match.reference as any)?.initial;
   const selectedMarket = liveMarket ?? fallbackMarket;
   const isInPlayMarket = liveMarket !== undefined && selectedMarket === liveMarket;
-  const winnerMarket = selectedMarket?.match_winner;
-  const totalMarket = selectedMarket?.total_goals ?? undefined;
-  const handicapMarket = selectedMarket?.asian_handicap ?? undefined;
+  let winnerMarket = selectedMarket?.match_winner;
+  let totalMarket = selectedMarket?.total_goals ?? undefined;
+  let handicapMarket = selectedMarket?.asian_handicap ?? undefined;
+
+  // 若 reference 缺少赔率，回退至 match.markets 权威盘口
+  if ((!winnerMarket || !hasValidOdds(winnerMarket.home_odds, winnerMarket.draw_odds, winnerMarket.away_odds)) && match.markets?.full_h2h) {
+    winnerMarket = {
+      home_odds: match.markets.full_h2h.home_odds,
+      draw_odds: match.markets.full_h2h.draw_odds,
+      away_odds: match.markets.full_h2h.away_odds
+    };
+    if (match.markets.full_total_main) {
+      const lineNum = parseFloat(String(match.markets.full_total_main.line));
+      totalMarket = {
+        line: Number.isFinite(lineNum) ? lineNum : null,
+        over_odds: match.markets.full_total_main.over_odds,
+        under_odds: match.markets.full_total_main.under_odds
+      };
+    }
+    if (match.markets.full_spread_main) {
+      const rawLine = match.markets.full_spread_main.home_selection || (match.markets.full_spread_main as any).line;
+      const parsedLine = typeof rawLine === 'number' ? rawLine : parseFloat(String(rawLine || '0'));
+      handicapMarket = {
+        line: Number.isFinite(parsedLine) ? parsedLine : null,
+        home_odds: match.markets.full_spread_main.home_odds,
+        away_odds: match.markets.full_spread_main.away_odds
+      };
+    }
+  }
 
   // 若缺失雷速机构赔率数据，回退到纯理论先验
   if (!winnerMarket || !hasValidOdds(winnerMarket.home_odds, winnerMarket.draw_odds, winnerMarket.away_odds)) {

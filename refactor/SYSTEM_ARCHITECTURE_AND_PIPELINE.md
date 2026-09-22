@@ -1,8 +1,8 @@
 # 足球量化评估系统：全新重构技术架构与全链路运行规范
 
-> **版本**：v2.0.0 (Layer 00 ~ Layer 03 双路全链路端到端定稿版)  
-> **更新时间**：2026-08-30  
-> **定位**：重构系统的唯一事实来源（Single Source of Truth），定义全链路单向数据流、6大模块职责边界、标准数据契约、37 项博弈量化算法标准与端到端初筛流水线。
+> **版本**：v3.0.0 (Layer 00 ~ Layer 06 全链路生产与自适应闭环定稿版)  
+> **更新时间**：2026-09-22  
+> **定位**：重构系统的唯一事实来源（Single Source of Truth），定义全链路单向数据流、Layer 00~06 职责边界、标准数据契约、37 项博弈量化算法标准、OOS 动态准入与端到端闭环流水线。
 
 ---
 
@@ -164,31 +164,56 @@
 
 ## 六、系统测试与全链路回归规范 (Testing & Verification)
 
-全系统必须由严格的自动化测试套件提供 100% 质量屏障：
+全系统必须由严格的自动化测试套件提供 100% 质量屏障，覆盖 Layer 00 ~ Layer 06 及专项大考验证：
 1. **基础组件测试**：`verify_common_infrastructure.ts` (Layer 00)
 2. **数据接入测试**：`verify_ybty_live_extractor.ts`, `verify_ybty_prematch_extractor.ts`, `verify_leisu_interface_extractor.ts` (Layer 01)
-3. **标准模型测试**：`verify_canonical_match_assembler.ts` (Layer 02)
+3. **标准模型测试**：`verify_canonical_match_assembler.ts`, `verify_data_consistency_circuit_breaker.ts` (Layer 02)
 4. **量化引擎全覆盖测试**：`verify_quant_engine.ts` (Layer 03 - 7 大核心模块 M1~M6 及 M3.5 共生引擎)
-5. **双路全链路端到端集成测试**：`verify_full_pipeline_00_03.ts` (Layer 00 ~ 03 贯通测试)
+5. **AI 评估与门禁测试**：`verify_ai_evaluator.ts`, `verify_layer04_05_candidate_boundary.ts` (Layer 04)
+6. **组合风控测试**：`verify_portfolio_risk.ts` (Layer 05)
+7. **核销与结算闭环测试**：`verify_settlement_engine.ts`, `verify_historical_backtest_ingestion.ts` (Layer 06)
+8. **专项重构大考回归套件**：
+   - `verify_p0_math_closure.ts` (P0: 数学完备闭环)
+   - `verify_p2_tactical_momentum.ts` (P2: 战术动量与红牌三态分流)
+   - `verify_p3_ev_arbitrage.ts` (P3: EV 套利与去抽水曲面)
+   - `verify_p4_risk_governance.ts` (P4: 风控治理与熔断屏障)
+   - `verify_p5_revert_divergence.ts` (P5: 废除反向分歧加码，确立信息不对称避险)
+9. **双路全链路端到端集成测试**：`verify_full_pipeline_00_03.ts` (Layer 00 ~ 06 贯通测试)
 
 
-## Layer 03 Candidate State Machine
+## 七、Layer 03 候选状态机与准入双轨制 (Candidate State Machine)
 
-`raw_positive_ev_signals` is the research/math track and is never a tradable candidate. Every raw signal enters one single state machine: `RAW +EV → OOS validation → DATA/EXECUTION gate → machine candidate → production unlock`.
+`raw_positive_ev_signals` 仅代表纯数学与理论研究轨输出，绝不代表可直接交易的正式生产候选。每条原始信号必须由单一候选状态机严格判定：`RAW +EV → OOS validation → DATA/EXECUTION gate → machine candidate → production/permissive unlock`。
 
-Only a `VALIDATED` OOS profile with `effective_sample_size >= 200` can cross the OOS boundary. Layer 06 adds an independent terminal provenance gate: only `formal_ai_recommendation` records whose persisted `candidate_pipeline_state` is `PRODUCTION_UNLOCKED` may enter settlement/OOS conversion. `machine_candidate`, `RESEARCH`, `OOS_LOCKED`, `DATA_LOCKED`, and `NO_POSITIVE_EV` records are rejected fail-closed. Settled records must also have verified scores, binary `WIN/LOSE` outcomes, a supported OOS market, and a prediction timestamp inside the declared archive prediction window; settlement must not occur after archive generation. The canonical Layer 06 path is `FormalRecommendation -> convertFormalLedgerRecords -> ingestHistoricalBacktestRecords -> OosCalibrationArchive`. Unsupported markets are explicitly `UNSUPPORTED_MARKET` and remain locked. Without any validated OOS candidate, `edge_confidence_score` is `0` and the candidate remains `OOS_LOCKED`; with validated OOS but failed execution/data gates it becomes `DATA_LOCKED`; only a non-empty machine-candidate set reaches `PRODUCTION_UNLOCKED` and maps to the legacy `production_gate.candidate_status = UNLOCKED`.
+系统采用严格的**生产成熟态 (PRODUCTION_UNLOCKED) 与冷启动宽容态 (COLD_START_PERMISSIVE) 双轨授权机制**，防止因样本匮乏陷入死锁，同时坚决阻断未经检验的高风险下注：
 
-The `candidate_pipeline` contract is exported with Layer 03 output and forwarded to Layer 04 so downstream layers do not infer production eligibility independently.
+1. **成熟生产轨 (`PRODUCTION_UNLOCKED`)**：
+   - 当样本库中存在已验证的 OOS 校准档案且有效样本量达到成熟门槛（`effective_sample_size >= 200` 且 `oos_brier_score < 0.25`）时解锁；
+   - 允许评级冲顶 `A_GRADE`（置信度 $\ge 80$）与 `B_GRADE`，并可全额参与多组正式串关。
+2. **冷启动宽容轨 (`COLD_START_PERMISSIVE`)**：
+   - 在新联赛或新特征库启动初期（样本未达 200 或无 OOS Profile），若策略显式开启冷启动豁免（`permissiveOosMode: true`），系统赋予 `OOS_COLD_START_EXEMPT` 标记进入此状态；
+   - **硬性夹板风控防线**：最高评级**强制封顶为 `B_GRADE`**，综合置信度**强制封顶为 79 分**，且单场仅限单腿出票（同一方向最多进 1 组串关），严禁盲目下注深盘。
+3. **锁定与熔断状态 (`OOS_LOCKED`, `DATA_LOCKED`, `NO_POSITIVE_EV`)**：
+   - 若不满足上述授权条件，状态分别锁定为 `OOS_LOCKED`（样本不足且未豁免）、`DATA_LOCKED`（比分未核验/数据断流/时钟冲突）、`NO_POSITIVE_EV`（无数学正期望）；
+   - **绝对阻断线**：在此三类锁定状态下，`recommended_legs` 必须彻底清空，置信度强制归 0，推荐评级强制降为 `RESEARCH`。
 
 ### Layer 04 → Layer 05 Candidate Boundary
 
-Layer 04 is a consumer of the Layer 03 authorization contract, not an authority that can create production eligibility. `verifyStatutoryAlignment()` hard-fails any `candidate_pipeline.state` other than `PRODUCTION_UNLOCKED`: the AI may still provide research commentary, but `recommended_legs` is cleared, confidence is forced to `0`, and the grade is downgraded to `RESEARCH`.
+Layer 04 是 Layer 03 授权契约的严格消费者，绝无凭空赋予生产资格的特权：
+- `verifyStatutoryAlignment()` 硬性拦截任何处于锁定状态（`OOS_LOCKED`, `DATA_LOCKED`, `NO_POSITIVE_EV`）的信号：AI 仅可输出战术调研观点，任何可执行腿均被物理清空；
+- 对于经授权的非锁定状态（`PRODUCTION_UNLOCKED` 或 `COLD_START_PERMISSIVE`），对 AI 生成的让球/大小球方向与水位实施盘口镜像核对。
 
-Layer 05 is a second, independent fail-closed boundary. `applyPortfolioRiskFilters()` requires `PRODUCTION_UNLOCKED`, requires a non-zero machine-candidate count, and rejects any Layer 03 / AI pipeline snapshot mismatch before applying grade, confidence, exposure, and spread rules. `LedgerPersistence.appendApprovedLegs()` repeats the same production-state, machine-candidate, and snapshot-consistency checks, so direct persistence cannot bypass Portfolio Risk.
+Layer 05（组合风控层）为第二道独立的 Fail-Closed 物理防线：
+- `applyPortfolioRiskFilters()` 校验生产授权状态必须为 `PRODUCTION_UNLOCKED` 或具备 `COLD_START_PERMISSIVE`，且 `machine_candidate_count > 0`，同时比对 Layer 03 与 AI 流水线快照哈希一致性；
+- `LedgerPersistence.appendApprovedLegs()` 重复执行相同的生产状态、候选计数与快照校验，防止旁路穿透绕过风控。
 
-Therefore the authorization invariant is:
-
-`PRODUCTION_UNLOCKED ∧ machine_candidate_count > 0 ∧ A/B grade ∧ confidence >= 70 ∧ PortfolioRiskPassed → formal ledger write`
-
-Any missing or conflicting authorization state fails closed. `OOS_LOCKED`, `DATA_LOCKED`, `NO_POSITIVE_EV`, absent pipeline data, and pipeline snapshot mismatch can never become a formal recommendation.
+**全系统法定出票与台账写入的不变式（The Authorization Invariant）**：
+```
+((PRODUCTION_UNLOCKED ∧ A/B grade ∧ confidence >= 70) 
+ ∨ (COLD_START_PERMISSIVE ∧ OOS_COLD_START_EXEMPT ∧ B grade ∧ 70 <= confidence <= 79))
+∧ machine_candidate_count > 0 
+∧ PortfolioRiskPassed 
+→ formal ledger write
+```
+任何缺少必要授权凭据、数据冲突或快照错位的记录均 Fail-Closed，绝对严禁写入正式推荐台账。
 

@@ -92,9 +92,12 @@ export function auditDataConsistency(match: CanonicalMatch): DataConsistencyAudi
   const currentMinute = match.timing?.minute ?? null;
   const momentumPoints = countMomentumPoints(match);
 
-  // 1. 时钟对账：滚球状态下，当前分钟数减去时序点数，相差大于 3 分钟即断流
-  const timelineStaleLag = (currentMinute !== null) ? Math.max(0, currentMinute - momentumPoints) : 0;
-  const isTimelineStale = isLive && (currentMinute !== null) && (currentMinute - momentumPoints > 3);
+  // 1. 时钟对账：滚球状态下，若提供了危攻时序流，当前分钟数减去时序点数，相差大于 3 分钟即判定为断流
+  // 若赛事本身未提供动量数据（attack_momentum == null），由完整度评级降级处理，不应误判为物理时序断流
+  const hasMomentumTimeline = (match.reference?.attack_momentum !== null && match.reference?.attack_momentum !== undefined) ||
+    (Array.isArray((match.reference as any)?.attack_momentum_timeline) && (match.reference as any).attack_momentum_timeline.length > 0);
+  const timelineStaleLag = (currentMinute !== null && hasMomentumTimeline) ? Math.max(0, currentMinute - momentumPoints) : 0;
+  const isTimelineStale = isLive && hasMomentumTimeline && (currentMinute !== null) && (currentMinute - momentumPoints > 3);
 
   // 2. 提取事件轴统计
   const timelineEvents: CanonicalTimelineEvent[] = match.reference?.timeline_events || [];
@@ -170,12 +173,13 @@ export function auditDataConsistency(match: CanonicalMatch): DataConsistencyAudi
   const isHomeGoalMismatch = hasTimelineEvents && (homeScore !== null) && (homeScore !== eventHomeGoals);
   const isAwayGoalMismatch = hasTimelineEvents && (awayScore !== null) && (awayScore !== eventAwayGoals);
 
-  // 角球事实比对 (主客独立；仅在事件轴已具备事件数据时严格比对)
+  // 角球事实比对 (主客独立；仅在事件轴已明确包含角球事件时严格比对，避免仅记录关键事件的叙事事件轴误报角球事实分裂)
+  const timelineTracksCorners = (eventHomeCorners + eventAwayCorners) > 0;
   const statsCorners = match.reference?.stats?.corners;
   const statsHomeCorners = statsCorners?.home ?? null;
   const statsAwayCorners = statsCorners?.away ?? null;
-  const isHomeCornerMismatch = hasTimelineEvents && (statsHomeCorners !== null && statsHomeCorners !== undefined) && (statsHomeCorners !== eventHomeCorners);
-  const isAwayCornerMismatch = hasTimelineEvents && (statsAwayCorners !== null && statsAwayCorners !== undefined) && (statsAwayCorners !== eventAwayCorners);
+  const isHomeCornerMismatch = hasTimelineEvents && timelineTracksCorners && (statsHomeCorners !== null && statsHomeCorners !== undefined) && (statsHomeCorners !== eventHomeCorners);
+  const isAwayCornerMismatch = hasTimelineEvents && timelineTracksCorners && (statsAwayCorners !== null && statsAwayCorners !== undefined) && (statsAwayCorners !== eventAwayCorners);
 
   // 红牌事实比对 (主客独立；仅在事件轴已具备事件数据时严格比对)
   const statsRedCards = match.reference?.stats?.red_cards;

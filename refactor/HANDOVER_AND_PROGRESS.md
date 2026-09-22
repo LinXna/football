@@ -1,62 +1,68 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260922-CORE-QUANT-ATOMIC-STORAGE-HARDENING`
+- **任务编号 (Task)**: `SNAPSHOT-20260922-DOC-CONSISTENCY-AND-LEGACY-CLEANUP`
 - **当前状态 (Status)**: `IN_PROGRESS`
-- **阶段进度 (Phase)**: `修复量化分歧引擎反向硬刚风险、加固底层JSON文件原子落盘防崩溃机制、引入终盘净比赛时间衰减阻尼因子，并封存废弃旧版Python规划文档。`
-- **核心修复要点 (Target Scope)**:
-  1. 【量化分歧引擎纠偏 (`marketDivergenceEngine.ts` & `SYSTEM_QUANT_REFACTOR_BLUEPRINT.md`)】：
-     - 彻底废除“理论与市场分歧越大，越不信任市场盘口而反向加码理论权重”的逆向博弈逻辑（该逻辑在遇到庄家与知情资金掌握重大场外物理突发信息时会被反向绞杀）；
-     - 引入信息不对称风险警告（`informationAsymmetryRisk`）与避险机制：当理论与市场分歧过大时，不盲目调高理论先验，而是降低推荐置信度，实施安全防守。
-  2. 【底层数据持久化原子写入加固 (`ledgerPersistence.ts` & `jsonStore.ts`)】：
-     - 根治直接 `fs.writeFileSync` 裸写导致的断电/并发截断风险；
-     - 统一采用临时文件原子写入并替换机制（`filePath.tmp` -> `fs.renameSync`），提供防崩溃与一致性保障。
-  3. 【终盘有效净比赛时间衰减纠偏 (`poissonDecayModel.ts`)】：
-     - 在 75+ 分钟终盘阶段，结合密集事件、犯规黄牌以及有效比赛净时间（Effective Playing Time）衰减，引入阻尼调节因子，修正终盘大小球进球期望系统性高估的物理脱节问题。
-  4. 【废弃文档归档声明 (`04_STEP_BY_STEP_IMPLEMENTATION_PLAN.md`)】：
-     - 明确标记为 DEPRECATED & ARCHIVED，声明全工程唯一事实来源以 `/refactor/` 目录规范为准，消除双轨认知困惑。
+- **阶段进度 (Phase)**: `全面治理重构系统文档体系的老旧内容、遗留内容与逻辑冲突：消除 SYSTEM_ARCHITECTURE_AND_PIPELINE.md 中关于 OOS 冷启动门禁的死锁描述冲突，纠正 DATA_SPECIFICATION.md 章节编号倒挂与红牌/统计参数口径滞后，补齐 Layer 04~06 数据规范与完整测试矩阵，纠正 TRACEABILITY_MATRIX.md 中已废弃的 04_ai_reasoning 路径并补齐算子清册，为 03_quant_engine/EXPERT_DIAGNOSIS.md 增补历史归档与 SSOT 导向声明。`
 - **改动文件清单 (Target Files)**:
-  - `/refactor/03_quant_engine/marketDivergenceEngine.ts`
-  - `/refactor/03_quant_engine/types.ts`
-  - `/refactor/03_quant_engine/poissonDecayModel.ts`
-  - `/refactor/05_portfolio_risk/ledgerPersistence.ts`
-  - `/server/jsonStore.ts`
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+  - `/refactor/SYSTEM_ARCHITECTURE_AND_PIPELINE.md`
+  - `/refactor/DATA_SPECIFICATION.md`
+  - `/refactor/TRACEABILITY_MATRIX.md`
+  - `/refactor/03_quant_engine/EXPERT_DIAGNOSIS.md`
+  - `/refactor/CONTINUATION.md`
+- **执行计划 (Action Items)**:
+  1. 在 `SYSTEM_ARCHITECTURE_AND_PIPELINE.md` 中同步更新版本至 v3.0.0，修复状态机章节消除与 `COLD_START_PERMISSIVE` 的矛盾，补齐 Layer 04~06 架构说明与全量测试套件规范；
+  2. 在 `DATA_SPECIFICATION.md` 中修复章节二级标题序号（五/六/七/八/九/十），更新目录范围至 Layer 06，修正红牌 10 打 11 物理仿真参数 (1.40/0.40) 及 9 项物理攻防统计口径，增补 Layer 04~06 数据契约；
+  3. 在 `TRACEABILITY_MATRIX.md` 中纠正 `04_ai_reasoning` 为 `04_ai_evaluator`，增补 Layer 04~06 核心算子清册与追溯映射；
+  4. 在 `EXPERT_DIAGNOSIS.md` 头部增加历史诊断快照归档声明与 SSOT 导向说明；
+  5. 更新 `CONTINUATION.md`，执行全量自动化测试套件与 TypeScript 检查确保零回归。
+
+---
+
+## 历史活动快照 (Historical Active Snapshots)
+
+### SNAPSHOT-20260922-ALIGN-PLANS-AND-RESOLVE-CONTRADICTIONS (DONE)
+- **阶段进度**: `计划书体系全局治理与矛盾清算已全部完成：消除实施方案与快照在量化博弈逻辑上的反向硬刚矛盾、修复 CONTINUATION.md 停滞断层、纠正本地绝对路径，归档旧版规划文档并统一单一事实来源 (SSOT)。回归测试、端到端集成测试、静态类型检查与构建 100% 通过。`
+- **核心完成要点 (Delivered Items)**:
+  1. 【同步 `CONTINUATION.md` 断点续传任务】：
+     - 彻底消除 `Next Atomic Task` 停滞在 2026-09-14 P2 任务的历史脱节；
+     - 与当前最新 Layer 06 结算回测演进阶段以及全系统 115 项全绿灯测试状态精准对齐。
+  2. 【纠偏与封存 `implementation_plan.md`】：
+     - 增加清晰 DEPRECATION & CORRECTION 声明：废除早期草案中的 `divergencePenalty` 逆向硬刚加码理论权重逻辑，与最新信息不对称避险风控对齐；
+     - 修复 Windows 本地绝对路径为相对路径。
+  3. 【完善 `SYSTEM_QUANT_REFACTOR_BLUEPRINT.md` 演进注释】：
+     - 在第 4.4 节补充说明冷启动门禁在实盘运行中的演进闭环：从早期探讨的 85~90 分放行，演进为当前实盘采用的 `B_GRADE` 封顶与 `79` 分置信度硬夹板。
+  4. 【历史规划文档归档声明 (SSOT Alignment)】：
+     - 在 `SYSTEM_PREDICTION_DATA_PIPELINE.md`、`docs/ARCHITECTURE.md` 与 `docs/AI_SYSTEM_AND_DATA_CONTRACT.md` 头部增加废弃归档警示与重构 SSOT 导引，确立 `/refactor/` 目录的单一事实来源最高法定地位。
+  5. 【全链路代码与测试加固 (Regression & Test Hardening)】：
+     - 修复 `verify_quant_engine.ts` Test 11 信息不对称断言（支持 `match.markets` 权威盘口回退）；
+     - 修复 `dataConsistencyAuditor.ts` 纯关键事件叙事轴误判角球不自洽的问题；
+     - 修复 `config/appConfig.ts` 动态端口绑定支持；
+     - 全量测试（115 项）与 TypeScript 静态检查（0 错误）全部 100% 绿灯通过。
+- **改动文件清单 (Target Files)**:
+  - `/refactor/CONTINUATION.md`
+  - `/refactor/implementation_plan.md`
   - `/refactor/SYSTEM_QUANT_REFACTOR_BLUEPRINT.md`
-  - `/docs/data_audit/04_STEP_BY_STEP_IMPLEMENTATION_PLAN.md`
+  - `/SYSTEM_PREDICTION_DATA_PIPELINE.md`
+  - `/docs/ARCHITECTURE.md`
+  - `/docs/AI_SYSTEM_AND_DATA_CONTRACT.md`
+  - `/refactor/03_quant_engine/marketDivergenceEngine.ts`
+  - `/refactor/02_canonical_model/dataConsistencyAuditor.ts`
+  - `/config/appConfig.ts`
   - `/refactor/HANDOVER_AND_PROGRESS.md`
-  1. 【问题 1 赛事与队名对齐根治 (`matchAligner.ts` & `canonicalRoutes.ts`)】：
-     - 彻底清除短字符串/通用词 (如“联”、“城”、“FC”) 的 0.75 底分误判；
-     - 实施对称性严格约束与单队单边虚假匹配强行归零（单边相似度极低或主客严重失衡直接判不可信）；
-     - 强化 U19/U21/青年/女足/二队与一线队隔离硬性罚分；
-     - 优化候选贪婪消费机制，仅高置信且无冲突者自动对齐，其余规范保留供用户核对。
-  2. 【问题 2 导入性能极大提升 (`matchAligner.ts` & `canonicalRoutes.ts`)】：
-     - LCS 与文本相似度计算算法采用单维滚动数组优化，大幅缩减字符串矩阵比对时间；
-     - 消除 `assembleMatchesForMode` 与 `persistRuntimeBatch` 重复计算 Layer 03 特征的三重循环；
-     - 消除重复磁盘 I/O 写入开销。
-  3. 【问题 3 & 4 正式台账与 OOS 写入透明化与通道打通 (`refactorLedgerRoutes.ts`, `CanonicalMatchCenter.tsx`, `ManualLedgerModal.tsx`)】：
-     - 明确台账准入门禁：由于系统遵循防过拟合与高置信准则，未达 A/B 级或冷启动未锁定的比赛会被安全门禁拦截；
-     - 新增“手动登记正式推荐”与“录入已完场OOS校准样本”弹窗（`ManualLedgerModal`），支持专家自主录入推荐与赛果并直接入账；
-     - 提供后端 `/api/refactor/formal-ledger/manual-entry` 与 `/api/refactor/oos-sample/manual-entry` 接口，自动同步写入台账与校准档案；
-     - 增加雷速完场一键批量核销功能 (`/api/refactor/match-archive/settle-leisu`)，自动将完场赛果结算至台账并生成 OOS 二元样本。
-  4. 【问题 5 赛事持久化建档库与雷速完场反思梳理中心 (`matchArchiveStore.ts`, `matchArchiveRoutes.ts`, `MatchArchiveCenter.tsx`)】：
-     - 建立系统级多批次赛事建档库（`MatchArchiveStore`，持久化至 `refactor/runtime/match_archive.json`），用户每次导入并计算的比赛自动建立永久档案；
-     - 在前端主界面新增“赛事建档与赛后反思”独立视图（`MatchArchiveCenter`），展示所有建档场次、预测快照（泊松期望、Top高概率比分、盘口、BDI等）；
-     - 提供雷速完场数据一键导入核销与手动输入完场比分核销，生成即时反思报告（命中判断、预测偏差归因、盘口实际核销表现）。
-- **改动文件清单 (Target Files)**：
-  - `/refactor/02_canonical_model/matchAligner.ts`
-  - `/server/routes/canonicalRoutes.ts`
-  - `/server/routes/refactorLedgerRoutes.ts`
-  - `/server/services/matchArchiveStore.ts`
-  - `/server/routes/matchArchiveRoutes.ts`
-  - `/server.ts`
-  - `/src/components/CanonicalMatchCenter.tsx`
-  - `/src/components/MatchArchiveCenter.tsx`
-  - `/src/components/ManualLedgerModal.tsx`
-  - `/refactor/HANDOVER_AND_PROGRESS.md`
-- **下一步行动建议 (Next Steps)**：
-  - 请用户在前端界面体验：
-    1. 切换到“赛事建档与赛后反思”标签页，查看已导入赛事的预测档案与核销反思报告；
-    2. 使用顶部“手动登记推荐”或“手动录入OOS样本”按钮体验人工合规写入；
-    3. 点击“使用雷速完场数据核销”体验自动对比预测比分与实际完场赛果。
+
+---
+
+## 历史活动快照 (Historical Active Snapshots)
+
+### SNAPSHOT-20260922-CORE-QUANT-ATOMIC-STORAGE-HARDENING (DONE)
+- **阶段进度**: `修复量化分歧引擎反向硬刚风险、加固底层JSON文件原子落盘防崩溃机制、引入终盘净比赛时间衰减阻尼因子，并封存废弃旧版Python规划文档。`
+- **交付成果**:
+  1. 量化分歧引擎引入信息不对称风险识别与防守避险机制，废除无限加码理论先验；
+  2. 底层持久化写入加固为临时文件原子替换；
+  3. 终盘泊松模型结合有效比赛时间引入平滑衰减阻尼；
+  4. `04_STEP_BY_STEP_IMPLEMENTATION_PLAN.md` 标记为 DEPRECATED 归档。
+- **验证结论**: 全量 115 项自动化测试 100% 绿灯通过，构建与静态类型检查 0 报错。
 
 ## 历史活动快照 (Historical Active Snapshots)
 

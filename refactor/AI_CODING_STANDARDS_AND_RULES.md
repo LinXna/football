@@ -1,9 +1,29 @@
 # AI 编码行为准则与反技术债务法典 (AI Coding Standards & Anti-Tech-Debt Rules)
 
-> **版本**：v1.0.0  
-> **更新时间**：2026-08-29  
+> **版本**：v1.1.0  
+> **更新时间**：2026-09-22  
 > **作用域**：全系统重构体系 (`/refactor/`) 及后续所有 AI/工程师开发行为  
 > **最高原则**：本法典是系统开发的“最高宪法”。任何 AI 在进行任何修改、编写代码或执行重构前，必须无条件严格遵守本法典的全部条款。
+
+---
+
+## 第零章：系统绝对物理隔离与命名铁律 (System Separation & Boundary Lockdown)
+
+### 0.1 两套体系物理隔离定义
+仓库内共存两套不同时期的体系，AI 必须具有绝对的边界意识，严禁概念混淆、文档混读或交叉引用：
+1. **重构系统 (Football Match Analysis System / CODEX / Refactor 体系)**：
+   - **合法操作边界（白名单）**：`/refactor/**`（Layer 00~06 全部模块、测试用例、规范文档与运行快照）。
+   - **绝对物理禁区（黑名单）**：严禁引入或参考 `/docs/**`、`/server/**`、`/src/**` 及根目录旧脚本与旧文档。
+   - **权威契约 (SSOT)**：以 `/refactor/DATA_SPECIFICATION.md`、`/refactor/SYSTEM_ARCHITECTURE_AND_PIPELINE.md` 及 `/refactor/CONTINUATION.md` 为唯一准绳。
+2. **旧系统 (Legacy / 原系统)**：
+   - **合法操作边界（白名单）**：`/docs/**`、`/server/**`、`/src/**`。
+   - **绝对物理禁区（黑名单）**：严禁侵入 `/refactor/**` 目录。
+   - **契约来源**：以 `/docs/AI_SYSTEM_AND_DATA_CONTRACT.md` 为准绳。
+
+### 0.2 执行前强制第一句话声明 (Mandatory Pre-Action Declaration)
+在执行任何检索、代码编写、文档审计或重构分析前，AI 的回复中**第一句话必须输出【目标系统锁定与物理边界】**：
+- 声明格式：`🎯 目标系统锁定：【重构系统 (Refactor)】 | 📂 物理操作范围：/refactor/**（已对旧系统 docs/server/src 施加物理屏蔽）`。
+- 如果用户要求分析旧系统，则声明为旧系统范围。未做声明或声明与后续行为越界者，直接判定为执行失败。
 
 ---
 

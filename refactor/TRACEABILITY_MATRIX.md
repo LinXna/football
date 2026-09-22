@@ -1,9 +1,9 @@
 # 足球量化系统：全链路数据血统、算子与风控规则追溯矩阵 (Traceability Matrix)
 
-> **版本**：v2.0.0 (Layer 00 ~ 03 黄金基准对齐版)  
-> **更新时间**：2026-08-30  
+> **版本**：v3.0.0 (Layer 00 ~ 06 全链路生产闭环版)  
+> **更新时间**：2026-09-22  
 > **黄金基准对齐赛事 (SSOT Golden Fixture)**：**【英甲：谢周三 vs 布拉德福德城 (MatchID: 4562395)】**  
-> **核心使命**：实现系统全链路 100% 透明化，让每一个数据字段从输入源头、到清洗算子、到标准模型、再到下游量化博弈、风控拦截与台账核销都有据可查，杜绝任何隐式兜底与幽灵死代码。
+> **核心使命**：实现系统全链路 100% 透明化，让每一个数据字段从输入源头、到清洗算子、到标准模型、再到下游量化博弈、风控拦截、台账写入与赛后核销都有据可查，杜绝任何隐式兜底与幽灵死代码。
 
 ---
 
@@ -11,7 +11,7 @@
 
 全系统由三大唯一编号体系进行穿透式关联：
 1. **数据字段编号 (Field ID: `F-[层级]-[标识]`)**：标识系统流转中的核心数据属性；
-2. **计算算子编号 (Operator ID: `OP-[层级]-[序号]`)**：标识执行提取、组装、量化推演与提炼的纯函数/方法；
+2. **计算算子编号 (Operator ID: `OP-[层级]-[序号]`)**：标识执行提取、组装、量化推演、AI门禁、风控与核销的纯函数/方法；
 3. **风控规则编号 (Rule ID: `RC-[序号]`)**：标识 2026-07-29 回测铁律及系统级硬性拦截门禁。
 
 ---
@@ -36,8 +36,13 @@
 | **`F-03-Q28`** | `QuantitativeFeatures.poisson.lambda_home_rest` | `03_quant_engine/types.ts` | **`OP-03-03`** (`solveInPlayPoissonModel`) | 1. 0:0 让球/大小球泊松概率网格求解<br>2. 期望进球期望对比 | **`RC-POISSON-CONSERVED`** |
 | **`F-03-Q34`** | `QuantitativeFeatures.devig.h2h_devig` | `03_quant_engine/types.ts` | **`OP-03-05`** (`devigShin`) | 1. 无偏公允概率<br>2. +EV 信号挖掘 | **`RC-DEVIG-SUM-1`** |
 | **`F-03-Q35`** | `QuantitativeFeatures.devig.spread_main_ev` | `03_quant_engine/types.ts` | **`OP-03-05`** (`calculateAsianHandicapEV`) | 1. 让球主盘 EV 优选方向与 Kelly 仓位 | **`RC-QUARTER-CONSERVED`** |
-| **`F-04-R01`** | `RecommendationCandidate.tier` | `04_ai_reasoning/types.ts` | **`OP-04-01`** (`evaluateRecommendation`) | 1. 推荐等级划分 (A/B/C/WATCH/RESEARCH/REJECT) | **`RC-002`** (B级限制) |
-| **`F-04-R03`** | `RecommendationCandidate.risk_controls` | `04_ai_reasoning/types.ts` | **`OP-04-01`** (`evaluateRecommendation`) | 1. 2026-07-29 回测铁律逐项核验清单 | **`RC-003`** / **`RC-008`** |
+| **`F-03-Q40`** | `CandidatePipelineContract.state` | `03_quant_engine/types.ts` | **`OP-03-07`** (`evaluateCandidateState`) | 1. **`OP-04-02`** (`verifyStatutoryAlignment`)<br>2. **`OP-05-01`** (`applyPortfolioRiskFilters`) | **`RC-STATE-AUTH`** (锁定状态阻断出票) |
+| **`F-04-E01`** | `AiEvaluationResult.grade` | `04_ai_evaluator/types.ts` | **`OP-04-01`** (`evaluateAiBrief`) | 1. **`OP-04-02`** (`verifyStatutoryAlignment`)<br>2. **`OP-05-01`** (组合风控准入) | **`RC-002`** (B级限制) |
+| **`F-04-E02`** | `AiEvaluationResult.recommended_legs` | `04_ai_evaluator/types.ts` | **`OP-04-01`** (`evaluateAiBrief`) | 1. **`OP-04-02`** (盘口镜像核验)<br>2. **`OP-05-01`** (组合去重与相关性审查) | **`RC-003`** / **`RC-008`** |
+| **`F-05-P01`** | `PortfolioFilterResult.approved_legs` | `05_portfolio_risk/types.ts` | **`OP-05-01`** (`applyPortfolioRiskFilters`) | 1. **`OP-05-02`** (`appendApprovedLegs` 写入台账) | **`RC-PORTFOLIO-FAIL-CLOSED`** |
+| **`F-05-P02`** | `FormalLedgerRecord` | `05_portfolio_risk/types.ts` | **`OP-05-02`** (`appendApprovedLegs`) | 1. **`OP-06-01`** (`settleFormalRecommendation` 结算核销) | **`RC-LEDGER-IMMUTABLE`** |
+| **`F-06-S01`** | `SettlementResult.outcome / multiplier` | `06_settlement_audit/types.ts` | **`OP-06-01`** (`settleFormalRecommendation`) | 1. **`OP-06-02`** (历史回测吸纳与 OOS 参数校准) | **`RC-QUARTER-SETTLE-CONSERVED`** |
+| **`F-06-S02`** | `QuantCalibrationProfile` | `06_settlement_audit/types.ts` | **`OP-06-02`** (`ingestHistoricalBacktestRecords`) | 1. **`OP-03-07`** (驱动下一轮 OOS 准入状态判定) | **`RC-OOS-200-SAMPLES`** |
 
 ---
 
@@ -63,7 +68,20 @@
 - **`OP-03-03`**：`solveInPlayPoissonModel(canonical, context, physical)` - 滚球 0:0 重置、非线性时间衰减、临终绝境搏命修正与二维泊松联合网格推演；
 - **`OP-03-04`**：`devigShin(odds)` / `devigMultiplicative(odds)` - Shin 知情交易者去抽水与乘法去抽水算法；
 - **`OP-03-05`**：`calculateAsianHandicapEV(line, hOdds, aOdds, poisson)` / `calculateTotalEV` - 四分之一盘口复合期望、半赢半输概率与 Kelly 最优仓位；
-- **`OP-03-06`**：`calculateQuantitativeFeatures(canonical, options)` - 统帅部最高聚合算子，生成 BDI 战场统治权指数、综合置信度、破门相变预警与风控标记。
+- **`OP-03-06`**：`calculateQuantitativeFeatures(canonical, options)` - 统帅部最高聚合算子，生成 BDI 战场统治权指数、综合置信度、破门相变预警与风控标记；
+- **`OP-03-07`**：`evaluateCandidateState(rawSignals, oosArchive, options)` - 候选状态机求值算子，执行 `PRODUCTION_UNLOCKED`、`COLD_START_PERMISSIVE` 与三态锁定的判定。
+
+### Layer 04: AI 评估与法定门禁算子
+- **`OP-04-01`**：`evaluateAiBrief(payload)` - 注入结构化 Prompt，大模型输出战术体制与推荐倾向；
+- **`OP-04-02`**：`verifyStatutoryAlignment(result, payload)` - 双重法定门禁守卫，核验盘口镜像一致性，锁定状态硬阻断清空。
+
+### Layer 05: 组合风控与台账追加算子
+- **`OP-05-01`**：`applyPortfolioRiskFilters(recommendations, options)` - 执行单一腿限额、B级单串关去重、相关性隔离与深盘阻断；
+- **`OP-05-02`**：`appendApprovedLegs(approvedLegs, ledgerPath)` - 校验流水线快照一致性，原子化追加正式推荐至实盘台账。
+
+### Layer 06: 精确核销与自适应回测算子
+- **`OP-06-01`**：`settleFormalRecommendation(leg, finalScore, match)` - 赛前全场/滚球后半段精确四分之一盘口结算核销；
+- **`OP-06-02`**：`ingestHistoricalBacktestRecords(formalLegs, backtestRecords)` - 吸纳结算数据并更新生成 OOS 校准档案库。
 
 ---
 
@@ -81,6 +99,11 @@
   - 滚球进行中比赛若无法解析有效进行分钟或缺失目标盘口，直接终止计算并打上熔断标记。
 - **`RC-SWAP-DEFENSE` (主客颠倒反装拦截)**：
   - 双源匹配中检测到主客场完全颠倒时，标记为 `SWAPPED_HOME_AWAY` 并锁定对齐，防止反向投注。
+- **`RC-STATE-AUTH` (生产准入状态机硬门禁)**：
+  - 仅处于 `PRODUCTION_UNLOCKED` 或 `COLD_START_PERMISSIVE` 的候选可出票，任何锁定状态一律拦截。
+- **`RC-QUARTER-SETTLE-CONSERVED` (四分之一盘守恒核销)**：
+  - 赢半/输半/走盘数学守恒核销，滚球让球与大小球严格按推荐后净新增球计算。
+
 
 ---
 

@@ -2,6 +2,11 @@
 
 > This is the short cold-start entry for any AI or account taking over this repository.
 > The full historical record remains in `HANDOVER_AND_PROGRESS.md`.
+>
+> ⚠️ **CRITICAL BOUNDARY ENFORCEMENT**:
+> - **重构系统 (Football Match Analysis System / CODEX / Refactor 体系)**: 物理作用域仅限 `/refactor/**`。
+> - **旧系统 (Legacy)**: 作用域为 `/docs/**`, `/server/**`, `/src/**` 及根目录脚本。
+> - 在执行任何重构系统操作前，禁止引用或混入旧系统的任何文档和代码。
 
 ## Current State
 
@@ -65,15 +70,18 @@
   - 任务 2.4：落地豪门红牌防御策略覆盖模式 (Strategy Override Pattern)，引入 0.75 缓冲因子避免误杀强队；
   - 任务 2.5：高赔冷门与极深盘经验贝叶斯收缩机制落地，修正极端方差，补全审计字段；
   - 专属测试套件 `verify_p2_tactical_momentum.ts` 及全量测试验证 100% 通过。
+- [2026-09-15 ~ 2026-09-22 Phases 3~5 & Stability Hardening Complete]:
+  - Phase 3 & 4：台账持久化原子事务锁落地，75+ 终盘物理时间衰减与伤停补时模型生效；
+  - Phase 5：四大支柱全面重构，落实市场分歧引擎、信息不对称避险、0:0让球与大小球重置；
+  - 稳定性加固：底层 JSON 存储加固为临时文件原子替换，对齐算法与导入性能大幅提升；
+  - 规划文档审计：排查消除历史遗留计划与现行实施的博弈矛盾，明确以 `/refactor/` 目录为全工程唯一事实来源 (SSOT)。
 
 ## Next Atomic Task
 
-执行【第二阶段：P2 量化引擎战术与动量增强 (任务 2.1, 2.2, 2.3, 2.4, 2.5)】：
-1. 激活 9 个未使用的现场技术统计指标并构建进攻威胁指数 (TTI)；
-2. 重构多尺度动量金字塔模型（5m 40%, 10m 35%, 15m 25%）；
-3. 落实红牌三态分流（领先、平局、落后）与动态收缩深度；
-4. 引入超强弱悬殊豪门红牌防御策略覆盖机制 (Strategy Override Pattern)；
-5. 实现高赔冷门与极深盘经验贝叶斯收缩。
+执行【计划与文档一致性落地与持续学习系统部署】：
+1. 校验全链路计划书、规范与运行时文档的一致性，封存历史废弃文档；
+2. 推进 `/refactor/06_settlement_audit/PREDICTION_VS_ACTUAL_CONTINUOUS_LEARNING_SPEC.md` 中定义的预测快照与完赛事实深层次对账及自适应学习系统；
+3. 严格遵循 `HANDOVER_AND_PROGRESS.md` 活动快照推进，并保证全量自动化测试持续 100% 绿灯。
 
 After that, audit live-minute window semantics, red-card multipliers into M4, market timeline separation, and OOS backtesting one atomic issue at a time.
 

@@ -1,25 +1,29 @@
 # 足球量化系统：重构目录数据规范与字段权威说明 (Refactor Data Specification)
 
-> **版本**：v1.0 (重构定稿版)  
-> **更新时间**：2026-08-29  
+> **版本**：v3.0.0 (Layer 00 ~ Layer 06 全链路生产与自适应闭环定稿版)  
+> **更新时间**：2026-09-22  
 > **核心原则**：纯净无冗余、单一事实来源 (SSOT)、零派生噪音字段。
 
 ---
 
 ## 一、当前已落地目录与职责说明
 
-当前重构已完成目录及职责如下（后续层级在实际开发落地时再行增补）：
+全系统各层级目录及职责划分如下（已实现 Layer 00 ~ Layer 06 全链路闭环）：
 
 | 目录路径 | 作用与职责说明 |
 | :--- | :--- |
 | `refactor/00_common/` | **【00 全局基石】** 全局跨模块枚举 (`enums.ts`)、统一领域异常与弹窗通知总线 (`errors.ts`)。 |
 | `refactor/01_data_ingestion/ybty/` | **【01 接入层】** YBTY 数据强类型契约 (`types.ts`)、专属枚举分类管理 (`enums.ts`)、滚球提取器 (`ybtyLiveExtractor.ts`) 与赛前提取器 (`ybtyPrematchExtractor.ts`)。 |
 | `refactor/01_data_ingestion/leisu/` | **【01 接入层】** 雷速数据强类型契约 (`types.ts`)、专属枚举分类管理 (`enums.ts`) 与接口数据提取器 (`leisuInterfaceExtractor.ts`)。 |
-| `refactor/02_canonical_model/` | **【02 核心实体层】** 标准赛事契约 (`types.ts`)、对齐枚举分类 (`enums.ts`)、纯文本顺序实体对齐器 (`matchAligner.ts`) 与双源标准赛事装配器 (`canonicalMatchAssembler.ts`)。 |
-| `refactor/samples/01_data_ingestion/` | **【样例数据区】** 存放清洗提取后生成的标准 JSON 样例文件与中英文档索引 ([`README.md`](./samples/01_data_ingestion/README.md))。 |
-| `refactor/samples/02_canonical_model/` | **【样例数据区】** 存放标准赛事对象 (`CanonicalMatch`) 与 AI 提炼包 (`AiEvaluationBrief`) 样本与说明文档 ([`README.md`](./samples/02_canonical_model/README.md))。 |
+| `refactor/02_canonical_model/` | **【02 核心实体层】** 标准赛事契约 (`types.ts`)、对齐枚举分类 (`enums.ts`)、纯文本顺序实体对齐器 (`matchAligner.ts`)、双源标准赛事装配器 (`canonicalMatchAssembler.ts`) 与事实一致性审计器 (`dataConsistencyAuditor.ts`)。 |
+| `refactor/03_quant_engine/` | **【03 量化推演层】** 37 项物理攻防量化、Shin 去抽水公允概率、滚球 0:0 Forward 泊松网格、BDI 统治力指数、候选状态机 (`candidateStateMachine.ts`) 与 OOS 校准引擎 (`oosCalibrationEngine.ts`)。 |
+| `refactor/04_ai_evaluator/` | **【04 AI 评估层】** 高密度结构化 Prompt 注入、大模型战术分析契约 (`types.ts`)、盘口镜像校验与双重法定门禁守卫 (`alignmentGuard.ts`)。 |
+| `refactor/05_portfolio_risk/` | **【05 组合风控层】** A/B 级推荐准入过滤、深盘阻断、跨串关相关性风控、资金敞口管理与正式推荐台账原子追加 (`formalLedgerLiveAdapter.ts`)。 |
+| `refactor/06_settlement_audit/` | **【06 核销结算与自适应回测】** 精确四分之一盘口赛后核销 (`settlementEngine.ts`)、历史回测吸纳转换器 (`historicalBacktestIngestion.ts`)、对账与动态参数校准档案 (`PREDICTION_VS_ACTUAL_CONTINUOUS_LEARNING_SPEC.md`)。 |
+| `refactor/runtime/` | **【运行时持久化底座】** 存放全量预测快照底座 (`match_archive.json`)、实盘台账 (`formal_ledger_live.json`)、OOS 校准档案库与参数配置。 |
+| `refactor/samples/` | **【样例数据区】** 存放各层清洗后生成的标准 JSON 样例文件与中英文档索引。 |
 | `refactor/fixtures/` | **【测试样本区】** 存放用于单元测试的真实原始抓取数据文件。 |
-| `refactor/tests/` | **【测试用例区】** 存放针对各模块的单元测试脚本与断言验证。 |
+| `refactor/tests/` | **【测试用例区】** 存放针对各模块及跨层端到端集成的自动化测试套件。 |
 
 ---
 
@@ -280,7 +284,7 @@
 | `score_verified` | `boolean` | `true` | **比分核验标记**（必须经过可靠接口/画布交叉校验，未核验禁止给 A 级推荐）。 |
 | `venue` | `object \| null` | `{...}` | **比赛场地信息**（球场名 `name`、城市 `city`、国家 `country`、容量 `capacity`）。 |
 | `environment` | `object` | `{...}` | **天气与物理环境**（气温、天气、风速、气压、湿度）。 |
-| `stats` | `object` | `{...}` | **8大核心攻防统计**（角球、黄牌、红牌、进攻、危险进攻、控球率、射正、射偏、总射门）。 |
+| `stats` | `object` | `{...}` | **9项物理攻防统计**（角球、黄牌、红牌、进攻、危险进攻、控球率、射正、射偏、总射门）。 |
 | `attack_momentum` | `object` | `{...}` | **实时攻防动量波形时序数据**（包含上下半场每分钟压迫指数矩阵。⚠️ **雷速端唯一合法的时间轴点阵**，点阵长度即代表已进行分钟数）。 |
 | `timeline_events` | `array` | `[...]` | **文字直播事件时序**（由枚举管理器统一解析 `type`、`type_name`、`side`、`minute`、`text`。⚠️ **仅代表离散历史事件发生时间，严禁当做比赛当前进行的即时时钟！**）。 |
 | `lineups` | `object` | `{...}` | **首发阵型与球员阵容**（阵型、主教练、身价、平均年龄、首发/替补/伤停名单及球员详细字段）。 |
@@ -365,7 +369,7 @@
 
 ---
 
-## 五、亚洲让球盘 (Asian Handicap) 权威符号契约、换算规则与全生命周期结算口径
+## 四、亚洲让球盘 (Asian Handicap) 权威符号契约、换算规则与全生命周期结算口径
 
 本章为全系统**亚洲让球盘唯一事实来源 (SSOT)**。全链路所有模块（数据清洗、实体对齐、量化推演、AI评估、风控台账、赛后核销）必须 100% 遵照本规范执行。
 
@@ -442,7 +446,7 @@
 
 ---
 
-## 六、Layer 02: CanonicalMatch 标准赛事合并实体规范 (纯净未计算)
+## 五、Layer 02: CanonicalMatch 标准赛事合并实体规范 (纯净未计算)
 
 * 模块路径：`refactor/02_canonical_model/`
 * 样例文件路径：`refactor/samples/02_canonical_model/canonical_match_sample.json`
@@ -463,7 +467,7 @@
 2. **权责分工与数据流向绝对边界 (Strict Data Flow & Responsibility Boundary)**：
    - **YBTY 盘口与滚球时钟数据**：**深度参与计算与预测**。负责提供让球/大小球/独赢/主副盘精确盘口线与赔率，以及滚球进行中的即时分钟数 (`minute`，从 `ybty_display_clock` 解析)，用于 Layer 03 泊松时间衰减推演、剥水公允概率、+EV 计算与盘口深度比对；
    - **YBTY 队名与联赛名**：**纯出票展示与投注映射，绝不参与预测计算**。仅用于在管理面板、推荐结果中直观展示，让你在 YBTY 上零认知转换直接出票；
-   - **雷速全量数据**：**深度参与计算与预测**。负责提供开赛时间转换 (`beijing_start_time`)、比分画布校验 (`score_verified`)、8 大攻防技术统计 (`stats`)、动量波形时序 (`attack_momentum`)、首发阵型阵容 (`lineups`)、联赛积分榜 (`league_standings`) 与时段进球分布 (`goal_distribution`)。雷速不提供滚球时钟，严禁从雷速事件时间臆造当前时间。
+   - **雷速全量数据**：**深度参与计算与预测**。负责提供开赛时间转换 (`beijing_start_time`)、比分画布校验 (`score_verified`)、9 项物理攻防统计 (`stats`)、动量波形时序 (`attack_momentum`)、首发阵型阵容 (`lineups`)、联赛积分榜 (`league_standings`) 与时段进球分布 (`goal_distribution`)。雷速不提供滚球时钟，严禁从雷速事件时间臆造当前时间。
 3. **导入拦截与深度绑定 (Pre-Import Gate & Deep Binding)**：
    - YBTY 与雷速匹配不上的比赛，在导入弹窗中明确展示并禁止勾选导入；
    - 只有经人工视觉确认并勾选导入的比赛，才正式生成 `CanonicalMatch`；
@@ -578,7 +582,7 @@ export interface CanonicalLeisuReference {
   leisu_home_name: string;            // 雷速主队名
   leisu_away_name: string;            // 雷速客队名
   leisu_league_name: string;          // 雷速联赛名
-  stats: ParsedLeisuStats | null;     // 8 大核心攻防统计
+  stats: ParsedLeisuStats | null;     // 9 项物理攻防统计
   attack_momentum: ParsedLeisuMomentum | null; // 分钟级压迫动量波形
   timeline_events: ParsedLeisuTimelineEvent[]; // 正向时序文字直播事件
   lineups: ParsedLeisuLineup | null;  // 首发阵型与球员身价/年龄名单
@@ -596,7 +600,7 @@ export interface CanonicalLeisuReference {
 | 完整度等级 (`DataCompletenessTier`) | 判定标准 | 风控与推荐准入权限 |
 | :--- | :--- | :--- |
 | `TIER_1_FULL` | 阵型/首发、攻防统计、动量波形、积分榜与进球分布**全维度具备**，且比分核验通过 | **全量准入**：支持生成 A/B/C 级正式单场推荐与多组正式串关。 |
-| `TIER_2_BASIC` | 具备 8 大攻防统计与基础数据，但阵型未公布或缺少部分动量时序 | **受限准入**：最高只允许 B 级推荐，且同一方向最多进入一组串关。 |
+| `TIER_2_BASIC` | 具备 9 项物理攻防统计与基础数据，但阵型未公布或缺少部分动量时序 | **受限准入**：最高只允许 B 级推荐，且同一方向最多进入一组串关。 |
 | `TIER_3_SPARSE` | 未匹配到雷速或仅有基础盘口比分，缺少深度统计 | **严禁推荐**：仅作行情监控，严禁进入正式 AI 评估与串关。 |
 | `TIER_INVALID` | 检测到双源比分冲突、主客颠倒或源头数据损坏 | **一票熔断**：标记为脏数据，禁止一切评估与投注。 |
 
@@ -641,7 +645,7 @@ export interface AiEvaluationBrief {
 
 ---
 
-## 五、Layer 03 确定性量化与博弈特征规范 (`QuantitativeFeatures`)
+## 六、Layer 03 确定性量化与博弈特征规范 (`QuantitativeFeatures`)
 
 * 样例文件路径：`refactor/samples/03_quant_engine/quant_features_sample.json`
 * 引擎实现：`refactor/03_quant_engine/index.ts`
@@ -698,7 +702,7 @@ export interface QuantitativeFeatures {
 | 23 | `F23_CONV_AWAY` | `physical_stats.conversion_efficiency.away_conversion` | `number` | `[0, 1]` | **客队射门转化率**。 |
 | 24 | `F24_PRESSURE_INDEX` | `physical_stats.pressure_index` | `number` | `[-1, +1]` | **即时压迫净差指数**：$(\text{危攻}_H - \text{危攻}_A) / (\text{危攻}_H + \text{危攻}_A)$。 |
 | 25 | `F25_BARREN_DOM` | `physical_stats.tactical_anomaly.home_barren_dominance` | `boolean` | `true / false` | **无效控球/干打雷不下雨**：控球率高但射正与 xT 极低。 |
-| 26 | `F26_RED_PENALTY` | `physical_stats.red_card_penalty` | `object` | `{...}` | **红牌战力衰减系数**：进攻衰减 0.75，防守漏洞扩大 1.30。 |
+| 26 | `F26_RED_PENALTY` | `physical_stats.red_card_penalty` | `object` | `{...}` | **红牌物理仿真矩阵**：少打一人方防守漏球率 +40%（1.40），前场反击折算率 -60%（0.40），支持领先收缩大巴、平局消耗与落后崩溃三态分流及豪门 0.75 缓冲因子。 |
 | 27 | `F27_TIME_REMAINING` | `poisson.remaining_minutes` | `number` | `[0, 90]` | **剩余法定比赛分钟**：$90 - \text{minute}$。 |
 | 28 | `F28_LAMBDA_HOME_REST` | `poisson.lambda_home_rest` | `number` | `[0, 8]` | **主队滚球 0:0 剩余进球期望 ($\lambda_{H,\text{rest}}$)**。 |
 | 29 | `F29_LAMBDA_AWAY_REST` | `poisson.lambda_away_rest` | `number` | `[0, 8]` | **客队滚球 0:0 剩余进球期望 ($\lambda_{A,\text{rest}}$)**。 |
@@ -710,3 +714,126 @@ export interface QuantitativeFeatures {
 | 35 | `F35_SPREAD_MAIN_EV` | `devig.spread_main_ev` | `SpreadEVAssessment` | `{...}` | **让球主盘 EV 评估** (支持四分之一盘复合期望与半赢半输结算)。 |
 | 36 | `F36_TOTAL_MAIN_EV` | `devig.total_main_ev` | `TotalEVAssessment` | `{...}` | **大小球主盘 EV 评估**。 |
 | 37 | `F37_BOOKMAKER_POSTURE` | `devig.bookmaker_posture` | `BookmakerPosture` | `BALANCED_NEUTRAL` / `TRAP_HIGH_ODDS` / `HEAVY_DEFENSIVE` / `DISPERSED_UNCERTAIN` | **庄家操盘意图识别**：防守、诱盘或分散不确定。 |
+
+---
+
+## 七、Layer 04: AI 战术评估与双重门禁校验契约 (`AiEvaluation`)
+
+* 模块路径：`refactor/04_ai_evaluator/`
+* 评估器实现：`refactor/04_ai_evaluator/evaluatorPromptBuilder.ts`
+* 门禁校验器：`refactor/04_ai_evaluator/alignmentGuard.ts`
+* 强类型契约：`refactor/04_ai_evaluator/types.ts`
+* 专属枚举管理：`refactor/04_ai_evaluator/enums.ts`
+
+### 1. AI 评估输入载体 (`EvaluatorPayload`)
+```typescript
+export interface EvaluatorPayload {
+  ai_brief: AiEvaluationBrief;                   // Layer 02 极简提炼包 (200~400 tokens)
+  quant_features: EvaluatorQuantFeatures;        // Layer 03 关键特征与候选状态机快照
+}
+```
+
+### 2. AI 评估输出与决策结构 (`AiEvaluationResult`)
+```typescript
+export interface AiEvaluationResult {
+  match_id: string;
+  evaluated_at: string;
+  tactical_regime: TacticalRegimeEvaluation;    // 战术体制判定 (如 HIGH_PRESS_OPEN, LOW_BLOCK_COUNTER)
+  grade: RecommendationGrade;                   // A_GRADE | B_GRADE | C_GRADE | RESEARCH | REJECTED
+  confidence_score: number;                     // 0 ~ 100 综合置信分
+  key_drivers: string[];                        // 核心驱动因素说明
+  risk_warnings: string[];                      // 识别的物理与战术风险
+  market_scan: AiMarketScanRecord | null;       // 扫描的盘口与方向
+  recommended_legs: AiRecommendedLeg[];         // 正式推荐腿集合 (通过门禁前)
+  alignment_audit?: AlignmentValidationResult;  // 镜像门禁核验元数据
+}
+```
+
+### 3. 法定门禁硬性拦截标准 (`verifyStatutoryAlignment`)
+- **锁定状态硬阻断**：若 `candidate_pipeline.state` 为 `OOS_LOCKED`、`DATA_LOCKED` 或 `NO_POSITIVE_EV`，强制清空 `recommended_legs`，置信度置 0，评级强制降为 `RESEARCH`；
+- **冷启动状态受控放行**：若为 `COLD_START_PERMISSIVE`，评级最高封顶 `B_GRADE`，置信度最高封顶 79 分；
+- **盘口镜像校验**：AI 推荐腿必须严格命中法定盘口线，严禁幻觉臆造盘口与水位。
+
+---
+
+## 八、Layer 05: 组合风控与正式推荐台账规范 (`PortfolioRisk & FormalLedger`)
+
+* 模块路径：`refactor/05_portfolio_risk/`
+* 过滤器实现：`refactor/05_portfolio_risk/portfolioRiskFilter.ts`
+* 台账适配器：`refactor/05_portfolio_risk/formalLedgerLiveAdapter.ts`
+* 运行时文件：`refactor/runtime/formal_ledger_live.json`
+
+### 1. 正式推荐腿结构 (`RecommendedLeg`)
+```typescript
+export interface RecommendedLeg {
+  canonical_id: string;
+  kickoff_time: string;                         // 标准北京时间
+  ybty_home_name: string;                       // YBTY 法定主队名 (用于无缝出票)
+  ybty_away_name: string;                       // YBTY 法定客队名
+  league_name: string;
+  market: 'ASIAN_HANDICAP' | 'TOTAL_GOALS' | 'EURO_1X2';
+  direction: 'HOME' | 'AWAY' | 'OVER' | 'UNDER' | 'DRAW';
+  selected_line: string;                        // 如 "-0.5/1", "+0.25", "2.5"
+  current_odds: number;                         // 推荐时刻法定赔率
+  live_minute: number | null;                   // 滚球推荐分钟 (赛前为 null)
+  live_score: { home: number; away: number } | null;
+  score_verified: boolean;                      // 比分可靠核验标记
+  score_source: string;
+  grade: 'A_GRADE' | 'B_GRADE';
+  confidence_score: number;                     // >= 70
+  expected_value: number;                       // 理论 +EV
+  risk_controls_passed: boolean;
+  pipeline_state: 'PRODUCTION_UNLOCKED' | 'COLD_START_PERMISSIVE';
+}
+```
+
+### 2. 组合风控核心铁律 (Portfolio Invariants)
+1. **单一腿限额**：单场比赛最多只生成 1 条正式单场推荐；
+2. **串关去重与相关性隔离**：B 级推荐同一方向最多进 1 组串关；A 级在首发战意明确时最多进 2 组串关；
+3. **杯赛/弱旅深盘阻断**：缺少首发或主力大幅轮换时，深盘 (Line >= 1.0) 一律禁止出票。
+
+---
+
+## 九、Layer 06: 精确赛后核销与自适应回测归档规范 (`Settlement & OOS Calibration`)
+
+* 模块路径：`refactor/06_settlement_audit/`
+* 核销引擎：`refactor/06_settlement_audit/settlementEngine.ts`
+* 回测吸纳器：`refactor/06_settlement_audit/historicalBacktestIngestion.ts`
+* 持续学习规范：`refactor/06_settlement_audit/PREDICTION_VS_ACTUAL_CONTINUOUS_LEARNING_SPEC.md`
+
+### 1. 精确核销结果规范 (`SettlementResult`)
+```typescript
+export interface SettlementResult {
+  leg_id: string;
+  canonical_id: string;
+  market: string;
+  direction: string;
+  line: string;
+  odds: number;
+  is_live: boolean;
+  minute_at_bet?: number | null;
+  score_at_bet?: { home: number; away: number } | null;
+  final_score: { home: number; away: number };
+  score_verified: boolean;
+  outcome: 'WIN' | 'HALF_WIN' | 'PUSH' | 'HALF_LOSS' | 'LOSS' | 'INVALID_DATA' | 'PENDING';
+  profit_loss_multiplier: number;               // 收益乘数 (如 +Odds_net, +0.5*Odds_net, 0, -0.5, -1.0)
+  settlement_timestamp: string;
+  settled_delta_goals: number;                  // 实际净胜球 (赛前为全场，滚球为推荐后新增)
+  settled_total_goals: number;                  // 实际总进球 (赛前为全场，滚球为推荐后新增)
+}
+```
+
+### 2. OOS 校准档案契约 (`QuantCalibrationProfile`)
+```typescript
+export interface QuantCalibrationProfile {
+  profile_id: string;
+  market_key: string;                           // 如 "ASIAN_HANDICAP|0.5|HOME|AH"
+  effective_sample_size: number;                // 有效样本量 (>= 200 解锁成熟生产轨)
+  brier_score: number;                          // Brier 预测误差分 (< 0.25 合格)
+  calibration_slope: number;                    // 概率校准斜率
+  expected_profitability: number;               // 历史回测期望盈利率
+  status: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'INSUFFICIENT_EVIDENCE' | 'CIRCUIT_BROKEN';
+  last_updated: string;
+}
+```
+
