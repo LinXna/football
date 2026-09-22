@@ -152,6 +152,34 @@ export function calculatePhasedDNATimeFraction(
 }
 
 /**
+ * 计算基于进球时段 DNA 的上半场截断剩余时间积分比例 (First-Half Phased Decay Integration)
+ * 仅积分上半场 3 个 15 分钟区间 (0-15', 16-30', 31-45')，当 elapsedMinute >= 45 时严格返回 0.0
+ * @param elapsedMinute 已进行分钟数 (0~45)
+ * @param weights 6 个 15 分钟区间权重占比数组
+ */
+export function calculateFirstHalfPhasedDNATimeFraction(
+  elapsedMinute: number,
+  weights: number[] = [0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667]
+): number {
+  if (elapsedMinute <= 0) {
+    const totalFirstHalf = (weights[0] ?? 0.1667) + (weights[1] ?? 0.1667) + (weights[2] ?? 0.1667);
+    return Number(Math.max(0.0, Math.min(1.0, totalFirstHalf)).toFixed(4));
+  }
+  if (elapsedMinute >= 45) return 0.0;
+
+  const currentIntervalIndex = Math.min(2, Math.floor(elapsedMinute / 15));
+  const intervalEndMinute = (currentIntervalIndex + 1) * 15;
+  const fractionInCurrentInterval = Math.max(0, (intervalEndMinute - elapsedMinute) / 15.0);
+
+  let remainingIntegral = fractionInCurrentInterval * (weights[currentIntervalIndex] ?? 0.1667);
+  for (let i = currentIntervalIndex + 1; i < 3; i++) {
+    remainingIntegral += (weights[i] ?? 0.1667);
+  }
+
+  return Number(Math.max(0.0, Math.min(1.0, remainingIntegral)).toFixed(4));
+}
+
+/**
  * 计算非线性时间衰减与局势搏命放大系数 (Time & Game-State Factor)
  * 物理原理：
  * 建立统一平滑的连续紧迫度势场 U(t, ΔS)，消除 70/75 分钟与分差断崖式的离散阶跃。
@@ -974,6 +1002,73 @@ export function calculateInPlayPoissonFeatures(
 
   const mostLikely = topFinalScores[0] ? `${topFinalScores[0].home}-${topFinalScores[0].away}` : `${currentHomeScore}-${currentAwayScore}`;
 
+  // 8. 独立推导上半场截断进球期望与半场比分概率矩阵 (First-Half Truncated Poisson)
+  // 当比赛处于上半场 (elapsedMinute < 45) 时，严格以 45 - elapsedMinute 为窗口推导独立半场期望
+  let firstHalfPoisson: InPlayPoissonFeatures['first_half_poisson'] = undefined;
+  if (elapsedMinute < 45) {
+    const remainingFirstHalfMinutes = Math.max(0, 45 - elapsedMinute);
+    const uniformFirstHalfFraction = Math.max(0, remainingFirstHalfMinutes / 45.0);
+    const firstHalfFractionHome = reliableHomeWeights
+      ? calculateFirstHalfPhasedDNATimeFraction(elapsedMinute, reliableHomeWeights)
+      : uniformFirstHalfFraction;
+    const firstHalfFractionAway = reliableAwayWeights
+      ? calculateFirstHalfPhasedDNATimeFraction(elapsedMinute, reliableAwayWeights)
+      : uniformFirstHalfFraction;
+
+    const lambdaBeforeLiveHalfHome = baseHomeLambda * firstHalfFractionHome;
+    const lambdaBeforeLiveHalfAway = baseAwayLambda * firstHalfFractionAway;
+
+    const lambdaAfterLiveHalfHome = lambdaBeforeLiveHalfHome * blendedLiveFactorHome * oosMultiplier * deprivationDampHome * siegeBreakthroughBoostHome;
+    const lambdaAfterLiveHalfAway = lambdaBeforeLiveHalfAway * blendedLiveFactorAway * oosMultiplier * deprivationDampAway * siegeBreakthroughBoostAway;
+
+    const lambdaHomeHalf = Math.max(0.01, Math.min(2.50, Number(lambdaAfterLiveHalfHome.toFixed(3))));
+    const lambdaAwayHalf = Math.max(0.01, Math.min(2.50, Number(lambdaAfterLiveHalfAway.toFixed(3))));
+    const expectedGoalsHalf = Number((lambdaHomeHalf + lambdaAwayHalf).toFixed(3));
+
+    const halfSupport = Math.max(
+      poissonSupportUpperBound(lambdaHomeHalf),
+      poissonSupportUpperBound(lambdaAwayHalf)
+    );
+    const halfPoissonResult = calculateBivariatePoissonGrid(
+      lambdaHomeHalf,
+      lambdaAwayHalf,
+      halfSupport,
+      {
+        field_tilt_home: matchState.field_tilt_home,
+        field_tilt_away: matchState.field_tilt_away,
+        zero_shot_deprivation_home: matchState.zero_shot_deprivation_home,
+        zero_shot_deprivation_away: matchState.zero_shot_deprivation_away
+      }
+    );
+    const halfGrid = halfPoissonResult.grid;
+    const halfScoresList: ScoreProbabilityItem[] = [];
+    for (let h = 0; h < halfGrid.length; h++) {
+      for (let a = 0; a < halfGrid[h].length; a++) {
+        const prob = halfGrid[h][a];
+        halfScoresList.push({
+          home: currentHomeScore + h,
+          away: currentAwayScore + a,
+          probability: prob,
+          percentage_str: `${(prob * 100).toFixed(1)}%`
+        });
+      }
+    }
+    halfScoresList.sort((a, b) => b.probability - a.probability);
+    const topHalfScores = halfScoresList.slice(0, 5).map(item => ({
+      ...item,
+      probability: Number(item.probability.toFixed(4))
+    }));
+
+    firstHalfPoisson = {
+      lambda_home_first_half: lambdaHomeHalf,
+      lambda_away_first_half: lambdaAwayHalf,
+      expected_goals_first_half: expectedGoalsHalf,
+      remaining_first_half_minutes: remainingFirstHalfMinutes,
+      score_probability_grid: halfGrid,
+      top_half_scores: topHalfScores
+    };
+  }
+
   const activeTracer = tracer ?? Tracer.getInstance();
   activeTracer.log(
     'INFO',
@@ -1004,6 +1099,7 @@ export function calculateInPlayPoissonFeatures(
     rho_source: 'DEFAULT_ASSUMPTION',
     lambda_decomposition: lambdaDecomposition,
     top_final_scores: topFinalScores,
+    first_half_poisson: firstHalfPoisson,
     rest_score_matrix: {
       prob_home_win_rest: poissonResult.prob_home_win_rest,
       prob_draw_rest: poissonResult.prob_draw_rest,

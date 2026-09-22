@@ -58,7 +58,7 @@
    - 滚球盘口 (`ParsedYbtyLiveMatch`) 与赛前盘口 (`ParsedYbtyPrematchMatch`)；
    - 包含主盘、副盘让球 (`full_spread_main` / `full_spread_subs`)、大小球 (`full_total_main` / `full_total_subs`) 与独赢 (`full_h2h`)。
 2. **雷速基本面与时序契约 (`refactor/01_data_ingestion/leisu/types.ts`)**：
-   - 包含 8 大攻防技术统计 (`ParsedLeisuStats`)、分钟级压迫动量波形 (`ParsedLeisuMomentum`)、正向时序事件 (`ParsedLeisuTimelineEvent`)、阵容阵型 (`ParsedLeisuLineup`)、联赛积分榜 (`ParsedLeagueStandings`) 与进球时段分布 (`ParsedGoalDistribution`)。
+   - 包含 9 项物理攻防技术统计 (`ParsedLeisuStats`：角球、黄牌、红牌、进攻、危险进攻、控球率、射正、射偏、总射门)、分钟级压迫动量波形 (`ParsedLeisuMomentum`)、正向时序事件 (`ParsedLeisuTimelineEvent`)、阵容阵型 (`ParsedLeisuLineup`)、联赛积分榜 (`ParsedLeagueStandings`) 与进球时段分布 (`ParsedGoalDistribution`)。
 3. **统一标准赛事契约 (`refactor/02_canonical_model/types.ts`)**：
    - 全系统核心实体模型 **`CanonicalMatch`**：以 YBTY 原始数据为第一法定执行源，融合雷速增强包与比分校验状态，纯净未计算；
    - 极简 AI 提炼包 **`AiEvaluationBrief`**：面向大模型的高密度提纯载体 (200~400 tokens/场)。
@@ -172,13 +172,14 @@
 5. **AI 评估与门禁测试**：`verify_ai_evaluator.ts`, `verify_layer04_05_candidate_boundary.ts` (Layer 04)
 6. **组合风控测试**：`verify_portfolio_risk.ts` (Layer 05)
 7. **核销与结算闭环测试**：`verify_settlement_engine.ts`, `verify_historical_backtest_ingestion.ts` (Layer 06)
-8. **专项重构大考回归套件**：
-   - `verify_p0_math_closure.ts` (P0: 数学完备闭环)
-   - `verify_p2_tactical_momentum.ts` (P2: 战术动量与红牌三态分流)
-   - `verify_p3_ev_arbitrage.ts` (P3: EV 套利与去抽水曲面)
-   - `verify_p4_risk_governance.ts` (P4: 风控治理与熔断屏障)
-   - `verify_p5_revert_divergence.ts` (P5: 废除反向分歧加码，确立信息不对称避险)
-9. **双路全链路端到端集成测试**：`verify_full_pipeline_00_03.ts` (Layer 00 ~ 06 贯通测试)
+8. **专项重构与演进验证套件**：
+   - `verify_p0_math_closure.ts` (P0: 数学完备闭环与去抽水守恒)
+   - `verify_p2_tactical_momentum.ts` (P2: 战术动量与红牌三态分流物理仿真)
+   - `verify_p3_ledger_snowball.ts` (P3: 实盘台账滚雪球与串关相关性风控)
+   - `verify_candidate_state_machine.ts` (候选状态机与准入双轨制)
+   - `verify_prematch_prior_and_market_divergence.ts` (赛前泊松先验与市场分歧避险引擎)
+   - `verify_traceability_matrix.ts` (全链路血统追溯矩阵与黄金基准赛事断言)
+9. **双路全链路端到端集成测试**：`verify_full_pipeline_00_03.ts` (Layer 00 ~ 06 贯通集成测试)
 
 
 ## 七、Layer 03 候选状态机与准入双轨制 (Candidate State Machine)

@@ -164,7 +164,12 @@ async function runTests() {
   console.log(`  Calibrated λ_base_A: ${calibrated.lambda_base_away}`);
   console.log(`  Market Implied Home Win Prob: ${(calibrated.implied_market_home_win_prob * 100).toFixed(1)}%`);
 
-  if (![MarketStanceType.CONSENSUS_ALIGNED, MarketStanceType.INSTITUTIONAL_DEFENSE, MarketStanceType.TRAP_INDUCEMENT].includes(calibrated.market_stance)) {
+  if (![
+    MarketStanceType.CONSENSUS_ALIGNED,
+    MarketStanceType.INSTITUTIONAL_DEFENSE,
+    MarketStanceType.TRAP_INDUCEMENT,
+    MarketStanceType.INFORMATION_ASYMMETRY_RISK
+  ].includes(calibrated.market_stance)) {
     throw new Error('Invalid market stance!');
   }
   console.log('  ✅ Stage 1.1 Market Calibration Passed!');

@@ -985,6 +985,53 @@ export function calculateDeviggedMarketFeatures(
     }
   }
 
+  // 3.5. 上半场让球盘与半场大小球 EV 求解 (Half-Time Asian Handicap & Total Goals EV)
+  // 当且仅当赛事处于上半场或赛前 (elapsed_minute < 45) 且提供了 first_half_poisson 期望时精确求解
+  let halfSpreadMain: SpreadEVAssessment | undefined = undefined;
+  let halfTotalMain: TotalEVAssessment | undefined = undefined;
+
+  const halfPoissonExpectation: PoissonExpectation | undefined = poisson.first_half_poisson
+    ? {
+        lambda_home_rest: poisson.first_half_poisson.lambda_home_first_half,
+        lambda_away_rest: poisson.first_half_poisson.lambda_away_first_half,
+        expected_goals_rest: poisson.first_half_poisson.expected_goals_first_half
+      }
+    : (poisson.elapsed_minute < 45
+        ? {
+            // 回退比例：若未显式构建 first_half_poisson，按剩余半场分钟占全场比例推导截断期望
+            lambda_home_rest: Number((poisson.lambda_home_rest * Math.max(0, 45 - poisson.elapsed_minute) / Math.max(1, 90 - poisson.elapsed_minute)).toFixed(3)),
+            lambda_away_rest: Number((poisson.lambda_away_rest * Math.max(0, 45 - poisson.elapsed_minute) / Math.max(1, 90 - poisson.elapsed_minute)).toFixed(3)),
+            expected_goals_rest: Number((poisson.expected_goals_rest * Math.max(0, 45 - poisson.elapsed_minute) / Math.max(1, 90 - poisson.elapsed_minute)).toFixed(3))
+          }
+        : undefined);
+
+  if (halfPoissonExpectation && poisson.elapsed_minute < 45) {
+    const halfSpreadMarket = activeMarkets?.half_spread_main;
+    if (halfSpreadMarket && halfSpreadMarket.home_selection && halfSpreadMarket.home_odds && halfSpreadMarket.away_odds) {
+      halfSpreadMain = calculateAsianHandicapEV(
+        halfSpreadMarket.home_selection,
+        halfSpreadMarket.home_odds,
+        halfSpreadMarket.away_odds,
+        halfPoissonExpectation,
+        halfSpreadMarket.away_selection
+      );
+    }
+
+    const halfTotalMarket = activeMarkets?.half_total_main;
+    if (halfTotalMarket && halfTotalMarket.line && halfTotalMarket.over_odds && halfTotalMarket.under_odds) {
+      const halfCurrentTotal = halfTotalMarket.settlement_basis === 'REMAINING_GOALS'
+        ? 0
+        : (match.score.home_score ?? 0) + (match.score.away_score ?? 0);
+      halfTotalMain = calculateTotalGoalsEV(
+        halfTotalMarket.line,
+        halfTotalMarket.over_odds,
+        halfTotalMarket.under_odds,
+        halfCurrentTotal,
+        halfPoissonExpectation
+      );
+    }
+  }
+
   // 4. 机构姿态识别 (使用动态估算的 Shin Z，绝不硬编码 0.02)
   const posture = identifyBookmakerPosture(spreadMain, totalMain, h2hDevig?.raw_overround ?? 1.05, estimatedShinZ, h2hDevig);
 
@@ -1065,6 +1112,8 @@ export function calculateDeviggedMarketFeatures(
     spread_secondary_ev: spreadSecondaryEV,
     total_main_ev: totalMain,
     total_secondary_ev: totalSecondaryEV,
+    half_spread_main_ev: halfSpreadMain,
+    half_total_main_ev: halfTotalMain,
     line_dispersion: lineDispersion,
     bookmaker_posture: posture,
     ev_market_source: evMarketSource,

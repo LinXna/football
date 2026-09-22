@@ -56,7 +56,7 @@
   4. `score` / `half_score`：全场与半场完场比分。
 
 ### 2.2 架构决策：复用统一数据管道，零冗余开发
-- **不开发冗余解析器**：直接复用重构工程现有的 `refactor/01_data_ingestion/leisuParser.ts` 和 `refactor/02_canonical_model/canonicalMatchAdapter.ts`；
+- **不开发冗余解析器**：直接复用重构工程现有的 `refactor/01_data_ingestion/leisu/leisuInterfaceExtractor.ts` 和 `refactor/02_canonical_model/canonicalMatchAssembler.ts`；
 - **状态感知对账**：当 `CanonicalMatch.timing.stage === MatchStage.SETTLED`（即 `status_id === 8`）时，该实体天然作为【完赛物理事实 (Ground Truth)】载体，直接接入对账引擎。
 
 ---

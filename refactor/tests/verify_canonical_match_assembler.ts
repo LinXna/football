@@ -55,7 +55,10 @@ function runTests() {
   assert(sim1 === 1.0, `Exact match should be 1.0, got ${sim1}`);
 
   const simU21 = calculateStrictRawTextSimilarity("阿森纳", "阿森纳U21");
-  assert(simU21 < 1.0 && simU21 >= 0.5, `U21 should have length penalty, got ${simU21}`);
+  assert(simU21 <= 0.2, `U21 vs senior team must be quarantined with low similarity (<=0.2), got ${simU21}`);
+
+  const simClub = calculateStrictRawTextSimilarity("阿森纳", "阿森纳足球俱乐部");
+  assert(simClub < 1.0 && simClub >= 0.5, `Club suffix should have length ratio score, got ${simClub}`);
 
   const simOrder = calculateStrictRawTextSimilarity("巴塞罗那", "那罗塞巴");
   assert(simOrder < 0.5, `Reversed chars should have low LCS score, got ${simOrder}`);

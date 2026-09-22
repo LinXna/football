@@ -1,25 +1,37 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: `SNAPSHOT-20260922-DOC-CONSISTENCY-AND-LEGACY-CLEANUP`
+- **任务编号 (Task)**: `SNAPSHOT-20260922-HALF-TIME-INDEPENDENT-QUANT-EVALUATION`
 - **当前状态 (Status)**: `IN_PROGRESS`
-- **阶段进度 (Phase)**: `全面治理重构系统文档体系的老旧内容、遗留内容与逻辑冲突：消除 SYSTEM_ARCHITECTURE_AND_PIPELINE.md 中关于 OOS 冷启动门禁的死锁描述冲突，纠正 DATA_SPECIFICATION.md 章节编号倒挂与红牌/统计参数口径滞后，补齐 Layer 04~06 数据规范与完整测试矩阵，纠正 TRACEABILITY_MATRIX.md 中已废弃的 04_ai_reasoning 路径并补齐算子清册，为 03_quant_engine/EXPERT_DIAGNOSIS.md 增补历史归档与 SSOT 导向声明。`
+- **阶段进度 (Phase)**: `彻底实现上下半场独立定价评估与核销链条：1) Layer 03.M4 泊松分流推导上半场截断期望 lambda_first_half；2) Layer 03.M5 在 devigCalculator 中增加 half_spread_main 与 half_total_main 的 EV 求解并输出正期望信号；3) Layer 06 在 settlementEngine 中引入 halftime_score 结算分支，支持半场完赛即精准核销。`
 - **改动文件清单 (Target Files)**:
   - `/refactor/HANDOVER_AND_PROGRESS.md`
-  - `/refactor/SYSTEM_ARCHITECTURE_AND_PIPELINE.md`
-  - `/refactor/DATA_SPECIFICATION.md`
-  - `/refactor/TRACEABILITY_MATRIX.md`
-  - `/refactor/03_quant_engine/EXPERT_DIAGNOSIS.md`
-  - `/refactor/CONTINUATION.md`
-- **执行计划 (Action Items)**:
-  1. 在 `SYSTEM_ARCHITECTURE_AND_PIPELINE.md` 中同步更新版本至 v3.0.0，修复状态机章节消除与 `COLD_START_PERMISSIVE` 的矛盾，补齐 Layer 04~06 架构说明与全量测试套件规范；
-  2. 在 `DATA_SPECIFICATION.md` 中修复章节二级标题序号（五/六/七/八/九/十），更新目录范围至 Layer 06，修正红牌 10 打 11 物理仿真参数 (1.40/0.40) 及 9 项物理攻防统计口径，增补 Layer 04~06 数据契约；
-  3. 在 `TRACEABILITY_MATRIX.md` 中纠正 `04_ai_reasoning` 为 `04_ai_evaluator`，增补 Layer 04~06 核心算子清册与追溯映射；
-  4. 在 `EXPERT_DIAGNOSIS.md` 头部增加历史诊断快照归档声明与 SSOT 导向说明；
-  5. 更新 `CONTINUATION.md`，执行全量自动化测试套件与 TypeScript 检查确保零回归。
+  - `/refactor/03_quant_engine/types.ts`
+  - `/refactor/03_quant_engine/poissonDecayModel.ts`
+  - `/refactor/03_quant_engine/devigCalculator.ts`
+  - `/refactor/03_quant_engine/index.ts`
+  - `/refactor/06_settlement_audit/types.ts`
+  - `/refactor/06_settlement_audit/settlementEngine.ts`
+  - `/refactor/06_settlement_audit/ledgerRecordAdapter.ts`
+  - `/refactor/06_settlement_audit/formalLedgerAdapter.ts`
+  - `/refactor/tests/verify_half_time_quant_engine.ts`
+- **交付成果与核心要点 (Delivered Items)**:
+  - 待完成三步闭环实现与回归测试。
+- **下一项任务 (Next Task)**:
+  - 执行 Step 1、Step 2、Step 3 核心代码实现与全链路测试验证。
 
 ---
 
 ## 历史活动快照 (Historical Active Snapshots)
+
+### SNAPSHOT-20260922-SECONDARY-DOC-AUDIT-AND-CLEANUP (DONE)
+- **阶段进度**: `二次全面审计重构系统文档体系细节已圆满完成：在 SYSTEM_ARCHITECTURE_AND_PIPELINE.md 中将残留的 8 大攻防技术统计更新为规范的 9 项物理攻防技术统计；彻底物理清理并删除了根目录下因嵌套误生成的冗余空目录 /refactor/refactor/；对全工程 Markdown 文档、追溯矩阵及全量测试套件进行了零冲突审查。全链路 100% 绿灯全通。`
+- **改动文件清单 (Target Files)**:
+  - `/refactor/HANDOVER_AND_PROGRESS.md`
+  - `/refactor/SYSTEM_ARCHITECTURE_AND_PIPELINE.md`
+- **交付成果与核心要点 (Delivered Items)**:
+  1. 【攻防统计口径 100% 统一】：在 `SYSTEM_ARCHITECTURE_AND_PIPELINE.md` 中将第 61 行修正为“9 项物理攻防技术统计”，与 `DATA_SPECIFICATION.md` 及代码强类型契约 `ParsedLeisuStats` 实现绝对一致；
+  2. 【彻底消除冗余嵌套目录】：安全删除了 `/refactor/refactor/` 嵌套路径及其临时文件，保持重构根目录绝对整洁；
+  3. 【代码与文档零冲突】：执行 `verify_traceability_matrix.ts`、`lint_applet` (`tsc --noEmit`) 与 `compile_applet`，全部零错误通过。
 
 ### SNAPSHOT-20260922-ALIGN-PLANS-AND-RESOLVE-CONTRADICTIONS (DONE)
 - **阶段进度**: `计划书体系全局治理与矛盾清算已全部完成：消除实施方案与快照在量化博弈逻辑上的反向硬刚矛盾、修复 CONTINUATION.md 停滞断层、纠正本地绝对路径，归档旧版规划文档并统一单一事实来源 (SSOT)。回归测试、端到端集成测试、静态类型检查与构建 100% 通过。`

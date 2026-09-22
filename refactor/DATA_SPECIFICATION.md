@@ -18,8 +18,8 @@
 | `refactor/02_canonical_model/` | **【02 核心实体层】** 标准赛事契约 (`types.ts`)、对齐枚举分类 (`enums.ts`)、纯文本顺序实体对齐器 (`matchAligner.ts`)、双源标准赛事装配器 (`canonicalMatchAssembler.ts`) 与事实一致性审计器 (`dataConsistencyAuditor.ts`)。 |
 | `refactor/03_quant_engine/` | **【03 量化推演层】** 37 项物理攻防量化、Shin 去抽水公允概率、滚球 0:0 Forward 泊松网格、BDI 统治力指数、候选状态机 (`candidateStateMachine.ts`) 与 OOS 校准引擎 (`oosCalibrationEngine.ts`)。 |
 | `refactor/04_ai_evaluator/` | **【04 AI 评估层】** 高密度结构化 Prompt 注入、大模型战术分析契约 (`types.ts`)、盘口镜像校验与双重法定门禁守卫 (`alignmentGuard.ts`)。 |
-| `refactor/05_portfolio_risk/` | **【05 组合风控层】** A/B 级推荐准入过滤、深盘阻断、跨串关相关性风控、资金敞口管理与正式推荐台账原子追加 (`formalLedgerLiveAdapter.ts`)。 |
-| `refactor/06_settlement_audit/` | **【06 核销结算与自适应回测】** 精确四分之一盘口赛后核销 (`settlementEngine.ts`)、历史回测吸纳转换器 (`historicalBacktestIngestion.ts`)、对账与动态参数校准档案 (`PREDICTION_VS_ACTUAL_CONTINUOUS_LEARNING_SPEC.md`)。 |
+| `refactor/05_portfolio_risk/` | **【05 组合风控层】** A/B 级推荐准入过滤、深盘阻断、跨串关相关性风控、资金敞口管理 (`riskFilter.ts`) 与正式推荐台账原子追加持久化 (`ledgerPersistence.ts`)。 |
+| `refactor/06_settlement_audit/` | **【06 核销结算与自适应回测】** 精确四分之一盘口赛后核销 (`settlementEngine.ts`)、正式台账读取适配器 (`formalLedgerAdapter.ts`)、历史回测吸纳转换器 (`historicalBacktestIngestion.ts`)、对账与动态参数校准档案 (`PREDICTION_VS_ACTUAL_CONTINUOUS_LEARNING_SPEC.md`)。 |
 | `refactor/runtime/` | **【运行时持久化底座】** 存放全量预测快照底座 (`match_archive.json`)、实盘台账 (`formal_ledger_live.json`)、OOS 校准档案库与参数配置。 |
 | `refactor/samples/` | **【样例数据区】** 存放各层清洗后生成的标准 JSON 样例文件与中英文档索引。 |
 | `refactor/fixtures/` | **【测试样本区】** 存放用于单元测试的真实原始抓取数据文件。 |
@@ -369,7 +369,7 @@
 
 ---
 
-## 四、亚洲让球盘 (Asian Handicap) 权威符号契约、换算规则与全生命周期结算口径
+## 五、亚洲让球盘 (Asian Handicap) 权威符号契约、换算规则与全生命周期结算口径
 
 本章为全系统**亚洲让球盘唯一事实来源 (SSOT)**。全链路所有模块（数据清洗、实体对齐、量化推演、AI评估、风控台账、赛后核销）必须 100% 遵照本规范执行。
 
@@ -446,7 +446,7 @@
 
 ---
 
-## 五、Layer 02: CanonicalMatch 标准赛事合并实体规范 (纯净未计算)
+## 六、Layer 02: CanonicalMatch 标准赛事合并实体规范 (纯净未计算)
 
 * 模块路径：`refactor/02_canonical_model/`
 * 样例文件路径：`refactor/samples/02_canonical_model/canonical_match_sample.json`
@@ -645,7 +645,7 @@ export interface AiEvaluationBrief {
 
 ---
 
-## 六、Layer 03 确定性量化与博弈特征规范 (`QuantitativeFeatures`)
+## 七、Layer 03 确定性量化与博弈特征规范 (`QuantitativeFeatures`)
 
 * 样例文件路径：`refactor/samples/03_quant_engine/quant_features_sample.json`
 * 引擎实现：`refactor/03_quant_engine/index.ts`
@@ -717,7 +717,7 @@ export interface QuantitativeFeatures {
 
 ---
 
-## 七、Layer 04: AI 战术评估与双重门禁校验契约 (`AiEvaluation`)
+## 八、Layer 04: AI 战术评估与双重门禁校验契约 (`AiEvaluation`)
 
 * 模块路径：`refactor/04_ai_evaluator/`
 * 评估器实现：`refactor/04_ai_evaluator/evaluatorPromptBuilder.ts`
@@ -756,11 +756,11 @@ export interface AiEvaluationResult {
 
 ---
 
-## 八、Layer 05: 组合风控与正式推荐台账规范 (`PortfolioRisk & FormalLedger`)
+## 九、Layer 05: 组合风控与正式推荐台账规范 (`PortfolioRisk & FormalLedger`)
 
 * 模块路径：`refactor/05_portfolio_risk/`
-* 过滤器实现：`refactor/05_portfolio_risk/portfolioRiskFilter.ts`
-* 台账适配器：`refactor/05_portfolio_risk/formalLedgerLiveAdapter.ts`
+* 过滤器实现：`refactor/05_portfolio_risk/riskFilter.ts`
+* 台账持久化：`refactor/05_portfolio_risk/ledgerPersistence.ts` (实盘台账追加) 与 `refactor/06_settlement_audit/formalLedgerAdapter.ts` (结算读取)
 * 运行时文件：`refactor/runtime/formal_ledger_live.json`
 
 ### 1. 正式推荐腿结构 (`RecommendedLeg`)
@@ -794,7 +794,7 @@ export interface RecommendedLeg {
 
 ---
 
-## 九、Layer 06: 精确赛后核销与自适应回测归档规范 (`Settlement & OOS Calibration`)
+## 十、Layer 06: 精确赛后核销与自适应回测归档规范 (`Settlement & OOS Calibration`)
 
 * 模块路径：`refactor/06_settlement_audit/`
 * 核销引擎：`refactor/06_settlement_audit/settlementEngine.ts`

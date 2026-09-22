@@ -520,6 +520,15 @@ export interface InPlayPoissonFeatures {
   dixon_coles_tau?: DixonColesCorrectionTau;
   lambda_decomposition: LambdaDecomposition;
   top_final_scores: ScoreProbabilityItem[];
+  /** 上半场专属截断进球期望（仅在 elapsed_minute < 45 时具备有效独立定价意义） */
+  first_half_poisson?: {
+    lambda_home_first_half: number;
+    lambda_away_first_half: number;
+    expected_goals_first_half: number;
+    remaining_first_half_minutes: number;
+    score_probability_grid: number[][];
+    top_half_scores: ScoreProbabilityItem[];
+  };
   rest_score_matrix: {
     prob_home_win_rest: number;
     prob_draw_rest: number;
@@ -618,6 +627,8 @@ export interface DeviggedMarketFeatures {
   spread_secondary_ev: SpreadEVAssessment[];
   total_main_ev?: TotalEVAssessment;
   total_secondary_ev: TotalEVAssessment[];
+  half_spread_main_ev?: SpreadEVAssessment;
+  half_total_main_ev?: TotalEVAssessment;
   line_dispersion: LineDispersionMetrics;
   bookmaker_posture: BookmakerPosture;
   shin_z?: number;
@@ -682,7 +693,7 @@ export interface QuantCalibrationProfile {
   circuit_breaker_reason?: string;
 }
 
-export type OosMarket = 'ASIAN_HANDICAP_MAIN' | 'TOTAL_GOALS_MAIN' | 'MONEYLINE_1X2' | 'EURO_1X2';
+export type OosMarket = 'ASIAN_HANDICAP_MAIN' | 'TOTAL_GOALS_MAIN' | 'MONEYLINE_1X2' | 'EURO_1X2' | 'ASIAN_HANDICAP_HALF' | 'TOTAL_GOALS_HALF';
 
 /** 单条已结算、绝不参与同批模型拟合的 OOS 观测。 */
 export interface OosCalibrationSample {

@@ -237,12 +237,15 @@ const mockLeisu = {
     corners: { home: 6, away: 5 },
     red_cards: { home: 0, away: 0 }
   },
-  incidents: [
-    { type: 'goal', time: '10\'', team: 'home', text: '进球' }
+  timeline_events: [
+    { type: 1, text: '进球', minute: 10, team: 'home' }
   ],
-  trend_data: [
-    [10, 20, -10, 0, 15, -25, 30, 10, -5, 0, 10, 20, -15, 0, 10] // 仅 15 分钟
-  ]
+  attack_momentum: {
+    available: true,
+    data: [
+      [10, 20, -10, 0, 15, -25, 30, 10, -5, 0, 10, 20, -15, 0, 10] // 仅 15 分钟
+    ]
+  }
 };
 
 const mockDecision: AlignmentDecision = {

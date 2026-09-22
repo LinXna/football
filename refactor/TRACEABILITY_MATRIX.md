@@ -38,7 +38,7 @@
 | **`F-03-Q35`** | `QuantitativeFeatures.devig.spread_main_ev` | `03_quant_engine/types.ts` | **`OP-03-05`** (`calculateAsianHandicapEV`) | 1. 让球主盘 EV 优选方向与 Kelly 仓位 | **`RC-QUARTER-CONSERVED`** |
 | **`F-03-Q40`** | `CandidatePipelineContract.state` | `03_quant_engine/types.ts` | **`OP-03-07`** (`evaluateCandidateState`) | 1. **`OP-04-02`** (`verifyStatutoryAlignment`)<br>2. **`OP-05-01`** (`applyPortfolioRiskFilters`) | **`RC-STATE-AUTH`** (锁定状态阻断出票) |
 | **`F-04-E01`** | `AiEvaluationResult.grade` | `04_ai_evaluator/types.ts` | **`OP-04-01`** (`evaluateAiBrief`) | 1. **`OP-04-02`** (`verifyStatutoryAlignment`)<br>2. **`OP-05-01`** (组合风控准入) | **`RC-002`** (B级限制) |
-| **`F-04-E02`** | `AiEvaluationResult.recommended_legs` | `04_ai_evaluator/types.ts` | **`OP-04-01`** (`evaluateAiBrief`) | 1. **`OP-04-02`** (盘口镜像核验)<br>2. **`OP-05-01`** (组合去重与相关性审查) | **`RC-003`** / **`RC-008`** |
+| **`F-04-E02`** / **`F-04-R03`** | `AiEvaluationResult.recommended_legs` | `04_ai_evaluator/types.ts` | **`OP-04-01`** (`evaluateAiBrief`) | 1. **`OP-04-02`** (盘口镜像核验)<br>2. **`OP-05-01`** (组合去重与相关性审查) | **`RC-003`** / **`RC-008`** |
 | **`F-05-P01`** | `PortfolioFilterResult.approved_legs` | `05_portfolio_risk/types.ts` | **`OP-05-01`** (`applyPortfolioRiskFilters`) | 1. **`OP-05-02`** (`appendApprovedLegs` 写入台账) | **`RC-PORTFOLIO-FAIL-CLOSED`** |
 | **`F-05-P02`** | `FormalLedgerRecord` | `05_portfolio_risk/types.ts` | **`OP-05-02`** (`appendApprovedLegs`) | 1. **`OP-06-01`** (`settleFormalRecommendation` 结算核销) | **`RC-LEDGER-IMMUTABLE`** |
 | **`F-06-S01`** | `SettlementResult.outcome / multiplier` | `06_settlement_audit/types.ts` | **`OP-06-01`** (`settleFormalRecommendation`) | 1. **`OP-06-02`** (历史回测吸纳与 OOS 参数校准) | **`RC-QUARTER-SETTLE-CONSERVED`** |

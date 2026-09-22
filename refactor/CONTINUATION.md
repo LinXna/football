@@ -78,10 +78,10 @@
 
 ## Next Atomic Task
 
-执行【计划与文档一致性落地与持续学习系统部署】：
-1. 校验全链路计划书、规范与运行时文档的一致性，封存历史废弃文档；
-2. 推进 `/refactor/06_settlement_audit/PREDICTION_VS_ACTUAL_CONTINUOUS_LEARNING_SPEC.md` 中定义的预测快照与完赛事实深层次对账及自适应学习系统；
-3. 严格遵循 `HANDOVER_AND_PROGRESS.md` 活动快照推进，并保证全量自动化测试持续 100% 绿灯。
+推进【持续学习闭环（Continuous Learning Loop）部署验证】：
+1. 依据 `/refactor/06_settlement_audit/PREDICTION_VS_ACTUAL_CONTINUOUS_LEARNING_SPEC.md`，执行实盘推荐与完赛核销后 Brier Score / 经验贝叶斯收缩的增量沉淀端到端全链路检验；
+2. 保持严格物理隔离，仅在 `/refactor/**` 范围内工作；
+3. 遵循快照先行原则（Snapshot-First Workflow），全量测试持续保持 100% 绿灯。
 
 After that, audit live-minute window semantics, red-card multipliers into M4, market timeline separation, and OOS backtesting one atomic issue at a time.
 

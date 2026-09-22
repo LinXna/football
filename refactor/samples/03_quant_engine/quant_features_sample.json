@@ -1,6 +1,6 @@
 {
   "canonical_id": "4562395",
-  "calculated_at": "2026-09-22T16:33:54.914Z",
+  "calculated_at": "2026-09-22T18:44:29.868Z",
   "context": {
     "circuit_breaker": {
       "is_triggered": false,
@@ -3082,11 +3082,11 @@
   "battlefield_dominance_index": -35.04,
   "goal_phase_alert": "IMMINENT_GOAL",
   "live_snapshot": {
-    "observed_at": "2026-09-22T16:33:54.914Z",
+    "observed_at": "2026-09-22T18:44:29.868Z",
     "cutoff_minute": 62,
     "event_cutoff_minute": 62,
     "source_snapshot_at": "2026-08-21 03:00:00",
-    "model_calculated_at": "2026-09-22T16:33:54.914Z",
+    "model_calculated_at": "2026-09-22T18:44:29.868Z",
     "score": {
       "home_score": 0,
       "away_score": 1,
@@ -3310,7 +3310,7 @@
     "overall_confidence": 73
   },
   "data_audit": {
-    "generated_at": "2026-09-22T16:33:54.914Z",
+    "generated_at": "2026-09-22T18:44:29.868Z",
     "canonical_id": "4562395",
     "match_stage": "LIVE",
     "source_snapshot_at": "2026-09-01T07:23:14.894Z",

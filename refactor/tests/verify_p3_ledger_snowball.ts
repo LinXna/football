@@ -24,8 +24,9 @@ console.log('>>> Starting P3 Closed-Loop Ledger & OOS Snowballing Verification S
 // ----------------------------------------------------------------------------
 console.log('Test 1: Testing double-track persistence and prediction snapshot...');
 
+const runId = Date.now();
 const mockLiveApproved: FormalRecommendation = {
-  record_id: 'rec_live_test_001',
+  record_id: `rec_live_test_${runId}`,
   record_type: 'formal_ai_recommendation',
   formal_recommendation: true,
   stage: 'LIVE',
@@ -222,8 +223,8 @@ if (statusAfterFirst.sample_count < 1) {
 // Ingest a second sample to verify incremental snowballing
 const secondSample: OosCalibrationSample = {
   ...oosSample,
-  sample_id: 'oos_sample_snowball_002',
-  match_id: 'm_snowball_2',
+  sample_id: `oos_sample_snowball_${runId}_2`,
+  match_id: `m_snowball_${runId}_2`,
   predicted_probability: 0.62,
   binary_outcome: 0
 };
