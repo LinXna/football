@@ -2,22 +2,16 @@
 
 - **任务编号 (Task)**: `SNAPSHOT-20260922-HALF-TIME-INDEPENDENT-QUANT-EVALUATION`
 - **当前状态 (Status)**: `IN_PROGRESS`
-- **阶段进度 (Phase)**: `彻底实现上下半场独立定价评估与核销链条：1) Layer 03.M4 泊松分流推导上半场截断期望 lambda_first_half；2) Layer 03.M5 在 devigCalculator 中增加 half_spread_main 与 half_total_main 的 EV 求解并输出正期望信号；3) Layer 06 在 settlementEngine 中引入 halftime_score 结算分支，支持半场完赛即精准核销。`
+- **阶段进度 (Phase)**: `修复并彻底贯通上下半场独立定价信号与大模型暴露链条：1) Layer 03 在 index.ts 的 calculateConfidenceAndAlerts 中接入 half_spread_main_ev 与 half_total_main_ev 生成 positive_ev_signals，并映射 OosMarket 至 ASIAN_HANDICAP_HALF 与 TOTAL_GOALS_HALF；2) Layer 04 在 promptExporter.ts 中将 core_markets 序列化 ah_half 与 ou_half，打通 alignmentGuard 校验；3) 创建并执行 verify_half_time_quant_engine.ts 回归验证套件。`
 - **改动文件清单 (Target Files)**:
   - `/refactor/HANDOVER_AND_PROGRESS.md`
-  - `/refactor/03_quant_engine/types.ts`
-  - `/refactor/03_quant_engine/poissonDecayModel.ts`
-  - `/refactor/03_quant_engine/devigCalculator.ts`
   - `/refactor/03_quant_engine/index.ts`
-  - `/refactor/06_settlement_audit/types.ts`
-  - `/refactor/06_settlement_audit/settlementEngine.ts`
-  - `/refactor/06_settlement_audit/ledgerRecordAdapter.ts`
-  - `/refactor/06_settlement_audit/formalLedgerAdapter.ts`
+  - `/refactor/04_ai_evaluator/promptExporter.ts`
   - `/refactor/tests/verify_half_time_quant_engine.ts`
 - **交付成果与核心要点 (Delivered Items)**:
-  - 待完成三步闭环实现与回归测试。
+  - 待完成半场信号注入与提示词导出贯通，并执行针对性单元与集成回归。
 - **下一项任务 (Next Task)**:
-  - 执行 Step 1、Step 2、Step 3 核心代码实现与全链路测试验证。
+  - 实施 Step 1 (03_quant_engine/index.ts)、Step 2 (04_ai_evaluator/promptExporter.ts) 并构建回归测试 verify_half_time_quant_engine.ts。
 
 ---
 
