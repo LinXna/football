@@ -1,7 +1,7 @@
 # Refactor Continuation Checkpoint
 
 > This is the short cold-start entry for any AI or account taking over this repository.
-> The full historical record remains in `HANDOVER_AND_PROGRESS.md`.
+> The full historical record remains in `archive/HANDOVER_ARCHIVE.md` (active snapshot in `HANDOVER_AND_PROGRESS.md`).
 >
 > ⚠️ **CRITICAL BOUNDARY ENFORCEMENT**:
 > - **重构系统 (Football Match Analysis System / CODEX / Refactor 体系)**: 物理作用域仅限 `/refactor/**`。
@@ -78,12 +78,27 @@
 
 ## Next Atomic Task
 
+> ~~遗留半成品待办 (Stalled): `上下半场独立定价信号（半场 EV）贯通`~~ **已完成 (2026-09-24)**：底层 `devigCalculator.ts` 的 `half_spread_main_ev`/`half_total_main_ev` 与上层三件事全部闭环——`index.ts` 信号接入（`ASIAN_HANDICAP_HALF`/`TOTAL_GOALS_HALF`）、`promptExporter.ts` 导出 `ah_half`/`ou_half`、`verify_half_time_quant_engine.ts` 测试全绿。
+
 推进【持续学习闭环（Continuous Learning Loop）部署验证】：
 1. 依据 `/refactor/06_settlement_audit/PREDICTION_VS_ACTUAL_CONTINUOUS_LEARNING_SPEC.md`，执行实盘推荐与完赛核销后 Brier Score / 经验贝叶斯收缩的增量沉淀端到端全链路检验；
 2. 保持严格物理隔离，仅在 `/refactor/**` 范围内工作；
 3. 遵循快照先行原则（Snapshot-First Workflow），全量测试持续保持 100% 绿灯。
 
 After that, audit live-minute window semantics, red-card multipliers into M4, market timeline separation, and OOS backtesting one atomic issue at a time.
+### 代码逻辑审查（2026-09-24，全部完成）
+
+已修复 6 项：
+1. settlement_basis 枚举断裂（`resolveSettlementBasis` helper + 类型扩展）；
+2. 盘口 NaN 污染（`devigCalculator` EV 函数加 `Number.isFinite` 防护）；
+3. parlayEngine LOSE_HALF 语义（按有效赔率决定 finalOutcome，而非「是否存在输半腿」）；
+4. 五态分布 ΣP（`roundFiveStateToUnit` 最大余数法，ΣP 精确 = 1.0）；
+5. getLeagueBaseGoals 别名（`LEAGUE_ALIAS_MAP` 全称→简称归一化）；
+6. 三套盘口解析器 SSOT 统一（删除死代码 `parseHandicapOrTotalLine`，`parseAsianLine` 委托 `parseAsianHandicapLine`）。
+
+无遗留待办。
+
+
 
 ## Resume Protocol
 

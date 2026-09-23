@@ -429,7 +429,7 @@ export class LedgerPersistence {
       );
     });
 
-    const probability = signal?.model_probability ?? (leg as any).model_probability ?? (leg as any).probability ?? 0.5;
+    const probability = signal?.model_probability ?? leg.model_probability ?? leg.probability ?? 0.5;
     const scoreVerification = payload.ai_brief.score_verification;
     const minuteMatch = payload.ai_brief.status_summary?.match(/\b(\d{1,3})'/);
 
@@ -441,7 +441,7 @@ export class LedgerPersistence {
       odds: signal?.odds || leg.current_odds,
       model_probability: probability,
       predicted_lambda: snapshot?.predicted_lambda || { home: 1.2, away: 1.0 },
-      minute: stage === 'LIVE' ? (minuteMatch ? Number(minuteMatch[1]) : (typeof (leg as any).minute === 'number' ? (leg as any).minute : null)) : null,
+      minute: stage === 'LIVE' ? (minuteMatch ? Number(minuteMatch[1]) : (typeof leg.minute === 'number' ? leg.minute : null)) : null,
       score_at_recommendation: scoreVerification?.current_score || '0 - 0',
       score_verified: Boolean(scoreVerification?.is_verified),
       score_source: scoreVerification?.is_verified ? 'canonical_score_verification' : 'unverified',

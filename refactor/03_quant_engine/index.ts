@@ -80,7 +80,9 @@ export function calculateBattlefieldDominanceIndex(
 
 function toOosMarket(signal: PositiveEVSignal | undefined): OosMarket | undefined {
   if (signal?.market === 'ASIAN_HANDICAP_MAIN' || signal?.market === 'ASIAN_HANDICAP_SECONDARY') return 'ASIAN_HANDICAP_MAIN';
+  if (signal?.market === 'ASIAN_HANDICAP_HALF') return 'ASIAN_HANDICAP_HALF';
   if (signal?.market === 'TOTAL_GOALS_MAIN' || signal?.market === 'TOTAL_GOALS_SECONDARY') return 'TOTAL_GOALS_MAIN';
+  if (signal?.market === 'TOTAL_GOALS_HALF') return 'TOTAL_GOALS_HALF';
   if (signal?.market === 'MONEYLINE_1X2') return 'MONEYLINE_1X2';
   return undefined;
 }
@@ -374,6 +376,45 @@ export function calculateConfidenceAndAlerts(
         kelly_fraction: kelly
       }));
     }
+  }
+
+  // 4. 半场让球主盘 (仅上半场/赛前有效，底层 half_spread_main_ev 已算好)
+  if (devig.half_spread_main_ev && devig.half_spread_main_ev.is_positive_ev && devig.half_spread_main_ev.preferred_side !== 'none') {
+    const halfSpread = devig.half_spread_main_ev;
+    const side = halfSpread.preferred_side;
+    const ev = side === 'home' ? halfSpread.home_ev : halfSpread.away_ev;
+    const odds = side === 'home' ? halfSpread.home_odds : halfSpread.away_odds;
+    const kelly = halfSpread.kelly_fraction ?? 0.0;
+    const actualLine = side === 'away' ? invertHandicapString(halfSpread.line) : halfSpread.line;
+    positiveEVSignals.push(Object.freeze({
+      market: 'ASIAN_HANDICAP_HALF',
+      line: actualLine,
+      side: side,
+      odds: odds,
+      ev: ev,
+      model_probability: side === 'home' ? halfSpread.home_model_probability : halfSpread.away_model_probability,
+      confidence: Math.max(50, score),
+      kelly_fraction: kelly
+    }));
+  }
+
+  // 5. 半场大小球主盘 (仅上半场/赛前有效，底层 half_total_main_ev 已算好)
+  if (devig.half_total_main_ev && devig.half_total_main_ev.is_positive_ev && devig.half_total_main_ev.preferred_side !== 'none') {
+    const halfTotal = devig.half_total_main_ev;
+    const side = halfTotal.preferred_side;
+    const ev = side === 'over' ? halfTotal.over_ev : halfTotal.under_ev;
+    const odds = side === 'over' ? halfTotal.over_odds : halfTotal.under_odds;
+    const kelly = halfTotal.kelly_fraction ?? 0.0;
+    positiveEVSignals.push(Object.freeze({
+      market: 'TOTAL_GOALS_HALF',
+      line: halfTotal.line,
+      side: side,
+      odds: odds,
+      ev: ev,
+      model_probability: side === 'over' ? halfTotal.over_model_probability : halfTotal.under_model_probability,
+      confidence: Math.max(50, score),
+      kelly_fraction: kelly
+    }));
   }
 
   return {

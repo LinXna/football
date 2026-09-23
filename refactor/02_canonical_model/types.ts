@@ -106,6 +106,7 @@ export interface CanonicalTimelineEvent {
   canonical_type: CanonicalEventType;  // 标准语义事件类型枚举
   category: CanonicalIncidentCategory; // 事件所属大类
   side: "home" | "away" | "neutral";   // 所属方
+  team_side?: string | null;            // 兼容原始数据字段名
   text: string;                        // 原始文字详情
   is_penalty: boolean;                 // 是否为点球破门
   is_own_goal: boolean;                // 是否为乌龙球
@@ -128,6 +129,7 @@ export interface CanonicalScoreState {
   is_mismatch_detected: boolean;  // 是否检测到双源比分冲突
   mismatch_details?: string | null;
   var_overturned_goals_count: number; // 记录被 VAR 吹掉/取消的进球数
+  current?: { home: number | null; away: number | null } | null; // 兼容原始比分结构
 }
 
 /**
@@ -158,6 +160,7 @@ export interface CanonicalLeisuReference {
   leisu_league_name: string;
   stats: ParsedLeisuStats | null;
   attack_momentum: ParsedLeisuMomentum | null;
+  attack_momentum_timeline?: unknown[] | null; // 兼容旧数据结构的扁平动量点数组
   timeline_events: CanonicalTimelineEvent[];
   lineups: ParsedLeisuLineup | null;
   tactical_context: ParsedLeisuTacticalContext | null;

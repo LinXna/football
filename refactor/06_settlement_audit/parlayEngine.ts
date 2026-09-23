@@ -80,16 +80,18 @@ export function evaluateParlaySettlement(legs: ParlayLegResult[]): ParlaySettlem
     finalOutcome = 'PENDING';
     explanation = `Parlay has ${pendingCount} pending leg(s).`;
   } else {
-    const hasHalfLoss = legs.some(l => l.settlement.outcome === 'LOSE_HALF');
-    if (hasHalfLoss) {
-      finalOutcome = 'LOSE_HALF';
-    } else if (effectiveMultiplier > 1.0) {
+    // 按有效赔率决定结果（而非「是否存在输半腿」），避免输半腿被赢腿抵消后仍误标 LOSE_HALF。
+    if (effectiveMultiplier > 1.0) {
       const hasHalfWin = legs.some(l => l.settlement.outcome === 'WIN_HALF');
       finalOutcome = hasHalfWin ? 'WIN_HALF' : 'WIN';
     } else if (effectiveMultiplier === 1.0) {
       finalOutcome = 'PUSH';
+    } else if (effectiveMultiplier > 0) {
+      // 0 < effectiveMultiplier < 1：部分损失（存在输半腿时标记 LOSE_HALF，净损失不足 1 单位）
+      const hasHalfLoss = legs.some(l => l.settlement.outcome === 'LOSE_HALF');
+      finalOutcome = hasHalfLoss ? 'LOSE_HALF' : 'LOSE';
     } else {
-      finalOutcome = 'LOSE'; // should be unreachable because effectiveMultiplier > 0 if no full LOSE
+      finalOutcome = 'LOSE';
     }
     explanation = `Parlay resolved with effective multiplier: ${effectiveMultiplier.toFixed(3)}`;
   }

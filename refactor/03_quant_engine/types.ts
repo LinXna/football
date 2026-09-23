@@ -656,8 +656,10 @@ export interface PositiveEVSignal {
   score_at_bet?: string;
   line_at_bet?: string;
   odds_at_bet?: number;
-  settlement_basis?: 'REST_OF_MATCH' | 'FULL_MATCH';
+  settlement_basis?: 'FULL_MATCH' | 'REMAINING_GOALS' | 'REMAINING_PERIOD_DOMINANCE' | 'REST_OF_MATCH';
   snapshot_time?: string;
+  /** Layer 04 消费端（alignmentGuard）读取的引擎折价 EV，Engine-Provided 时有效，否则 QUALITATIVE_ONLY 置 0。 */
+  risk_adjusted_ev?: number;
 }
 
 /**

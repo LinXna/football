@@ -241,6 +241,7 @@ export interface LeisuRawH2HMatch {
   competition_id?: number | null;
   league_name?: string | null;
   competition_name?: string | null;
+  competition?: string | null;
   status_id?: number | null;
   match_time?: number | null;
   neutral?: number | null;
@@ -436,6 +437,9 @@ export interface ParsedPlayer {
   position_name: string | null;
   position_code: string | null;
   incidents: ParsedPlayerIncident[];
+  /** 伤停原因（雷速部分接口以 reason 或 injury_reason 下发）。 */
+  reason?: string | null;
+  injury_reason?: string | null;
 }
 
 export interface ParsedLeisuLineup {
@@ -502,6 +506,11 @@ export interface ParsedLeisuTacticalContext {
   h2h_raw: LeisuRawH2HMatch[];
   home_recent_matches: LeisuRawRecentMatch[];
   away_recent_matches: LeisuRawRecentMatch[];
+  /** 阵容身价补充（部分接口以 squad_market_value 下发，含主客总身价）。 */
+  squad_market_value?: {
+    home_total_market_value_eur?: number | string | null;
+    away_total_market_value_eur?: number | string | null;
+  } | null;
 }
 
 export interface ParsedStandingRecord {

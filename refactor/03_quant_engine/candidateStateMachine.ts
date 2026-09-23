@@ -63,6 +63,25 @@ export function buildOosProfileKey(
   const normSettlement = (settlementType || 'STANDARD').toUpperCase().trim();
   return `${normMarket}|${normLine}|${normSide}|${normSettlement}`;
 }
+/**
+ * 解析信号的结算基准 (Settlement Basis)，与 06 层 SettlementBasis 语义严格对齐：
+ * - 赛前 (PREMATCH) 任何市场 → FULL_MATCH (全场结算)
+ * - 滚球 (LIVE) 让球 → REMAINING_PERIOD_DOMINANCE (后续时段让球，推荐后新增净胜结算)
+ * - 滚球 (LIVE) 大小球 → REMAINING_GOALS (推荐后剩余进球结算)
+ * - 其他 (独赢等) → FULL_MATCH
+ * 遵循 AGENTS.md 规则 5/6：滚球大小球与后续时段让球不得按全场最终结果结算。
+ */
+export function resolveSettlementBasis(
+  market: string,
+  stage: MatchStage
+): 'FULL_MATCH' | 'REMAINING_GOALS' | 'REMAINING_PERIOD_DOMINANCE' {
+  if (stage === MatchStage.PREMATCH) return 'FULL_MATCH';
+  if (market.includes('ASIAN_HANDICAP')) return 'REMAINING_PERIOD_DOMINANCE';
+  if (market.includes('TOTAL_GOALS')) return 'REMAINING_GOALS';
+  return 'FULL_MATCH';
+}
+
+
 
 export interface CandidatePipelineEvaluationInput {
   readonly rawSignals: readonly PositiveEVSignal[];
@@ -381,8 +400,7 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
           oosStatus = 'PERMISSIVE_PASSED';
         }
 
-        const isAh = raw.market.includes('ASIAN_HANDICAP');
-        const settlementBasis = isAh ? ('REST_OF_MATCH' as const) : ('FULL_MATCH' as const);
+        const settlementBasis = resolveSettlementBasis(raw.market, input.stage);
 
         return Object.freeze({
           ...raw,
@@ -445,8 +463,7 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
 
       machineCandidateSignals = Object.freeze(
         strictlyMatureSignals.map((raw) => {
-          const isAh = raw.market.includes('ASIAN_HANDICAP');
-          const settlementBasis = isAh ? ('REST_OF_MATCH' as const) : ('FULL_MATCH' as const);
+          const settlementBasis = resolveSettlementBasis(raw.market, input.stage);
           return Object.freeze({
             ...raw,
             oos_status: 'PRODUCTION_MATURE' as const,
@@ -485,8 +502,7 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
 
       machineCandidateSignals = Object.freeze(
         strictlyValidatedSignals.map((raw) => {
-          const isAh = raw.market.includes('ASIAN_HANDICAP');
-          const settlementBasis = isAh ? ('REST_OF_MATCH' as const) : ('FULL_MATCH' as const);
+          const settlementBasis = resolveSettlementBasis(raw.market, input.stage);
           return Object.freeze({
             ...raw,
             oos_status: 'OOS_VALIDATED' as const,

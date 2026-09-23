@@ -1,14 +1,14 @@
 /**
  * @file marketDivergenceEngine.ts
  * @description Layer 03 Stage 1.1: 机构盘口博弈偏差检验与校准器
- * 
+ *
  * 核心逻辑：
  * 1. 接入雷速初盘与赛前即盘赔率矩阵（让球、独赢、大小球）；
  * 2. 运用 Shin 去抽水算法剥离庄家抽水与知情交易者加价，提取机构真实隐含进球期望 (λ_mkt_H, λ_mkt_A)；
  * 3. 计算理论先验 vs 机构隐含期望偏差量 Δ = λ_theory - λ_mkt；
  * 4. 识别机构博弈姿态 (CONSENSUS_ALIGNED 吻合 / INSTITUTIONAL_DEFENSE 机构设防 / TRAP_INDUCEMENT 虚火诱盘)；
  * 5. 输出博弈校准后的基准进球期望 (λ_base_H, λ_base_A) 及置信度惩罚。
- * 
+ *
  * 遵循红线：纯函数无副作用 (No In-Place Mutation)、强类型零 any、完全可测试。
  */
 
@@ -144,10 +144,10 @@ export function calibrateWithMarketOdds(
   );
 
   const oddsMatrix = match.reference?.odds_matrix;
-  const liveMarket = match.timing.stage === MatchStage.LIVE 
-    ? (oddsMatrix?.live ?? (match.reference as any)?.live) 
+  const liveMarket = match.timing.stage === MatchStage.LIVE
+    ? oddsMatrix?.live
     : undefined;
-  const fallbackMarket = oddsMatrix?.pregame ?? (match.reference as any)?.pregame ?? oddsMatrix?.initial ?? (match.reference as any)?.initial;
+  const fallbackMarket = oddsMatrix?.pregame ?? oddsMatrix?.initial;
   const selectedMarket = liveMarket ?? fallbackMarket;
   const isInPlayMarket = liveMarket !== undefined && selectedMarket === liveMarket;
   let winnerMarket = selectedMarket?.match_winner;
@@ -170,7 +170,7 @@ export function calibrateWithMarketOdds(
       };
     }
     if (match.markets.full_spread_main) {
-      const rawLine = match.markets.full_spread_main.home_selection || (match.markets.full_spread_main as any).line;
+      const rawLine = match.markets.full_spread_main.home_selection;
       const parsedLine = typeof rawLine === 'number' ? rawLine : parseFloat(String(rawLine || '0'));
       handicapMarket = {
         line: Number.isFinite(parsedLine) ? parsedLine : null,

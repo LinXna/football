@@ -78,7 +78,7 @@ export interface EvaluatorQuantFeatures {
     has_major_live_conflict: boolean;
     blocker_count: number;
     blockers: string[];
-    hard_gate_ceiling: 'A_GRADE' | 'B_GRADE' | 'WATCH' | 'REJECTED';
+    hard_gate_ceiling: 'A_GRADE' | 'B_GRADE' | 'C_GRADE' | 'WATCH' | 'REJECTED';
   };
 }
 
@@ -93,16 +93,49 @@ export interface LivePhysicalContext {
   temporal_inversion_detected?: boolean;
 }
 
+/** 让球/大小球盘口对象的宽松但类型安全的形状（YBTY/雷速/annotate 后多态兼容）。 */
+export interface CoreMarketLine {
+  handicap?: string | number | null;
+  line?: string | number | null;
+  total_line?: string | number | null;
+  total?: string | number | null;
+  spread?: string | number | null;
+  home_selection?: string | number | null;
+  away_selection?: string | number | null;
+  selected_line?: string | number | null;
+  home_odds?: number;
+  away_odds?: number;
+  over_odds?: number;
+  under_odds?: number;
+  current_odds?: number;
+  is_quarter_line?: boolean;
+}
+
+/** 独赢（1X2）盘口对象的宽松但类型安全的形状。 */
+export interface CoreEuroMarket {
+  home_win?: number;
+  home_odds?: number;
+  home_win_odds?: number;
+  home?: number;
+  draw?: number;
+  draw_odds?: number;
+  draw_win_odds?: number;
+  away_win?: number;
+  away_odds?: number;
+  away_win_odds?: number;
+  away?: number;
+}
+
 export interface EvaluatorPayload {
   ai_brief: Omit<Partial<AiEvaluationBrief>, 'core_markets'> & {
     core_markets?: {
-      ah_main?: any;
-      ah_secondary?: any[];
-      ou_main?: any;
-      ou_secondary?: any[];
-      euro_1x2?: any;
-      ah_half?: any;
-      ou_half?: any;
+      ah_main?: CoreMarketLine | null;
+      ah_secondary?: (CoreMarketLine | null | undefined)[] | CoreMarketLine | null;
+      ou_main?: CoreMarketLine | null;
+      ou_secondary?: (CoreMarketLine | null | undefined)[] | CoreMarketLine | null;
+      euro_1x2?: CoreEuroMarket | null;
+      ah_half?: CoreMarketLine | null;
+      ou_half?: CoreMarketLine | null;
     }
   };
   data_blind_spot_warning?: string;
@@ -148,6 +181,10 @@ export interface RecommendedLeg {
   direction: 'HOME' | 'AWAY' | 'OVER' | 'UNDER' | 'DRAW' | 'NONE';
   basis: string;
   oos_status?: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'OOS_COLD_START_EXEMPT' | 'OOS_REJECTED';
+  /** 推荐腿的模型概率与滚球分钟（Layer 05 台账持久化读取）。 */
+  model_probability?: number;
+  probability?: number;
+  minute?: number;
 }
 
 export interface BlindSpotChecklist {

@@ -1,4 +1,5 @@
 import { SettlementOutcome, VerifiedScore } from './types.js';
+import { parseAsianHandicapLine } from '../03_quant_engine/asianHandicap.js';
 
 export type QuarterMarketCategory = 
   | 'SPREAD_HOME' 
@@ -28,27 +29,14 @@ export interface QuarterSettlementResult {
   explanation: string;
 }
 
+/**
+ * 亚洲盘口解析的宽松封装：委托 Layer 03 SSOT 解析器 parseAsianHandicapLine，
+ * 无法解析时返回 0（而非 NaN），供旧系统 server/ 结算调用使用。
+ * 三套盘口解析器已统一为单一事实来源（parseAsianHandicapLine）。
+ */
 export function parseAsianLine(rawLine: string | number): number {
-  if (typeof rawLine === 'number') return rawLine;
-  if (!rawLine) return 0;
-  const str = String(rawLine).trim().replace(/\s+/g, '');
-  const splitMatch = str.match(/^([+-]?\d*(?:\.\d+)?)\/([+-]?\d*(?:\.\d+)?)$/);
-  if (splitMatch) {
-    const isNegative = splitMatch[1].startsWith('-') || splitMatch[2].startsWith('-');
-    const v1Abs = Math.abs(parseFloat(splitMatch[1]) || 0);
-    const v2Abs = Math.abs(parseFloat(splitMatch[2]) || 0);
-    const v1 = isNegative ? -v1Abs : v1Abs;
-    const v2 = isNegative ? -v2Abs : v2Abs;
-    if (!isNaN(v1) && !isNaN(v2)) {
-      return (v1 + v2) / 2;
-    }
-  }
-  const numMatch = str.match(/([+-]?\d+(?:\.\d+)?)/);
-  if (numMatch) {
-    const val = parseFloat(numMatch[1]);
-    if (!isNaN(val)) return val;
-  }
-  return 0;
+  const val = parseAsianHandicapLine(rawLine);
+  return Number.isFinite(val) ? val : 0;
 }
 
 export function isQuarterLine(line: number): boolean {

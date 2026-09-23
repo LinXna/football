@@ -1,6 +1,7 @@
-import { AiEvaluationResult, EvaluatorPayload } from './types.js';
+import { AiEvaluationResult, EvaluatorPayload, CoreMarketLine, CoreEuroMarket } from './types.js';
 import { RecommendationGrade, TacticalRegimeEvaluation } from './enums.js';
 import { QuantAlert } from '../03_quant_engine/enums.js';
+import { PositiveEVSignal } from '../03_quant_engine/types.js';
 import { parseAsianHandicapLine } from '../03_quant_engine/devigCalculator.js';
 
 /**
@@ -16,20 +17,39 @@ export function parseHandicapToFloat(line: string | number): number | null {
   return isNaN(val) ? null : val;
 }
 
+type LegDirection = 'HOME' | 'AWAY' | 'OVER' | 'UNDER' | 'DRAW' | 'NONE';
+
+/** 将 PositiveEVSignal.side 等自由字符串安全收窄为合法方向枚举，替代 as any。 */
+function toLegDirection(side: string | undefined): LegDirection {
+  const upper = (side ?? 'HOME').toUpperCase();
+  switch (upper) {
+    case 'HOME':
+    case 'AWAY':
+    case 'OVER':
+    case 'UNDER':
+    case 'DRAW':
+    case 'NONE':
+      return upper;
+    default:
+      return 'HOME';
+  }
+}
+
 /**
  * P0-01: Identifies quarter/split lines from the actual line value itself.
  * Examples: '0/0.5', '-0/0.5', '+0/0.5', '0.5/1', '1/1.5', '1.5/2', '2/2.5', '+0.25', '-0.25', '+0.75', '-0.75'.
  * Actual line structure MUST strictly override the 'is_quarter_line' metadata!
  */
-export function isQuarterOrSplitLine(val: any): boolean {
+export function isQuarterOrSplitLine(val: unknown): boolean {
   if (!val) return false;
   if (typeof val === 'object') {
-    return isQuarterOrSplitLine(val.selected_line) ||
-           isQuarterOrSplitLine(val.line) ||
-           isQuarterOrSplitLine(val.handicap) ||
-           isQuarterOrSplitLine(val.total_line) ||
-           isQuarterOrSplitLine(val.home_selection) ||
-           isQuarterOrSplitLine(val.away_selection);
+    const o = val as Record<string, unknown>;
+    return isQuarterOrSplitLine(o.selected_line) ||
+           isQuarterOrSplitLine(o.line) ||
+           isQuarterOrSplitLine(o.handicap) ||
+           isQuarterOrSplitLine(o.total_line) ||
+           isQuarterOrSplitLine(o.home_selection) ||
+           isQuarterOrSplitLine(o.away_selection);
   }
   const s = String(val).trim();
   if (s.includes('/')) return true;
@@ -63,10 +83,10 @@ function hasMachineCandidate(leg: AiEvaluationResult['recommended_legs'][number]
  * and signals with missing baseline data (market, line, odds <= 1.0).
  */
 export function findFirstLegallyVerifiableSignal(
-  rawSignals: any[],
+  rawSignals: readonly PositiveEVSignal[],
   currentTotalGoals: number,
   isLiveMatch: boolean
-): any | null {
+): PositiveEVSignal | null {
   if (!Array.isArray(rawSignals) || rawSignals.length === 0) return null;
 
   for (const sig of rawSignals) {
@@ -114,16 +134,16 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
           isLiveMatch
         );
         if (fallback) {
-          const hasEngineEv = typeof (fallback as any).risk_adjusted_ev === 'number';
+          const hasEngineEv = typeof fallback.risk_adjusted_ev === 'number';
           lockedMarketScan = {
             ...lockedMarketScan,
             market: fallback.market,
             selected_line: String(fallback.line),
-            direction: (fallback.side ?? 'HOME').toUpperCase() as any,
+            direction: toLegDirection(fallback.side),
             current_odds: fallback.odds ?? 0,
             minimum_acceptable_odds: 0,
             raw_ev: fallback.ev ?? 0,
-            risk_adjusted_ev: hasEngineEv ? (fallback as any).risk_adjusted_ev : 0,
+            risk_adjusted_ev: hasEngineEv ? (fallback.risk_adjusted_ev ?? 0) : 0,
             risk_adjustment_status: hasEngineEv ? 'ENGINE_PROVIDED' : 'QUALITATIVE_ONLY',
             actionable: false,
             market_status: 'VALID_BUT_BLOCKED',
@@ -186,35 +206,39 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
       break;
     }
 
-    const checkAhMatch = (sm: any): boolean => {
+    const checkAhMatch = (sm: CoreMarketLine | null | undefined): boolean => {
       if (!sm) return false;
+      const homeOdds = sm.home_odds ?? NaN;
+      const awayOdds = sm.away_odds ?? NaN;
       const homeLine = parseHandicapToFloat(sm.handicap ?? sm.home_selection ?? '');
       const awayLine = sm.away_selection
         ? parseHandicapToFloat(sm.away_selection)
         : (homeLine !== null ? -homeLine : null);
 
       if (leg.direction === 'HOME' && homeLine !== null && aiLine !== null && Math.abs(aiLine - homeLine) < 0.001) {
-        if (Math.abs(leg.current_odds - sm.home_odds) < 0.02) return true;
+        if (Math.abs(leg.current_odds - homeOdds) < 0.02) return true;
       }
       if (leg.direction === 'AWAY') {
         // 允许真实客队盘口 (负于主盘) 或兼容模式校验，且校验客队赔率
         if (awayLine !== null && aiLine !== null && Math.abs(aiLine - awayLine) < 0.001) {
-          if (Math.abs(leg.current_odds - sm.away_odds) < 0.02) return true;
+          if (Math.abs(leg.current_odds - awayOdds) < 0.02) return true;
         }
         if (homeLine !== null && aiLine !== null && Math.abs(aiLine - homeLine) < 0.001) {
-          if (Math.abs(leg.current_odds - sm.away_odds) < 0.02) return true;
+          if (Math.abs(leg.current_odds - awayOdds) < 0.02) return true;
         }
       }
       return false;
     };
 
-    const checkOuMatch = (sm: any): boolean => {
+    const checkOuMatch = (sm: CoreMarketLine | null | undefined): boolean => {
       if (!sm) return false;
+      const overOdds = sm.over_odds ?? NaN;
+      const underOdds = sm.under_odds ?? NaN;
       const statLine = parseHandicapToFloat(sm.handicap ?? sm.line ?? '');
       if (statLine !== null && aiLine !== null && Math.abs(aiLine - statLine) < 0.001) {
         if (
-          (leg.direction === 'OVER' && Math.abs(leg.current_odds - sm.over_odds) < 0.02) ||
-          (leg.direction === 'UNDER' && Math.abs(leg.current_odds - sm.under_odds) < 0.02)
+          (leg.direction === 'OVER' && Math.abs(leg.current_odds - overOdds) < 0.02) ||
+          (leg.direction === 'UNDER' && Math.abs(leg.current_odds - underOdds) < 0.02)
         ) {
           return true;
         }
@@ -233,7 +257,7 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
       const subs = Array.isArray(statutoryMarkets.ou_secondary) ? statutoryMarkets.ou_secondary : [statutoryMarkets.ou_secondary];
       isValid = subs.some(checkOuMatch);
     } else if (leg.market === 'EURO_1X2' && statutoryMarkets.euro_1x2) {
-      const sm = statutoryMarkets.euro_1x2 as any;
+      const sm = statutoryMarkets.euro_1x2;
       const homeVal = sm.home_win ?? sm.home_odds ?? sm.home_win_odds ?? sm.home;
       const drawVal = sm.draw ?? sm.draw_odds ?? sm.draw_win_odds;
       const awayVal = sm.away_win ?? sm.away_odds ?? sm.away_win_odds ?? sm.away;
@@ -750,16 +774,16 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
 
     if (isNoValidMarket && fallbackSignal) {
       // 规则 2 纠正：有效盘口被执行门禁阻止时，不得写成 market = NONE，必须保留最佳扫描盘口并标记 VALID_BUT_BLOCKED
-      const hasEngineEv = typeof (fallbackSignal as any).risk_adjusted_ev === 'number';
+      const hasEngineEv = typeof fallbackSignal.risk_adjusted_ev === 'number';
       synchronizedMarketScan = {
         ...synchronizedMarketScan,
         market: fallbackSignal.market,
         selected_line: String(fallbackSignal.line),
-        direction: (fallbackSignal.side ?? 'HOME').toUpperCase() as any,
+        direction: toLegDirection(fallbackSignal.side),
         current_odds: fallbackSignal.odds ?? 0,
         minimum_acceptable_odds: 0,
         raw_ev: fallbackSignal.ev ?? 0,
-        risk_adjusted_ev: hasEngineEv ? (fallbackSignal as any).risk_adjusted_ev : 0,
+        risk_adjusted_ev: hasEngineEv ? (fallbackSignal.risk_adjusted_ev ?? 0) : 0,
         risk_adjustment_status: hasEngineEv ? 'ENGINE_PROVIDED' : 'QUALITATIVE_ONLY',
         actionable: false,
         market_status: 'VALID_BUT_BLOCKED',
@@ -825,9 +849,9 @@ export function verifyStatutoryAlignment(result: AiEvaluationResult, payload: Ev
     const candidateSignal = (payload.quant_features?.machine_candidate_signals ?? []).find(
       c => String(c.line) === String(synchronizedMarketScan?.selected_line) && c.market === synchronizedMarketScan?.market
     );
-    const engineEvVal = (candidateSignal && typeof (candidateSignal as any).risk_adjusted_ev === 'number')
-      ? (candidateSignal as any).risk_adjusted_ev
-      : (typeof (payload.quant_features as any)?.risk_adjusted_ev === 'number' ? (payload.quant_features as any).risk_adjusted_ev : null);
+    const engineEvVal = (candidateSignal && typeof candidateSignal.risk_adjusted_ev === 'number')
+      ? (candidateSignal.risk_adjusted_ev ?? null)
+      : (typeof payload.quant_features?.risk_adjusted_ev === 'number' ? (payload.quant_features.risk_adjusted_ev ?? null) : null);
 
     if (engineEvVal !== null) {
       synchronizedMarketScan.risk_adjustment_status = 'ENGINE_PROVIDED';

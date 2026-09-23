@@ -21,8 +21,8 @@ export function generateRefactoredPrompt(
     let quantFeatures;
     try {
       quantFeatures = calculateQuantitativeFeatures(match);
-    } catch (err: any) {
-      console.warn(`[PromptExporter] Failed to compute quant for match ${match.canonical_id}:`, err?.message || err);
+    } catch (err) {
+      console.warn(`[PromptExporter] Failed to compute quant for match ${match.canonical_id}:`, err instanceof Error ? err.message : err);
       continue;
     }
     const aiBrief = extractAiEvaluationBrief(match);
@@ -177,18 +177,19 @@ export function generateRefactoredPrompt(
     const currentTotalGoals = currentHomeScore + currentAwayScore;
     const isLive = match.timing?.stage === MatchStage.LIVE;
 
-    const checkQuarterLine = (itemOrStr: any): boolean => {
+    const checkQuarterLine = (itemOrStr: unknown): boolean => {
       if (!itemOrStr) return false;
       if (typeof itemOrStr === 'object') {
+        const o = itemOrStr as Record<string, unknown>;
         const candidates = [
-          itemOrStr.handicap,
-          itemOrStr.line,
-          itemOrStr.total_line,
-          itemOrStr.total,
-          itemOrStr.home_selection,
-          itemOrStr.away_selection,
-          itemOrStr.spread,
-          itemOrStr.selected_line
+          o.handicap,
+          o.line,
+          o.total_line,
+          o.total,
+          o.home_selection,
+          o.away_selection,
+          o.spread,
+          o.selected_line
         ];
         return candidates.some(c => checkQuarterLine(c));
       }
@@ -196,7 +197,30 @@ export function generateRefactoredPrompt(
       return s.includes('/') || s.includes('.25') || s.includes('.75');
     };
 
-    const annotateOuMarket = (marketItem: any, evAssessment?: any) => {
+    type AnnotateMarketInput = {
+      handicap?: string | number | null;
+      line?: string | number | null;
+      total_line?: string | number | null;
+      total?: string | number | null;
+      spread?: string | number | null;
+      home_selection?: string | number | null;
+      away_selection?: string | number | null;
+      selected_line?: string | number | null;
+      home_odds?: number;
+      away_odds?: number;
+      over_odds?: number;
+      under_odds?: number;
+      preferred_side?: string;
+      home_line?: string | number | null;
+      away_line?: string | number | null;
+      settlement_distribution?: unknown;
+      over_settlement_distribution?: unknown;
+      under_settlement_distribution?: unknown;
+      home_settlement_distribution?: unknown;
+      away_settlement_distribution?: unknown;
+    };
+
+    const annotateOuMarket = (marketItem: AnnotateMarketInput | null | undefined, evAssessment?: AnnotateMarketInput | null | undefined) => {
       if (!marketItem && !evAssessment) return undefined;
       const merged = { ...marketItem, ...evAssessment };
       const rawLine = merged.line ?? merged.total_line ?? merged.total ?? '';
@@ -216,13 +240,13 @@ export function generateRefactoredPrompt(
       };
     };
 
-    const annotateAhMarket = (marketItem: any, evAssessment?: any) => {
+    const annotateAhMarket = (marketItem: AnnotateMarketInput | null | undefined, evAssessment?: AnnotateMarketInput | null | undefined) => {
       if (!marketItem && !evAssessment) return undefined;
       const merged = { ...marketItem, ...evAssessment };
       const rawLine = merged.handicap ?? merged.line ?? merged.home_selection ?? merged.away_selection ?? '';
       const isAwayPreferred = evAssessment?.preferred_side === 'away';
       const homeLine = marketItem?.home_selection ?? evAssessment?.home_line ?? rawLine;
-      const awayLine = marketItem?.away_selection ?? evAssessment?.away_line ?? (homeLine ? invertHandicapString(homeLine) : '');
+      const awayLine = marketItem?.away_selection ?? evAssessment?.away_line ?? (homeLine ? invertHandicapString(String(homeLine)) : '');
       const selectedLine = isAwayPreferred ? awayLine : homeLine;
       const selectedOdds = isAwayPreferred
         ? (marketItem?.away_odds ?? evAssessment?.away_odds)
@@ -256,6 +280,8 @@ export function generateRefactoredPrompt(
         ou_secondary: Array.isArray(quantFeatures.devig?.total_secondary_ev)
           ? quantFeatures.devig.total_secondary_ev.map(sub => annotateOuMarket(undefined, sub))
           : quantFeatures.devig?.total_secondary_ev,
+        ah_half: annotateAhMarket(match.markets?.half_spread_main, quantFeatures.devig?.half_spread_main_ev),
+        ou_half: annotateOuMarket(match.markets?.half_total_main, quantFeatures.devig?.half_total_main_ev),
         euro_1x2: match.markets?.full_h2h ?? (quantFeatures.devig?.h2h_devig ? {
           home_odds: quantFeatures.devig.h2h_devig.market_odds?.[0],
           draw_odds: quantFeatures.devig.h2h_devig.market_odds?.[1],
@@ -288,9 +314,9 @@ export function generateRefactoredPrompt(
     const candidateCount = pipeline?.machine_candidate_count ?? 0;
     const isPipelineLocked = pipeline?.state !== 'PRODUCTION_UNLOCKED';
 
-    let hardGateCeiling: 'A_GRADE' | 'B_GRADE' | 'WATCH' | 'REJECTED' = 'A_GRADE';
+    let hardGateCeiling: 'A_GRADE' | 'B_GRADE' | 'C_GRADE' | 'WATCH' | 'REJECTED' = 'A_GRADE';
     if (blindSpots.length > 0) {
-      hardGateCeiling = 'C_GRADE' as any;
+      hardGateCeiling = 'C_GRADE';
     } else if (hasCircuitBreaker) {
       hardGateCeiling = 'B_GRADE';
     } else if (modelStability < 70 && (hasMajorConflict || candidateCount === 0 || isPipelineLocked)) {

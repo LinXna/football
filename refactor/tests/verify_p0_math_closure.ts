@@ -16,6 +16,8 @@ import {
   calculateSpreadFiveStateDistribution,
   calculateTotalFiveStateDistribution,
   calculateH2hEV,
+  calculateAsianHandicapEV,
+  calculateTotalGoalsEV,
   calculateDeviggedMarketFeatures,
   devigShin
 } from '../03_quant_engine/devigCalculator.js';
@@ -23,6 +25,7 @@ import { parseHandicapToFloat, isQuarterOrSplitLine } from '../04_ai_evaluator/a
 import { MatchStage, MatchAlignmentStatus } from '../02_canonical_model/enums.js';
 import type { CanonicalMatch } from '../02_canonical_model/types.js';
 import type { InPlayPoissonFeatures } from '../03_quant_engine/types.js';
+import { getLeagueBaseGoals } from '../03_quant_engine/poissonCore.js';
 
 console.log('====================================================');
 console.log('Running P0 Verification Suite (Task 0.1, 0.2, 0.3)...');
@@ -147,8 +150,8 @@ const spreadSum =
   homeQuarterSpread.p_full_loss;
 
 assert.ok(
-  Math.abs(spreadSum - 1.0) < 1e-4,
-  `Spread 5-state sum must equal 1.0, got ${spreadSum}`
+  Math.abs(spreadSum - 1.0) < 1e-9,
+  `Spread 5-state sum must equal 1.0 exactly, got ${spreadSum}`
 );
 assert.strictEqual(homeQuarterSpread.source, 'ENGINE_COMPUTED');
 
@@ -162,11 +165,21 @@ const totalSum =
   overQuarterTotal.p_full_loss;
 
 assert.ok(
-  Math.abs(totalSum - 1.0) < 1e-4,
-  `Total 5-state sum must equal 1.0, got ${totalSum}`
+  Math.abs(totalSum - 1.0) < 1e-9,
+  `Total 5-state sum must equal 1.0 exactly, got ${totalSum}`
 );
 assert.strictEqual(overQuarterTotal.source, 'ENGINE_COMPUTED');
 console.log('   ✓ 5-state distribution achieves strict mathematical closure (∑P ≡ 1.0000).');
+
+// 问题6修复回归：全称联赛名通过别名表匹配简称，避免回退到默认 2.75
+assert.strictEqual(getLeagueBaseGoals('俄罗斯超级联赛'), 2.40, '「俄罗斯超级联赛」→ 俄超 2.40');
+assert.strictEqual(getLeagueBaseGoals('英格兰超级联赛'), 3.20, '「英格兰超级联赛」→ 英超 3.20');
+assert.strictEqual(getLeagueBaseGoals('西班牙甲级联赛'), 2.58, '「西班牙甲级联赛」→ 西甲 2.58');
+assert.strictEqual(getLeagueBaseGoals('德国甲级联赛'), 3.18, '「德国甲级联赛」→ 德甲 3.18');
+assert.strictEqual(getLeagueBaseGoals('日本职业足球联赛'), 2.52, '「日本职业足球联赛」→ 日职联 2.52');
+assert.strictEqual(getLeagueBaseGoals('欧洲冠军联赛'), 3.05, '「欧洲冠军联赛」→ 欧冠 3.05');
+assert.strictEqual(getLeagueBaseGoals('未知虚构联赛'), 2.75, '未知联赛 → 默认 2.75');
+console.log('   ✓ 联赛全称别名归一化匹配 PASS');
 
 // --------------------------------------------------------------------------
 // 4. Task 0.3: 1X2 欧赔去抽水 (Shin) + 泊松网格模型闭式推导双轨机制
@@ -232,6 +245,22 @@ assert.ok(
   'Fair odds must be derived from Poisson probabilities'
 );
 console.log('   ✓ 1X2 devig dual-track works seamlessly: Shin for active odds, Poisson Grid derivation fallback for missing odds.');
+
+// 问题2修复回归：中文盘口「主让一球」无法解析时，calculateAsianHandicapEV 必须降级为非 NaN，不得污染 EV 网格
+{
+  const nanHandicapEv = calculateAsianHandicapEV(
+    '主让一球', 2.0, 1.8,
+    { lambda_home_rest: 1.5, lambda_away_rest: 0.3, expected_goals_rest: 1.8 }
+  );
+  assert.ok(Number.isFinite(nanHandicapEv.home_ev), '无法解析的中文盘口必须降级为非 NaN home_ev');
+  assert.ok(Number.isFinite(nanHandicapEv.away_ev), '无法解析的中文盘口必须降级为非 NaN away_ev');
+  const nanTotalEv = calculateTotalGoalsEV(
+    '球半/两球半', 2.0, 1.8, 0,
+    { lambda_home_rest: 1.5, lambda_away_rest: 0.3, expected_goals_rest: 1.8 }
+  );
+  assert.ok(Number.isFinite(nanTotalEv.over_ev), '无法解析的盘口必须降级为非 NaN over_ev');
+  console.log('   ✓ 无法解析盘口的 NaN 防护降级验证 PASS');
+}
 
 console.log('\n====================================================');
 console.log('🎉 P0 Mathematical Closure Verification PASSED 100%!');

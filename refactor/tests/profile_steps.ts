@@ -4,7 +4,7 @@ import { parseLeisuInterfaceExport } from '../01_data_ingestion/leisu/leisuInter
 import { findBestLeisuMatch } from '../02_canonical_model/matchAligner';
 import { assembleCanonicalMatch, extractAiEvaluationBrief } from '../02_canonical_model/canonicalMatchAssembler';
 import { calculateQuantitativeFeatures, isMatchQuantEligible } from '../03_quant_engine/index';
-import { getLoadedOosArchive } from '../../server/services/oosArchiveService';
+import { getLoadedOosArchive } from '../06_settlement_audit/oosArchiveService.js';
 
 console.log('--- DETAILED PROFILING OF ASSEMBLE ---');
 

@@ -5,7 +5,7 @@ import { FormalRecommendation } from '../05_portfolio_risk/types.js';
 import { RecommendationGrade } from '../04_ai_evaluator/enums.js';
 import { convertFormalLedgerRecords } from '../06_settlement_audit/formalLedgerAdapter.js';
 import { toOosSample } from '../06_settlement_audit/historicalBacktestIngestion.js';
-import { appendSampleAndRebuildArchive, getOosStatus } from '../../server/services/oosArchiveService.js';
+import { appendSampleAndRebuildArchive, getOosStatus } from '../06_settlement_audit/oosArchiveService.js';
 import { OosCalibrationSample } from '../03_quant_engine/types.js';
 
 const testLiveFile = path.resolve(process.cwd(), 'output/formal_ledger_live_test.json');

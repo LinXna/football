@@ -64,7 +64,7 @@ export interface DataConsistencyAuditResult {
 /**
  * 统计时序动量点阵的物理点数
  */
-export function countMomentumPoints(match: CanonicalMatch | any): number {
+export function countMomentumPoints(match: CanonicalMatch): number {
   const momentum = match.reference?.attack_momentum;
   let count = 0;
   if (momentum && momentum.data && Array.isArray(momentum.data)) {
@@ -95,7 +95,7 @@ export function auditDataConsistency(match: CanonicalMatch): DataConsistencyAudi
   // 1. 时钟对账：滚球状态下，若提供了危攻时序流，当前分钟数减去时序点数，相差大于 3 分钟即判定为断流
   // 若赛事本身未提供动量数据（attack_momentum == null），由完整度评级降级处理，不应误判为物理时序断流
   const hasMomentumTimeline = (match.reference?.attack_momentum !== null && match.reference?.attack_momentum !== undefined) ||
-    (Array.isArray((match.reference as any)?.attack_momentum_timeline) && (match.reference as any).attack_momentum_timeline.length > 0);
+    (Array.isArray(match.reference?.attack_momentum_timeline) && match.reference.attack_momentum_timeline.length > 0);
   const timelineStaleLag = (currentMinute !== null && hasMomentumTimeline) ? Math.max(0, currentMinute - momentumPoints) : 0;
   const isTimelineStale = isLive && hasMomentumTimeline && (currentMinute !== null) && (currentMinute - momentumPoints > 3);
 
@@ -125,7 +125,7 @@ export function auditDataConsistency(match: CanonicalMatch): DataConsistencyAudi
       typeStr.includes('TWO_YELLOW_TO_RED')
     );
 
-    const side = ev.side || (ev as any).team_side;
+    const side = ev.side || ev.team_side;
 
     // 进球事实统计 (乌龙球反向归属判定)
     if (isGoal) {
@@ -168,8 +168,8 @@ export function auditDataConsistency(match: CanonicalMatch): DataConsistencyAudi
   }
 
   // 进球事实比对 (主客独立；仅在事件轴已具备事件数据时严格比对，避免事件轴缺省时误报物理事实分裂)
-  const homeScore = match.score?.home_score ?? (match.score as any)?.current?.home ?? null;
-  const awayScore = match.score?.away_score ?? (match.score as any)?.current?.away ?? null;
+  const homeScore = match.score?.home_score ?? match.score?.current?.home ?? null;
+  const awayScore = match.score?.away_score ?? match.score?.current?.away ?? null;
   const isHomeGoalMismatch = hasTimelineEvents && (homeScore !== null) && (homeScore !== eventHomeGoals);
   const isAwayGoalMismatch = hasTimelineEvents && (awayScore !== null) && (awayScore !== eventAwayGoals);
 
