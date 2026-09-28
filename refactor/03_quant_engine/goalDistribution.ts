@@ -91,59 +91,63 @@ export function extractGoalDistributionDNA(
     const allParsed = parseIntervalGoals(allScope?.scored_intervals);
     const venueParsed = parseIntervalGoals(venueScope?.scored_intervals);
 
-    const nAll = allParsed.totalGoals;
-    const nVenue = venueParsed.totalGoals;
+    // P1-17: 样本量口径由「进球数」改为「比赛数」（matches_count）
+    // 原 nAll = totalGoals（进球数）：5 场打进 15 球会被误判为 15 个高证据样本。
+    // 现用 matches_count：证据量只取决于比赛场次，与单场进球多少无关。
+    // 狄利克雷平滑仍用进球频数（totalGoals），保持共轭更新数学正确。
+    const nAll = allScope?.matches_count ?? 0;
+    const nVenue = venueScope?.matches_count ?? 0;
 
     // 2. 样本量底线安全阀 (Sample Size Floor)：
-    // 若全赛季总进球 N_all < 5，整支球队样本极小/假规律，100% 回退至中性均匀分布
-    if (nAll < 5) {
+    // 若全赛季比赛数 N_all < 3（或无进球频数），整支球队样本极小/假规律，100% 回退至中性均匀分布
+    if (nAll < 3 || allParsed.totalGoals < 1) {
       return {
         weights: UNIFORM_6,
         late: 0.1667,
         early: 0.3333,
-        sampleSize: Math.max(nAll, nVenue),
+        sampleSize: nAll,
         confidence: 'INSUFFICIENT',
         isSpecific: false
       };
     }
 
-    // 总体后验分布
-    const posteriorAll = smoothIntervals(allParsed.rawGoals, nAll);
+    // 总体后验分布（狄利克雷平滑以进球频数为 pseudo-count）
+    const posteriorAll = smoothIntervals(allParsed.rawGoals, allParsed.totalGoals);
 
     // 3. "总 + 专属"自适应分层加权融合：
-    // 根据专属主/客场样本量 nVenue 动态分配专属切片与总体切片的融合比例
+    // 根据专属主/客场比赛数 nVenue 动态分配专属切片与总体切片的融合比例
     let finalFusedProbs: number[];
     let isSpecific = false;
     let confidence: 'HIGH' | 'MEDIUM' | 'LOW' | 'INSUFFICIENT';
 
-    if (venueParsed.isValid && nVenue >= 12) {
-      // 规则 1：专属切片样本充足 (nVenue >= 12) -> 70% 专属切片 + 30% 总体切片
-      const posteriorVenue = smoothIntervals(venueParsed.rawGoals, nVenue);
+    if (venueParsed.isValid && nVenue >= 5) {
+      // 规则 1：专属切片样本充足 (nVenue >= 5 场) -> 70% 专属切片 + 30% 总体切片
+      const posteriorVenue = smoothIntervals(venueParsed.rawGoals, venueParsed.totalGoals);
       finalFusedProbs = new Array(6);
       for (let i = 0; i < 6; i++) {
         finalFusedProbs[i] = posteriorVenue[i] * 0.70 + posteriorAll[i] * 0.30;
       }
       isSpecific = true;
       confidence = 'HIGH';
-    } else if (venueParsed.isValid && nVenue >= 5) {
-      // 规则 2：专属切片样本中等 (5 <= nVenue < 12) -> 50% 专属切片 + 50% 总体切片
-      const posteriorVenue = smoothIntervals(venueParsed.rawGoals, nVenue);
+    } else if (venueParsed.isValid && nVenue >= 3) {
+      // 规则 2：专属切片样本中等 (3 <= nVenue < 5 场) -> 50% 专属切片 + 50% 总体切片
+      const posteriorVenue = smoothIntervals(venueParsed.rawGoals, venueParsed.totalGoals);
       finalFusedProbs = new Array(6);
       for (let i = 0; i < 6; i++) {
         finalFusedProbs[i] = posteriorVenue[i] * 0.50 + posteriorAll[i] * 0.50;
       }
       isSpecific = true;
-      confidence = nAll >= 15 ? 'HIGH' : 'MEDIUM';
+      confidence = nAll >= 8 ? 'HIGH' : 'MEDIUM';
     } else {
-      // 规则 3：专属切片样本过小或缺失 (nVenue < 5) -> 100% 采用总体切片 (All)
-      // 若总体切片样本在 5 ~ 15 之间，采用样本成熟度信度因子平滑向中性均匀先验收缩
-      if (nAll >= 15) {
+      // 规则 3：专属切片样本过小或缺失 (nVenue < 3 场) -> 100% 采用总体切片 (All)
+      // 若总体切片比赛数在 3 ~ 8 场之间，采用样本成熟度信度因子平滑向中性均匀先验收缩
+      if (nAll >= 8) {
         finalFusedProbs = posteriorAll;
         confidence = 'HIGH';
       } else {
-        // 当 5 <= nAll < 15 时，信度因子 lambda = (nAll - 5) / 10.0 ∈ [0.0, 1.0)
-        // 确保当 nAll=5 时平滑收敛到中性先验 1/6，当 nAll 逼近 15 时平滑过渡到全狄利克雷后验，消除跳跃阶跃
-        const shrinkage = Math.max(0.0, Math.min(1.0, (nAll - 5.0) / 10.0));
+        // 当 3 <= nAll < 8 场时，信度因子 lambda = (nAll - 3) / 5.0 ∈ [0.0, 1.0)
+        // 确保当 nAll=3 时平滑收敛到中性先验 1/6，当 nAll 逼近 8 时平滑过渡到全狄利克雷后验，消除跳跃阶跃
+        const shrinkage = Math.max(0.0, Math.min(1.0, (nAll - 3.0) / 5.0));
         finalFusedProbs = new Array(6);
         for (let i = 0; i < 6; i++) {
           finalFusedProbs[i] = posteriorAll[i] * shrinkage + (1.0 / 6.0) * (1.0 - shrinkage);

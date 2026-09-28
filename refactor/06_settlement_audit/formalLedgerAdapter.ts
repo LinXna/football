@@ -93,6 +93,7 @@ export function convertFormalLedgerRecords(
 
     converted.push({
       record_id: record.record_id,
+      match_id: record.match_id,
       record_type: 'formal_ai_recommendation',
       formal_recommendation: true,
       candidate_pipeline_state: resolvedState,

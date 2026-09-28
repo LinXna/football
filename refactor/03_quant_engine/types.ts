@@ -56,7 +56,8 @@ export interface MarketCalibrationResult {
   lambda_base_home: number;              // 博弈校准后的基准进球期望 λ_base_H
   lambda_base_away: number;              // 博弈校准后的基准进球期望 λ_base_A
   is_in_play_market: boolean;            // true means λ base is already remaining-goals semantics
-  divergence_delta: number;              // 理论 vs 机构偏差量 (Δ)
+  divergence_delta: number;              // 理论 vs 机构偏差量 (Δ，主客进球差之差)
+  divergence_total_delta: number;        // 理论 vs 机构总进球偏差量 (Δtotal = deltaH + deltaA)
   market_stance: MarketStanceType;       // 机构姿态识别
   market_confidence_penalty: number;     // 离散度与异常诱盘扣分
   implied_market_home_win_prob: number;  // 机构隐含主胜概率 (Shin去水后)
@@ -182,7 +183,7 @@ export interface GoalDistributionDNAFeatures {
   away_late_game_dna: number;
   home_early_game_dna: number;   // 0-30' 进球占比
   away_early_game_dna: number;
-  home_sample_size: number;      // 实际进球样本总数 N
+  home_sample_size: number;      // 比赛场次（P1-17：样本量口径为比赛数 matches_count，非进球数）
   away_sample_size: number;
   home_confidence: 'HIGH' | 'MEDIUM' | 'LOW' | 'INSUFFICIENT'; // 成熟度
   away_confidence: 'HIGH' | 'MEDIUM' | 'LOW' | 'INSUFFICIENT';
@@ -469,6 +470,8 @@ export interface LambdaDecomposition {
   time_fraction_home: number;
   time_fraction_away: number;
   urgency_multiplier: number;
+  urgency_multiplier_home?: number;
+  urgency_multiplier_away?: number;
   threat_home: number;
   threat_away: number;
   regime_multiplier_home?: number;
@@ -487,6 +490,10 @@ export interface LambdaDecomposition {
   live_stats_weight?: number;
   prior_context_weight?: number;
   late_game_effective_time_damping?: number; // 75+ 分钟有效比赛时间阻尼因子 (防止死球/换人/拖延导致的进球期望虚高)
+  deprivation_damp_home?: number; // P1-33: 场面剥夺衰减因子（被压制方进攻塌缩），基于 zero_shot_deprivation + field_tilt <= 0.30
+  deprivation_damp_away?: number;
+  siege_breakthrough_boost_home?: number; // P1-33: 攻守对偶破防红利（压迫方），基于对方 deprivationDamp < 0.60 + 本方 field_tilt >= 0.65，明确 lineage
+  siege_breakthrough_boost_away?: number;
   lambda_before_live_context_home?: number;
   lambda_before_live_context_away?: number;
   lambda_after_live_context_home?: number;
@@ -690,9 +697,19 @@ export interface QuantCalibrationProfile {
   sample_size: number;
   effective_sample_size: number;
   oos_brier_score: number | null;
+  /** P1-03：Brier 基线（climatology 或 market-implied），用于跨市场/基准率可比的熔断判定。 */
+  brier_baseline: number | null;
+  /** P1-03：基线类型，说明 brier_baseline 的来源。 */
+  baseline_type: 'CLIMATOLOGY' | 'MARKET_IMPLIED';
+  /** P1-03：Brier Skill Score = 1 - Brier_model / Brier_baseline；>0 表示优于基线，<0 表示无技能应熔断。 */
+  brier_skill_score: number | null;
   lambda_log_adjustment: number;
   circuit_breaker_triggered?: boolean;
   circuit_breaker_reason?: string;
+  /** 归一化盘口（分桶维度）；undefined 表示全盘口聚合档案。 */
+  line?: string;
+  /** 投注方向（分桶维度）；undefined 表示全方向聚合档案。 */
+  side?: string;
 }
 
 export type OosMarket = 'ASIAN_HANDICAP_MAIN' | 'TOTAL_GOALS_MAIN' | 'MONEYLINE_1X2' | 'EURO_1X2' | 'ASIAN_HANDICAP_HALF' | 'TOTAL_GOALS_HALF';
@@ -721,6 +738,12 @@ export interface OosCalibrationSample {
   binary_outcome?: number;
   predicted_probability?: number;
   match_id?: string;
+  /** 归一化盘口（如 "-0.5"、"2.5"）；用于 OOS 校准按盘口线分桶，避免不同盘共用同一档案。 */
+  line?: string;
+  /** 投注方向（home/away/over/under）；用于按方向分桶。 */
+  side?: string;
+  /** 市场隐含概率（去抽水后）；用于 P1-03 的 market-implied Brier 基线计算，缺省时回退 climatology 基线。 */
+  market_probability?: number;
 }
 
 /** 可持久化的 OOS 校准档案；仅 VALIDATED 档案可解锁机器候选。 */
@@ -915,6 +938,7 @@ export type Layer03CandidatePipelineState =
   | 'OOS_LOCKED'
   | 'DATA_LOCKED'
   | 'COLD_START_PERMISSIVE'
+  | 'TRIAL_UNLOCKED'
   | 'PRODUCTION_UNLOCKED';
 
 export const OOS_VALIDATION_MIN_ESS = 30;
@@ -949,7 +973,6 @@ export interface Layer03CandidatePipeline {
   oos_validated_count: number;
   permissive_unlocked_count: number;
   cold_start_exempt_count?: number;
-  is_cold_start_unlocked?: boolean;
   soft_gate_pass_count?: number;
   machine_candidate_count: number;
   production_eligible: boolean;

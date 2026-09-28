@@ -67,6 +67,7 @@ export function toOosSample(record: HistoricalBacktestRecord): OosCalibrationSam
   const outcomeVal = record.settlement_outcome === 'WIN' ? 1 : 0;
   return Object.freeze({
     sample_id: record.record_id,
+    match_id: record.match_id,
     model_version: record.model_version,
     prediction_at: record.prediction_at,
     league_key: record.league_key,

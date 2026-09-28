@@ -31,11 +31,11 @@ import {
 } from './types.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
-import { poissonPMF, calculateBivariatePoissonGrid } from './poissonDecayModel.js';
+import { calculateBivariatePoissonGrid } from './poissonDecayModel.js';
 import { requireFiniteNonNegative, poissonSupportUpperBound, devigShin, applyBayesianShrinkage, devigMultiplicative } from './devigMath.js';
 export { devigMultiplicative, devigShin, applyBayesianShrinkage };
-import { parseAsianHandicapLine, formatAsianHandicapLine, invertHandicapString, calculateSpreadFiveStateDistribution, calculateTotalFiveStateDistribution } from './asianHandicap.js';
-export { parseAsianHandicapLine, formatAsianHandicapLine, invertHandicapString, calculateSpreadFiveStateDistribution, calculateTotalFiveStateDistribution };
+import { parseAsianHandicapLine, formatAsianHandicapLine, invertHandicapString, calculateSpreadFiveStateDistribution, calculateTotalFiveStateDistribution, calculateTotalFiveStateDistributionFromGrid } from './asianHandicap.js';
+export { parseAsianHandicapLine, formatAsianHandicapLine, invertHandicapString, calculateSpreadFiveStateDistribution, calculateTotalFiveStateDistribution, calculateTotalFiveStateDistributionFromGrid };
 
 type PoissonExpectation = Pick<InPlayPoissonFeatures, 'lambda_home_rest' | 'lambda_away_rest' | 'expected_goals_rest'>;
 
@@ -59,8 +59,22 @@ export function calculateAsianHandicapEV(
   awaySelectionStr?: string
 ): SpreadEVAssessment {
   const parsedLine = parseAsianHandicapLine(handicapLineStr);
-  // 防御性降级：无法解析的盘口（如部分中文盘口「主让一球」）不得以 NaN 污染 EV 网格，按平手盘 0 处理。
-  const line = Number.isFinite(parsedLine) ? parsedLine : 0.0;
+  // P0-05 修复：盘口解析失败必须阻断（返回无信号结果），不得降级为平手盘 0 产生伪 EV 信号。
+  if (!Number.isFinite(parsedLine)) {
+    return Object.freeze({
+      line: handicapLineStr,
+      home_line: handicapLineStr,
+      away_line: awaySelectionStr || handicapLineStr,
+      home_odds: homeOdds,
+      away_odds: awayOdds,
+      home_ev: 0,
+      away_ev: 0,
+      preferred_side: 'none' as const,
+      is_positive_ev: false,
+      bayesian_shrinkage_applied: false
+    });
+  }
+  const line = parsedLine;
   const lambdaHome = requireFiniteNonNegative(poisson.lambda_home_rest, 'lambda_home_rest');
   const lambdaAway = requireFiniteNonNegative(poisson.lambda_away_rest, 'lambda_away_rest');
 
@@ -70,8 +84,10 @@ export function calculateAsianHandicapEV(
 
   let homeEV = 0.0;
   let awayEV = 0.0;
-  let homePositiveProbability = 0.0;
-  let awayPositiveProbability = 0.0;
+  let homeFullWinProbability = 0.0;
+  let homeHalfWinProbability = 0.0;
+  let awayFullWinProbability = 0.0;
+  let awayHalfWinProbability = 0.0;
 
   for (let h = 0; h < matrix.length; h++) {
     for (let a = 0; a < matrix[h].length; a++) {
@@ -85,8 +101,10 @@ export function calculateAsianHandicapEV(
       let payoffHome = 0.0;
       if (deltaHome >= 0.5) {
         payoffHome = homeOdds - 1.0; // 全赢
+        homeFullWinProbability += pCell;
       } else if (Math.abs(deltaHome - 0.25) < 1e-4) {
         payoffHome = 0.5 * (homeOdds - 1.0); // 赢半
+        homeHalfWinProbability += pCell;
       } else if (Math.abs(deltaHome) < 1e-4) {
         payoffHome = 0.0; // 走盘
       } else if (Math.abs(deltaHome - (-0.25)) < 1e-4) {
@@ -95,15 +113,16 @@ export function calculateAsianHandicapEV(
         payoffHome = -1.0; // 全输
       }
       homeEV += pCell * payoffHome;
-      if (payoffHome > 0) homePositiveProbability += pCell;
 
       // 2. 客队收益
       const deltaAway = -d - line;
       let payoffAway = 0.0;
       if (deltaAway >= 0.5) {
         payoffAway = awayOdds - 1.0; // 全赢
+        awayFullWinProbability += pCell;
       } else if (Math.abs(deltaAway - 0.25) < 1e-4) {
         payoffAway = 0.5 * (awayOdds - 1.0); // 赢半
+        awayHalfWinProbability += pCell;
       } else if (Math.abs(deltaAway) < 1e-4) {
         payoffAway = 0.0; // 走盘
       } else if (Math.abs(deltaAway - (-0.25)) < 1e-4) {
@@ -112,7 +131,6 @@ export function calculateAsianHandicapEV(
         payoffAway = -1.0; // 全输
       }
       awayEV += pCell * payoffAway;
-      if (payoffAway > 0) awayPositiveProbability += pCell;
     }
   }
 
@@ -120,18 +138,34 @@ export function calculateAsianHandicapEV(
   awayEV = Number(awayEV.toFixed(4));
 
   // 经验贝叶斯高赔与冷门收缩 (Empirical Bayesian Shrinkage for Odds > 2.80)
-  const homeShrink = applyBayesianShrinkage(homePositiveProbability, homeOdds);
-  const awayShrink = applyBayesianShrinkage(awayPositiveProbability, awayOdds);
+  // 等效全赢概率（与 1/odds 市场内隐「全赢」概率同量纲）：
+  // 赢半收益 = 0.5*(odds-1)，期望上等价于 0.5 个全赢，故等效胜率 = P(全赢) + 0.5*P(赢半)。
+  // 不得将「全赢+赢半」简单概率和（至少赢半概率）当作胜率注入收缩，否则量纲不一致会过度收缩冷门。
+  const homeEquivalentWinProbability = homeFullWinProbability + 0.5 * homeHalfWinProbability;
+  const awayEquivalentWinProbability = awayFullWinProbability + 0.5 * awayHalfWinProbability;
+
+  // P1-34 修复：收缩锚点使用比例剥水后的公允概率，而非含 vig 的 1/odds（高赔收缩必须收向 devigged fair probability）。
+  // P1-34 + P1-06 修复：收缩锚点使用 Shin 去抽水后的公允概率（与 1X2 独赢统一去水方法），
+  // 而非比例剥水或含 vig 的 1/odds。Shin 校正 favorite-longshot bias，深盘冷门锚点更准确。
+  const spreadShin = devigShin([homeOdds, awayOdds]);
+  const homeFairProb = spreadShin.fair_probs[0] ?? (1 / homeOdds);
+  const awayFairProb = spreadShin.fair_probs[1] ?? (1 / awayOdds);
+  const homeShrink = applyBayesianShrinkage(homeEquivalentWinProbability, homeOdds, homeFairProb);
+  const awayShrink = applyBayesianShrinkage(awayEquivalentWinProbability, awayOdds, awayFairProb);
   let effectiveHomeEV = homeEV;
   let effectiveAwayEV = awayEV;
 
-  if (homeShrink.isApplied && homePositiveProbability > 0) {
-    const ratio = homeShrink.shrunkProb / homePositiveProbability;
-    effectiveHomeEV = Number((homeEV * ratio).toFixed(4));
+  if (homeShrink.isApplied && homeEquivalentWinProbability > 0) {
+    const ratio = homeShrink.shrunkProb / homeEquivalentWinProbability;
+    // P1-35 修复：只缩放「赢的贡献」（全赢+赢半），保持「输的贡献」（输半+全输）不变，
+    // 而非整体 EV×ratio（后者会错误缩放输的部分，违反五态结算守恒）。
+    const homeWinContribution = homeFullWinProbability * (homeOdds - 1.0) + homeHalfWinProbability * 0.5 * (homeOdds - 1.0);
+    effectiveHomeEV = Number((homeWinContribution * ratio + (homeEV - homeWinContribution)).toFixed(4));
   }
-  if (awayShrink.isApplied && awayPositiveProbability > 0) {
-    const ratio = awayShrink.shrunkProb / awayPositiveProbability;
-    effectiveAwayEV = Number((awayEV * ratio).toFixed(4));
+  if (awayShrink.isApplied && awayEquivalentWinProbability > 0) {
+    const ratio = awayShrink.shrunkProb / awayEquivalentWinProbability;
+    const awayWinContribution = awayFullWinProbability * (awayOdds - 1.0) + awayHalfWinProbability * 0.5 * (awayOdds - 1.0);
+    effectiveAwayEV = Number((awayWinContribution * ratio + (awayEV - awayWinContribution)).toFixed(4));
   }
 
   // P0-05 规范：优先依据 Risk-Adjusted EV（净 EV），绝对禁止用单纯胜率高低覆盖 EV
@@ -177,8 +211,8 @@ export function calculateAsianHandicapEV(
     away_ev: effectiveAwayEV,
     preferred_side: preferredSide,
     is_positive_ev: preferredSide !== 'none',
-    home_model_probability: Number((homeShrink.isApplied ? homeShrink.shrunkProb : homePositiveProbability).toFixed(4)),
-    away_model_probability: Number((awayShrink.isApplied ? awayShrink.shrunkProb : awayPositiveProbability).toFixed(4)),
+    home_model_probability: Number((homeShrink.isApplied ? homeShrink.shrunkProb : homeEquivalentWinProbability).toFixed(4)),
+    away_model_probability: Number((awayShrink.isApplied ? awayShrink.shrunkProb : awayEquivalentWinProbability).toFixed(4)),
     kelly_fraction: kellyFraction,
     home_settlement_distribution: homeSettlementDist,
     away_settlement_distribution: awaySettlementDist,
@@ -208,72 +242,113 @@ export function calculateTotalGoalsEV(
   poisson: PoissonExpectation
 ): TotalEVAssessment {
   const parsedLine = parseAsianHandicapLine(totalLineStr);
-  // 防御性降级：无法解析的盘口不得以 NaN 污染 EV 网格，按 0 球盘处理。
-  const line = Number.isFinite(parsedLine) ? parsedLine : 0.0;
+  // P0-05 修复：盘口解析失败必须阻断（返回无信号结果），不得降级为 0 球盘产生伪 EV 信号。
+  if (!Number.isFinite(parsedLine)) {
+    return Object.freeze({
+      line: totalLineStr,
+      over_odds: overOdds,
+      under_odds: underOdds,
+      over_ev: 0,
+      under_ev: 0,
+      preferred_side: 'none' as const,
+      is_positive_ev: false,
+      bayesian_shrinkage_applied: false
+    });
+  }
+  const line = parsedLine;
   const remainingTarget = line - currentTotalGoals;
-  const lambdaRest = requireFiniteNonNegative(poisson.expected_goals_rest, 'expected_goals_rest');
+  const lambdaHome = requireFiniteNonNegative(poisson.lambda_home_rest, 'lambda_home_rest');
+  const lambdaAway = requireFiniteNonNegative(poisson.lambda_away_rest, 'lambda_away_rest');
+
+  // 使用双变量泊松网格闭式求解（含 Dixon-Coles 低比分修正），
+  // 与让球盘 EV 共享同一概率模型，避免大小球与让球 EV 在低比分/极端场面下的概率不一致。
+  const totalGrid = calculateBivariatePoissonGrid(
+    lambdaHome,
+    lambdaAway,
+    Math.max(poissonSupportUpperBound(lambdaHome), poissonSupportUpperBound(lambdaAway))
+  );
+  const matrix = totalGrid.grid;
 
   let overEV = 0.0;
   let underEV = 0.0;
-  let overPositiveProbability = 0.0;
-  let underPositiveProbability = 0.0;
+  let overFullWinProbability = 0.0;
+  let overHalfWinProbability = 0.0;
+  let underFullWinProbability = 0.0;
+  let underHalfWinProbability = 0.0;
 
-  // 动态展开至可忽略尾部，避免深盘与高 λ 时丢失概率质量。
-  for (let k = 0; k <= poissonSupportUpperBound(lambdaRest); k++) {
-    const pK = poissonPMF(k, lambdaRest);
-    if (pK <= 0) continue;
+  for (let h = 0; h < matrix.length; h++) {
+    for (let a = 0; a < matrix[h].length; a++) {
+      const pCell = matrix[h][a];
+      if (pCell <= 0) continue;
 
-    // 1. 大球收益
-    const deltaOver = k - remainingTarget;
-    let payoffOver = 0.0;
-    if (deltaOver >= 0.5) {
-      payoffOver = overOdds - 1.0;
-    } else if (Math.abs(deltaOver - 0.25) < 1e-4) {
-      payoffOver = 0.5 * (overOdds - 1.0);
-    } else if (Math.abs(deltaOver) < 1e-4) {
-      payoffOver = 0.0;
-    } else if (Math.abs(deltaOver - (-0.25)) < 1e-4) {
-      payoffOver = -0.5;
-    } else {
-      payoffOver = -1.0;
+      const k = h + a; // 剩余时段总进球数
+
+      // 1. 大球收益
+      const deltaOver = k - remainingTarget;
+      let payoffOver = 0.0;
+      if (deltaOver >= 0.5) {
+        payoffOver = overOdds - 1.0;
+        overFullWinProbability += pCell;
+      } else if (Math.abs(deltaOver - 0.25) < 1e-4) {
+        payoffOver = 0.5 * (overOdds - 1.0);
+        overHalfWinProbability += pCell;
+      } else if (Math.abs(deltaOver) < 1e-4) {
+        payoffOver = 0.0;
+      } else if (Math.abs(deltaOver - (-0.25)) < 1e-4) {
+        payoffOver = -0.5;
+      } else {
+        payoffOver = -1.0;
+      }
+      overEV += pCell * payoffOver;
+
+      // 2. 小球收益
+      const deltaUnder = remainingTarget - k;
+      let payoffUnder = 0.0;
+      if (deltaUnder >= 0.5) {
+        payoffUnder = underOdds - 1.0;
+        underFullWinProbability += pCell;
+      } else if (Math.abs(deltaUnder - 0.25) < 1e-4) {
+        payoffUnder = 0.5 * (underOdds - 1.0);
+        underHalfWinProbability += pCell;
+      } else if (Math.abs(deltaUnder) < 1e-4) {
+        payoffUnder = 0.0;
+      } else if (Math.abs(deltaUnder - (-0.25)) < 1e-4) {
+        payoffUnder = -0.5;
+      } else {
+        payoffUnder = -1.0;
+      }
+      underEV += pCell * payoffUnder;
     }
-    overEV += pK * payoffOver;
-    if (payoffOver > 0) overPositiveProbability += pK;
-
-    // 2. 小球收益
-    const deltaUnder = remainingTarget - k;
-    let payoffUnder = 0.0;
-    if (deltaUnder >= 0.5) {
-      payoffUnder = underOdds - 1.0;
-    } else if (Math.abs(deltaUnder - 0.25) < 1e-4) {
-      payoffUnder = 0.5 * (underOdds - 1.0);
-    } else if (Math.abs(deltaUnder) < 1e-4) {
-      payoffUnder = 0.0;
-    } else if (Math.abs(deltaUnder - (-0.25)) < 1e-4) {
-      payoffUnder = -0.5;
-    } else {
-      payoffUnder = -1.0;
-    }
-    underEV += pK * payoffUnder;
-    if (payoffUnder > 0) underPositiveProbability += pK;
   }
 
   overEV = Number(overEV.toFixed(4));
   underEV = Number(underEV.toFixed(4));
 
   // 经验贝叶斯高赔与冷门收缩 (Empirical Bayesian Shrinkage for Odds > 2.80)
-  const overShrink = applyBayesianShrinkage(overPositiveProbability, overOdds);
-  const underShrink = applyBayesianShrinkage(underPositiveProbability, underOdds);
+  // 等效全赢概率（与 1/odds 市场内隐「全赢」概率同量纲），避免「全赢+赢半」简单概率和量纲不一致。
+  const overEquivalentWinProbability = overFullWinProbability + 0.5 * overHalfWinProbability;
+  const underEquivalentWinProbability = underFullWinProbability + 0.5 * underHalfWinProbability;
+
+  // P1-34 修复：收缩锚点使用比例剥水后的公允概率，而非含 vig 的 1/odds。
+  // P1-34 + P1-06 修复：收缩锚点使用 Shin 去抽水后的公允概率（与 1X2 独赢统一去水方法）。
+  const totalShin = devigShin([overOdds, underOdds]);
+  const overFairProb = totalShin.fair_probs[0] ?? (1 / overOdds);
+  const underFairProb = totalShin.fair_probs[1] ?? (1 / underOdds);
+  const overShrink = applyBayesianShrinkage(overEquivalentWinProbability, overOdds, overFairProb);
+  const underShrink = applyBayesianShrinkage(underEquivalentWinProbability, underOdds, underFairProb);
   let effectiveOverEV = overEV;
   let effectiveUnderEV = underEV;
 
-  if (overShrink.isApplied && overPositiveProbability > 0) {
-    const ratio = overShrink.shrunkProb / overPositiveProbability;
-    effectiveOverEV = Number((overEV * ratio).toFixed(4));
+  if (overShrink.isApplied && overEquivalentWinProbability > 0) {
+    const ratio = overShrink.shrunkProb / overEquivalentWinProbability;
+    // P1-35 修复：只缩放赢的贡献，保持输的贡献不变。
+    const overWinContribution = overFullWinProbability * (overOdds - 1.0) + overHalfWinProbability * 0.5 * (overOdds - 1.0);
+    effectiveOverEV = Number((overWinContribution * ratio + (overEV - overWinContribution)).toFixed(4));
   }
-  if (underShrink.isApplied && underPositiveProbability > 0) {
-    const ratio = underShrink.shrunkProb / underPositiveProbability;
-    effectiveUnderEV = Number((underEV * ratio).toFixed(4));
+  if (underShrink.isApplied && underEquivalentWinProbability > 0) {
+    const ratio = underShrink.shrunkProb / underEquivalentWinProbability;
+    const underWinContribution = underFullWinProbability * (underOdds - 1.0) + underHalfWinProbability * 0.5 * (underOdds - 1.0);
+    effectiveUnderEV = Number((underWinContribution * ratio + (underEV - underWinContribution)).toFixed(4));
   }
 
   // P0-05 规范：优先依据 Risk-Adjusted EV，绝对禁止用胜率高低覆盖 EV
@@ -298,8 +373,8 @@ export function calculateTotalGoalsEV(
     : 0.0;
 
   // P1-08: 求解 5 态精确结算概率分布
-  const overSettlementDist = calculateTotalFiveStateDistribution(line, currentTotalGoals, 'over', lambdaRest);
-  const underSettlementDist = calculateTotalFiveStateDistribution(line, currentTotalGoals, 'under', lambdaRest);
+  const overSettlementDist = calculateTotalFiveStateDistributionFromGrid(line, currentTotalGoals, 'over', matrix);
+  const underSettlementDist = calculateTotalFiveStateDistributionFromGrid(line, currentTotalGoals, 'under', matrix);
 
   const anyShrinkage = overShrink.isApplied || underShrink.isApplied;
   const shrinkFactor = overShrink.isApplied ? overShrink.shrinkageFactor : (underShrink.isApplied ? underShrink.shrinkageFactor : 1.0);
@@ -312,8 +387,8 @@ export function calculateTotalGoalsEV(
     under_ev: effectiveUnderEV,
     preferred_side: preferredSide,
     is_positive_ev: preferredSide !== 'none',
-    over_model_probability: Number((overShrink.isApplied ? overShrink.shrunkProb : overPositiveProbability).toFixed(4)),
-    under_model_probability: Number((underShrink.isApplied ? underShrink.shrunkProb : underPositiveProbability).toFixed(4)),
+    over_model_probability: Number((overShrink.isApplied ? overShrink.shrunkProb : overEquivalentWinProbability).toFixed(4)),
+    under_model_probability: Number((underShrink.isApplied ? underShrink.shrunkProb : underEquivalentWinProbability).toFixed(4)),
     kelly_fraction: kellyFraction,
     over_settlement_distribution: overSettlementDist,
     under_settlement_distribution: underSettlementDist,

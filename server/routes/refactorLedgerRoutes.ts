@@ -18,13 +18,13 @@ import { randomUUID } from "node:crypto";
 import { LedgerPersistence } from "../../refactor/05_portfolio_risk/ledgerPersistence.js";
 import { evaluateQuarterSettlement, parseAsianLine, QuarterMarketCategory } from "../../refactor/06_settlement_audit/settlementEngine.js";
 import { convertFormalLedgerRecords } from "../../refactor/06_settlement_audit/formalLedgerAdapter.js";
-import { toOosSample } from "../../refactor/06_settlement_audit/historicalBacktestIngestion.js";
-import { appendSampleAndRebuildArchive, getOosStatus } from "../services/oosArchiveService.js";
+import { getOosStatus, ingestSettledRecordsAndPersist } from "../../refactor/06_settlement_audit/oosArchiveService.js";
 import { BettingStage, FormalRecommendation } from "../../refactor/05_portfolio_risk/types.js";
 import { AiEvaluationResult, EvaluatorPayload, RecommendedLeg } from "../../refactor/04_ai_evaluator/types.js";
+import { RecommendationGrade } from "../../refactor/04_ai_evaluator/enums.js";
 import { extractAiEvaluationBrief } from "../../refactor/02_canonical_model/canonicalMatchAssembler.js";
 import { CanonicalMatch } from "../../refactor/02_canonical_model/types.js";
-import { QuantitativeFeatures, OosCalibrationSample } from "../../refactor/03_quant_engine/types.js";
+import { QuantitativeFeatures } from "../../refactor/03_quant_engine/types.js";
 
 function detectRefactorQuarterCategory(record: FormalRecommendation): QuarterMarketCategory {
   const legDir = String(record.leg?.direction || "").toUpperCase();
@@ -121,12 +121,19 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
       const bettingStage = (stage === "PREMATCH" ? "PREMATCH" : "LIVE") as BettingStage;
 
       // 校验评级与置信度门禁
-      if (ai_evaluation.grade !== "A_GRADE" && ai_evaluation.grade !== "B_GRADE") {
+      // 归一化后判断，兼容 import-evaluation 归一化后的 "A"/"B" 与规范格式 "A_GRADE"/"B_GRADE"
+      const normalizedGrade = String(ai_evaluation.grade || '').toUpperCase().replace(/_GRADE$/, '');
+      if (normalizedGrade !== "A" && normalizedGrade !== "B") {
         return res.status(400).json({
           success: false,
           error: `只有 A 级或 B 级推荐允许写入正式台账，当前评级: ${ai_evaluation.grade}`
         });
       }
+
+      // 规范化 grade 为 _GRADE 后缀：import-evaluation 会把 "B_GRADE" 归一化为 "B"，
+      // 但下游 ledgerPersistence.appendApprovedLegs 与 ledgerRecordAdapter 均按 "B_GRADE" 精确校验，
+      // 此处统一还原，避免台账写入/结算阶段因格式不一致被拒。
+      ai_evaluation.grade = normalizedGrade === "A" ? RecommendationGrade.A_GRADE : RecommendationGrade.B_GRADE;
 
       if (ai_evaluation.confidence_score < 70) {
         return res.status(400).json({
@@ -371,90 +378,6 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
   });
 
   /**
-   * POST /api/refactor/oos-sample/manual-entry
-   * 直接录入已完场结算的真实 OOS 校准样本
-   */
-  app.post("/api/refactor/oos-sample/manual-entry", (req, res) => {
-    try {
-      const {
-        league_key,
-        home_team_key,
-        away_team_key,
-        market = "FULL_SPREAD_MAIN",
-        line = 0,
-        odds = 1.95,
-        model_probability = 0.55,
-        predicted_lambda = 2.4,
-        score_at_recommendation = { home: 0, away: 0 },
-        final_score,
-        outcome = "WIN",
-      } = req.body;
-
-      if (!league_key || !home_team_key || !away_team_key || !final_score) {
-        return res.status(400).json({
-          success: false,
-          error: "缺少必填项: league_key, home_team_key, away_team_key, final_score (home/away)"
-        });
-      }
-
-      if (outcome !== "WIN" && outcome !== "LOSE") {
-        return res.status(400).json({
-          success: false,
-          error: "OOS 概率校准仅接受明确二元胜负结果 (WIN 或 LOSE)，走盘或半赢半输不计入概率校准"
-        });
-      }
-
-      const now = new Date().toISOString();
-      const sampleId = `manual_oos_${Date.now()}_${randomUUID().slice(0, 8)}`;
-
-      const stageVal = (req.body.stage === "PREMATCH" ? "PREMATCH" : "LIVE") as 'PREMATCH' | 'LIVE';
-      const homeKey = String(home_team_key || req.body.teams?.home || "HOME");
-      const awayKey = String(away_team_key || req.body.teams?.away || "AWAY");
-
-      let obsGoals = 0;
-      if (typeof final_score === "string" && final_score.includes("-")) {
-        const parts = final_score.split("-").map(p => parseInt(p.trim(), 10));
-        if (!isNaN(parts[0]) && !isNaN(parts[1])) {
-          obsGoals = parts[0] + parts[1];
-        }
-      }
-
-      const sample: OosCalibrationSample = {
-        sample_id: sampleId,
-        model_version: "refactor-oos-v1",
-        prediction_at: now,
-        league_key: String(league_key),
-        home_team_key: homeKey,
-        away_team_key: awayKey,
-        stage: stageVal,
-        minute: stageVal === "LIVE" ? 45 : null,
-        score_state: typeof score_at_recommendation === "string" ? score_at_recommendation : "0-0",
-        red_card_state: "0-0",
-        market: (market || "FULL_TOTAL_MAIN") as any,
-        model_probability: Number(model_probability) || 0.55,
-        outcome: outcome === "WIN" ? 1 : 0,
-        predicted_lambda: Number(predicted_lambda) || 2.5,
-        observed_goals: obsGoals,
-      };
-
-      const result = appendSampleAndRebuildArchive(sample);
-      if (!result.success) {
-        return res.status(500).json({ success: false, error: result.error || "写入 OOS 校准样本失败" });
-      }
-
-      return res.json({
-        success: true,
-        message: "已成功将真实完场样本写入 OOS 校准库并增量重新编译档案！",
-        sample_id: sampleId,
-        oos_status: getOosStatus()
-      });
-    } catch (e: any) {
-      console.error("Direct OOS sample entry error:", e);
-      return res.status(500).json({ success: false, error: e?.message || "录入 OOS 样本异常" });
-    }
-  });
-
-  /**
    * POST /api/refactor/formal-ledger/settle
    * 对正式台账记录进行赛后比分核销，并通过 Layer 06 闭环沉淀真实 OOS 样本
    */
@@ -537,9 +460,11 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
 
       const { records: converted, skipped } = convertFormalLedgerRecords([targetRecord]);
       if (converted.length > 0) {
-        const oosSample = toOosSample(converted[0]);
-        const ingestRes = appendSampleAndRebuildArchive(oosSample);
-        oosSampleIngested = ingestRes.success;
+        const ingestRes = ingestSettledRecordsAndPersist(converted);
+        oosSampleIngested = ingestRes.accepted_count > 0;
+        if (ingestRes.accepted_count === 0 && ingestRes.rejected_reasons.length > 0) {
+          skippedReason = ingestRes.rejected_reasons[0];
+        }
       } else if (skipped.length > 0) {
         skippedReason = skipped[0].reason;
       }

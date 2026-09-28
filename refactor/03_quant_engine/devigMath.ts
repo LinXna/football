@@ -45,7 +45,7 @@ export function devigMultiplicative(decimalOdds: number[]): { fair_probs: number
  * 解决低赔率过度高估与高赔率低估 (Favorite-Longshot Bias)
  * 迭代求解知情交易者比例 z ∈ [0, 1)
  */
-export function devigShin(decimalOdds: number[], maxIter: number = 50, tol: number = 1e-6): { fair_probs: number[]; overround: number; z: number } {
+export function devigShin(decimalOdds: number[], maxIter: number = 100, tol: number = 1e-9): { fair_probs: number[]; overround: number; z: number } {
   if (!decimalOdds || decimalOdds.length === 0) {
     return { fair_probs: [], overround: 0.0, z: 0.0 };
   }
@@ -58,38 +58,51 @@ export function devigShin(decimalOdds: number[], maxIter: number = 50, tol: numb
   const invOdds = decimalOdds.map((o) => (o > 1.0 ? 1.0 / o : 0.0));
   const overround = mult.overround;
 
-  let z = 0.02; // 初始猜测
-  for (let iter = 0; iter < maxIter; iter++) {
-    // 求解 p_i = (sqrt(z^2 + 4*(1-z)*invOdds_i^2 / overround) - z) / (2*(1-z))
+  // 给定 z 求解概率向量 p_i(z) 与 Σp(z)
+  const computeProbs = (z: number): { probs: number[]; sumP: number } => {
     let sumP = 0.0;
-    const pTemp: number[] = [];
-
+    const probs: number[] = [];
     for (let i = 0; i < decimalOdds.length; i++) {
       const q = invOdds[i];
       const term = Math.sqrt(z * z + (4.0 * (1.0 - z) * q * q) / overround);
       const pi = (term - z) / (2.0 * (1.0 - z));
-      pTemp.push(Math.max(0.0, pi));
+      probs.push(Math.max(0.0, pi));
       sumP += pi;
     }
+    return { probs, sumP };
+  };
 
-    const diff = sumP - 1.0;
-    if (Math.abs(diff) < tol) {
-      z = Math.max(0.0, Math.min(0.5, z));
-      const normalizedProbs = pTemp.map((p) => Number((p / sumP).toFixed(4)));
-      return {
-        fair_probs: normalizedProbs,
-        overround: Number(overround.toFixed(4)),
-        z: Number(z.toFixed(4))
-      };
-    }
+  // 二分法求解 z 使 Σp(z) = 1：
+  // Σp 关于 z 单调递减，且 z=0 时 Σp=√overround>1、z→1 时 Σp→0，故在 (0,1) 内存在唯一根。
+  // 采用二分法保证单调收敛，替代固定步长梯度下降（后者可能振荡或收敛到局部值）。
+  let zLow = 0.0;
+  let zHigh = 0.4; // Shin z 在实务中几乎总是 < 0.1，0.4 为安全上界
+  let z = 0.0;
+  let finalProbs: number[] = mult.fair_probs;
+  let finalSumP = 1.0;
 
-    // 导数微调牛顿法 step
-    z = z + diff * 0.1;
-    if (z < 0.0) z = 0.001;
-    if (z > 0.4) z = 0.4;
+  for (let iter = 0; iter < maxIter; iter++) {
+    z = (zLow + zHigh) / 2.0;
+    const { probs, sumP } = computeProbs(z);
+    finalProbs = probs;
+    finalSumP = sumP;
+
+    if (Math.abs(sumP - 1.0) < tol) break;
+    // Σp > 1 说明 z 偏小，需增大 z（区间左端右移）
+    if (sumP > 1.0) zLow = z;
+    else zHigh = z;
   }
 
-  // 迭代未收敛则优雅降级为比例剥水
+  if (finalSumP > 0 && Math.abs(finalSumP - 1.0) < 1e-2) {
+    const normalizedProbs = finalProbs.map((p) => Number((p / finalSumP).toFixed(4)));
+    return {
+      fair_probs: normalizedProbs,
+      overround: Number(overround.toFixed(4)),
+      z: Number(z.toFixed(4))
+    };
+  }
+
+  // 数值退化则优雅降级为比例剥水
   return {
     fair_probs: mult.fair_probs,
     overround: mult.overround,

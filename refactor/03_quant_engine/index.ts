@@ -42,7 +42,7 @@ import {
   Layer03LiveSnapshot
 } from './types.js';
 import { selectOosCalibrationProfile } from './oosCalibrationEngine.js';
-import { extractCleanedContextFeatures } from './contextEngine.js';
+import { extractCleanedContextFeatures, type PrematchIntel } from './contextEngine.js';
 import { synthesizePrematchPrior } from './prematchPriorEngine.js';
 import { calibrateWithMarketOdds } from './marketDivergenceEngine.js';
 import { extractMomentumTimelineFeatures, extractRealTimePhysicalStats } from './momentumQuantEngine.js';
@@ -470,15 +470,24 @@ function resolveMarketConflicts(
           if (prob <= 0) continue;
 
           const netRest = spread.side === 'home' ? (dH - dA) : (dA - dH);
-          const isSpreadWin = (netRest + spreadLineNum) > 0;
+          const spreadDelta = netRest + spreadLineNum;
+          // P1-37 修复：五态精确结算（全赢=1，赢半=0.5，走盘=0，输半=-0.5，全输=-1），赢半不再被当作全赢计入 joint 概率。
+          let spreadPayoff = 0.0;
+          if (spreadDelta >= 0.5) spreadPayoff = 1.0;
+          else if (Math.abs(spreadDelta - 0.25) < 1e-4) spreadPayoff = 0.5;
+          else if (Math.abs(spreadDelta + 0.25) < 1e-4) spreadPayoff = -0.5;
+          else if (spreadDelta <= -0.5) spreadPayoff = -1.0;
 
           const finalTotal = currentHome + currentAway + dH + dA;
-          const isTotalWin = total.side === 'over' 
-            ? finalTotal > totalLineNum 
-            : finalTotal < totalLineNum;
+          const totalDelta = total.side === 'over' ? finalTotal - totalLineNum : totalLineNum - finalTotal;
+          let totalPayoff = 0.0;
+          if (totalDelta >= 0.5) totalPayoff = 1.0;
+          else if (Math.abs(totalDelta - 0.25) < 1e-4) totalPayoff = 0.5;
+          else if (Math.abs(totalDelta + 0.25) < 1e-4) totalPayoff = -0.5;
+          else if (totalDelta <= -0.5) totalPayoff = -1.0;
 
-          if (isSpreadWin && isTotalWin) {
-            bothWinProb += prob;
+          if (spreadPayoff > 0 && totalPayoff > 0) {
+            bothWinProb += prob * spreadPayoff * totalPayoff;
           }
         }
       }
@@ -573,7 +582,8 @@ export function calculateQuantitativeFeatures(
   match: CanonicalMatch,
   options?: QuantEngineOptions,
   collector?: DeficitCollector,
-  tracer?: Tracer
+  tracer?: Tracer,
+  intel?: PrematchIntel | null
 ): QuantitativeFeatures {
   tracer?.info(
     Layer03OpId.ORCHESTRATE_QUANT,
@@ -612,7 +622,7 @@ export function calculateQuantitativeFeatures(
   }
 
   // 1. M2: 数据时效衰减与情境清洗
-  const contextFeatures = extractCleanedContextFeatures(match, collector, tracer);
+  const contextFeatures = extractCleanedContextFeatures(match, collector, tracer, intel);
 
   // 1.1 Stage 1: 赛前多维关联理论先验合成 (首发 + 身价 + 伤停LIS + 近态同构 + MUI)
   const prematchPrior = synthesizePrematchPrior(match, contextFeatures, collector, tracer);
@@ -660,10 +670,10 @@ export function calculateQuantitativeFeatures(
     rawDevigFeatures,
     match.timing.stage
   );
-  const resolveProfile = (market: OosMarket): QuantCalibrationProfile | undefined => {
+  const resolveProfile = (market: OosMarket, line?: string, side?: string): QuantCalibrationProfile | undefined => {
     const profile = options?.calibration_profile?.market === market
       ? options.calibration_profile
-      : selectOosCalibrationProfile(options?.calibration_archive, match, market);
+      : selectOosCalibrationProfile(options?.calibration_archive, match, market, line, side);
     // P0-04: 严格隔离校准档案，若档案市场类型不一致禁止 cross-market 污染
     if (profile && profile.market !== market) {
       return undefined;
@@ -746,7 +756,7 @@ export function calculateQuantitativeFeatures(
     stage: match.timing.stage,
     hasEvidenceConflict: matchState.has_evidence_conflict,
     postGoalCooldownActive: matchState.post_goal_cooldown_active,
-    permissiveOosMode: options?.permissive_oos_mode ?? true,
+    permissiveOosMode: options?.permissive_oos_mode ?? false,
     allowSecondaryLines: options?.allow_secondary_lines ?? true,
     currentScore: `${match.score.home_score ?? 0}-${match.score.away_score ?? 0}`,
     snapshotTime: match.timing.beijing_start_time ?? new Date().toISOString(),
@@ -801,7 +811,7 @@ export function calculateQuantitativeFeatures(
     observed_at: nowIso,
     cutoff_minute: match.timing.minute ?? null,
     event_cutoff_minute: match.timing.minute ?? null,
-    source_snapshot_at: match.timing.beijing_start_time ?? null,
+    source_snapshot_at: match.created_at ?? null,
     model_calculated_at: nowIso,
     score: {
       home_score: match.score.home_score,
@@ -843,7 +853,9 @@ export function calculateQuantitativeFeatures(
       edge_confidence_score: edgeConfidenceScore,
       signal_confidence: adjustedConfidence,
       data_quality_confidence: dataQualityScore,
-      market_confidence: modelStabilityScore,
+      // P1-39 修复：market_confidence 不再直接复制 modelStabilityScore（字段命名误导），
+      // 改为真实的市场校准信心：市场分歧扣罚越低，市场信心越高。
+      market_confidence: Math.max(0, 100 - marketCalibration.market_confidence_penalty),
       edge_confidence: edgeConfidenceScore,
       oos_confidence: oosConfidence,
       production_confidence: productionConfidence,

@@ -11,11 +11,17 @@ import { OosCalibrationSample } from '../03_quant_engine/types.js';
 const testLiveFile = path.resolve(process.cwd(), 'output/formal_ledger_live_test.json');
 const testPrematchFile = path.resolve(process.cwd(), 'output/formal_ledger_prematch_test.json');
 const testOosArchiveFile = path.resolve(process.cwd(), 'output/oos_test_archive.json');
+const testOosSamplesFile = path.resolve(process.cwd(), 'output/oos_test_samples.json');
+
+// 隔离 OOS 档案写入路径，防止测试样本污染真实 refactor/runtime 校准库
+process.env.OOS_ARCHIVE_PATH = testOosArchiveFile;
+process.env.OOS_SAMPLES_PATH = testOosSamplesFile;
 
 // Clean up any old test files
 if (fs.existsSync(testLiveFile)) fs.unlinkSync(testLiveFile);
 if (fs.existsSync(testPrematchFile)) fs.unlinkSync(testPrematchFile);
 if (fs.existsSync(testOosArchiveFile)) fs.unlinkSync(testOosArchiveFile);
+if (fs.existsSync(testOosSamplesFile)) fs.unlinkSync(testOosSamplesFile);
 
 console.log('>>> Starting P3 Closed-Loop Ledger & OOS Snowballing Verification Suite <<<');
 
@@ -27,6 +33,7 @@ console.log('Test 1: Testing double-track persistence and prediction snapshot...
 const runId = Date.now();
 const mockLiveApproved: FormalRecommendation = {
   record_id: `rec_live_test_${runId}`,
+  match_id: `match_live_test_${runId}`,
   record_type: 'formal_ai_recommendation',
   formal_recommendation: true,
   stage: 'LIVE',
@@ -135,6 +142,7 @@ console.log('Test 3: Testing single-record delete and clear ledger...');
 const secondLiveApproved: FormalRecommendation = {
   ...mockLiveApproved,
   record_id: 'rec_live_test_002',
+  match_id: `match_live_test_${runId}_2`,
   teams: { home: 'Liverpool', away: 'Man City' },
   leg: {
     ...mockLiveApproved.leg,
@@ -203,6 +211,12 @@ const oosSample = toOosSample(convertedHistory[0]);
 if (!oosSample) {
   throw new Error('Failed to convert history record to OosCalibrationSample');
 }
+if (convertedHistory[0].match_id !== mockLiveApproved.match_id) {
+  throw new Error(`match_id not propagated through convertFormalLedgerRecords: got ${convertedHistory[0].match_id}`);
+}
+if (oosSample.match_id !== mockLiveApproved.match_id) {
+  throw new Error(`match_id not propagated through toOosSample: got ${oosSample.match_id}`);
+}
 if (oosSample.binary_outcome !== 1) {
   throw new Error(`Expected binary_outcome=1 for WIN, got ${oosSample.binary_outcome}`);
 }
@@ -243,5 +257,6 @@ console.log('✓ Task 3.3 passed: Settlement to OOS sample snowballing verified.
 if (fs.existsSync(testLiveFile)) fs.unlinkSync(testLiveFile);
 if (fs.existsSync(testPrematchFile)) fs.unlinkSync(testPrematchFile);
 if (fs.existsSync(testOosArchiveFile)) fs.unlinkSync(testOosArchiveFile);
+if (fs.existsSync(testOosSamplesFile)) fs.unlinkSync(testOosSamplesFile);
 
 console.log('\n🎉 ALL P3 TESTS PASSED SUCCESSFULLY! Closed-loop verified.');

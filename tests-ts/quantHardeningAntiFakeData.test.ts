@@ -41,6 +41,7 @@ test('Anti-Fake Data Hardening: Scheme 1 - Team ID Anchoring in H2H & Recent For
     canonical_id: 'match_h2h_test',
     home_team_name: 'Team Alpha',
     away_team_name: 'Team Beta',
+    created_at: new Date().toISOString(),
     timing: { stage: 'PRE_MATCH' as any },
     score: { home_score: 0, away_score: 0 },
     reference: {
@@ -226,6 +227,7 @@ test('Anti-Fake Data Hardening: Scheme 5 - Dirichlet-Multinomial Bayesian Conjug
         has_data: true,
         home_team: {
           all: {
+            matches_count: 10,
             scored_intervals: [
               { goals: 5 }, // 0-15
               { goals: 2 }, // 16-30
@@ -253,7 +255,7 @@ test('Anti-Fake Data Hardening: Scheme 5 - Dirichlet-Multinomial Bayesian Conjug
   } as unknown as CanonicalMatch;
 
   const dna = extractGoalDistributionDNA(matchWithGoals);
-  // Raw: 5 goals in interval 0, 2 in each of other 5 intervals. Total goals = 15 (mature sample nAll >= 15).
+  // Raw: 5 goals in interval 0, 2 in each of other 5 intervals. Total goals = 15, across 10 matches (mature sample nAll >= 8).
   // With Dirichlet Alpha = 1.0, K = 6:
   // denom = 15 + 6 = 21.
   // interval 0 weight = (5 + 1) / 21 = 6/21 = 2/7 ≈ 0.2857
@@ -309,6 +311,7 @@ test('Core Algorithmic Overhaul: 365-Day Historical Cutoff Gate in contextEngine
     canonical_id: 'match_365_cutoff',
     home_team_name: 'Home FC',
     away_team_name: 'Away FC',
+    created_at: new Date().toISOString(),
     timing: { stage: 'PRE_MATCH' as any },
     score: { home_score: 0, away_score: 0 },
     reference: {
@@ -1188,6 +1191,7 @@ test('Anti-Fake Data Hardening: Scheme 23 - Goal DNA Half-Time (45\') Boundary &
         has_data: true,
         home_team: {
           all: {
+            matches_count: 3,
             scored_intervals: [
               { goals: 5 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }
             ]
@@ -1195,6 +1199,7 @@ test('Anti-Fake Data Hardening: Scheme 23 - Goal DNA Half-Time (45\') Boundary &
         },
         away_team: {
           all: {
+            matches_count: 1,
             scored_intervals: [
               { goals: 2 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }
             ]
@@ -1205,14 +1210,14 @@ test('Anti-Fake Data Hardening: Scheme 23 - Goal DNA Half-Time (45\') Boundary &
   } as unknown as CanonicalMatch;
 
   const dna5 = extractGoalDistributionDNA(smallSample5Match);
-  // 当 nAll = 5 时，shrinkage = (5 - 5) / 10 = 0.0，后验必须 100% 收缩至中性先验 1/6 ≈ 0.1667
+  // 当 nAll = 3 场时，shrinkage = (3 - 3) / 5 = 0.0，后验必须 100% 收缩至中性先验 1/6 ≈ 0.1667
   assert.equal(dna5.home_confidence, 'MEDIUM');
   assert.ok(
     Math.abs(dna5.home_scored_weights[0] - (1.0 / 6.0)) < 0.005,
-    `At nAll=5 boundary, posterior (${dna5.home_scored_weights[0]}) must shrink toward uniform 1/6 (0.1667)`
+    `At nAll=3 matches boundary, posterior (${dna5.home_scored_weights[0]}) must shrink toward uniform 1/6 (0.1667)`
   );
 
-  // 客队总进球 2 球 (< 5)，必须判定为 INSUFFICIENT 且 100% 锁定中性均匀分布
+  // 客队 1 场 2 球 (< 3 场)，必须判定为 INSUFFICIENT 且 100% 锁定中性均匀分布
   assert.equal(dna5.away_confidence, 'INSUFFICIENT');
   assert.deepEqual(
     dna5.away_scored_weights,
@@ -1230,6 +1235,7 @@ test('Anti-Fake Data Hardening: Scheme 23 - Goal DNA Half-Time (45\') Boundary &
         has_data: true,
         home_team: {
           all: {
+            matches_count: 5,
             scored_intervals: [
               { goals: 10 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }
             ]
@@ -1237,6 +1243,7 @@ test('Anti-Fake Data Hardening: Scheme 23 - Goal DNA Half-Time (45\') Boundary &
         },
         away_team: {
           all: {
+            matches_count: 5,
             scored_intervals: [
               { goals: 10 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }
             ]
@@ -1248,12 +1255,13 @@ test('Anti-Fake Data Hardening: Scheme 23 - Goal DNA Half-Time (45\') Boundary &
 
   const dna10 = extractGoalDistributionDNA(midSample10Match);
   assert.equal(dna10.home_confidence, 'MEDIUM');
+  // 5 场（3 <= nAll < 8）时 shrinkage = (5 - 3) / 5 = 0.4
   // 原始频数全部在区间 0: 狄利克雷后验 (10 + 1) / (10 + 6) = 11/16 = 0.6875
-  // 收缩权重 = 0.6875 * 0.50 + (1/6) * 0.50 = 0.34375 + 0.08333 ≈ 0.427
-  // 断言平滑介于 [0.35, 0.50]，杜绝断崖式突变
+  // 收缩权重 = 0.6875 * 0.4 + (1/6) * 0.6 = 0.275 + 0.1 ≈ 0.375
+  // 断言平滑介于 [0.30, 0.45]，杜绝断崖式突变
   assert.ok(
-    dna10.home_scored_weights[0] > 0.35 && dna10.home_scored_weights[0] < 0.50,
-    `At nAll=10, weight (${dna10.home_scored_weights[0]}) should be smoothly shrunk between uniform and full posterior`
+    dna10.home_scored_weights[0] > 0.30 && dna10.home_scored_weights[0] < 0.45,
+    `At nAll=5 matches, weight (${dna10.home_scored_weights[0]}) should be smoothly shrunk between uniform and full posterior`
   );
 });
 
@@ -2058,12 +2066,13 @@ test('Anti-Fake Data Hardening: Scheme 6 - Dynamic Truncation & Adaptive Windowi
   );
 
   // 自适应能量归一化检验：
-  // 15m 积分网 = 10+15+20+25+30+35+40 = 175
-  // effectiveNorm15 = slice15.length = 7，energy15 = 175 / 7 = 25.0
-  // 若不自适应，直接 175/15 ≈ 11.67 会大幅低估
+  // 15m 积分（P1-22 梯形 dt 加权）：对 [10,15,20,25,30,35,40]（相邻 dt=1），
+  // 梯形积分 net = Σ((a+b)/2 * dt) = 12.5+17.5+22.5+27.5+32.5+37.5 = 150
+  // effectiveNorm15 = slice15.length = 7，energy15 = 150 / 7 ≈ 21.43
+  // 若不自适应，直接 150/15 = 10 会大幅低估
   assert.ok(
-    features.integral_15m.net >= 175,
-    `Raw 15m integral.net should be 175 (sum of all 7 valid points), got ${features.integral_15m.net}`
+    features.integral_15m.net >= 150,
+    `Raw 15m integral.net should be 150 (trapezoidal dt-weighted integral of 7 points), got ${features.integral_15m.net}`
   );
 });
 

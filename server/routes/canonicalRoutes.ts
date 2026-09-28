@@ -23,7 +23,7 @@ import {
 import { ParsedLeisuMatch } from "../../refactor/01_data_ingestion/leisu/types";
 import { calculateQuantitativeFeatures, isMatchQuantEligible } from "../../refactor/03_quant_engine";
 import { QuantitativeFeatures } from "../../refactor/03_quant_engine/types";
-import { getLoadedOosArchive, getOosStatus, ensureOosArchiveInitialized } from "../services/oosArchiveService.js";
+import { getLoadedOosArchive, getOosStatus, ensureOosArchiveInitialized } from "../../refactor/06_settlement_audit/oosArchiveService.js";
 import {
   systemAlertBus,
   commonEnumRegistry,

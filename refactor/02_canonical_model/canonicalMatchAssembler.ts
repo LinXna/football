@@ -547,6 +547,7 @@ export function assembleCanonicalMatch(
     canonical_id: canonicalId,
     match_slug: matchSlug,
     created_at: new Date().toISOString(),
+    source_captured_at: ybtyMatch.captured_at ?? null,
     completeness_tier: completenessTier,
     missing_reasons: missingReasons,
     alignment: alignmentDecision,

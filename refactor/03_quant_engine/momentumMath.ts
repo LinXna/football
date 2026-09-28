@@ -69,6 +69,29 @@ export function calculateMomentumIntegral(series: number[]): { home: number; awa
 }
 
 /**
+ * 计算带时间戳的动量能量积分（梯形 dt 加权，与 momentumTimeline 的 waveform AUC 统一口径）
+ * P1-22 修复：按分钟坐标的梯形积分，消除「按采样点累加」在采样率变化/时间间隙时的失真。
+ * @param points 带分钟坐标的动量点阵
+ */
+export function calculateTimedMomentumIntegral(points: TimedMomentumPoint[]): { home: number; away: number; net: number } {
+  let homeEnergy = 0;
+  let awayEnergy = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const dt = Math.max(0.5, Math.abs(p2.minute - p1.minute));
+    const avg = (p1.value + p2.value) / 2.0;
+    if (avg > 0) homeEnergy += avg * dt;
+    else if (avg < 0) awayEnergy += Math.abs(avg) * dt;
+  }
+  return Object.freeze({
+    home: Number(homeEnergy.toFixed(1)),
+    away: Number(awayEnergy.toFixed(1)),
+    net: Number((homeEnergy - awayEnergy).toFixed(1))
+  });
+}
+
+/**
  * 提取雷速逐分钟平滑动量点阵展平一维序列
  */
 export function flattenMomentumPoints(match: CanonicalMatch): number[] {

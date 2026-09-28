@@ -30,8 +30,10 @@ function parseMarketValue(mvText: string | null | undefined): number {
   const cleaned = mvText.replace(/[^0-9.]/g, '');
   const val = parseFloat(cleaned);
   if (isNaN(val)) return 0;
-  if (mvText.includes('亿') || mvText.toUpperCase().includes('B')) return val * 10000;
-  if (mvText.includes('万') || mvText.toUpperCase().includes('M')) return val;
+  if (mvText.includes('亿')) return val * 10000;                    // 1 亿 = 10000 万
+  if (mvText.toUpperCase().includes('B')) return val * 100000;      // 1 billion = 10 亿 = 100000 万
+  if (mvText.includes('万')) return val;                             // 万
+  if (mvText.toUpperCase().includes('M')) return val * 100;         // 1 million = 100 万
   return val;
 }
 
@@ -187,15 +189,15 @@ export function synthesizePrematchPrior(
   const tempoSuppressionFactor = 1.0 / (1.0 + congestionExcess * 0.35);
 
   // 6. 主客场异构基线 (Iso-Venue Discrepancy & League DNA)
-  // 使用动态联赛 DNA 作为总进球基准锚点，主客场基准遵循现代足球场均分布 (主场 56%，客场 44%)，并注入中场绞杀流速抑制
+  // 使用动态联赛 DNA 作为总进球基准锚点，主客场基准采用中性 50/50 分配（主场优势由 gamma 乘子唯一负责，消除双重编码），并注入中场绞杀流速抑制
   const leagueQuery = match.league_name || (match.match_slug ? match.match_slug.split('_')[0] : '');
   const dnaTotal = getLeagueBaseGoals(leagueQuery, 2.75);
-  const baseGoalsH = dnaTotal * 0.56 * tempoSuppressionFactor;
-  const baseGoalsA = dnaTotal * 0.44 * tempoSuppressionFactor;
+  const baseGoalsH = dnaTotal * 0.50 * tempoSuppressionFactor;
+  const baseGoalsA = dnaTotal * 0.50 * tempoSuppressionFactor;
 
-  // 7. 主客场绿茵权威优势乘子 (Home Advantage Gamma)
-  const gammaHome = 1.18;
-  const gammaAway = 0.85;
+  // 7. 主客场权威优势乘子 (Home Advantage Gamma)：唯一主场优势来源（1.16/0.86 → 主客比 1.349，落在现实 1.25~1.40）
+  const gammaHome = 1.16;
+  const gammaAway = 0.86;
 
   // 8. 战术意图乘子 (MUI + 历史交锋深度与球风克制)
   const tacticalFactorH = muiH * (1.0 + h2hAdvantage + stylisticClash * 0.05);

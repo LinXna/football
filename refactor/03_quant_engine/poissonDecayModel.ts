@@ -71,8 +71,18 @@ export function calculateExpectedRemainingMinutesIncludingStoppage(timing?: Cano
     return Math.max(0, remaining);
   }
 
-  // 2. 下半场常规时间 (45' ~ 89')
-  if (minute >= 45) {
+  // 2. 中场休息 / 上半场结束边界 (minute === 45)  [P1-29 修复]
+  //    显式 half-time state：上半场常规 45 分钟已结束，但上半场伤停补时尚未消耗（补时在 45' 之后才发生）。
+  //    remaining = 上半场补时 + 下半场常规 45 + 下半场补时。
+  //    消除此前把 minute=45 直接当作"下半场开始"导致的 44'→45' remaining 2.5 分钟离散下降（价格半场边界跳变）。
+  if (minute === 45) {
+    const expected1HStoppage = (addedMinute !== null && addedMinute > 0) ? addedMinute : 1.5;
+    const expected2HStoppage = 4.0;
+    return Number((expected1HStoppage + 45 + expected2HStoppage).toFixed(2));
+  }
+
+  // 3. 下半场常规时间 (46' ~ 89')
+  if (minute > 45) {
     const remainingRegulation = Math.max(0, 90 - minute);
     // 下半场预期伤停补时：若已确定公布补时则用公布值，否则依据实战至少预留 4.0~5.0 分钟
     const expected2HStoppage = (addedMinute !== null && addedMinute > 0)
@@ -81,7 +91,7 @@ export function calculateExpectedRemainingMinutesIncludingStoppage(timing?: Cano
     return Number((remainingRegulation + expected2HStoppage).toFixed(2));
   }
 
-  // 3. 上半场阶段 (0' ~ 44')
+  // 4. 上半场阶段 (0' ~ 44')
   // 真实足球物理建模：上半场常规剩余 + 上半场伤停补时(至少 1.5~2.0 分钟) + 下半场常规 45 分钟 + 下半场伤停补时(至少 4.0 分钟)
   const remaining1HRegulation = Math.max(0, 45 - minute);
   const expected1HStoppage = (addedMinute !== null && addedMinute > 0) ? addedMinute : 1.5;
@@ -195,13 +205,15 @@ export function calculateInPlayPoissonFeatures(
   let baseAwayLambda = 1.35;
   let contextAlreadyIncluded = false;
 
-  if (calibration && calibration.market_stance !== MarketStanceType.MARKET_DATA_MISSING) {
+  if (calibration && Number.isFinite(calibration.lambda_base_home) && calibration.lambda_base_home > 0 &&
+      Number.isFinite(calibration.lambda_base_away) && calibration.lambda_base_away > 0) {
     baseHomeLambda = calibration.lambda_base_home;
     baseAwayLambda = calibration.lambda_base_away;
     baseTotalGoals = baseHomeLambda + baseAwayLambda;
-    lambdaSource = 'MARKET_IMPLIED';
-    // Market calibration already shrinks toward the M2 theory prior, which
-    // contains lineup and motivation effects. Do not apply those multipliers twice.
+    // A3/P1-09 修复：无市场数据(MARKET_DATA_MISSING)时，marketDivergenceEngine 已返回 lambda_base=theoryPrior（保留主客强弱），
+    // 不应再走 getLeagueBaseGoals 等分主客丢弃身价/近期/H2H/阵型四大维度的主客强弱差异。
+    lambdaSource = calibration.market_stance === MarketStanceType.MARKET_DATA_MISSING ? 'FALLBACK' : 'MARKET_IMPLIED';
+    // theoryPrior 与市场校准都已包含 M2 的 lineup/motivation 乘子，均不得二次应用。
     contextAlreadyIncluded = true;
   } else {
     const leagueName = match.league_name ?? '';
@@ -248,7 +260,16 @@ export function calculateInPlayPoissonFeatures(
 
   if (elapsedMinute >= 15 && currentTotalGoals > 0) {
     const priorTotalLambda = baseHomeLambda + baseAwayLambda;
-    observedFullMatchRate = Math.min(5.5, (currentTotalGoals / elapsedMinute) * 90);
+    // P1-31: observed goals pace 由朴素 goals/elapsed×90 外推改为 Gamma-Poisson 贝叶斯收缩。
+    // 原公式 (currentTotalGoals / elapsedMinute) * 90 在早期偶然进球时会被线性外推到
+    // 极端全场速率（如 16' 进 1 球 → 5.6），过度影响 λ。
+    // 现用先验强度 K_PRIOR（等价伪暴露分钟数）对观察速率做收缩：
+    //   shrinkage = K_PRIOR / (K_PRIOR + elapsed)，早期收缩强、随观察时间增加逐渐放开。
+    const exposureFraction = Math.min(1.0, elapsedMinute / 90);
+    const naiveFullMatchRate = currentTotalGoals / Math.max(0.1, exposureFraction);
+    const K_PRIOR = 45;
+    const shrinkage = K_PRIOR / (K_PRIOR + elapsedMinute);
+    observedFullMatchRate = Math.min(5.5, priorTotalLambda * shrinkage + naiveFullMatchRate * (1 - shrinkage));
     observedPaceWeight = Math.min(0.35, ((elapsedMinute - 15) / 75) * 0.35);
     const blendedTotalLambda =
       priorTotalLambda * (1 - observedPaceWeight) + observedFullMatchRate * observedPaceWeight;
@@ -311,12 +332,13 @@ export function calculateInPlayPoissonFeatures(
   const livePhysicalFactorHome = threatDampingHome * regimeMultiplierHome * redAttackHome * (redLeakAway * discLeakAway) * postGoalCooldownMultiplier;
   const livePhysicalFactorAway = threatDampingAway * regimeMultiplierAway * redAttackAway * (redLeakHome * discLeakHome) * postGoalCooldownMultiplier;
 
-  // 4.7 终盘“先验 DNA 绝杀特质”与“实时物理场”相干态干涉方程 (Scheme 3 落地)
-  // 当比赛进入 70' 以后终盘决战期 (elapsedMinute >= 70)，先验具备极强绝杀特质 (76'+ 进球占比 >= 0.25) 的球队：
-  // 1) 相干态 (Coherent State): 若现场具备实际进攻压迫事实 (livePhysicalFactor >= 0.70，相干度 C_i >= 0.50)，
-  //    先验绝杀 DNA 与现场物理场相长干涉，激活绝杀共振增强乘子 M_late_res = 1.0 + (late_dna - 0.25) * 1.5 * C_i；
-  // 2) 退相干阻断 (Decoherence Dampening): 若现场极度萎靡/零射门/被深度围攻压制/染红大巴 (livePhysicalFactor <= 0.70，尤其是 C_i -> 0)，
-  //    先验绝杀 DNA 无法在物理真空中凭空具象化，必须平滑退相干衰减至中性均匀时间比例，阻断虚假冲动推演，且 M_late_res = 1.0，记录 decoherence_applied = true。
+  // 4.7 终盘「先验 DNA 绝杀特质」与「实时物理场」相干态门控 (Scheme 3 落地，P1-18 去耦)
+  // 当比赛进入 70' 以后终盘决战期 (elapsedMinute >= 70)：
+  // P1-18 修复：移除独立 resonanceMultiplier 乘子 M_late_res = 1.0 + (late_dna - 0.25) * 1.5 * C_i，
+  // 因 late_game_dna 已通过 time_fraction（DNA 时间积分）编码一次，独立共振乘子构成同一 late-game information 的重复计权。
+  // 现改为条件门控（conditional hazard）：现场物理不支撑（coherentState < 1.0）时，
+  // effectiveTimeFraction 向均匀中性时间平滑收敛（退相干阻断），记录 decoherence_applied = true；
+  // 现场物理支撑时直接沿用 DNA 时间积分，不再额外放大 λ。
   const isLateGameCoherenceWindow = elapsedMinute >= 70;
   const homeLateDna = dnaFeatures?.home_late_game_dna ?? (reliableHomeWeights ? reliableHomeWeights[5] : 0.1667);
   const awayLateDna = dnaFeatures?.away_late_game_dna ?? (reliableAwayWeights ? reliableAwayWeights[5] : 0.1667);
@@ -333,8 +355,6 @@ export function calculateInPlayPoissonFeatures(
 
   let decoherenceAppliedHome = false;
   let decoherenceAppliedAway = false;
-  let resonanceMultiplierHome = 1.0;
-  let resonanceMultiplierAway = 1.0;
 
   const marketAlreadyRemaining = calibration?.is_in_play_market === true;
   let effectiveTimeFractionHome = marketAlreadyRemaining ? 1 : timeDecay.time_fraction_home;
@@ -343,16 +363,7 @@ export function calculateInPlayPoissonFeatures(
   if (isLateGameCoherenceWindow) {
     const uniformFraction = calculatePhasedDNATimeFraction(elapsedMinute, [1/6, 1/6, 1/6, 1/6, 1/6, 1/6]);
 
-    // 主队相干态与共振/退火分支
-    if (homeLateDna >= 0.25) {
-      if (coherentStateHome >= 0.50) {
-        resonanceMultiplierHome = Number((1.0 + (homeLateDna - 0.25) * 1.5 * coherentStateHome).toFixed(4));
-      } else {
-        decoherenceAppliedHome = true;
-        resonanceMultiplierHome = 1.0;
-      }
-    }
-    // 退相干时间积分平滑阻断：若现场物理不支撑 (coherentStateHome < 1.0 且先验时间偏大)，向均匀中性时间平滑收敛
+    // 主队退相干时间积分平滑阻断：若现场物理不支撑 (coherentStateHome < 1.0 且先验时间偏大)，向均匀中性时间平滑收敛
     if (coherentStateHome < 1.0 && !marketAlreadyRemaining) {
       effectiveTimeFractionHome = Number((timeDecay.time_fraction_home * coherentStateHome + uniformFraction * (1.0 - coherentStateHome)).toFixed(4));
       if (coherentStateHome < 0.50 && homeLateDna > 0.18) {
@@ -360,16 +371,7 @@ export function calculateInPlayPoissonFeatures(
       }
     }
 
-    // 客队相干态与共振/退火分支
-    if (awayLateDna >= 0.25) {
-      if (coherentStateAway >= 0.50) {
-        resonanceMultiplierAway = Number((1.0 + (awayLateDna - 0.25) * 1.5 * coherentStateAway).toFixed(4));
-      } else {
-        decoherenceAppliedAway = true;
-        resonanceMultiplierAway = 1.0;
-      }
-    }
-    // 退相干时间积分平滑阻断：若现场物理不支撑 (coherentStateAway < 1.0 且先验时间偏大)，向均匀中性时间平滑收敛
+    // 客队退相干时间积分平滑阻断：若现场物理不支撑 (coherentStateAway < 1.0 且先验时间偏大)，向均匀中性时间平滑收敛
     if (coherentStateAway < 1.0 && !marketAlreadyRemaining) {
       effectiveTimeFractionAway = Number((timeDecay.time_fraction_away * coherentStateAway + uniformFraction * (1.0 - coherentStateAway)).toFixed(4));
       if (coherentStateAway < 0.50 && awayLateDna > 0.18) {
@@ -379,8 +381,8 @@ export function calculateInPlayPoissonFeatures(
   }
 
   // 5. 综合求解滚球 0:0 剩余时段动态进球期望 (lambda_home_rest, lambda_away_rest)
-  const remainingFactorHome = effectiveTimeFractionHome * timeDecay.urgency_multiplier * resonanceMultiplierHome;
-  const remainingFactorAway = effectiveTimeFractionAway * timeDecay.urgency_multiplier * resonanceMultiplierAway;
+  const remainingFactorHome = effectiveTimeFractionHome * timeDecay.urgency_multiplier_home;
+  const remainingFactorAway = effectiveTimeFractionAway * timeDecay.urgency_multiplier_away;
 
   const lambdaBeforeLiveContextHome = baseHomeLambda * remainingFactorHome;
   const lambdaBeforeLiveContextAway = baseAwayLambda * remainingFactorAway;
@@ -393,29 +395,29 @@ export function calculateInPlayPoissonFeatures(
 
   // 5.2 阶段权重动态流转体系 (Regime Shift Weighting):
   // 严格落实实战定价铁律：比赛越往后打，现场发生的一切物理事实（攻防压迫、危攻时序、关键事件、红牌）越占统治地位！
-  // - 阶段 1 (0' ~ 30' 开局探索期): 现场事实权重 20% ~ 25% (基准 0.225)，赛前先验占 77.5%
-  // - 阶段 2 (30' ~ 60' 攻防展开期): 严格按用户指令，【实时攻防技术统计 + 关键事件 + 危攻时序走势】跃升为主导，权重占 60% ~ 65% (基准 0.625)
-  // - 阶段 3 (65' ~ 90' 终盘决战期): 严格按用户指令，【实时危攻走势 + 实时攻防压迫 + 关键事件】绝对主宰，权重占 80% ~ 85% (基准 0.825)
+  // - 阶段 1 (0' ~ 30' 开局探索期): 现场事实权重 20% ~ 40% (基准 0.30)，赛前先验占 70%
+  // - 阶段 2 (30' ~ 70' 攻防展开期): 现场事实权重 40% ~ 78% 连续平滑爬升，无断点跳跃
+  // - 阶段 3 (70' ~ 90' 终盘决战期): 现场事实权重 78% ~ 85% 绝对主宰
   let liveStatsWeight: number;
   let liveRegimeStage: 'OPENING' | 'MID_MATCH' | 'LATE_SURGE';
 
   if (elapsedMinute < 30) {
     liveRegimeStage = 'OPENING';
-    // 0' ~ 30' 平滑上升: 0.20 -> 0.25
-    liveStatsWeight = 0.20 + (elapsedMinute / 30.0) * 0.05;
-  } else if (elapsedMinute <= 60) {
+    // 0' ~ 30' 开局探索期: 0.20 -> 0.40
+    liveStatsWeight = 0.20 + (elapsedMinute / 30.0) * 0.20;
+  } else if (elapsedMinute < 45) {
     liveRegimeStage = 'MID_MATCH';
-    // 30' ~ 60' 平滑进入 60% ~ 65%:
-    // 30' 时为 0.60，60' 时达到 0.65
-    liveStatsWeight = 0.60 + ((elapsedMinute - 30.0) / 30.0) * 0.05;
-  } else if (elapsedMinute < 65) {
-    // 60' ~ 65' 过渡区: 0.65 -> 0.80
+    // 30' ~ 45' 上半场尾声: 0.40 -> 0.55
+    // 30' 时 0.40，45' 时 0.55
+    liveStatsWeight = 0.40 + ((elapsedMinute - 30.0) / 15.0) * 0.15;
+  } else if (elapsedMinute < 70) {
+    // 45' ~ 70' 下半场主导: 0.55 -> 0.78
     liveRegimeStage = 'MID_MATCH';
-    liveStatsWeight = 0.65 + ((elapsedMinute - 60.0) / 5.0) * 0.15;
+    liveStatsWeight = 0.55 + ((elapsedMinute - 45.0) / 25.0) * 0.23;
   } else {
     liveRegimeStage = 'LATE_SURGE';
-    // 65' ~ 90' 终盘决战期: 稳定在 80% ~ 85% (65' 为 0.80，80'+ 达到 0.85)
-    liveStatsWeight = Math.min(0.85, 0.80 + ((elapsedMinute - 65.0) / 25.0) * 0.05);
+    // 70' ~ 90' 终盘决战: 0.78 -> 0.85
+    liveStatsWeight = 0.78 + ((elapsedMinute - 70.0) / 20.0) * 0.07;
   }
 
   const priorContextWeight = 1.0 - liveStatsWeight;
@@ -496,6 +498,8 @@ export function calculateInPlayPoissonFeatures(
     time_fraction_home: effectiveTimeFractionHome,
     time_fraction_away: effectiveTimeFractionAway,
     urgency_multiplier: timeDecay.urgency_multiplier,
+    urgency_multiplier_home: timeDecay.urgency_multiplier_home,
+    urgency_multiplier_away: timeDecay.urgency_multiplier_away,
     threat_home: threatDampingHome,
     threat_away: threatDampingAway,
     regime_multiplier_home: regimeMultiplierHome,
@@ -514,6 +518,10 @@ export function calculateInPlayPoissonFeatures(
     live_stats_weight: Number(liveStatsWeight.toFixed(3)),
     prior_context_weight: Number(priorContextWeight.toFixed(3)),
     late_game_effective_time_damping: effectiveTimeDamping,
+    deprivation_damp_home: Number(deprivationDampHome.toFixed(3)),
+    deprivation_damp_away: Number(deprivationDampAway.toFixed(3)),
+    siege_breakthrough_boost_home: Number(siegeBreakthroughBoostHome.toFixed(3)),
+    siege_breakthrough_boost_away: Number(siegeBreakthroughBoostAway.toFixed(3)),
     lambda_before_live_context_home: Number(lambdaBeforeLiveContextHome.toFixed(3)),
     lambda_before_live_context_away: Number(lambdaBeforeLiveContextAway.toFixed(3)),
     lambda_after_live_context_home: Number(lambdaAfterLiveContextHome.toFixed(3)),
@@ -592,7 +600,11 @@ export function calculateInPlayPoissonFeatures(
   let firstHalfPoisson: InPlayPoissonFeatures['first_half_poisson'] = undefined;
   if (elapsedMinute < 45) {
     const remainingFirstHalfMinutes = Math.max(0, 45 - elapsedMinute);
-    const uniformFirstHalfFraction = Math.max(0, remainingFirstHalfMinutes / 45.0);
+    // P1-30 修复：上半场 λ 的时间比例分母应为全场 90 分钟（而非上半场 45 分钟）。
+    // calculateFirstHalfPhasedDNATimeFraction 返回"上半场剩余占全场权重和"(0~0.5)，
+    // 而无 DNA 权重回退的 uniform 版本此前用 /45.0 得到"上半场剩余占上半场比例"(0~1)，
+    // 与 baseHomeLambda(全场 90 分钟 λ) 相乘导致上半场 λ 被高估约 2 倍。
+    const uniformFirstHalfFraction = Math.max(0, remainingFirstHalfMinutes / 90.0);
     const firstHalfFractionHome = reliableHomeWeights
       ? calculateFirstHalfPhasedDNATimeFraction(elapsedMinute, reliableHomeWeights)
       : uniformFirstHalfFraction;

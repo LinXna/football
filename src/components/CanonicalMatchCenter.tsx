@@ -727,6 +727,7 @@ export const CanonicalMatchCenter: React.FC = () => {
       
       // 自动检查是否有符合 A/B 级的推荐，并尝试自动沉淀至重构正式台账
       let autoAppendedCount = 0;
+      const appendErrors: string[] = [];
       const importedMatches = Array.isArray(data.result?.matches) ? data.result.matches : [];
       for (const item of importedMatches) {
         const grade = String(item.grade || item.grade_raw || '').toUpperCase();
@@ -752,9 +753,11 @@ export const CanonicalMatchCenter: React.FC = () => {
               const appendData = await appendResp.json();
               if (appendData.success && appendData.count > 0) {
                 autoAppendedCount += appendData.count;
+              } else if (!appendData.success) {
+                appendErrors.push(`【${item.match || `${matchedCanonical.home_team_name} vs ${matchedCanonical.away_team_name}`}】${appendData.error || '写入台账失败'}`);
               }
-            } catch {
-              // ignore individual append failure
+            } catch (err: any) {
+              appendErrors.push(`【${item.match || `${matchedCanonical.home_team_name} vs ${matchedCanonical.away_team_name}`}】网络异常: ${err?.message || err}`);
             }
           }
         }
@@ -763,7 +766,11 @@ export const CanonicalMatchCenter: React.FC = () => {
       const appendMsg = autoAppendedCount > 0
         ? `，并已将 ${autoAppendedCount} 条合格 A/B 级推荐自动沉淀至正式台账！`
         : '！';
-      setAiFeedback({ type: 'success', message: `✅ 成功导入 AI 评估${appendMsg}已自动与当前重构赛事关联并在比赛卡片就地呈现。` });
+      if (appendErrors.length > 0) {
+        setAiFeedback({ type: 'error', message: `⚠️ AI 评估已导入，但 ${appendErrors.length} 条推荐写入台账失败：${appendErrors.join('；')}` });
+      } else {
+        setAiFeedback({ type: 'success', message: `✅ 成功导入 AI 评估${appendMsg}已自动与当前重构赛事关联并在比赛卡片就地呈现。` });
+      }
       setAiImportJson('');
       loadAiEvaluations();
       await fetchRefactorLedger();

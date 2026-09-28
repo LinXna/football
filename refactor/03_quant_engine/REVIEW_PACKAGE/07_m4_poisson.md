@@ -1,0 +1,1241 @@
+# 07 · 泊松推演 poissonCore + poissonDecay + poissonDecayModel
+
+## 模块职责
+M4：滚球 0:0 前向推演。poissonCore=泊松PMF/联赛DNA；poissonDecay=时间衰减/urgency/双变量网格/威胁张量；poissonDecayModel=λ_rest 的 8 因子乘法合成(核心)。
+
+## 数据流位置
+λ_base(marketDivergenceEngine) + context + matchState → calculateInPlayPoissonFeatures → λ_rest → 双变量泊松网格 → 胜平负概率 → devigCalculator(EV)。
+
+## 核心逻辑：λ_rest 的 8 因子乘法链（poissonDecayModel）
+
+` 
+λ_rest = λ_base
+  × remainingFactor(timeFraction × urgency × resonance)   // 时间+比分势场+绝杀共振
+  × blendedLiveFactor(先验1.0与现场因子按分钟加权)      // 威胁×战术相变×红牌×纪律×冷却
+  × oosMultiplier × deprivationDamp × siegeBreakthrough × effectiveTimeDamping
+` 
+
+关键：blendedLiveFactor 里 liveStatsWeight 随分钟递增(现场事实权重)：
+0-30分=0.20→0.40、30-45分=0.40→0.55、45-70分=0.55→0.78、70-90分=0.78→0.85。
+
+## 完整源码 · poissonCore.ts（95 行）
+
+`	ypescript
+/**
+ * @file poissonCore.ts
+ * @description Layer 03 M4 子模块：泊松核心数学基础（联赛 DNA 基准、PMF、盘口解析、支持上界）
+ *
+ * 从 poissonDecayModel.ts 拆分（原子任务 D / P1-1）。
+ * 遵循红线：纯函数无副作用、强类型零 any、完全可测试。
+ */
+
+/**
+ * 常见联赛历史场均进球基准 (League DNA Base Total Goals)
+ */
+export const LEAGUE_DNA_MAP: Record<string, number> = {
+  // 高进球联赛 (>= 3.0)
+  '荷甲': 3.12, '荷乙': 3.25, '德甲': 3.18, '德乙': 3.08, '瑞士超': 3.05,
+  '挪超': 3.02, '瑞典超': 2.88, '奥甲': 2.95, '冰岛超': 3.20,
+  // 中性主流联赛 (2.5 ~ 2.9)
+  '英超': 3.20, '西甲': 2.58, '意甲': 2.62, '法甲': 2.70, '葡超': 2.65,
+  '欧冠': 3.05, '欧联': 2.90, '欧协联': 2.92, '中超': 2.95, '韩K联': 2.55, '日职联': 2.52,
+  // 防守/低进球联赛 (<= 2.4)
+  '西乙': 2.18, '法乙': 2.22, '意乙': 2.32, '阿甲': 2.15, '巴甲': 2.38,
+  '日职乙': 2.36, '希腊超': 2.30, '俄超': 2.40,
+};
+
+/**
+ * 联赛全称 → 简称 别名映射表，用于把实际数据中的全称联赛名（如「俄罗斯超级联赛」）
+ * 归一化为 LEAGUE_DNA_MAP 的简称 key，避免子串匹配失败回退到默认值。
+ */
+const LEAGUE_ALIAS_MAP: ReadonlyArray<readonly [string, string]> = [
+  // 五大联赛
+  ['英格兰超级联赛', '英超'],
+  ['西班牙甲级联赛', '西甲'], ['西班牙甲组联赛', '西甲'],
+  ['意大利甲级联赛', '意甲'], ['意大利甲组联赛', '意甲'],
+  ['德国甲级联赛', '德甲'], ['德国甲组联赛', '德甲'],
+  ['法国甲级联赛', '法甲'], ['法国甲组联赛', '法甲'],
+  // 欧洲其他
+  ['葡萄牙超级联赛', '葡超'],
+  ['荷兰甲级联赛', '荷甲'], ['荷兰乙级联赛', '荷乙'],
+  ['德国乙级联赛', '德乙'], ['西班牙乙级联赛', '西乙'],
+  ['法国乙级联赛', '法乙'], ['意大利乙级联赛', '意乙'],
+  ['俄罗斯超级联赛', '俄超'], ['希腊超级联赛', '希腊超'],
+  ['奥地利甲级联赛', '奥甲'], ['瑞士超级联赛', '瑞士超'],
+  ['挪威超级联赛', '挪超'], ['瑞典超级联赛', '瑞典超'],
+  ['冰岛超级联赛', '冰岛超'],
+  // 亚洲
+  ['中国超级联赛', '中超'], ['韩国K联赛', '韩K联'], ['韩国K1联赛', '韩K联'],
+  ['日本职业联赛', '日职联'], ['日本职业足球联赛', '日职联'],
+  ['日本乙级联赛', '日职乙'],
+  // 美洲
+  ['阿根廷甲级联赛', '阿甲'], ['巴西甲级联赛', '巴甲'],
+  // 欧战
+  ['欧洲冠军联赛', '欧冠'], ['欧洲联赛', '欧联'], ['欧洲协会联赛', '欧协联'],
+];
+
+/**
+ * 获取联赛基准进球数 (模糊子串匹配，支持全名与别名)
+ */
+export function getLeagueBaseGoals(leagueName: string, defaultGoals: number = 2.75): number {
+  if (!leagueName) return defaultGoals;
+  // 全称别名归一化为简称，提升全称联赛名的匹配覆盖率
+  let normalized = leagueName;
+  for (const [full, short] of LEAGUE_ALIAS_MAP) {
+    if (normalized.includes(full)) {
+      normalized = normalized.replace(full, short);
+      break;
+    }
+  }
+  for (const [key, val] of Object.entries(LEAGUE_DNA_MAP)) {
+    if (normalized.includes(key)) return val;
+  }
+  return defaultGoals;
+}
+
+export function poissonSupportUpperBound(lambda: number): number {
+  return Math.max(12, Math.ceil(lambda + 10 * Math.sqrt(lambda + 1)));
+}
+
+/**
+ * 泊松概率质量函数 (Poisson Probability Mass Function)
+ * P(X = k) = (lambda^k * e^(-lambda)) / k!
+ */
+export function poissonPMF(k: number, lambda: number): number {
+  if (lambda <= 0) {
+    return k === 0 ? 1.0 : 0.0;
+  }
+  if (k < 0) {
+    return 0.0;
+  }
+
+  let factorial = 1.0;
+  for (let i = 2; i <= k; i++) {
+    factorial *= i;
+  }
+
+  return (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial;
+}
+
+``r
+
+## 完整源码 · poissonDecay.ts（390 行）
+
+`	ypescript
+/**
+ * @file poissonDecay.ts
+ * @description Layer 03 M4 子模块：进球时段 DNA 时间衰减、双变量泊松网格、连续威胁强度张量
+ *
+ * 从 poissonDecayModel.ts 拆分（原子任务 D / P1-1）。
+ * 遵循红线：纯函数无副作用、强类型零 any、完全可测试。
+ */
+
+import { poissonPMF } from './poissonCore.js';
+import { PoissonDecayCurve, UnifiedMatchState } from './types.js';
+
+/**
+ * 计算基于进球时段 DNA 的精确剩余时间积分比例 (Goal DNA Phased Decay Integration)
+ * @param elapsedMinute 已进行分钟数 (0~90)
+ * @param weights 6 个 15 分钟区间权重占比数组
+ */
+export function calculatePhasedDNATimeFraction(
+  elapsedMinute: number,
+  weights: number[] = [0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667]
+): number {
+  if (elapsedMinute <= 0) return 1.0;
+  if (elapsedMinute >= 90) return 0.0;
+
+  // 45' 半场休息 (Half-Time) 物理边界保护门禁:
+  // 当比赛处于第 45 分钟或中场休息时，上半场 3 个时段 (0-15', 16-30', 31-45') 积分精确归零；
+  // 下半场 3 个时段 (46-60', 61-75', 76-90') 100% 完整保留，剩余积分严格等于区间 3、4、5 权重之和。
+  // 杜绝 45/15=3 时导致的下半场首个时段提前进入消耗。
+  if (elapsedMinute === 45) {
+    const secondHalfIntegral = (weights[3] ?? 0.1667) + (weights[4] ?? 0.1667) + (weights[5] ?? 0.1667);
+    return Number(Math.max(0.0, Math.min(1.0, secondHalfIntegral)).toFixed(4));
+  }
+
+  const currentIntervalIndex = Math.min(5, Math.floor(elapsedMinute / 15));
+  const intervalEndMinute = (currentIntervalIndex + 1) * 15;
+  const fractionInCurrentInterval = Math.max(0, (intervalEndMinute - elapsedMinute) / 15.0);
+
+  let remainingIntegral = fractionInCurrentInterval * (weights[currentIntervalIndex] ?? 0.1667);
+
+  for (let i = currentIntervalIndex + 1; i < 6; i++) {
+    remainingIntegral += (weights[i] ?? 0.1667);
+  }
+
+  // 保证单调平滑递减
+  return Number(Math.max(0.0, Math.min(1.0, remainingIntegral)).toFixed(4));
+}
+
+/**
+ * 计算基于进球时段 DNA 的上半场截断剩余时间积分比例 (First-Half Phased Decay Integration)
+ * 仅积分上半场 3 个 15 分钟区间 (0-15', 16-30', 31-45')，当 elapsedMinute >= 45 时严格返回 0.0
+ * @param elapsedMinute 已进行分钟数 (0~45)
+ * @param weights 6 个 15 分钟区间权重占比数组
+ */
+export function calculateFirstHalfPhasedDNATimeFraction(
+  elapsedMinute: number,
+  weights: number[] = [0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667]
+): number {
+  if (elapsedMinute <= 0) {
+    const totalFirstHalf = (weights[0] ?? 0.1667) + (weights[1] ?? 0.1667) + (weights[2] ?? 0.1667);
+    return Number(Math.max(0.0, Math.min(1.0, totalFirstHalf)).toFixed(4));
+  }
+  if (elapsedMinute >= 45) return 0.0;
+
+  const currentIntervalIndex = Math.min(2, Math.floor(elapsedMinute / 15));
+  const intervalEndMinute = (currentIntervalIndex + 1) * 15;
+  const fractionInCurrentInterval = Math.max(0, (intervalEndMinute - elapsedMinute) / 15.0);
+
+  let remainingIntegral = fractionInCurrentInterval * (weights[currentIntervalIndex] ?? 0.1667);
+  for (let i = currentIntervalIndex + 1; i < 3; i++) {
+    remainingIntegral += (weights[i] ?? 0.1667);
+  }
+
+  return Number(Math.max(0.0, Math.min(1.0, remainingIntegral)).toFixed(4));
+}
+
+/**
+ * 计算非线性时间衰减与局势搏命放大系数 (Time & Game-State Factor)
+ * 物理原理：
+ * 建立统一平滑的连续紧迫度势场 U(t, ΔS)，消除 70/75 分钟与分差断崖式的离散阶跃。
+ * @param elapsedMinute 已进行分钟数 (t ∈ [0, 90])
+ * @param scoreDiff 主客比分差 (home - away)
+ * @param homeWeights 主队进球 DNA 时段权重
+ * @param awayWeights 客队进球 DNA 时段权重
+ * @param priorStrengthRatio 先验实力比
+ * @param remainingMinutesOverride 统一剩余时间 SSOT (覆盖默认 90 - elapsed)
+ */
+export function calculateTimeDecayAndUrgencyMultiplier(
+  elapsedMinute: number,
+  scoreDiff: number = 0,
+  homeWeights?: number[],
+  awayWeights?: number[],
+  priorStrengthRatio: number = 1.0,
+  remainingMinutesOverride?: number
+): {
+  time_fraction: number;
+  time_fraction_home: number;
+  time_fraction_away: number;
+  urgency_multiplier: number;
+  urgency_multiplier_home: number;
+  urgency_multiplier_away: number;
+  curve: PoissonDecayCurve;
+} {
+  const remainingMinutes = remainingMinutesOverride !== undefined
+    ? Math.max(0, remainingMinutesOverride)
+    : Math.max(0, 90 - elapsedMinute);
+  const uniformTimeFraction = Number(Math.min(1.0, remainingMinutes / 90.0).toFixed(4));
+
+  const dnaFractionH = homeWeights && homeWeights.length === 6
+    ? calculatePhasedDNATimeFraction(elapsedMinute, homeWeights)
+    : uniformTimeFraction;
+
+  const dnaFractionA = awayWeights && awayWeights.length === 6
+    ? calculatePhasedDNATimeFraction(elapsedMinute, awayWeights)
+    : uniformTimeFraction;
+
+  if (elapsedMinute <= 0) {
+    return {
+      time_fraction: 1.0,
+      time_fraction_home: 1.0,
+      time_fraction_away: 1.0,
+      urgency_multiplier: 1.0,
+      urgency_multiplier_home: 1.0,
+      urgency_multiplier_away: 1.0,
+      curve: PoissonDecayCurve.LINEAR_UNIFORM
+    };
+  }
+
+  // 1. 终盘阶段连续过渡平滑权重: S_late(t) = 1 / (1 + e^(-(t - 72)/4.0))
+  const lateFactor = 1.0 / (1.0 + Math.exp(-(elapsedMinute - 72.0) / 4.0));
+
+  // 2. 分差连续势场响应函数 (方向非对称修正):
+  // 核心修复：搏命/控场势能必须按「领先/落后」方向分别作用于对应一方，
+  // 严禁用 |ΔS| 绝对值对称处理——否则「落后 2 球」会被错误地当作「领先 2 球」而触发控场降速。
+  const absDiff = Math.abs(scoreDiff);
+
+  // 落后方搏命强度乘子（落后方越强，反扑越有力）：
+  // 主队落后 → 落后方=主队，强度=priorStrengthRatio；客队落后 → 落后方=客队，强度=1/priorStrengthRatio
+  let trailingStrength = 1.0;
+  if (scoreDiff < 0) {
+    trailingStrength = priorStrengthRatio;
+  } else if (scoreDiff > 0) {
+    trailingStrength = 1.0 / Math.max(0.1, priorStrengthRatio);
+  }
+  // 限制乘子极值防止指数爆炸
+  trailingStrength = Math.max(0.5, Math.min(2.0, trailingStrength));
+
+  // (A) 落后方绝境搏命势能高斯核: 落后 1 球时达到极大值 +0.38，仅作用于落后方
+  const desperationGaussian = Math.exp(-Math.pow(absDiff - 1.0, 2) / 0.45);
+  const eDesperation = 0.38 * desperationGaussian * trailingStrength;
+
+  // (B) 领先方控场降速势能 Sigmoid: 领先 >= 2 球时达到 -0.22，仅作用于领先方
+  const decelerationSigmoid = 1.0 / (1.0 + Math.exp(-(absDiff - 1.8) / 0.30));
+  const eDeceleration = 0.22 * decelerationSigmoid;
+
+  // (C) 平局决战微加速势能高斯核: 当 ΔS = 0 时达到 +0.06，双方共享（平局时双方皆想取胜）
+  const drawGaussian = Math.exp(-Math.pow(scoreDiff, 2) / 0.25);
+  const eDraw = 0.06 * drawGaussian;
+
+  // 3. 非对称连续紧迫度乘子综合求解:
+  //    落后方: U = 1.0 + S_late(t) * (+E_desperation + E_draw)   —— 搏命加速
+  //    领先方: U = 1.0 + S_late(t) * (-E_deceleration + E_draw)  —— 控场降速
+  //    平局时 (ΔS=0): 双方均 +E_draw（微加速），E_desperation/E_deceleration 均为 0
+  const urgencyHomeRaw = 1.0 + lateFactor * (
+    (scoreDiff < 0 ? eDesperation : 0.0)    // 主队落后 → 搏命
+    - (scoreDiff > 0 ? eDeceleration : 0.0) // 主队领先 → 控场
+    + eDraw
+  );
+  const urgencyAwayRaw = 1.0 + lateFactor * (
+    (scoreDiff > 0 ? eDesperation : 0.0)    // 客队落后 → 搏命
+    - (scoreDiff < 0 ? eDeceleration : 0.0) // 客队领先 → 控场
+    + eDraw
+  );
+
+  const urgencyHome = Number(Math.max(0.70, Math.min(1.45, urgencyHomeRaw)).toFixed(3));
+  const urgencyAway = Number(Math.max(0.70, Math.min(1.45, urgencyAwayRaw)).toFixed(3));
+
+  // 整体节奏（用于曲线判定与极端疯狂判定）：取双方较大者，
+  // 任何一方绝境搏命都意味着比赛进入高强度开放阶段。
+  const urgency = Math.max(urgencyHome, urgencyAway);
+
+  // 4. 动态曲线类型判定 (基于连续势能强度平滑映射)
+  let curve = PoissonDecayCurve.LINEAR_UNIFORM;
+  if (lateFactor >= 0.35) {
+    if (urgency >= 1.18) {
+      curve = PoissonDecayCurve.DESPERATION_BURST;
+    } else if (urgency <= 0.88) {
+      curve = PoissonDecayCurve.DECELERATED_SLOWDOWN;
+    } else if (urgency > 1.02) {
+      curve = PoissonDecayCurve.ACCELERATED_LATE;
+    }
+  }
+
+  return {
+    time_fraction: uniformTimeFraction,
+    time_fraction_home: dnaFractionH,
+    time_fraction_away: dnaFractionA,
+    urgency_multiplier: urgency,
+    urgency_multiplier_home: urgencyHome,
+    urgency_multiplier_away: urgencyAway,
+    curve
+  };
+}
+
+/**
+ * 求解双变量独立泊松分布网格 (0~maxGoals 矩阵与胜平负概率)
+ */
+export function calculateBivariatePoissonGrid(
+  lambdaHome: number,
+  lambdaAway: number,
+  maxGoals: number = 7,
+  couplingState?: {
+    field_tilt_home?: number;
+    field_tilt_away?: number;
+    zero_shot_deprivation_home?: boolean;
+    zero_shot_deprivation_away?: boolean;
+  },
+  rhoOverride?: number
+): {
+  grid: number[][];
+  prob_home_win_rest: number;
+  prob_draw_rest: number;
+  prob_away_win_rest: number;
+  rho_used?: number;
+  rho_source?: 'DEFAULT_ASSUMPTION' | 'CALIBRATED_ESTIMATE';
+  dixon_coles_tau?: {
+    tau_0_0: number;
+    tau_0_1: number;
+    tau_1_0: number;
+    tau_1_1: number;
+  };
+} {
+  const grid: number[][] = [];
+  let probHomeWin = 0.0;
+  let probDraw = 0.0;
+  let probAwayWin = 0.0;
+
+  // Dixon-Coles dependence parameter (positive rho inflates draws/low-scoring games)
+  // rho = 0.05 为 Dixon-Coles 文献默认先验（未校准时）；接入 OOS 历史样本 MLE 拟合后可传入校准值 rhoOverride。
+  const hasCalibratedRho = typeof rhoOverride === 'number' && Number.isFinite(rhoOverride) && rhoOverride >= 0 && rhoOverride < 1;
+  const rho = hasCalibratedRho ? (rhoOverride as number) : 0.05;
+  const tau_0_0 = Math.max(0, 1 - lambdaHome * lambdaAway * rho);
+  const tau_0_1 = Math.max(0, 1 + lambdaHome * rho);
+  const tau_1_0 = Math.max(0, 1 + lambdaAway * rho);
+  const tau_1_1 = Math.max(0, 1 - rho);
+
+  const homeDeprived = couplingState?.zero_shot_deprivation_home === true;
+  const awayDeprived = couplingState?.zero_shot_deprivation_away === true;
+  const homeTilt = couplingState?.field_tilt_home ?? 0.5;
+  const awayTilt = couplingState?.field_tilt_away ?? 0.5;
+
+  for (let h = 0; h <= maxGoals; h++) {
+    const row: number[] = [];
+    const pHome = poissonPMF(h, lambdaHome);
+    for (let a = 0; a <= maxGoals; a++) {
+      const pAway = poissonPMF(a, lambdaAway);
+      let prob = pHome * pAway;
+
+      // Apply Dixon-Coles correction for low-scoring combinations
+      if (h === 0 && a === 0) {
+        prob *= tau_0_0;
+      } else if (h === 0 && a === 1) {
+        prob *= tau_0_1;
+      } else if (h === 1 && a === 0) {
+        prob *= tau_1_0;
+      } else if (h === 1 && a === 1) {
+        prob *= tau_1_1;
+      }
+
+      // 场面剥夺攻防耦合：零射门且深陷半场围攻的球队，在对方零进球时逆势破门零封的概率被物理抑制
+      if (homeDeprived && h >= 1 && a === 0) {
+        const homeDeprivationFactor = Math.max(0.15, Math.min(1.0, Math.pow(homeTilt / 0.35, 1.5)));
+        prob *= homeDeprivationFactor;
+      }
+      if (awayDeprived && a >= 1 && h === 0) {
+        const awayDeprivationFactor = Math.max(0.15, Math.min(1.0, Math.pow(awayTilt / 0.35, 1.5)));
+        prob *= awayDeprivationFactor;
+      }
+
+      // 弱队防线疲劳与连环失球溃败修正 (Defensive Cascade Conceding):
+      // 当一方被深度剥夺(零射门且 Tilt <= 0.30)且自身未能进球(h=0或a=0)时，
+      // 一旦围攻强队打入首球打破僵局，弱队防守纪律崩塌或被迫压出，多球失球(>=2球)的概率显著升高，
+      // 消除弱队在深盘受让下依赖走盘机制(单球失球退钱)产生的虚假数学安全边际。
+      if (homeDeprived && h === 0 && a >= 1) {
+        const cascadeFactor = Math.max(0.20, (0.35 - homeTilt) / 0.35);
+        if (a === 1) {
+          prob *= (1.0 - 0.25 * cascadeFactor);
+        } else if (a >= 2) {
+          prob *= (1.0 + 0.35 * cascadeFactor);
+        }
+      }
+      if (awayDeprived && a === 0 && h >= 1) {
+        const cascadeFactor = Math.max(0.20, (0.35 - awayTilt) / 0.35);
+        if (h === 1) {
+          prob *= (1.0 - 0.25 * cascadeFactor);
+        } else if (h >= 2) {
+          prob *= (1.0 + 0.35 * cascadeFactor);
+        }
+      }
+
+      row.push(prob);
+    }
+    grid.push(row);
+  }
+
+  // Second pass: Normalization
+  let sumGrid = 0.0;
+  for (let h = 0; h <= maxGoals; h++) {
+    for (let a = 0; a <= maxGoals; a++) {
+      sumGrid += grid[h][a];
+    }
+  }
+
+  for (let h = 0; h <= maxGoals; h++) {
+    for (let a = 0; a <= maxGoals; a++) {
+      if (sumGrid > 0) {
+        grid[h][a] = grid[h][a] / sumGrid;
+      }
+      const prob = grid[h][a];
+      grid[h][a] = Number(prob.toFixed(6));
+
+      if (h > a) probHomeWin += prob;
+      else if (h === a) probDraw += prob;
+      else probAwayWin += prob;
+    }
+  }
+
+  // 归一化微调
+  const total = probHomeWin + probDraw + probAwayWin;
+  if (total > 0 && Math.abs(total - 1.0) > 0.0001) {
+    probHomeWin = probHomeWin / total;
+    probDraw = probDraw / total;
+    probAwayWin = probAwayWin / total;
+  }
+
+  return {
+    grid,
+    prob_home_win_rest: Number(probHomeWin.toFixed(4)),
+    prob_draw_rest: Number(probDraw.toFixed(4)),
+    prob_away_win_rest: Number(probAwayWin.toFixed(4)),
+    rho_used: rho,
+    rho_source: hasCalibratedRho ? 'CALIBRATED_ESTIMATE' : 'DEFAULT_ASSUMPTION',
+    dixon_coles_tau: {
+      tau_0_0: Number(tau_0_0.toFixed(4)),
+      tau_0_1: Number(tau_0_1.toFixed(4)),
+      tau_1_0: Number(tau_1_0.toFixed(4)),
+      tau_1_1: Number(tau_1_1.toFixed(4))
+    }
+  };
+}
+
+/**
+ * 计算连续多维攻防威胁强度张量 (Continuous Threat Intensity Tensor)
+ * 物理原理：
+ * 整合 9 项实战攻防技术统计（PE控球有效性、渗透率、射正/中柱质量、角球脉冲、反击越位威胁、黄牌纪律防守动作受限）、
+ * 动量 OLS 斜率与 AUC 能量积分，建立连续平滑的统一实时攻防态势场 Φ(t) ∈ [0.4, 1.6]。
+ */
+export function calculateContinuousThreatTensor(
+  state: UnifiedMatchState
+): { homeThreat: number; awayThreat: number } {
+  // intensity 是已校准的相对威胁分数，0.5 表示中性，不应被当作绝对衰减率。
+  const mapIntensity = (intensity: number, opponentIntensity: number, tti?: number, slopeThrust?: number) => {
+    let val = 0.65 + Math.max(0, Math.min(1, intensity)) * 0.7;
+    // 只有明确的深度压制才额外折损，避免普通均势被误判为低进球。
+    if (opponentIntensity >= 0.85 && intensity <= 0.20) {
+      val *= 0.85;
+    }
+    // 融入 TTI 真实进攻威胁转化指数调整
+    if (typeof tti === 'number' && Number.isFinite(tti)) {
+      if (tti >= 2.0) {
+        val *= Math.min(1.15, 1.0 + (tti - 1.0) * 0.05);
+      } else if (tti < 0.6 && intensity >= 0.50) {
+        // 无效空占控球倒脚
+        val *= 0.92;
+      }
+    }
+    // 融入多尺度动量金字塔推力微调 (Pyramid Slope Thrust)
+    if (typeof slopeThrust === 'number' && Number.isFinite(slopeThrust)) {
+      val *= (1.0 + slopeThrust);
+    }
+    return Number(Math.max(0.20, Math.min(1.60, val)).toFixed(3));
+  };
+
+  const pyramidSlope = state.pyramid_slope ?? 0;
+  const homeThrust = Math.tanh(Math.max(0, pyramidSlope) / 25.0) * 0.05;
+  const awayThrust = Math.tanh(Math.max(0, -pyramidSlope) / 25.0) * 0.05;
+
+  return {
+    homeThreat: mapIntensity(state.home_intensity, state.away_intensity, state.home_tti, homeThrust),
+    awayThreat: mapIntensity(state.away_intensity, state.home_intensity, state.away_tti, awayThrust)
+  };
+}
+
+``r
+
+## 完整源码 · poissonDecayModel.ts（704 行）
+
+`	ypescript
+/**
+ * @file poissonDecayModel.ts
+ * @description Layer 03 M4: 滚球 0:0 实时重置 Forward 泊松时间衰减与进球概率矩阵引擎
+ * 
+ * 核心职责：
+ * 1. 严格以法定分钟数 t 为自变量，推导剩余比赛有效时间 (90 - t)
+ * 2. 滚球 0:0 实时重置铁律：彻底抛弃历史已有进球，纯前向推演剩余时段主客期望 (lambda_home_rest, lambda_away_rest)
+ * 3. 市场盘口反推 (Market Implied Lambda) 与联赛 DNA 动态期望体系，彻底根治赛前 2-1 坍塌
+ * 4. 非线性时间衰减与绝境搏命爆发因子 (分差为 1 球且 t >= 75 分钟进球率激增)
+ * 5. 连续多维攻防威胁张量 (Continuous Threat Intensity Tensor)：
+ *    - 融合射门、射正、角球、危攻 AUC、xT 穿透与时间指数半衰期，平滑连续映射威胁衰减，杜绝离散硬编码规则
+ * 6. 融合 M2 (先验战意/阵容折损) 与 M3 (实时危攻积分/斜率/xT威胁/红牌) 的动态加权
+ * 7. 双变量独立泊松分布网格求解 (0~7 球剩余比分矩阵)，输出 Top 3 完场比分概率阵列
+ * 8. 输出剩余时段胜平负概率、剩余大小球理论分布与全场投影比分
+ * 
+ * 遵循红线：纯函数无副作用 (No In-Place Mutation)、强类型零 any、完全可测试。
+ */
+
+import { CanonicalMatch, CanonicalTimelineEvent, CanonicalTimingState } from '../02_canonical_model/types.js';
+import { MatchStage, CanonicalEventType } from '../02_canonical_model/enums.js';
+import {
+  InPlayPoissonFeatures,
+  CleanedContextFeatures,
+  MarketCalibrationResult,
+  MarketStanceType,
+  MomentumTimelineFeatures,
+  RealTimePhysicalStatsFeatures,
+  SpatioTemporalEventFeatures,
+  UnifiedMatchState,
+  QuantCalibrationProfile,
+  PoissonDecayCurve,
+  ScoreProbabilityItem,
+  Layer03OpId,
+  Layer03FeatureId
+} from './types.js';
+import { DeficitCollector } from '../00_common/DeficitCollector.js';
+import { Tracer } from '../00_common/Tracer.js';
+import { getLeagueBaseGoals, poissonSupportUpperBound, LEAGUE_DNA_MAP, poissonPMF } from './poissonCore.js';
+export { LEAGUE_DNA_MAP, getLeagueBaseGoals, poissonPMF };
+import {
+  calculatePhasedDNATimeFraction,
+  calculateFirstHalfPhasedDNATimeFraction,
+  calculateTimeDecayAndUrgencyMultiplier,
+  calculateBivariatePoissonGrid,
+  calculateContinuousThreatTensor
+} from './poissonDecay.js';
+export {
+  calculatePhasedDNATimeFraction,
+  calculateFirstHalfPhasedDNATimeFraction,
+  calculateTimeDecayAndUrgencyMultiplier,
+  calculateBivariatePoissonGrid,
+  calculateContinuousThreatTensor
+};
+
+/**
+ * LIVE 剩余比赛时间单一事实来源 (Single Source of Truth)
+ * 严格基于法定分钟数与伤停补时模型推导，禁止下游重复叠加补时。
+ */
+export function calculateExpectedRemainingMinutesIncludingStoppage(timing?: CanonicalTimingState | null): number {
+  if (!timing) return 0;
+  if (timing.stage === MatchStage.FINISHED) return 0;
+  if (timing.stage === MatchStage.PREMATCH) return 90;
+
+  const minute = timing.minute ?? 0;
+  const addedMinute = timing.added_minute ?? null;
+
+  // 1. 下半场伤停补时阶段 (90' +)
+  if (minute >= 90) {
+    const totalStoppage = (addedMinute !== null && addedMinute > 0) ? addedMinute : 5;
+    const remaining = (90 + totalStoppage) - minute;
+    return Math.max(0, remaining);
+  }
+
+  // 2. 下半场常规时间 (45' ~ 89')
+  if (minute >= 45) {
+    const remainingRegulation = Math.max(0, 90 - minute);
+    // 下半场预期伤停补时：若已确定公布补时则用公布值，否则依据实战至少预留 4.0~5.0 分钟
+    const expected2HStoppage = (addedMinute !== null && addedMinute > 0)
+      ? addedMinute
+      : (minute >= 80 ? 5.0 : 4.0);
+    return Number((remainingRegulation + expected2HStoppage).toFixed(2));
+  }
+
+  // 3. 上半场阶段 (0' ~ 44')
+  // 真实足球物理建模：上半场常规剩余 + 上半场伤停补时(至少 1.5~2.0 分钟) + 下半场常规 45 分钟 + 下半场伤停补时(至少 4.0 分钟)
+  const remaining1HRegulation = Math.max(0, 45 - minute);
+  const expected1HStoppage = (addedMinute !== null && addedMinute > 0) ? addedMinute : 1.5;
+  const expected2HStoppage = 4.0;
+  const totalRemaining = remaining1HRegulation + expected1HStoppage + 45 + expected2HStoppage;
+  return Number(totalRemaining.toFixed(2));
+}
+
+/**
+ * 统帅部主函数：求解滚球 0:0 实时重置 Forward 泊松与进球概率模型
+ */
+export function calculateInPlayPoissonFeatures(
+  match: CanonicalMatch,
+  context: CleanedContextFeatures,
+  matchState: UnifiedMatchState,
+  calibration?: MarketCalibrationResult,
+  oosCalibration?: QuantCalibrationProfile,
+  collector?: DeficitCollector,
+  tracer?: Tracer,
+  maxPoissonGoals?: number
+): InPlayPoissonFeatures {
+  if ((match.timing.stage === MatchStage.LIVE && (match.timing.minute === null || match.timing.minute === undefined)) ||
+    ((match.timing.stage === MatchStage.LIVE || match.timing.stage === MatchStage.FINISHED) &&
+      (match.score.home_score === null || match.score.home_score === undefined || match.score.away_score === null || match.score.away_score === undefined || !match.score.score_verified))) {
+    
+    // 强制阻断 (Hard Block): 没有核验的比分或时间，绝不可提供虚假的泊松预期
+    collector?.record('UNPRICEABLE_MATCH', Layer03OpId.POISSON_FORWARD_MODEL, 'RC-005', 'Core pricing data (minute or verified score) is missing. Cannot evaluate expected values.', undefined, match.canonical_id);
+    throw new Error('UNPRICEABLE_MATCH: Core pricing data is missing, blocking Poisson deduction to prevent fake EV.');
+  }
+  const isPrematch = match.timing.stage === MatchStage.PREMATCH;
+  const elapsedMinute = isPrematch
+    ? 0
+    : Math.min(90, Math.max(0, match.timing.minute as number));
+  const remainingMinutes = isPrematch ? 90 : calculateExpectedRemainingMinutesIncludingStoppage(match.timing);
+  const isFinished = match.timing.stage === MatchStage.FINISHED;
+  // 仅在真实无剩余时间（<= 0）时判定为无法定价；在 90+ 补时剩余时间 > 0 时正常支持泊松定价
+  const isUnpriceableStoppageTime = !isFinished && match.timing.stage === MatchStage.LIVE && remainingMinutes <= 0;
+  const currentHomeScore = isPrematch ? 0 : match.score.home_score as number;
+  const currentAwayScore = isPrematch ? 0 : match.score.away_score as number;
+  const scoreDiff = currentHomeScore - currentAwayScore;
+
+  // 完赛直接返回固定概率
+  if (isFinished || isUnpriceableStoppageTime) {
+    const isHomeWin = currentHomeScore > currentAwayScore;
+    const isDraw = currentHomeScore === currentAwayScore;
+    const isAwayWin = currentHomeScore < currentAwayScore;
+
+    return {
+      elapsed_minute: elapsedMinute,
+      remaining_minutes: 0,
+      is_stoppage_time_unpriceable: isUnpriceableStoppageTime,
+      time_decay_curve: PoissonDecayCurve.LINEAR_UNIFORM,
+      lambda_home_rest: 0.0,
+      lambda_away_rest: 0.0,
+      expected_goals_rest: 0.0,
+      lambda_source: 'FALLBACK',
+      rho_source: 'DEFAULT_ASSUMPTION',
+      lambda_decomposition: {
+        market_base_home: 0,
+        market_base_away: 0,
+        market_weight_applied: calibration?.market_weight_applied ?? 0,
+        theory_weight_applied: calibration?.theory_weight_applied ?? 1,
+        context_multiplier_home: 0,
+        context_multiplier_away: 0,
+        base_after_context_home: 0,
+        base_after_context_away: 0,
+        time_fraction_home: 0,
+        time_fraction_away: 0,
+        urgency_multiplier: 0,
+        threat_home: 0,
+        threat_away: 0,
+        red_attack_home: 0,
+        red_attack_away: 0,
+        red_leak_home: 0,
+        red_leak_away: 0,
+        post_goal_cooldown_multiplier: 0,
+        coherent_state_home: 1.0,
+        coherent_state_away: 1.0,
+        decoherence_applied_home: false,
+        decoherence_applied_away: false
+      },
+      top_final_scores: [{
+        home: currentHomeScore,
+        away: currentAwayScore,
+        probability: 1.0,
+        percentage_str: '100.0%'
+      }],
+      rest_score_matrix: {
+        prob_home_win_rest: isHomeWin ? 1.0 : 0.0,
+        prob_draw_rest: isDraw ? 1.0 : 0.0,
+        prob_away_win_rest: isAwayWin ? 1.0 : 0.0
+      },
+      full_time_probabilities: {
+        prob_home_win: isHomeWin ? 1.0 : 0.0,
+        prob_draw: isDraw ? 1.0 : 0.0,
+        prob_away_win: isAwayWin ? 1.0 : 0.0
+      },
+      projected_final_score: {
+        home: currentHomeScore,
+        away: currentAwayScore,
+        most_likely_score: `${currentHomeScore}-${currentAwayScore}`
+      }
+    };
+  }
+
+  // 1. 建立全场 90 分钟先验基准 Lambda (Base Lambda Prior)
+  let baseTotalGoals = 2.70;
+  let baseGoalDiff = 0.0;
+  let lambdaSource: 'MARKET_IMPLIED' | 'LEAGUE_DNA' | 'FALLBACK' = 'LEAGUE_DNA';
+  let baseHomeLambda = 1.35;
+  let baseAwayLambda = 1.35;
+  let contextAlreadyIncluded = false;
+
+  if (calibration && calibration.market_stance !== MarketStanceType.MARKET_DATA_MISSING) {
+    baseHomeLambda = calibration.lambda_base_home;
+    baseAwayLambda = calibration.lambda_base_away;
+    baseTotalGoals = baseHomeLambda + baseAwayLambda;
+    lambdaSource = 'MARKET_IMPLIED';
+    // Market calibration already shrinks toward the M2 theory prior, which
+    // contains lineup and motivation effects. Do not apply those multipliers twice.
+    contextAlreadyIncluded = true;
+  } else {
+    const leagueName = match.league_name ?? '';
+    baseTotalGoals = getLeagueBaseGoals(leagueName);
+    baseHomeLambda = (baseTotalGoals + baseGoalDiff) / 2.0;
+    baseAwayLambda = (baseTotalGoals - baseGoalDiff) / 2.0;
+  }
+
+  baseHomeLambda = Math.max(0.3, baseHomeLambda);
+  baseAwayLambda = Math.max(0.3, baseAwayLambda);
+  const marketBaseHome = baseHomeLambda;
+  const marketBaseAway = baseAwayLambda;
+  const weightedBaseHome = baseHomeLambda;
+  const weightedBaseAway = baseAwayLambda;
+  const homeAttackInj = context?.lineup_impact?.home_attack_injury_factor ?? context?.lineup_impact?.home_lis ?? 1;
+  const awayDefenseLeak = context?.lineup_impact?.away_defense_leak_factor ?? 1;
+  const awayAttackInj = context?.lineup_impact?.away_attack_injury_factor ?? context?.lineup_impact?.away_lis ?? 1;
+  const homeDefenseLeak = context?.lineup_impact?.home_defense_leak_factor ?? 1;
+
+  const rawContextMultiplierHome = context?.motivation_urgency && context.lineup_impact
+    ? context.motivation_urgency.home_mui * homeAttackInj * awayDefenseLeak
+    : 1;
+  const rawContextMultiplierAway = context?.motivation_urgency && context.lineup_impact
+    ? context.motivation_urgency.away_mui * awayAttackInj * homeDefenseLeak
+    : 1;
+  const contextMultiplierHome = contextAlreadyIncluded ? 1 : rawContextMultiplierHome;
+  const contextMultiplierAway = contextAlreadyIncluded ? 1 : rawContextMultiplierAway;
+
+  // 2. 注入 M2 先验战意与阵容折损乘子 (MUI / LIS)
+  if (context && context.motivation_urgency && context.lineup_impact) {
+    baseHomeLambda *= contextMultiplierHome;
+    baseAwayLambda *= contextMultiplierAway;
+  }
+  const baseAfterContextHome = baseHomeLambda;
+  const baseAfterContextAway = baseAwayLambda;
+
+  // 将截至当前分钟的已核验进球节奏作为受限的 in-play 证据，避免 2-2/3-0
+  // 等高事件比赛仍沿用纯赛前低进球先验。早期样本权重较低，且观察速率有上限。
+  const currentTotalGoals = currentHomeScore + currentAwayScore;
+  let observedPaceMultiplierHome = 1.0;
+  let observedPaceMultiplierAway = 1.0;
+  let observedPaceWeight = 0.0;
+  let observedFullMatchRate = 0.0;
+
+  if (elapsedMinute >= 15 && currentTotalGoals > 0) {
+    const priorTotalLambda = baseHomeLambda + baseAwayLambda;
+    observedFullMatchRate = Math.min(5.5, (currentTotalGoals / elapsedMinute) * 90);
+    observedPaceWeight = Math.min(0.35, ((elapsedMinute - 15) / 75) * 0.35);
+    const blendedTotalLambda =
+      priorTotalLambda * (1 - observedPaceWeight) + observedFullMatchRate * observedPaceWeight;
+    const homeShare = baseHomeLambda / Math.max(0.01, priorTotalLambda);
+    const newHomeLambda = blendedTotalLambda * homeShare;
+    const newAwayLambda = blendedTotalLambda * (1 - homeShare);
+    observedPaceMultiplierHome = newHomeLambda / Math.max(0.01, baseHomeLambda);
+    observedPaceMultiplierAway = newAwayLambda / Math.max(0.01, baseAwayLambda);
+    baseHomeLambda = newHomeLambda;
+    baseAwayLambda = newAwayLambda;
+  }
+
+  // 3. 计算时间衰减与局势非线性搏命因子 (结合 15 分钟进球时段 DNA 与 先验实力差)
+  // 进球 DNA 终盘防陷阱安全阀：
+  // 1) 若该侧进球样本被判定为 INSUFFICIENT (< 5 球)，强制置为 undefined 回退至中性均匀时间
+  // 2) 若比赛已进入 65 分钟后的终盘决战期 (elapsedMinute >= 65)，只有成熟大样本 (HIGH, >= 15 球) 才允许调速；
+  //    样本不足 15 球者终盘一律回退均匀线性时间，严禁小样本虚假绝杀特征在终盘产生冲动推演！
+  const dnaFeatures = context?.goal_distribution_dna;
+  const isLateGameForDNA = elapsedMinute >= 65;
+
+  const getReliableWeights = (weights: number[] | undefined, confidence: string | undefined): number[] | undefined => {
+    if (!weights || weights.length !== 6) return undefined;
+    if (confidence === 'INSUFFICIENT') return undefined;
+    if (isLateGameForDNA && confidence !== 'HIGH') return undefined;
+    return weights;
+  };
+
+  const reliableHomeWeights = getReliableWeights(dnaFeatures?.home_scored_weights, dnaFeatures?.home_confidence);
+  const reliableAwayWeights = getReliableWeights(dnaFeatures?.away_scored_weights, dnaFeatures?.away_confidence);
+
+  const priorStrengthRatio = baseHomeLambda / Math.max(0.1, baseAwayLambda);
+  const timeDecay = calculateTimeDecayAndUrgencyMultiplier(
+    elapsedMinute,
+    scoreDiff,
+    reliableHomeWeights,
+    reliableAwayWeights,
+    priorStrengthRatio,
+    remainingMinutes
+  );
+
+  // 4. 唯一实时状态已经融合 xT、动量、事件、红牌与战术相变；本函数不得再次读取原始特征。
+  const regimeMultiplierHome = matchState.regime_multiplier_home;
+  const regimeMultiplierAway = matchState.regime_multiplier_away;
+  const redAttackHome = matchState.red_card_attack_multiplier_home ?? 1.0;
+  const redAttackAway = matchState.red_card_attack_multiplier_away ?? 1.0;
+  const redLeakHome = matchState.red_card_defense_leak_multiplier_home ?? 1.0;
+  const redLeakAway = matchState.red_card_defense_leak_multiplier_away ?? 1.0;
+
+  // 4.5 由唯一状态映射连续威胁强度张量。
+  // 代替离散硬编码 if 语句，以连续数学模型动态调整真实进球期望
+  const threatTensor = calculateContinuousThreatTensor(matchState);
+  const threatDampingHome = threatTensor.homeThreat;
+  const threatDampingAway = threatTensor.awayThreat;
+  const postGoalCooldownMultiplier = matchState.post_goal_cooldown_active ? 0.70 : 1.0;
+
+  // 4.6 计算现场实时物理事实所指示的即时进球乘子组合 (Live Physical Signal Factor)
+  // 包含：现场技术威胁张量 (threatDamping)、战术相变乘子 (regimeMultiplier)、红牌影响与进球冷却，以及纪律失控漏洞 (disciplineLeak)
+  const discLeakHome = matchState.discipline_leak_multiplier_home ?? 1.0;
+  const discLeakAway = matchState.discipline_leak_multiplier_away ?? 1.0;
+  const livePhysicalFactorHome = threatDampingHome * regimeMultiplierHome * redAttackHome * (redLeakAway * discLeakAway) * postGoalCooldownMultiplier;
+  const livePhysicalFactorAway = threatDampingAway * regimeMultiplierAway * redAttackAway * (redLeakHome * discLeakHome) * postGoalCooldownMultiplier;
+
+  // 4.7 终盘“先验 DNA 绝杀特质”与“实时物理场”相干态干涉方程 (Scheme 3 落地)
+  // 当比赛进入 70' 以后终盘决战期 (elapsedMinute >= 70)，先验具备极强绝杀特质 (76'+ 进球占比 >= 0.25) 的球队：
+  // 1) 相干态 (Coherent State): 若现场具备实际进攻压迫事实 (livePhysicalFactor >= 0.70，相干度 C_i >= 0.50)，
+  //    先验绝杀 DNA 与现场物理场相长干涉，激活绝杀共振增强乘子 M_late_res = 1.0 + (late_dna - 0.25) * 1.5 * C_i；
+  // 2) 退相干阻断 (Decoherence Dampening): 若现场极度萎靡/零射门/被深度围攻压制/染红大巴 (livePhysicalFactor <= 0.70，尤其是 C_i -> 0)，
+  //    先验绝杀 DNA 无法在物理真空中凭空具象化，必须平滑退相干衰减至中性均匀时间比例，阻断虚假冲动推演，且 M_late_res = 1.0，记录 decoherence_applied = true。
+  const isLateGameCoherenceWindow = elapsedMinute >= 70;
+  const homeLateDna = dnaFeatures?.home_late_game_dna ?? (reliableHomeWeights ? reliableHomeWeights[5] : 0.1667);
+  const awayLateDna = dnaFeatures?.away_late_game_dna ?? (reliableAwayWeights ? reliableAwayWeights[5] : 0.1667);
+
+  // 相干度度量方程 C_i ∈ [0.0, 1.0]:
+  // 当 livePhysicalFactor >= 1.00 时，C_i = 1.0 (完全相干)；
+  // 当 livePhysicalFactor <= 0.40 时，C_i = 0.0 (完全退相干)；
+  const coherentStateHome = isLateGameCoherenceWindow
+    ? Number(Math.max(0.0, Math.min(1.0, (livePhysicalFactorHome - 0.40) / 0.60)).toFixed(4))
+    : 1.0;
+  const coherentStateAway = isLateGameCoherenceWindow
+    ? Number(Math.max(0.0, Math.min(1.0, (livePhysicalFactorAway - 0.40) / 0.60)).toFixed(4))
+    : 1.0;
+
+  let decoherenceAppliedHome = false;
+  let decoherenceAppliedAway = false;
+  let resonanceMultiplierHome = 1.0;
+  let resonanceMultiplierAway = 1.0;
+
+  const marketAlreadyRemaining = calibration?.is_in_play_market === true;
+  let effectiveTimeFractionHome = marketAlreadyRemaining ? 1 : timeDecay.time_fraction_home;
+  let effectiveTimeFractionAway = marketAlreadyRemaining ? 1 : timeDecay.time_fraction_away;
+
+  if (isLateGameCoherenceWindow) {
+    const uniformFraction = calculatePhasedDNATimeFraction(elapsedMinute, [1/6, 1/6, 1/6, 1/6, 1/6, 1/6]);
+
+    // 主队相干态与共振/退火分支
+    if (homeLateDna >= 0.25) {
+      if (coherentStateHome >= 0.50) {
+        resonanceMultiplierHome = Number((1.0 + (homeLateDna - 0.25) * 1.5 * coherentStateHome).toFixed(4));
+      } else {
+        decoherenceAppliedHome = true;
+        resonanceMultiplierHome = 1.0;
+      }
+    }
+    // 退相干时间积分平滑阻断：若现场物理不支撑 (coherentStateHome < 1.0 且先验时间偏大)，向均匀中性时间平滑收敛
+    if (coherentStateHome < 1.0 && !marketAlreadyRemaining) {
+      effectiveTimeFractionHome = Number((timeDecay.time_fraction_home * coherentStateHome + uniformFraction * (1.0 - coherentStateHome)).toFixed(4));
+      if (coherentStateHome < 0.50 && homeLateDna > 0.18) {
+        decoherenceAppliedHome = true;
+      }
+    }
+
+    // 客队相干态与共振/退火分支
+    if (awayLateDna >= 0.25) {
+      if (coherentStateAway >= 0.50) {
+        resonanceMultiplierAway = Number((1.0 + (awayLateDna - 0.25) * 1.5 * coherentStateAway).toFixed(4));
+      } else {
+        decoherenceAppliedAway = true;
+        resonanceMultiplierAway = 1.0;
+      }
+    }
+    // 退相干时间积分平滑阻断：若现场物理不支撑 (coherentStateAway < 1.0 且先验时间偏大)，向均匀中性时间平滑收敛
+    if (coherentStateAway < 1.0 && !marketAlreadyRemaining) {
+      effectiveTimeFractionAway = Number((timeDecay.time_fraction_away * coherentStateAway + uniformFraction * (1.0 - coherentStateAway)).toFixed(4));
+      if (coherentStateAway < 0.50 && awayLateDna > 0.18) {
+        decoherenceAppliedAway = true;
+      }
+    }
+  }
+
+  // 5. 综合求解滚球 0:0 剩余时段动态进球期望 (lambda_home_rest, lambda_away_rest)
+  const remainingFactorHome = effectiveTimeFractionHome * timeDecay.urgency_multiplier_home * resonanceMultiplierHome;
+  const remainingFactorAway = effectiveTimeFractionAway * timeDecay.urgency_multiplier_away * resonanceMultiplierAway;
+
+  const lambdaBeforeLiveContextHome = baseHomeLambda * remainingFactorHome;
+  const lambdaBeforeLiveContextAway = baseAwayLambda * remainingFactorAway;
+
+  // 5.1 注入已验证的 OOS 样本校准调整 (OOS Shrinkage Calibration)
+  let oosMultiplier = 1.0;
+  if (oosCalibration?.status === 'VALIDATED' && typeof oosCalibration.lambda_log_adjustment === 'number' && Number.isFinite(oosCalibration.lambda_log_adjustment)) {
+    oosMultiplier = Math.exp(oosCalibration.lambda_log_adjustment);
+  }
+
+  // 5.2 阶段权重动态流转体系 (Regime Shift Weighting):
+  // 严格落实实战定价铁律：比赛越往后打，现场发生的一切物理事实（攻防压迫、危攻时序、关键事件、红牌）越占统治地位！
+  // - 阶段 1 (0' ~ 30' 开局探索期): 现场事实权重 20% ~ 40% (基准 0.30)，赛前先验占 70%
+  // - 阶段 2 (30' ~ 70' 攻防展开期): 现场事实权重 40% ~ 78% 连续平滑爬升，无断点跳跃
+  // - 阶段 3 (70' ~ 90' 终盘决战期): 现场事实权重 78% ~ 85% 绝对主宰
+  let liveStatsWeight: number;
+  let liveRegimeStage: 'OPENING' | 'MID_MATCH' | 'LATE_SURGE';
+
+  if (elapsedMinute < 30) {
+    liveRegimeStage = 'OPENING';
+    // 0' ~ 30' 开局探索期: 0.20 -> 0.40
+    liveStatsWeight = 0.20 + (elapsedMinute / 30.0) * 0.20;
+  } else if (elapsedMinute < 45) {
+    liveRegimeStage = 'MID_MATCH';
+    // 30' ~ 45' 上半场尾声: 0.40 -> 0.55
+    // 30' 时 0.40，45' 时 0.55
+    liveStatsWeight = 0.40 + ((elapsedMinute - 30.0) / 15.0) * 0.15;
+  } else if (elapsedMinute < 70) {
+    // 45' ~ 70' 下半场主导: 0.55 -> 0.78
+    liveRegimeStage = 'MID_MATCH';
+    liveStatsWeight = 0.55 + ((elapsedMinute - 45.0) / 25.0) * 0.23;
+  } else {
+    liveRegimeStage = 'LATE_SURGE';
+    // 70' ~ 90' 终盘决战: 0.78 -> 0.85
+    liveStatsWeight = 0.78 + ((elapsedMinute - 70.0) / 20.0) * 0.07;
+  }
+
+  const priorContextWeight = 1.0 - liveStatsWeight;
+
+  // 将现场事实因子与先验中性基准 (1.0) 按照当前分钟对应的主导权重进行加权合成：
+  // 当 liveStatsWeight 达到 82.5% 时，现场发生的围攻/死沉/红牌将主导 82.5% 的进球能力变化！
+  const blendedLiveFactorHome = 1.0 * priorContextWeight + livePhysicalFactorHome * liveStatsWeight;
+  const blendedLiveFactorAway = 1.0 * priorContextWeight + livePhysicalFactorAway * liveStatsWeight;
+
+  // 5.3 场面剥夺与零射门连续衰减修正 (Field-Tilt Deprivation Damping)
+  let deprivationDampHome = 1.0;
+  let deprivationDampAway = 1.0;
+  if (matchState.zero_shot_deprivation_home && (matchState.field_tilt_home ?? 0.5) <= 0.30) {
+    deprivationDampHome = Math.max(0.15, Math.min(1.0, Math.pow((matchState.field_tilt_home ?? 0.20) / 0.35, 1.8)));
+  }
+  if (matchState.zero_shot_deprivation_away && (matchState.field_tilt_away ?? 0.5) <= 0.30) {
+    deprivationDampAway = Math.max(0.15, Math.min(1.0, Math.pow((matchState.field_tilt_away ?? 0.20) / 0.35, 1.8)));
+  }
+
+  // 5.4 攻守对偶破防与防线疲劳渗漏模型 (Dual Siege Breakthrough & Fatigue Leak)
+  // 当一方遭受极度场面剥夺(零射门且 Tilt <= 0.30)时，不仅被压制方的进攻期望塌缩，
+  // 压迫方在后半程(下半场)将显著享受“防线疲劳渗漏与破防红利”，进球期望获得对偶增强，彻底根治总进球期望人为塌缩导致的小球虚假极高 EV
+  let siegeBreakthroughBoostHome = 1.0;
+  let siegeBreakthroughBoostAway = 1.0;
+  if (deprivationDampAway < 0.60 && (matchState.field_tilt_home ?? 0.5) >= 0.65) {
+    const fatigueScale = elapsedMinute >= 45 ? 1.0 + ((elapsedMinute - 45) / 45.0) * 0.45 : 0.85;
+    const leakFactor = (1.0 - deprivationDampAway) * 0.45 * fatigueScale;
+    siegeBreakthroughBoostHome = 1.0 + leakFactor;
+  }
+  if (deprivationDampHome < 0.60 && (matchState.field_tilt_away ?? 0.5) >= 0.65) {
+    const fatigueScale = elapsedMinute >= 45 ? 1.0 + ((elapsedMinute - 45) / 45.0) * 0.45 : 0.85;
+    const leakFactor = (1.0 - deprivationDampHome) * 0.45 * fatigueScale;
+    siegeBreakthroughBoostAway = 1.0 + leakFactor;
+  }
+
+  // 5.5 终盘 75+ 分钟有效比赛时间衰减阻尼 (Effective Playing Time Damping):
+  // 真实足球比赛中，进入第 75 分钟后，死球停顿（犯规换人、拖延时间、VAR复核、体能下降）大幅增加，
+  // 纯线性或无阻尼衰减会导致模型系统性高估 75+ 分钟时段的剩余期望进球数。
+  // 除非赛场处于破门绝境搏命 (DESPERATION_BURST) 或高压狂攻 (EPI LETHAL_SIEGE) 态势，
+  // 否则引入平滑阻尼因子 (0.85 ~ 0.90)，真实拟合足球运动末段有效运动时间损耗。
+  let effectiveTimeDamping = 1.0;
+  if (elapsedMinute >= 75 && !isPrematch) {
+    const isExtremeFrenzy = timeDecay.urgency_multiplier >= 1.40 || matchState.post_goal_cooldown_active;
+    const isDominantAttacking = (blendedLiveFactorHome >= 1.30) || (blendedLiveFactorAway >= 1.30);
+    if (!isExtremeFrenzy && !isDominantAttacking) {
+      // 随着从 75' 推进到 90'，阻尼从 0.92 平滑递减至 0.85
+      const lateProgress = Math.min(1.0, (elapsedMinute - 75.0) / 15.0);
+      effectiveTimeDamping = Number((0.92 - lateProgress * 0.07).toFixed(3));
+    }
+  }
+
+  const lambdaAfterLiveContextHome = lambdaBeforeLiveContextHome * blendedLiveFactorHome * oosMultiplier * deprivationDampHome * siegeBreakthroughBoostHome * effectiveTimeDamping;
+  const lambdaAfterLiveContextAway = lambdaBeforeLiveContextAway * blendedLiveFactorAway * oosMultiplier * deprivationDampAway * siegeBreakthroughBoostAway * effectiveTimeDamping;
+
+  // 极值安全钳位
+  const lambdaHomeRest = Math.max(0.01, Math.min(3.50, Number(lambdaAfterLiveContextHome.toFixed(3))));
+  const lambdaAwayRest = Math.max(0.01, Math.min(3.50, Number(lambdaAfterLiveContextAway.toFixed(3))));
+  const expectedGoalsRest = Number((lambdaHomeRest + lambdaAwayRest).toFixed(3));
+  const lambdaDecomposition = {
+    theory_lambda_home: Number((calibration?.theory_prior?.lambda_home_theory ?? baseHomeLambda).toFixed(3)),
+    theory_lambda_away: Number((calibration?.theory_prior?.lambda_away_theory ?? baseAwayLambda).toFixed(3)),
+    raw_market_lambda_home: Number(marketBaseHome.toFixed(3)),
+    raw_market_lambda_away: Number(marketBaseAway.toFixed(3)),
+    market_base_home: Number(marketBaseHome.toFixed(3)),
+    market_base_away: Number(marketBaseAway.toFixed(3)),
+    market_weight_applied: calibration?.market_weight_applied ?? 0,
+    theory_weight_applied: calibration?.theory_weight_applied ?? 1,
+    weighted_base_lambda_home: Number(weightedBaseHome.toFixed(3)),
+    weighted_base_lambda_away: Number(weightedBaseAway.toFixed(3)),
+    context_multiplier_home: Number(contextMultiplierHome.toFixed(3)),
+    context_multiplier_away: Number(contextMultiplierAway.toFixed(3)),
+    base_after_context_home: Number(baseAfterContextHome.toFixed(3)),
+    base_after_context_away: Number(baseAfterContextAway.toFixed(3)),
+    observed_pace_multiplier_home: Number(observedPaceMultiplierHome.toFixed(3)),
+    observed_pace_multiplier_away: Number(observedPaceMultiplierAway.toFixed(3)),
+    observed_pace_weight: Number(observedPaceWeight.toFixed(3)),
+    observed_pace_full_match_rate: Number(observedFullMatchRate.toFixed(3)),
+    time_fraction_home: effectiveTimeFractionHome,
+    time_fraction_away: effectiveTimeFractionAway,
+    urgency_multiplier: timeDecay.urgency_multiplier,
+    urgency_multiplier_home: timeDecay.urgency_multiplier_home,
+    urgency_multiplier_away: timeDecay.urgency_multiplier_away,
+    threat_home: threatDampingHome,
+    threat_away: threatDampingAway,
+    regime_multiplier_home: regimeMultiplierHome,
+    regime_multiplier_away: regimeMultiplierAway,
+    red_attack_home: redAttackHome,
+    red_attack_away: redAttackAway,
+    red_leak_home: redLeakHome,
+    red_leak_away: redLeakAway,
+    post_goal_cooldown_multiplier: postGoalCooldownMultiplier,
+    oos_multiplier: Number(oosMultiplier.toFixed(4)),
+    coherent_state_home: coherentStateHome,
+    coherent_state_away: coherentStateAway,
+    decoherence_applied_home: decoherenceAppliedHome,
+    decoherence_applied_away: decoherenceAppliedAway,
+    live_regime_stage: liveRegimeStage,
+    live_stats_weight: Number(liveStatsWeight.toFixed(3)),
+    prior_context_weight: Number(priorContextWeight.toFixed(3)),
+    late_game_effective_time_damping: effectiveTimeDamping,
+    lambda_before_live_context_home: Number(lambdaBeforeLiveContextHome.toFixed(3)),
+    lambda_before_live_context_away: Number(lambdaBeforeLiveContextAway.toFixed(3)),
+    lambda_after_live_context_home: Number(lambdaAfterLiveContextHome.toFixed(3)),
+    lambda_after_live_context_away: Number(lambdaAfterLiveContextAway.toFixed(3)),
+    final_lambda_home: lambdaHomeRest,
+    final_lambda_away: lambdaAwayRest
+  };
+
+  // 6. 求解双变量泊松网格，动态覆盖可忽略的高进球尾部
+  const configuredSupport = maxPoissonGoals === undefined
+    ? undefined
+    : Math.max(1, Math.floor(maxPoissonGoals));
+  const poissonSupport = configuredSupport ?? Math.max(
+    poissonSupportUpperBound(lambdaHomeRest),
+    poissonSupportUpperBound(lambdaAwayRest)
+  );
+  const poissonResult = calculateBivariatePoissonGrid(
+    lambdaHomeRest,
+    lambdaAwayRest,
+    poissonSupport,
+    {
+      field_tilt_home: matchState.field_tilt_home,
+      field_tilt_away: matchState.field_tilt_away,
+      zero_shot_deprivation_home: matchState.zero_shot_deprivation_home,
+      zero_shot_deprivation_away: matchState.zero_shot_deprivation_away
+    }
+  );
+  const poissonGrid = poissonResult.grid;
+
+  // 7. 投影全场最终比分与 Top 3~5 概率分布
+  const projectedHomeFinal = Number((currentHomeScore + lambdaHomeRest).toFixed(2));
+  const projectedAwayFinal = Number((currentAwayScore + lambdaAwayRest).toFixed(2));
+
+  const allScoresList: ScoreProbabilityItem[] = [];
+  let fullHomeProb = 0.0;
+  let fullDrawProb = 0.0;
+  let fullAwayProb = 0.0;
+
+  for (let h = 0; h < poissonGrid.length; h++) {
+    for (let a = 0; a < poissonGrid[h].length; a++) {
+      const prob = poissonGrid[h][a];
+      const finalH = currentHomeScore + h;
+      const finalA = currentAwayScore + a;
+
+      if (finalH > finalA) fullHomeProb += prob;
+      else if (finalH === finalA) fullDrawProb += prob;
+      else fullAwayProb += prob;
+
+      allScoresList.push({
+        home: finalH,
+        away: finalA,
+        probability: prob,
+        percentage_str: `${(prob * 100).toFixed(1)}%`
+      });
+    }
+  }
+
+  const fullSum = fullHomeProb + fullDrawProb + fullAwayProb;
+  const fullTimeProbs = {
+    prob_home_win: fullSum > 0 ? Number((fullHomeProb / fullSum).toFixed(4)) : 0.3333,
+    prob_draw: fullSum > 0 ? Number((fullDrawProb / fullSum).toFixed(4)) : 0.3333,
+    prob_away_win: fullSum > 0 ? Number((fullAwayProb / fullSum).toFixed(4)) : 0.3334
+  };
+
+  // 排序并取 Top 5 比分
+  allScoresList.sort((a, b) => b.probability - a.probability);
+  const topFinalScores = allScoresList.slice(0, 5).map(item => ({
+    ...item,
+    probability: Number(item.probability.toFixed(4))
+  }));
+
+  const mostLikely = topFinalScores[0] ? `${topFinalScores[0].home}-${topFinalScores[0].away}` : `${currentHomeScore}-${currentAwayScore}`;
+
+  // 8. 独立推导上半场截断进球期望与半场比分概率矩阵 (First-Half Truncated Poisson)
+  // 当比赛处于上半场 (elapsedMinute < 45) 时，严格以 45 - elapsedMinute 为窗口推导独立半场期望
+  let firstHalfPoisson: InPlayPoissonFeatures['first_half_poisson'] = undefined;
+  if (elapsedMinute < 45) {
+    const remainingFirstHalfMinutes = Math.max(0, 45 - elapsedMinute);
+    const uniformFirstHalfFraction = Math.max(0, remainingFirstHalfMinutes / 45.0);
+    const firstHalfFractionHome = reliableHomeWeights
+      ? calculateFirstHalfPhasedDNATimeFraction(elapsedMinute, reliableHomeWeights)
+      : uniformFirstHalfFraction;
+    const firstHalfFractionAway = reliableAwayWeights
+      ? calculateFirstHalfPhasedDNATimeFraction(elapsedMinute, reliableAwayWeights)
+      : uniformFirstHalfFraction;
+
+    const lambdaBeforeLiveHalfHome = baseHomeLambda * firstHalfFractionHome;
+    const lambdaBeforeLiveHalfAway = baseAwayLambda * firstHalfFractionAway;
+
+    const lambdaAfterLiveHalfHome = lambdaBeforeLiveHalfHome * blendedLiveFactorHome * oosMultiplier * deprivationDampHome * siegeBreakthroughBoostHome;
+    const lambdaAfterLiveHalfAway = lambdaBeforeLiveHalfAway * blendedLiveFactorAway * oosMultiplier * deprivationDampAway * siegeBreakthroughBoostAway;
+
+    const lambdaHomeHalf = Math.max(0.01, Math.min(2.50, Number(lambdaAfterLiveHalfHome.toFixed(3))));
+    const lambdaAwayHalf = Math.max(0.01, Math.min(2.50, Number(lambdaAfterLiveHalfAway.toFixed(3))));
+    const expectedGoalsHalf = Number((lambdaHomeHalf + lambdaAwayHalf).toFixed(3));
+
+    const halfSupport = Math.max(
+      poissonSupportUpperBound(lambdaHomeHalf),
+      poissonSupportUpperBound(lambdaAwayHalf)
+    );
+    const halfPoissonResult = calculateBivariatePoissonGrid(
+      lambdaHomeHalf,
+      lambdaAwayHalf,
+      halfSupport,
+      {
+        field_tilt_home: matchState.field_tilt_home,
+        field_tilt_away: matchState.field_tilt_away,
+        zero_shot_deprivation_home: matchState.zero_shot_deprivation_home,
+        zero_shot_deprivation_away: matchState.zero_shot_deprivation_away
+      }
+    );
+    const halfGrid = halfPoissonResult.grid;
+    const halfScoresList: ScoreProbabilityItem[] = [];
+    for (let h = 0; h < halfGrid.length; h++) {
+      for (let a = 0; a < halfGrid[h].length; a++) {
+        const prob = halfGrid[h][a];
+        halfScoresList.push({
+          home: currentHomeScore + h,
+          away: currentAwayScore + a,
+          probability: prob,
+          percentage_str: `${(prob * 100).toFixed(1)}%`
+        });
+      }
+    }
+    halfScoresList.sort((a, b) => b.probability - a.probability);
+    const topHalfScores = halfScoresList.slice(0, 5).map(item => ({
+      ...item,
+      probability: Number(item.probability.toFixed(4))
+    }));
+
+    firstHalfPoisson = {
+      lambda_home_first_half: lambdaHomeHalf,
+      lambda_away_first_half: lambdaAwayHalf,
+      expected_goals_first_half: expectedGoalsHalf,
+      remaining_first_half_minutes: remainingFirstHalfMinutes,
+      score_probability_grid: halfGrid,
+      top_half_scores: topHalfScores
+    };
+  }
+
+  const activeTracer = tracer ?? Tracer.getInstance();
+  activeTracer.log(
+    'INFO',
+    'QUANT_03_POISSON_DECAY',
+    'SOLVED_SUCCESS',
+    `Solved Forward In-Play Poisson Decay. Minute: ${elapsedMinute}', Score: ${currentHomeScore}-${currentAwayScore}, LambdaRest: ${lambdaHomeRest}+${lambdaAwayRest}=${expectedGoalsRest}`,
+    {
+      minute: elapsedMinute,
+      current_score: `${currentHomeScore}-${currentAwayScore}`,
+      lambda_home_rest: lambdaHomeRest,
+      lambda_away_rest: lambdaAwayRest,
+      expected_goals_rest: expectedGoalsRest,
+      curve: timeDecay.curve,
+      top_scores: topFinalScores.slice(0, 3).map(s => `${s.home}-${s.away}(${s.percentage_str})`)
+    },
+    match.canonical_id
+  );
+
+  return {
+    elapsed_minute: elapsedMinute,
+    remaining_minutes: remainingMinutes,
+    is_stoppage_time_unpriceable: false,
+    time_decay_curve: timeDecay.curve,
+    lambda_home_rest: lambdaHomeRest,
+    lambda_away_rest: lambdaAwayRest,
+    expected_goals_rest: expectedGoalsRest,
+    lambda_source: lambdaSource,
+    rho_source: 'DEFAULT_ASSUMPTION',
+    lambda_decomposition: lambdaDecomposition,
+    top_final_scores: topFinalScores,
+    first_half_poisson: firstHalfPoisson,
+    rest_score_matrix: {
+      prob_home_win_rest: poissonResult.prob_home_win_rest,
+      prob_draw_rest: poissonResult.prob_draw_rest,
+      prob_away_win_rest: poissonResult.prob_away_win_rest
+    },
+    score_probability_grid: poissonGrid,
+    full_time_probabilities: fullTimeProbs,
+    projected_final_score: {
+      home: projectedHomeFinal,
+      away: projectedAwayFinal,
+      most_likely_score: mostLikely
+    },
+    dixon_coles_tau: poissonResult.dixon_coles_tau
+  };
+}
+
+``r
+
+## 魔法数字标注
+- Dixon-Coles ρ=0.05（默认先验，未接入 OOS MLE）—— 写死
+- urgency 幅度：搏命+0.38、控场-0.22、平局+0.06；sigmoid 72/4.0 —— 写死
+- 威胁张量 0.65基准/0.7缩放/0.85折损 —— 写死
+- 场面剥夺 pow(tilt/0.35,1.8)、围攻红利 0.45、末段阻尼 0.92→0.85 —— 写死
+- liveStatsWeight 分段(已修连续，但各段斜率仍是写死)
+- λ 钳位 [0.01,3.50] —— 写死
+
+## 已知疑点
+- 【A3】无市场数据时 else 分支用 getLeagueBaseGoals(主客λ相等)，丢弃 theoryPrior 主客强弱。
+- 【B1】ρ=0.05 未接入 OOS，平局概率估计失真。
+- 【E0】late_game_dna 触发 resonanceMultiplier 在 70 分后放大 λ 15%~22.5%，而进球分布数据可用性极差。
+- urgency(比分势场)在 70 分前几乎不生效(lateFactor sigmoid(t-72))，意味着 30/60 分的滚球预测主要靠实力先验+现场威胁，比分差的影响要到 70 分后才激活。
+- 请重点审查：8 因子乘法链的量纲/方向、resonanceMultiplier 的绝杀放大、相干态/退相干逻辑。

@@ -19,7 +19,8 @@ import {
   calculateAsianHandicapEV,
   calculateTotalGoalsEV,
   calculateDeviggedMarketFeatures,
-  devigShin
+  devigShin,
+  devigMultiplicative
 } from '../03_quant_engine/devigCalculator.js';
 import { parseHandicapToFloat, isQuarterOrSplitLine } from '../04_ai_evaluator/alignmentGuard.js';
 import { MatchStage, MatchAlignmentStatus } from '../02_canonical_model/enums.js';
@@ -217,6 +218,25 @@ assert.ok(devigWithOdds.h2h_devig?.model_probabilities.length === 3);
 const shinResult = devigShin([1.35, 5.0, 9.0]);
 assert.strictEqual(shinResult.fair_probs.length, 3);
 assert.ok(shinResult.overround > 1.0);
+
+// P1-06：统一去水方法 —— Shin 对 2 项市场（让球/大小球）同样适用，校正 favorite-longshot bias。
+// 深盘 [1.60, 2.30]：Shin 应把 favorite 概率抬高、longshot 概率压低（相比比例剥水）。
+const shinTwoWayDeep = devigShin([1.60, 2.30]);
+const multTwoWayDeep = devigMultiplicative([1.60, 2.30]);
+assert.ok(
+  Math.abs(shinTwoWayDeep.fair_probs[0] + shinTwoWayDeep.fair_probs[1] - 1.0) < 1e-3,
+  '2-way Shin fair probs must sum to 1'
+);
+assert.ok(shinTwoWayDeep.fair_probs[0] > multTwoWayDeep.fair_probs[0], 'Shin must lift favorite prob above multiplicative on a deep line');
+assert.ok(shinTwoWayDeep.fair_probs[1] < multTwoWayDeep.fair_probs[1], 'Shin must lower longshot prob below multiplicative on a deep line');
+assert.ok(shinTwoWayDeep.z > 0, '2-way Shin must estimate a positive z on an asymmetric line');
+
+// 对称市场 [1.90, 1.90]：Shin 应退化为 0.5 / 0.5。
+const shinTwoWaySymmetric = devigShin([1.90, 1.90]);
+assert.ok(
+  Math.abs(shinTwoWaySymmetric.fair_probs[0] - 0.5) < 1e-3 && Math.abs(shinTwoWaySymmetric.fair_probs[1] - 0.5) < 1e-3,
+  'symmetric 2-way Shin must degrade to 0.5/0.5'
+);
 
 // Case 4B: 欧赔缺失 -> 泊松网格模型积分轨道
 const mockMatchWithoutOdds: CanonicalMatch = {

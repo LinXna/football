@@ -273,23 +273,22 @@ export function calculateLiveThreatTrinity(
     }
     const eventScore = eventScores[side];
     const xt = (side === 'home' ? physical.xt_proxy?.home_xt : physical.xt_proxy?.away_xt) ?? 0;
-    const penetration = (side === 'home' ? physical.penetration_rate?.home_penetration : physical.penetration_rate?.away_penetration) ?? 0;
-    const accuracy = (side === 'home' ? physical.shot_efficiency?.home_accuracy : physical.shot_efficiency?.away_accuracy) ?? 0;
-    const rawCorners = (physical.corner_pressure?.window_source === 'SNAPSHOT_DELTA' || physical.corner_pressure?.window_source === 'EVENT_TIMELINE')
-      ? ((side === 'home' ? physical.corner_pressure.home_corners_total : physical.corner_pressure.away_corners_total) ?? 0) : 0;
-    const cornerQuality = (side === 'home' ? physical.corner_pressure?.home_corner_quality_factor : physical.corner_pressure?.away_corner_quality_factor) ?? 1.0;
-    const corners = rawCorners * cornerQuality;
     const bigChanceThreat = (side === 'home' ? physical.shot_efficiency?.home_big_chance_threat : physical.shot_efficiency?.away_big_chance_threat) ?? 0;
     const momentumSupport = bounded(1 - Math.exp(-Math.max(0, energy) / 150));
 
     const pe = (side === 'home' ? physical.possession_effectiveness?.home_pe : physical.possession_effectiveness?.away_pe) ?? 0;
     const tti = (side === 'home' ? physical.threat_transformation_index?.home_tti : physical.threat_transformation_index?.away_tti) ?? 0;
-    // 提升角球权重至 0.20 (现代 xG 理论标准)，并与渗透率、转化指数及重大险情成色结合
-    const rawStatsValue = xt * 0.25 + penetration * 1.0 + accuracy * 1.2 + corners * 0.20 + tti * 0.20 + pe * 0.20 + bigChanceThreat * 0.35;
-    // 比赛前35分钟射门与角球基数处于自然累积期，引入平滑基准，避免因样本未满而将正常控球推进误判为重大冲突
-    const earlyPhaseBaseline = (currentMinute > 0 && currentMinute < 35) ? Math.max(0, 0.25 * (1 - currentMinute / 35.0)) : 0;
+    // P1-26 修复：单层建模。
+    // 原 rawStatsValue 平铺并列 7 个指标（xt/penetration/accuracy/corners/tti/pe/bigChance），
+    // 但它们共用同一批原始统计（DA/射门/射正/角球/控球），高度共线，平铺加权=同一证据被重复计权。
+    // 修复：xt 已聚合射门威胁（DA/角球/射偏/射正/门柱）作为单一主项；
+    // 仅补充 xt 未覆盖的独立维度：转化效率(tti)、控球效率(pe)、绝佳机会(bigChanceThreat)。
+    // 移除与已有聚合完全共线的 penetration(=DA/attacks⊂tti)、accuracy(=on/shots⊂tti)、corners(已含于xt)。
+    const rawStatsValue = xt * 1.0 + tti * 0.20 + pe * 0.20 + bigChanceThreat * 0.35;
+    // P1-28 修复：statsSupport 只反映真实 observed support，不再注入 earlyPhaseBaseline 冒充样本证据；
+    // 前 35 分钟样本未满的问题改由 conflict 判定的 currentMinute >= 35 门禁处理。
     const statsSupport = physical.stats_available
-      ? bounded(Math.max(earlyPhaseBaseline, 1 - Math.exp(-Math.max(0, rawStatsValue)))) : 0;
+      ? bounded(1 - Math.exp(-Math.max(0, rawStatsValue))) : 0;
 
     const statsCorroboration = physical.stats_available ? Math.max(0, statsSupport - 0.35) * 0.6 : 0;
     const neutralEventSupport = bounded(0.35 + statsCorroboration);
@@ -302,10 +301,17 @@ export function calculateLiveThreatTrinity(
       ? [momentumSupport, eventSupport, statsSupport]
       : [momentumSupport, eventSupport];
 
-    // 仅在比赛进入中后段(>=30分钟)且极端高动量长期得不到任何事件与数据支持时，方判定为实质性冲突
-    const conflict = momentumSupport >= 0.70 && currentMinute >= 30 && (eventSupport < 0.15 || (physical.stats_available && statsSupport < 0.15));
+    // 仅在比赛进入中后段(>=35分钟)且极端高动量长期得不到任何事件与数据支持时，方判定为实质性冲突
+    const conflict = momentumSupport >= 0.70 && currentMinute >= 35 && (eventSupport < 0.15 || (physical.stats_available && statsSupport < 0.15));
+    // C2 修复：momentumSupport（危攻能量）与 statsSupport（技术统计）高度相关（危攻多→射门必多），
+    // 二者反映同一进攻强度，不应按 0.45+0.25 独立全额加权。引入相关性折损避免同一信息双重计入 threat。
+    // 折损系数 0.15 为保守启发式近似，精确的相关性系数需待 OOS 样本积累后拟合校准。
+    const momentumStatsRedundancy = (physical.stats_available && momentumSupport > 0.05 && statsSupport > 0.05)
+      ? Math.min(momentumSupport, statsSupport) / Math.max(momentumSupport, statsSupport)
+      : 0;
+    const redundancyDamping = 1.0 - 0.15 * momentumStatsRedundancy;
     const baseThreat = physical.stats_available
-      ? (0.45 * momentumSupport + 0.30 * eventSupport + 0.25 * statsSupport)
+      ? ((0.45 * momentumSupport + 0.25 * statsSupport) * redundancyDamping + 0.30 * eventSupport)
       : (0.60 * momentumSupport + 0.40 * eventSupport);
 
     const minSupport = Math.min(...activeSupports);
@@ -834,19 +840,16 @@ export function evaluateGoalClimax(
   const phiAcceleration = 10.0 * Math.tanh(Math.abs(momentumAcceleration) / 8.0);
 
   // (C) 近 5 分钟高密度事件指数饱和势能 (最高 30 分)
-  const phiDensity = 30.0 * (1.0 - Math.exp(-recentIncidentDensity / 2.2));
-
-  // (C.1) 连续角球与密集射门高危滑动窗口物理加成 (统一对接 calculate10mBurstCluster 保持 SSOT)
+  // P1-27 修复：burst 只作为一个非线性 feature。
+  // 原实现 phiDensity(近5分钟事件密度) + phiCluster(连续角球/密集射门) 并列相加，
+  // 但"密集射门/角球"本身就是近5分钟事件密度的组成部分，同一 burst 被双重计数放大。
+  // 修复：合并为单一 phiBurst，复用 calculate10mBurstCluster 的 burst_multiplier（SSOT）
+  // 作为"事件密度形态"的乘法增强因子，而非独立加分项。
   const burstCluster = calculate10mBurstCluster(events, currentMinute);
-  let cornerClusterBonus = 0.0;
-  let shotBarrageBonus = 0.0;
-  if (burstCluster.home.has_corner_barrage || burstCluster.away.has_corner_barrage) {
-    cornerClusterBonus = 10.0;
-  }
-  if (burstCluster.home.has_shot_salvo || burstCluster.away.has_shot_salvo) {
-    shotBarrageBonus = 8.0;
-  }
-  const phiCluster = Math.min(18.0, cornerClusterBonus + shotBarrageBonus);
+  const maxBurstMultiplier = Math.max(burstCluster.home.burst_multiplier, burstCluster.away.burst_multiplier);
+  // burst_multiplier ∈ [1.0, 1.65] → 映射为 [1.0, 1.30] 的密度增强，避免过度放大
+  const burstEnhance = 1.0 + 0.30 * ((maxBurstMultiplier - 1.0) / 0.65);
+  const phiBurst = 30.0 * (1.0 - Math.exp(-recentIncidentDensity / 2.2)) * burstEnhance;
 
   // (D) EPI 转化势能平滑加权 (最高 20 分)
   const maxRatio = Math.max(epi.home.conversion_ratio, epi.away.conversion_ratio);
@@ -864,7 +867,7 @@ export function evaluateGoalClimax(
     }
   }
   const postGoalCooldownActive = lastGoalMinute !== undefined && currentMinute >= lastGoalMinute && currentMinute - lastGoalMinute < 4;
-  const rawClimax = (15.0 + phiSlope + phiAcceleration + phiDensity + phiCluster + phiEpi) * (postGoalCooldownActive ? 0.55 : 1.0);
+  const rawClimax = (15.0 + phiSlope + phiAcceleration + phiBurst + phiEpi) * (postGoalCooldownActive ? 0.55 : 1.0);
   const climaxScore = Number(Math.min(100.0, Math.max(0.0, rawClimax)).toFixed(1));
 
   // (E) 判定主要进攻方 (基于连续动量与能量比率，金字塔复合斜率提供稳健方向)

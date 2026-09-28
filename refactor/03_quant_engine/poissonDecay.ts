@@ -95,6 +95,8 @@ export function calculateTimeDecayAndUrgencyMultiplier(
   time_fraction_home: number;
   time_fraction_away: number;
   urgency_multiplier: number;
+  urgency_multiplier_home: number;
+  urgency_multiplier_away: number;
   curve: PoissonDecayCurve;
 } {
   const remainingMinutes = remainingMinutesOverride !== undefined
@@ -116,6 +118,8 @@ export function calculateTimeDecayAndUrgencyMultiplier(
       time_fraction_home: 1.0,
       time_fraction_away: 1.0,
       urgency_multiplier: 1.0,
+      urgency_multiplier_home: 1.0,
+      urgency_multiplier_away: 1.0,
       curve: PoissonDecayCurve.LINEAR_UNIFORM
     };
   }
@@ -123,35 +127,55 @@ export function calculateTimeDecayAndUrgencyMultiplier(
   // 1. 终盘阶段连续过渡平滑权重: S_late(t) = 1 / (1 + e^(-(t - 72)/4.0))
   const lateFactor = 1.0 / (1.0 + Math.exp(-(elapsedMinute - 72.0) / 4.0));
 
-  // 2. 分差连续势场响应函数:
-  // (A) 单球落后绝境搏命势能高斯核: 当 |ΔS| ≈ 1 时达到极大值 +0.38，并引入非对称实力差乘子
+  // 2. 分差连续势场响应函数 (方向非对称修正):
+  // 核心修复：搏命/控场势能必须按「领先/落后」方向分别作用于对应一方，
+  // 严禁用 |ΔS| 绝对值对称处理——否则「落后 2 球」会被错误地当作「领先 2 球」而触发控场降速。
   const absDiff = Math.abs(scoreDiff);
 
-  let strengthMultiplier = 1.0;
+  // 落后方搏命强度乘子（落后方越强，反扑越有力）：
+  // 主队落后 → 落后方=主队，强度=priorStrengthRatio；客队落后 → 落后方=客队，强度=1/priorStrengthRatio
+  let trailingStrength = 1.0;
   if (scoreDiff < 0) {
-    // 主队落后
-    strengthMultiplier = priorStrengthRatio;
+    trailingStrength = priorStrengthRatio;
   } else if (scoreDiff > 0) {
-    // 客队落后
-    strengthMultiplier = 1.0 / Math.max(0.1, priorStrengthRatio);
+    trailingStrength = 1.0 / Math.max(0.1, priorStrengthRatio);
   }
   // 限制乘子极值防止指数爆炸
-  strengthMultiplier = Math.max(0.5, Math.min(2.0, strengthMultiplier));
+  trailingStrength = Math.max(0.5, Math.min(2.0, trailingStrength));
 
+  // (A) 落后方绝境搏命势能高斯核: 落后 1 球时达到极大值 +0.38，仅作用于落后方
   const desperationGaussian = Math.exp(-Math.pow(absDiff - 1.0, 2) / 0.45);
-  const eDesperation = 0.38 * desperationGaussian * strengthMultiplier;
+  const eDesperation = 0.38 * desperationGaussian * trailingStrength;
 
-  // (B) 两球以上领先控场降速势能 Sigmoid: 当 |ΔS| >= 2 时达到 -0.22
+  // (B) 领先方控场降速势能 Sigmoid: 领先 >= 2 球时达到 -0.22，仅作用于领先方
   const decelerationSigmoid = 1.0 / (1.0 + Math.exp(-(absDiff - 1.8) / 0.30));
   const eDeceleration = 0.22 * decelerationSigmoid;
 
-  // (C) 平局决战微加速势能高斯核: 当 ΔS = 0 时达到 +0.06
-  const drawGaussian = Math.exp(-Math.pow(absDiff, 2) / 0.25);
+  // (C) 平局决战微加速势能高斯核: 当 ΔS = 0 时达到 +0.06，双方共享（平局时双方皆想取胜）
+  const drawGaussian = Math.exp(-Math.pow(scoreDiff, 2) / 0.25);
   const eDraw = 0.06 * drawGaussian;
 
-  // 3. 连续紧迫度乘子综合求解: U(t, ΔS) = 1.0 + S_late(t) * (E_desperation - E_deceleration + E_draw)
-  const urgencyRaw = 1.0 + lateFactor * (eDesperation - eDeceleration + eDraw);
-  const urgency = Number(Math.max(0.70, Math.min(1.45, urgencyRaw)).toFixed(3));
+  // 3. 非对称连续紧迫度乘子综合求解:
+  //    落后方: U = 1.0 + S_late(t) * (+E_desperation + E_draw)   —— 搏命加速
+  //    领先方: U = 1.0 + S_late(t) * (-E_deceleration + E_draw)  —— 控场降速
+  //    平局时 (ΔS=0): 双方均 +E_draw（微加速），E_desperation/E_deceleration 均为 0
+  const urgencyHomeRaw = 1.0 + lateFactor * (
+    (scoreDiff < 0 ? eDesperation : 0.0)    // 主队落后 → 搏命
+    - (scoreDiff > 0 ? eDeceleration : 0.0) // 主队领先 → 控场
+    + eDraw
+  );
+  const urgencyAwayRaw = 1.0 + lateFactor * (
+    (scoreDiff > 0 ? eDesperation : 0.0)    // 客队落后 → 搏命
+    - (scoreDiff < 0 ? eDeceleration : 0.0) // 客队领先 → 控场
+    + eDraw
+  );
+
+  const urgencyHome = Number(Math.max(0.70, Math.min(1.45, urgencyHomeRaw)).toFixed(3));
+  const urgencyAway = Number(Math.max(0.70, Math.min(1.45, urgencyAwayRaw)).toFixed(3));
+
+  // 整体节奏（用于曲线判定与极端疯狂判定）：取双方较大者，
+  // 任何一方绝境搏命都意味着比赛进入高强度开放阶段。
+  const urgency = Math.max(urgencyHome, urgencyAway);
 
   // 4. 动态曲线类型判定 (基于连续势能强度平滑映射)
   let curve = PoissonDecayCurve.LINEAR_UNIFORM;
@@ -170,6 +194,8 @@ export function calculateTimeDecayAndUrgencyMultiplier(
     time_fraction_home: dnaFractionH,
     time_fraction_away: dnaFractionA,
     urgency_multiplier: urgency,
+    urgency_multiplier_home: urgencyHome,
+    urgency_multiplier_away: urgencyAway,
     curve
   };
 }
@@ -186,12 +212,15 @@ export function calculateBivariatePoissonGrid(
     field_tilt_away?: number;
     zero_shot_deprivation_home?: boolean;
     zero_shot_deprivation_away?: boolean;
-  }
+  },
+  rhoOverride?: number
 ): {
   grid: number[][];
   prob_home_win_rest: number;
   prob_draw_rest: number;
   prob_away_win_rest: number;
+  grid_marginal_lambda_home: number;
+  grid_marginal_lambda_away: number;
   rho_used?: number;
   rho_source?: 'DEFAULT_ASSUMPTION' | 'CALIBRATED_ESTIMATE';
   dixon_coles_tau?: {
@@ -207,7 +236,9 @@ export function calculateBivariatePoissonGrid(
   let probAwayWin = 0.0;
 
   // Dixon-Coles dependence parameter (positive rho inflates draws/low-scoring games)
-  const rho = 0.05;
+  // rho = 0.05 为 Dixon-Coles 文献默认先验（未校准时）；接入 OOS 历史样本 MLE 拟合后可传入校准值 rhoOverride。
+  const hasCalibratedRho = typeof rhoOverride === 'number' && Number.isFinite(rhoOverride) && rhoOverride >= 0 && rhoOverride < 1;
+  const rho = hasCalibratedRho ? (rhoOverride as number) : 0.05;
   const tau_0_0 = Math.max(0, 1 - lambdaHome * lambdaAway * rho);
   const tau_0_1 = Math.max(0, 1 + lambdaHome * rho);
   const tau_1_0 = Math.max(0, 1 + lambdaAway * rho);
@@ -302,13 +333,26 @@ export function calculateBivariatePoissonGrid(
     probAwayWin = probAwayWin / total;
   }
 
+  // P1-07 修复：输出归一化后的网格边际进球期望（E[H]、E[A]），
+  // 因 Dixon-Coles τ 与场面耦合修正会改变边际均值，E[H]/E[A] 未必等于输入 λ，需显式暴露供下游感知。
+  let gridMarginalHome = 0.0;
+  let gridMarginalAway = 0.0;
+  for (let h = 0; h <= maxGoals; h++) {
+    for (let a = 0; a <= maxGoals; a++) {
+      gridMarginalHome += h * grid[h][a];
+      gridMarginalAway += a * grid[h][a];
+    }
+  }
+
   return {
     grid,
     prob_home_win_rest: Number(probHomeWin.toFixed(4)),
     prob_draw_rest: Number(probDraw.toFixed(4)),
     prob_away_win_rest: Number(probAwayWin.toFixed(4)),
+    grid_marginal_lambda_home: Number(gridMarginalHome.toFixed(4)),
+    grid_marginal_lambda_away: Number(gridMarginalAway.toFixed(4)),
     rho_used: rho,
-    rho_source: 'DEFAULT_ASSUMPTION',
+    rho_source: hasCalibratedRho ? 'CALIBRATED_ESTIMATE' : 'DEFAULT_ASSUMPTION',
     dixon_coles_tau: {
       tau_0_0: Number(tau_0_0.toFixed(4)),
       tau_0_1: Number(tau_0_1.toFixed(4)),

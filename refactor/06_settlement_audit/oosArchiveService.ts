@@ -17,10 +17,25 @@ import {
   OosArchiveBuildOptions
 } from '../03_quant_engine/types.js';
 import { buildOosCalibrationArchive } from '../03_quant_engine/oosCalibrationEngine.js';
+import { ingestHistoricalBacktestRecords } from './historicalBacktestIngestion.js';
+import { HistoricalBacktestRecord } from './types.js';
 
-const REFACTOR_RUNTIME_DIR = path.join(process.cwd(), 'refactor', 'runtime');
-const OOS_ARCHIVE_PATH = path.join(REFACTOR_RUNTIME_DIR, 'oos_calibration_archive.json');
-const OOS_SAMPLES_PATH = path.join(REFACTOR_RUNTIME_DIR, 'oos_calibration_samples.json');
+/** 运行时路径支持环境变量覆盖（测试隔离），默认 refactor/runtime */
+function resolveRuntimePath(): string {
+  return process.env.REFACTOR_RUNTIME_DIR
+    ? path.resolve(process.env.REFACTOR_RUNTIME_DIR)
+    : path.join(process.cwd(), 'refactor', 'runtime');
+}
+function oosArchivePath(): string {
+  return process.env.OOS_ARCHIVE_PATH
+    ? path.resolve(process.env.OOS_ARCHIVE_PATH)
+    : path.join(resolveRuntimePath(), 'oos_calibration_archive.json');
+}
+function oosSamplesPath(): string {
+  return process.env.OOS_SAMPLES_PATH
+    ? path.resolve(process.env.OOS_SAMPLES_PATH)
+    : path.join(resolveRuntimePath(), 'oos_calibration_samples.json');
+}
 
 let cachedArchive: OosCalibrationArchive | null = null;
 let cachedSamples: OosCalibrationSample[] = [];
@@ -52,11 +67,11 @@ function atomicWriteJsonSync(targetPath: string, data: unknown): void {
 export function ensureOosArchiveInitialized(): OosCalibrationArchive | null {
   if (cachedArchive) return cachedArchive;
 
-  if (fs.existsSync(OOS_ARCHIVE_PATH)) {
+  if (fs.existsSync(oosArchivePath())) {
     try {
-      cachedArchive = JSON.parse(fs.readFileSync(OOS_ARCHIVE_PATH, 'utf-8')) as OosCalibrationArchive;
-      if (fs.existsSync(OOS_SAMPLES_PATH)) {
-        cachedSamples = JSON.parse(fs.readFileSync(OOS_SAMPLES_PATH, 'utf-8')) as OosCalibrationSample[];
+      cachedArchive = JSON.parse(fs.readFileSync(oosArchivePath(), 'utf-8')) as OosCalibrationArchive;
+      if (fs.existsSync(oosSamplesPath())) {
+        cachedSamples = JSON.parse(fs.readFileSync(oosSamplesPath(), 'utf-8')) as OosCalibrationSample[];
       }
       return cachedArchive;
     } catch (err) {
@@ -64,9 +79,9 @@ export function ensureOosArchiveInitialized(): OosCalibrationArchive | null {
     }
   }
 
-  if (fs.existsSync(OOS_SAMPLES_PATH)) {
+  if (fs.existsSync(oosSamplesPath())) {
     try {
-      cachedSamples = JSON.parse(fs.readFileSync(OOS_SAMPLES_PATH, 'utf-8')) as OosCalibrationSample[];
+      cachedSamples = JSON.parse(fs.readFileSync(oosSamplesPath(), 'utf-8')) as OosCalibrationSample[];
     } catch {
       cachedSamples = [];
     }
@@ -127,7 +142,13 @@ export function getOosStatus(): OosStatus {
 }
 
 
-/** 增量追加真实结算样本并重新编译 OOS 档案 */
+/**
+ * 增量追加真实结算样本并重新编译 OOS 档案。
+ *
+ * @deprecated 本函数绕过 OP-06-02 完整硬校验（model_probability/lambda 合法性、滚球比分倒退、
+ * 预测时间戳倒置、语义去重、预测时间窗口），仅保留给 `verify_p3_ledger_snowball` 等测试场景做档案重建。
+ * 生产核销路径必须统一走 `ingestSettledRecordsAndPersist`（内部调用 `ingestHistoricalBacktestRecords` 完整校验）。
+ */
 export function appendSampleAndRebuildArchive(
   newSample: OosCalibrationSample
 ): { success: boolean; archive?: OosCalibrationArchive; error?: string } {
@@ -180,13 +201,86 @@ export function appendSampleAndRebuildArchive(
     const nextArchive = buildOosCalibrationArchive(cachedSamples, options);
     cachedArchive = nextArchive;
 
-    atomicWriteJsonSync(OOS_ARCHIVE_PATH, nextArchive);
-    atomicWriteJsonSync(OOS_SAMPLES_PATH, cachedSamples);
+    atomicWriteJsonSync(oosArchivePath(), nextArchive);
+    atomicWriteJsonSync(oosSamplesPath(), cachedSamples);
 
     return { success: true, archive: nextArchive };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('增量更新 OOS 档案失败:', err);
     return { success: false, error: message };
+  }
+}
+
+/**
+ * 合规批量吸纳已结算的正式推荐（走 OP-06-02 完整校验）。
+ *
+ * 生产核销路径旧实现为「convertFormalLedgerRecords → toOosSample → appendSampleAndRebuildArchive」，
+ * 该路径绕过了 `ingestHistoricalBacktestRecords` 的完整硬校验（model_probability/lambda 合法性、
+ * 滚球比分倒退、预测时间戳倒置、语义去重、预测时间窗口）。本函数补齐这些拦截：
+ * 只有通过 OP-06-02 全部校验 + 去重 + 时间窗口的样本才会被原子写入并重建档案。
+ */
+export function ingestSettledRecordsAndPersist(
+  records: readonly HistoricalBacktestRecord[]
+): { accepted_count: number; rejected_count: number; rejected_reasons: readonly string[] } {
+  try {
+    ensureOosArchiveInitialized();
+
+    // 推导时间窗口：包含已缓存样本 + 本次待吸纳记录的 prediction_at（与 appendSampleAndRebuildArchive 同口径）
+    const allTimes: string[] = [
+      ...cachedSamples.map((s) => s.prediction_at),
+      ...records.map((r) => r.prediction_at)
+    ];
+    let minPredTime = Infinity;
+    let maxPredTime = -Infinity;
+    for (const v of allTimes) {
+      const t = Date.parse(v);
+      if (!isNaN(t)) {
+        if (t < minPredTime) minPredTime = t;
+        if (t > maxPredTime) maxPredTime = t;
+      }
+    }
+
+    const nowTime = Date.now();
+    const effectiveGeneratedTime = Math.max(nowTime, isFinite(maxPredTime) ? maxPredTime + 2000 : nowTime);
+    const generatedAt = new Date(effectiveGeneratedTime).toISOString();
+    const predEnd = isFinite(maxPredTime) ? new Date(maxPredTime + 1000).toISOString() : generatedAt;
+    const predStart = isFinite(minPredTime) ? new Date(minPredTime - 1000).toISOString() : new Date(effectiveGeneratedTime - 3600000).toISOString();
+    const trainEnd = new Date(Date.parse(predStart) - 86400 * 1000).toISOString();
+    const trainStart = new Date(Date.parse(trainEnd) - 365 * 86400 * 1000).toISOString();
+
+    const options: OosArchiveBuildOptions = {
+      model_version: records[0]?.model_version || 'layer03-v1',
+      generated_at: generatedAt,
+      training_window_start_at: trainStart,
+      training_window_end_at: trainEnd,
+      prediction_window_start_at: predStart,
+      prediction_window_end_at: predEnd
+    };
+
+    // OP-06-02 完整校验 + 语义去重 + 时间窗口拦截
+    const result = ingestHistoricalBacktestRecords(records, options);
+
+    if (result.accepted_samples.length > 0) {
+      for (const s of result.accepted_samples) {
+        const existingIndex = cachedSamples.findIndex((x) => x.sample_id === s.sample_id);
+        if (existingIndex >= 0) cachedSamples[existingIndex] = s;
+        else cachedSamples.push(s);
+      }
+      const nextArchive = buildOosCalibrationArchive(cachedSamples, options);
+      cachedArchive = nextArchive;
+      atomicWriteJsonSync(oosArchivePath(), nextArchive);
+      atomicWriteJsonSync(oosSamplesPath(), cachedSamples);
+    }
+
+    return {
+      accepted_count: result.accepted_samples.length,
+      rejected_count: result.rejected_records.length,
+      rejected_reasons: result.rejected_records.map((r) => `${r.record_id}: ${r.reason}`)
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('批量合规吸纳 OOS 样本失败:', err);
+    return { accepted_count: 0, rejected_count: records.length, rejected_reasons: [message] };
   }
 }

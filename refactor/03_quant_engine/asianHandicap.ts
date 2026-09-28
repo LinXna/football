@@ -271,3 +271,67 @@ export function calculateTotalFiveStateDistribution(
     source: 'ENGINE_COMPUTED'
   };
 }
+
+/**
+ * 从双变量泊松网格计算全场大小球盘口的 5 态精确结算概率分布（含 Dixon-Coles 低比分修正）
+ * 与让球盘 EV 共享同一概率模型，避免大小球与让球 EV 在低比分/极端场面下的概率不一致。
+ * 保证 ∑P = 1.0 闭式归一化
+ */
+export function calculateTotalFiveStateDistributionFromGrid(
+  line: number,
+  currentTotalGoals: number,
+  side: 'over' | 'under',
+  matrix: number[][]
+): FiveStateSettlementDistribution {
+  const remainingTarget = line - currentTotalGoals;
+  let p_full_win = 0.0;
+  let p_half_win = 0.0;
+  let p_push = 0.0;
+  let p_half_loss = 0.0;
+  let p_full_loss = 0.0;
+
+  for (let h = 0; h < matrix.length; h++) {
+    for (let a = 0; a < matrix[h].length; a++) {
+      const pCell = matrix[h][a];
+      if (pCell <= 0) continue;
+
+      const k = h + a; // 剩余时段总进球数
+      const delta = side === 'over' ? k - remainingTarget : remainingTarget - k;
+
+      if (delta >= 0.5 - 1e-4) {
+        p_full_win += pCell;
+      } else if (Math.abs(delta - 0.25) < 1e-4) {
+        p_half_win += pCell;
+      } else if (Math.abs(delta) < 1e-4) {
+        p_push += pCell;
+      } else if (Math.abs(delta - (-0.25)) < 1e-4) {
+        p_half_loss += pCell;
+      } else {
+        p_full_loss += pCell;
+      }
+    }
+  }
+
+  // 严格归一化保证数学闭合，防止截断或浮点微小漂移
+  const sum = p_full_win + p_half_win + p_push + p_half_loss + p_full_loss;
+  if (sum > 0) {
+    p_full_win /= sum;
+    p_half_win /= sum;
+    p_push /= sum;
+    p_half_loss /= sum;
+    p_full_loss /= sum;
+  }
+
+  const [r_full_win, r_half_win, r_push, r_half_loss, r_full_loss] = roundFiveStateToUnit([
+    p_full_win, p_half_win, p_push, p_half_loss, p_full_loss
+  ]);
+
+  return {
+    p_full_win: r_full_win,
+    p_half_win: r_half_win,
+    p_push: r_push,
+    p_half_loss: r_half_loss,
+    p_full_loss: r_full_loss,
+    source: 'ENGINE_COMPUTED'
+  };
+}

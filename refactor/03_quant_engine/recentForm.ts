@@ -20,7 +20,7 @@ import {
  */
 export function calculateRecentFormWeights(
   match: CanonicalMatch,
-  currentTimestamp: number = resolveMatchAnchorTimestamp(match)
+  currentTimestamp: number | null = resolveMatchAnchorTimestamp(match)
 ): {
   home: RecentFormContextWeight[];
   away: RecentFormContextWeight[];
@@ -75,8 +75,8 @@ export function calculateRecentFormWeights(
         const parsed = new Date(String(item.match_date)).getTime();
         if (!isNaN(parsed)) matchTime = parsed;
       }
-      const days = matchTime > 0 ? Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24))) : 9999;
-      return days <= 365;
+      const days = (matchTime > 0 && currentTimestamp != null) ? (matchTime > currentTimestamp ? -1 : Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24))) : 9999;
+      return days >= 0 && days <= 365;
     }).length;
     const isSampleScarcity = recent365Count <= 2;
 
@@ -109,8 +109,11 @@ export function calculateRecentFormWeights(
       }
 
       const hasValidTime = matchTime > 0;
-      const daysAgo = Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24)));
-      const isValidTime = hasValidTime && daysAgo >= 0 && daysAgo <= maxLookbackDays;
+      // P1-13 修复：未来日期的历史样本不得被 Math.max(0,..) 吸收为 0 天前（否则未来样本获得最大权重）。
+      // P1-15 修复：无可靠时间锚点 (currentTimestamp === null) 时 days_ago 无法可靠计算，样本时间不确定 → 标记 invalid
+      const hasValidAnchor = currentTimestamp != null;
+      const daysAgo = (hasValidTime && hasValidAnchor) ? (matchTime > currentTimestamp! ? -1 : Math.floor((currentTimestamp! - matchTime) / (1000 * 60 * 60 * 24))) : 9999;
+      const isValidTime = hasValidTime && hasValidAnchor && daysAgo >= 0 && daysAgo <= maxLookbackDays;
       let timeDecay = 0.0;
       if (isValidTime) {
         if (daysAgo <= 30) {

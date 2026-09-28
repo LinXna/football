@@ -58,8 +58,9 @@ import { parseMarketValueToNumber, extractIsoVenueStandings, extractTacticalForm
 export { parseMarketValueToNumber, extractIsoVenueStandings, extractTacticalFormationFeatures, calculateLineupImpactScores };
 import { extractGoalDistributionDNA, evaluateGoalTimingValidity } from './goalDistribution.js';
 export { extractGoalDistributionDNA, evaluateGoalTimingValidity };
-import { calculateMotivationAndUrgencyIndex } from './motivationUrgency.js';
+import { calculateMotivationAndUrgencyIndex, type PrematchIntel, type CompetitionFormatMeta, type CompetitionFormatType } from './motivationUrgency.js';
 export { calculateMotivationAndUrgencyIndex };
+export type { PrematchIntel, CompetitionFormatMeta, CompetitionFormatType };
 
 /**
  * Layer 03 M2 主调度入口：执行完整的数据清洗、时效衰减与情境战力提炼
@@ -70,7 +71,8 @@ export { calculateMotivationAndUrgencyIndex };
 export function extractCleanedContextFeatures(
   match: CanonicalMatch,
   collector?: DeficitCollector,
-  tracer?: Tracer
+  tracer?: Tracer,
+  intel?: PrematchIntel | null
 ): CleanedContextFeatures {
   const anchorTimestamp = resolveMatchAnchorTimestamp(match);
   const circuitBreaker = checkL0CircuitBreaker(match, collector, tracer);
@@ -80,7 +82,7 @@ export function extractCleanedContextFeatures(
   const goalDna = extractGoalDistributionDNA(match);
   const formationFeatures = extractTacticalFormationFeatures(match);
   const lineupImpact = calculateLineupImpactScores(match);
-  const muiResult = calculateMotivationAndUrgencyIndex(match);
+  const muiResult = calculateMotivationAndUrgencyIndex(match, intel);
   const timingValidity = evaluateGoalTimingValidity(match);
 
   const result: CleanedContextFeatures = Object.freeze({

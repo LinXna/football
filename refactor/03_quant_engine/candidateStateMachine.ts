@@ -16,6 +16,7 @@ export type CandidatePipelineState =
   | 'OOS_LOCKED'
   | 'DATA_LOCKED'
   | 'COLD_START_PERMISSIVE'
+  | 'TRIAL_UNLOCKED'
   | 'PRODUCTION_UNLOCKED';
 
 export interface CandidateOosValidation {
@@ -44,7 +45,6 @@ export interface CandidatePipelineEvaluation {
   cold_start_exempt_signals?: readonly PositiveEVSignal[];
   machine_candidate_signals: readonly PositiveEVSignal[];
   production_eligible: boolean;
-  is_cold_start_unlocked?: boolean;
   validations: readonly CandidateOosValidation[];
   blockers: readonly string[];
   transitions: readonly { from: CandidatePipelineState | 'START'; to: CandidatePipelineState; reason: string }[];
@@ -86,7 +86,7 @@ export function resolveSettlementBasis(
 export interface CandidatePipelineEvaluationInput {
   readonly rawSignals: readonly PositiveEVSignal[];
   readonly resolveOosMarket: (signal: PositiveEVSignal) => OosMarket | undefined;
-  readonly resolveOosProfile: (market: OosMarket) => QuantCalibrationProfile | undefined;
+  readonly resolveOosProfile: (market: OosMarket, line?: string, side?: string) => QuantCalibrationProfile | undefined;
   readonly adjustedConfidence: number;
   readonly dataQualityScore: number;
   readonly modelStabilityScore: number;
@@ -106,7 +106,7 @@ export interface CandidatePipelineEvaluationInput {
 
 export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInput): CandidatePipelineEvaluation {
   const rawSignals = [...input.rawSignals];
-  const permissive = input.permissiveOosMode ?? true;
+  const permissive = input.permissiveOosMode ?? false;
   const allowSecondary = input.allowSecondaryLines ?? true;
 
   if (rawSignals.length === 0) {
@@ -164,7 +164,7 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
       };
     }
 
-    const profile = input.resolveOosProfile(market);
+    const profile = input.resolveOosProfile(market, signal.line, signal.side);
     if (profile === undefined || profile.effective_sample_size === 0) {
       return {
         market,
@@ -358,15 +358,21 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
   if (input.hasEvidenceConflict) dataBlockers.push('实时三源证据存在重大冲突。');
   if (input.postGoalCooldownActive) dataBlockers.push('进球后冷却窗口仍处于锁定期。');
 
-  const oosHistoryScores = validations
+  // P1-40 修复：edge_confidence 不再用 Math.max 跨 profile 取最强（单个强 profile 支配全局），
+  // 改为按有效样本量 (ESS) 加权的候选聚合均值，弱 profile 会如实拉低整体 edge 信心，避免单一强样本覆盖全局。
+  const edgeProfiles = validations
     .filter((item): item is CandidateOosValidation & { profile: QuantCalibrationProfile; oos_brier_score: number } =>
       (item.status === 'PRODUCTION_MATURE' || item.status === 'OOS_VALIDATED' || item.status === 'VALIDATED') &&
       item.profile !== undefined && item.oos_brier_score !== null)
-    .map((item) => Math.max(0, Math.min(100,
-      (input.adjustedConfidence - (item.oos_brier_score * 100)) * Math.min(1, item.effective_sample_size / 1000)
-    )));
-  const edgeConfidenceScore = oosHistoryScores.length > 0
-    ? Math.round(Math.max(0, Math.min(100, Math.max(...oosHistoryScores))))
+    .map((item) => ({
+      ess: item.effective_sample_size,
+      score: Math.max(0, Math.min(100,
+        (input.adjustedConfidence - (item.oos_brier_score * 100)) * Math.min(1, item.effective_sample_size / 1000)
+      ))
+    }));
+  const edgeTotalEss = edgeProfiles.reduce((sum, p) => sum + p.ess, 0);
+  const edgeConfidenceScore = edgeTotalEss > 0
+    ? Math.round(edgeProfiles.reduce((sum, p) => sum + p.score * p.ess, 0) / edgeTotalEss)
     : 0;
 
   let state: CandidatePipelineState;
@@ -376,7 +382,6 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
   let machineCandidateSignals: readonly PositiveEVSignal[] = Object.freeze([]);
   let researchCandidateSignals: readonly PositiveEVSignal[] = Object.freeze([]);
   let productionEligible = false;
-  let isColdStartUnlocked = false;
   const blockers = permissive
     ? [...oosHardBlockers, ...dataBlockers]
     : [...allOosBlockers, ...dataBlockers];
@@ -491,14 +496,14 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
       machineCandidateSignals = Object.freeze([]);
       researchCandidateSignals = buildResearchCandidateSignals();
     } else if (strictlyValidatedSignals.length > 0 && isProductionReady) {
-      // 具备 B 级初步验证资质的信号 (30 <= ESS < 200)
+      // 具备 B 级初步验证资质的信号 (30 <= ESS < 200)：仅授予「试水」资格，绝不标记为生产就绪。
       transitions.push({
         from: 'OOS_LOCKED',
-        to: 'PRODUCTION_UNLOCKED',
-        reason: '信号通过初步 OOS 档案校验 (30 <= ESS < 200)，晋升进入生产推荐候选池 (封顶 B 级试水)。'
+        to: 'TRIAL_UNLOCKED',
+        reason: '信号通过初步 OOS 档案校验 (30 <= ESS < 200)，晋升进入试水候选池 (封顶 B 级试水，production_eligible=false)。'
       });
-      state = 'PRODUCTION_UNLOCKED';
-      productionEligible = true;
+      state = 'TRIAL_UNLOCKED';
+      productionEligible = false;
 
       machineCandidateSignals = Object.freeze(
         strictlyValidatedSignals.map((raw) => {
@@ -552,7 +557,6 @@ export function evaluateCandidatePipeline(input: CandidatePipelineEvaluationInpu
     cold_start_exempt_signals: Object.freeze(coldStartExemptSignals),
     machine_candidate_signals: machineCandidateSignals,
     production_eligible: productionEligible,
-    is_cold_start_unlocked: isColdStartUnlocked,
     validations: Object.freeze(validations.map((item) => Object.freeze({ ...item }))),
     blockers: Object.freeze(blockers),
     transitions: Object.freeze(transitions),

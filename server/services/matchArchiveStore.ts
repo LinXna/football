@@ -7,8 +7,7 @@ import { calculateStrictRawTextSimilarity } from "../../refactor/02_canonical_mo
 import { LedgerPersistence } from "../../refactor/05_portfolio_risk/ledgerPersistence";
 import { evaluateQuarterSettlement, parseAsianLine } from "../../refactor/06_settlement_audit/settlementEngine.js";
 import { convertFormalLedgerRecords } from "../../refactor/06_settlement_audit/formalLedgerAdapter.js";
-import { toOosSample } from "../../refactor/06_settlement_audit/historicalBacktestIngestion.js";
-import { appendSampleAndRebuildArchive } from "./oosArchiveService";
+import { ingestSettledRecordsAndPersist } from "../../refactor/06_settlement_audit/oosArchiveService.js";
 
 export interface ArchivedMatchRecord {
   archive_id: string;
@@ -433,12 +432,11 @@ export class MatchArchiveStore {
           ledgerChanged = true;
           ledgerSettledCount++;
 
-          // 尝试转换为真实 OOS 样本写入校准库
+          // 尝试转换为真实 OOS 样本写入校准库（走 OP-06-02 完整校验）
           const { records: converted } = convertFormalLedgerRecords([rec]);
           if (converted.length > 0) {
-            const oosSample = toOosSample(converted[0]);
-            const res = appendSampleAndRebuildArchive(oosSample);
-            if (res.success) {
+            const res = ingestSettledRecordsAndPersist(converted);
+            if (res.accepted_count > 0) {
               oosSamplesCount++;
             }
           }

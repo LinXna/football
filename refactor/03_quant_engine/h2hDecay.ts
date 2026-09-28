@@ -17,7 +17,7 @@ import {
 /**
  * 获取确定性基准时间戳（优先使用快照创建时间或开赛时间，消除 Date.now() 对离线/次日回放的影响）
  */
-export function resolveMatchAnchorTimestamp(match: CanonicalMatch): number {
+export function resolveMatchAnchorTimestamp(match: CanonicalMatch): number | null {
   if (match.created_at) {
     const t = Date.parse(match.created_at);
     if (!isNaN(t) && t > 0) return t;
@@ -28,7 +28,9 @@ export function resolveMatchAnchorTimestamp(match: CanonicalMatch): number {
     const t = Date.parse(formatted);
     if (!isNaN(t) && t > 0) return t;
   }
-  return Date.now();
+  // P1-15 修复：无可靠时间锚点（无 created_at / beijing_start_time）时返回 null，
+  // 不再 fallback 到 Date.now()（离线/次日回放会得到错误的"现在"时间，污染 H2H/recent-form 时间衰减）。
+  return null;
 }
 
 /**
@@ -37,7 +39,7 @@ export function resolveMatchAnchorTimestamp(match: CanonicalMatch): number {
 export function calculateH2HDecayWeights(
   match: CanonicalMatch,
   halfLifeDays: number = 365,
-  currentTimestamp: number = resolveMatchAnchorTimestamp(match)
+  currentTimestamp: number | null = resolveMatchAnchorTimestamp(match)
 ): { weights: HistoricalMatchWeight[]; analytics: H2HDetailedAnalytics } {
   const h2hList = match.reference?.tactical_context?.h2h_raw || [];
   if (h2hList.length === 0) {
@@ -95,8 +97,8 @@ export function calculateH2HDecayWeights(
       const parsed = new Date(String(item.match_time)).getTime();
       if (!isNaN(parsed)) matchTime = parsed;
     }
-    const days = matchTime > 0 ? Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24))) : 9999;
-    return days <= 365;
+    const days = (matchTime > 0 && currentTimestamp != null) ? (matchTime > currentTimestamp ? -1 : Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24))) : 9999;
+    return days >= 0 && days <= 365;
   }).length;
   const isH2HScarcity = recentH2HCount <= 1;
 
@@ -116,8 +118,11 @@ export function calculateH2HDecayWeights(
     }
 
     const hasValidTime = matchTime > 0;
-    const daysAgo = hasValidTime ? Math.max(0, Math.floor((currentTimestamp - matchTime) / (1000 * 60 * 60 * 24))) : 9999;
-    const isValidTimeWindow = hasValidTime && daysAgo >= 0 && daysAgo <= maxValidDays;
+    // P1-13 修复：未来日期的历史样本不得被 Math.max(0,..) 吸收为 0 天前。
+    // P1-15 修复：无可靠时间锚点 (currentTimestamp === null) 时 days_ago 无法可靠计算，样本时间不确定 → 标记 invalid
+    const hasValidAnchor = currentTimestamp != null;
+    const daysAgo = (hasValidTime && hasValidAnchor) ? (matchTime > currentTimestamp! ? -1 : Math.floor((currentTimestamp! - matchTime) / (1000 * 60 * 60 * 24))) : 9999;
+    const isValidTimeWindow = hasValidTime && hasValidAnchor && daysAgo >= 0 && daysAgo <= maxValidDays;
 
     const homeScores = h2h.home_scores || [];
     const awayScores = h2h.away_scores || [];
@@ -130,11 +135,14 @@ export function calculateH2HDecayWeights(
     const h2hWithNames = h2h as typeof h2h & { home_team_name?: string; away_team_name?: string };
     const h2hHomeName = h2hWithNames.home_team_name;
     const h2hAwayName = h2hWithNames.away_team_name;
-    const identityMatched =
+    // P1-14 修复：H2H 必须是当前双方球队的成对交锋（主客身份可互换），任一球队单独命中不算真正 H2H。
+    const homeIdentityMatched =
       (currentHomeId != null && (h2h.home_team_id === currentHomeId || h2h.away_team_id === currentHomeId)) ||
+      (Boolean(currentHomeName) && (h2hHomeName === currentHomeName || h2hAwayName === currentHomeName));
+    const awayIdentityMatched =
       (currentAwayId != null && (h2h.home_team_id === currentAwayId || h2h.away_team_id === currentAwayId)) ||
-      (Boolean(currentHomeName) && (h2hHomeName === currentHomeName || h2hAwayName === currentHomeName)) ||
       (Boolean(currentAwayName) && (h2hHomeName === currentAwayName || h2hAwayName === currentAwayName));
+    const identityMatched = homeIdentityMatched && awayIdentityMatched;
 
     let decayWeight = 0.0;
     // 只有在通过自适应前置物理时间隔离门禁、身份匹配、比分有效时才赋予非零指数衰减权重

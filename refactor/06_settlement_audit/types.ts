@@ -13,6 +13,8 @@ export interface VerifiedScore {
 /** Layer 06 only accepts a resolved recommendation record, never a raw ledger object. */
 export interface HistoricalBacktestRecord {
   record_id: string;
+  /** 源赛事的全局唯一标识（YBTY/雷速 ID），用于 OOS 聚类去重与跨市场相关性控制。 */
+  match_id: string;
   record_type: HistoricalRecordType;
   /** Layer 06 OOS provenance gate: production-unlocked or cold-start exempt records are eligible. */
   candidate_pipeline_state: 'NO_POSITIVE_EV' | 'OOS_LOCKED' | 'DATA_LOCKED' | 'PRODUCTION_UNLOCKED' | 'COLD_START_PERMISSIVE';

@@ -5,7 +5,8 @@ const signal = { market: 'ASIAN_HANDICAP_MAIN', line: '0', side: 'home', odds: 2
 const profile = {
   status: 'VALIDATED' as const, league_key: 'L', minute_band: 'LIVE_30_45', score_state: '0-0',
   market: 'ASIAN_HANDICAP_MAIN' as const, sample_size: 300, effective_sample_size: 300,
-  oos_brier_score: 0.18, lambda_log_adjustment: 0
+  oos_brier_score: 0.18, brier_baseline: 0.25, baseline_type: 'CLIMATOLOGY' as const, brier_skill_score: 0.28,
+  lambda_log_adjustment: 0
 };
 const common = {
   resolveOosMarket: () => 'ASIAN_HANDICAP_MAIN' as const,
@@ -34,14 +35,14 @@ if (strictCases[3][1].machine_candidate_signals.length !== 0) throw new Error('S
 if (strictCases[4][1].machine_candidate_signals.length !== 1) throw new Error('Strict: Validated signal failed to become machine candidate');
 if (strictCases[0][1].edge_confidence_score !== 0 || strictCases[1][1].edge_confidence_score !== 0) throw new Error('Strict: Unvalidated OOS received non-zero edge confidence');
 
-// 2. 样本累积期宽容软门禁模式校验 (permissiveOosMode: true / 默认行为)
+// 2. 样本累积期宽容软门禁模式校验 (permissiveOosMode: true，显式开启；默认值已改为 fail-close false)
 const permissiveCases = [
-  ['PERMISSIVE_NO_POSITIVE_EV', evaluateCandidatePipeline({ ...common, rawSignals: [] })],
-  ['PERMISSIVE_COLD_START_NO_PROFILE', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => undefined })],
-  ['PERMISSIVE_COLD_START_THIN', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => ({ ...profile, effective_sample_size: 20 }) })],
-  ['PERMISSIVE_DATA_LOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal], dataQualityScore: 70 })],
-  ['PERMISSIVE_PRODUCTION_UNLOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal] })],
-  ['PERMISSIVE_UNSUPPORTED_MARKET_LOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosMarket: () => undefined })]
+  ['PERMISSIVE_NO_POSITIVE_EV', evaluateCandidatePipeline({ ...common, rawSignals: [], permissiveOosMode: true })],
+  ['PERMISSIVE_COLD_START_NO_PROFILE', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => undefined, permissiveOosMode: true })],
+  ['PERMISSIVE_COLD_START_THIN', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosProfile: () => ({ ...profile, effective_sample_size: 20 }), permissiveOosMode: true })],
+  ['PERMISSIVE_DATA_LOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal], dataQualityScore: 70, permissiveOosMode: true })],
+  ['PERMISSIVE_PRODUCTION_UNLOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal], permissiveOosMode: true })],
+  ['PERMISSIVE_UNSUPPORTED_MARKET_LOCKED', evaluateCandidatePipeline({ ...common, rawSignals: [signal], resolveOosMarket: () => undefined, permissiveOosMode: true })]
 ] as const;
 
 const permissiveExpected = ['NO_POSITIVE_EV', 'COLD_START_PERMISSIVE', 'COLD_START_PERMISSIVE', 'DATA_LOCKED', 'PRODUCTION_UNLOCKED', 'OOS_LOCKED'];

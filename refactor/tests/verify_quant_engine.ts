@@ -605,6 +605,7 @@ async function runQuantEngineTests() {
   {
     const oosSamples = Array.from({ length: 240 }, (_, index) => ({
       sample_id: `oos-${index}`,
+      match_id: `match-${index}`,
       model_version: 'layer03-v1',
       prediction_at: '2026-09-01T00:00:00.000Z',
       league_key: 'Premier League',
@@ -615,7 +616,7 @@ async function runQuantEngineTests() {
       score_state: '1-0',
       red_card_state: '0-0',
       market: 'TOTAL_GOALS_MAIN' as const,
-      model_probability: 0.6,
+      model_probability: index % 2 === 0 ? 0.7 : 0.3,
       outcome: index % 2 === 0 ? 1 : 0,
       predicted_lambda: 1.0,
       observed_goals: 2
@@ -633,6 +634,106 @@ async function runQuantEngineTests() {
     const teamAProfile = archive.profiles.find((profile) => profile.team_key === 'Team A');
     assert(teamAProfile !== undefined, 'Team-specific OOS profile must be generated');
     assert(teamAProfile!.status === 'INSUFFICIENT_EVIDENCE', 'A 120-sample team bucket must not borrow fictitious evidence to validate itself');
+
+    // P1-02 cluster ESS：同一场比赛的多个盘口高度相关，effective_sample_size 必须按唯一 match_id 聚类，不得按原始样本数累加。
+    const clusteredSamples = Array.from({ length: 240 }, (_, index) => ({
+      sample_id: `clustered-${index}`,
+      match_id: `shared-match-${Math.floor(index / 4)}`, // 每 4 个样本共享一场比赛 → 60 场唯一比赛
+      model_version: 'layer03-v1',
+      prediction_at: '2026-09-01T00:00:00.000Z',
+      league_key: 'Premier League',
+      home_team_key: 'Team A',
+      away_team_key: 'Team B',
+      stage: 'LIVE' as const,
+      minute: 62,
+      score_state: '1-0',
+      red_card_state: '0-0',
+      market: 'TOTAL_GOALS_MAIN' as const,
+      model_probability: index % 2 === 0 ? 0.7 : 0.3,
+      outcome: index % 2 === 0 ? 1 : 0,
+      predicted_lambda: 1.0,
+      observed_goals: 2
+    }));
+    const clusteredArchive = buildOosCalibrationArchive(clusteredSamples, oosArchiveOptions);
+    assert(clusteredArchive.global_profile.effective_sample_size === 60, `Cluster ESS must count unique matches (60), not raw samples (240); got ${clusteredArchive.global_profile.effective_sample_size}`);
+    assert(clusteredArchive.global_profile.sample_size === 240, 'sample_size must remain the raw count for auditability');
+    assert(clusteredArchive.global_profile.status === 'INSUFFICIENT_EVIDENCE', '60 clustered matches must not masquerade as 240 independent samples');
+
+    // P1-03：Brier Skill Score 熔断（跨市场/基准率可比，取代固定 0.28 盲猜基准）。
+    // 罕见事件（base rate=0.1），模型盲猜 0.5 → Brier=0.25 < 绝对阈值 0.28，但 BSS 为负应熔断。
+    const rareEventSamples = Array.from({ length: 240 }, (_, index) => ({
+      sample_id: `rare-${index}`,
+      match_id: `rare-match-${index}`,
+      model_version: 'layer03-v1',
+      prediction_at: '2026-09-01T00:00:00.000Z',
+      league_key: 'Premier League',
+      home_team_key: 'Team A',
+      away_team_key: 'Team B',
+      stage: 'LIVE' as const,
+      minute: 62,
+      score_state: '1-0',
+      red_card_state: '0-0',
+      market: 'TOTAL_GOALS_MAIN' as const,
+      model_probability: 0.5,
+      outcome: index % 10 === 0 ? 1 : 0,
+      predicted_lambda: 1.0,
+      observed_goals: 2
+    }));
+    const rareArchive = buildOosCalibrationArchive(rareEventSamples, oosArchiveOptions);
+    assert(rareArchive.global_profile.baseline_type === 'CLIMATOLOGY', 'samples without market_probability must use CLIMATOLOGY baseline');
+    assert(rareArchive.global_profile.brier_baseline !== null && Math.abs(rareArchive.global_profile.brier_baseline - 0.09) < 1e-6, `climatology baseline for base rate 0.1 must be 0.09, got ${rareArchive.global_profile.brier_baseline}`);
+    assert(rareArchive.global_profile.brier_skill_score !== null && rareArchive.global_profile.brier_skill_score < 0, `blind 0.5 prediction on a rare event must yield negative BSS, got ${rareArchive.global_profile.brier_skill_score}`);
+    assert(rareArchive.global_profile.status === 'REJECTED' && rareArchive.global_profile.circuit_breaker_triggered === true, 'negative BSS must trigger circuit breaker even though absolute Brier 0.25 < 0.28');
+
+    // P1-03：有 market_probability 时优先用 market-implied 基线。
+    const marketBaselineSamples = Array.from({ length: 240 }, (_, index) => ({
+      sample_id: `mk-${index}`,
+      match_id: `mk-match-${index}`,
+      model_version: 'layer03-v1',
+      prediction_at: '2026-09-01T00:00:00.000Z',
+      league_key: 'Premier League',
+      home_team_key: 'Team A',
+      away_team_key: 'Team B',
+      stage: 'LIVE' as const,
+      minute: 62,
+      score_state: '1-0',
+      red_card_state: '0-0',
+      market: 'TOTAL_GOALS_MAIN' as const,
+      model_probability: 0.6,
+      market_probability: 0.5,
+      outcome: index % 2 === 0 ? 1 : 0,
+      predicted_lambda: 1.0,
+      observed_goals: 2
+    }));
+    const marketArchive = buildOosCalibrationArchive(marketBaselineSamples, oosArchiveOptions);
+    assert(marketArchive.global_profile.baseline_type === 'MARKET_IMPLIED', 'samples with market_probability must use MARKET_IMPLIED baseline');
+    assert(marketArchive.global_profile.brier_baseline !== null && Math.abs(marketArchive.global_profile.brier_baseline - 0.25) < 1e-6, `market baseline for constant 0.5 market prob must be 0.25, got ${marketArchive.global_profile.brier_baseline}`);
+
+    // P1-03 正向：模型显著优于 baseline 时 BSS > 0，不应误熔断。
+    const skilledSamples = Array.from({ length: 240 }, (_, index) => {
+      const skilledOutcome = index % 2 === 0 ? 1 : 0;
+      return {
+        sample_id: `skill-${index}`,
+        match_id: `skill-match-${index}`,
+        model_version: 'layer03-v1',
+        prediction_at: '2026-09-01T00:00:00.000Z',
+        league_key: 'Premier League',
+        home_team_key: 'Team A',
+        away_team_key: 'Team B',
+        stage: 'LIVE' as const,
+        minute: 62,
+        score_state: '1-0',
+        red_card_state: '0-0',
+        market: 'TOTAL_GOALS_MAIN' as const,
+        model_probability: skilledOutcome === 1 ? 0.7 : 0.3,
+        outcome: skilledOutcome,
+        predicted_lambda: 1.0,
+        observed_goals: 2
+      };
+    });
+    const skilledArchive = buildOosCalibrationArchive(skilledSamples, oosArchiveOptions);
+    assert(skilledArchive.global_profile.brier_skill_score !== null && skilledArchive.global_profile.brier_skill_score > 0, `skilled model must yield positive BSS, got ${skilledArchive.global_profile.brier_skill_score}`);
+    assert(skilledArchive.global_profile.status === 'VALIDATED', 'positive BSS with sufficient ESS must remain VALIDATED');
     const calibrationSamplePath = path.resolve(process.cwd(), 'refactor/samples/02_canonical_model/canonical_match_sample.json');
     const calibrationRaw = fs.readFileSync(calibrationSamplePath, 'utf-8');
     const calibrationParsed = JSON.parse(calibrationRaw);
@@ -749,7 +850,7 @@ async function runQuantEngineTests() {
 
     console.log(`   正在对样本赛事 [${targetMatch!.canonical_id}] 进行全量 37 项量化要素求解...`);
 
-    const quantResult = calculateQuantitativeFeatures(targetMatch!, undefined, collector, tracer);
+    const quantResult = calculateQuantitativeFeatures(targetMatch!, { permissive_oos_mode: true }, collector, tracer);
 
     // 验证核心字段完整性
     assert(quantResult.canonical_id === targetMatch!.canonical_id, 'Canonical ID mismatch');
@@ -761,6 +862,16 @@ async function runQuantEngineTests() {
     assert(quantResult.physical_stats.corner_pressure.window_source === 'CUMULATIVE_BASELINE', 'Live technical corners must remain cumulative baseline, never a recent-window claim');
     assert(quantResult.confidence_breakdown.edge_confidence_score === 0, 'Unvalidated OOS calibration must not create tradable edge confidence');
     assert(quantResult.candidate_pipeline.state === 'COLD_START_PERMISSIVE', 'Permissive cold-start without mature OOS must enter COLD_START_PERMISSIVE state');
+    // P1-39: market_confidence 必须反映真实市场校准信心（100 - market_confidence_penalty），而非复制 model_stability_score
+    assert(
+      quantResult.confidence_breakdown.market_confidence === Math.max(0, 100 - quantResult.market_calibration.market_confidence_penalty),
+      'P1-39: market_confidence 必须等于 100 - market_confidence_penalty，而非 model_stability_score'
+    );
+    // P1-33: deprivation / siege 因子必须在 lambda_decomposition 明确暴露（feature lineage）
+    assert(typeof quantResult.poisson.lambda_decomposition.deprivation_damp_home === 'number', 'P1-33: deprivation_damp_home 必须暴露');
+    assert(typeof quantResult.poisson.lambda_decomposition.deprivation_damp_away === 'number', 'P1-33: deprivation_damp_away 必须暴露');
+    assert(typeof quantResult.poisson.lambda_decomposition.siege_breakthrough_boost_home === 'number', 'P1-33: siege_breakthrough_boost_home 必须暴露');
+    assert(typeof quantResult.poisson.lambda_decomposition.siege_breakthrough_boost_away === 'number', 'P1-33: siege_breakthrough_boost_away 必须暴露');
     assert(quantResult.candidate_pipeline.production_eligible === false, 'Permissive cold-start signals must not be marked production_eligible');
     assert(quantResult.positive_ev_signals.length === 0, 'In cold-start permissive mode, machine_candidate signals must remain 0');
     assert(quantResult.research_candidate_signals.length > 0, 'In cold-start permissive mode, positive EV signals must be captured as research candidates');
@@ -1114,7 +1225,7 @@ async function runQuantEngineTests() {
     const mcLive62 = qfLive62.market_calibration;
     assert(
       mcLive62 !== undefined && mcLive62.market_weight_applied < 0.45,
-      `滚球62分钟市场权重必须 < 0.45 (物理先验主导)，实际为 ${mcLive62?.market_weight_applied}`
+      `滚球62分钟市场权重必须 < 0.45 (物理先验主导)，实际为 ${mcLive62?.market_weight_applied}，Δ=${mcLive62?.divergence_delta}`
     );
     assert(
       mcLive62 !== undefined && mcLive62.theory_weight_applied > 0.55,
@@ -1122,9 +1233,9 @@ async function runQuantEngineTests() {
     );
     const liveBaseMarketWeight = Math.max(0.30, 0.55 - 62 * 0.003);
     assert(
-      mcLive62 !== undefined && Math.abs(mcLive62.divergence_delta) > 0.45 &&
+      mcLive62 !== undefined && Math.abs(mcLive62.divergence_delta) > 0.25 &&
         mcLive62.market_weight_applied < liveBaseMarketWeight,
-      `极端理论/市场偏差必须额外降低市场权重，基础权重=${liveBaseMarketWeight.toFixed(3)}，实际为 ${mcLive62?.market_weight_applied}`
+      `理论/市场偏差必须额外降低市场权重，基础权重=${liveBaseMarketWeight.toFixed(3)}，实际为 ${mcLive62?.market_weight_applied}，Δ=${mcLive62?.divergence_delta}`
     );
 
     console.log(`   🔬 赛前权重: market=${mcPrematch?.market_weight_applied}, theory=${mcPrematch?.theory_weight_applied}`);

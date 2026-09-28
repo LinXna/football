@@ -107,6 +107,7 @@ export function adaptSettledFormalLedgerRecord(record: SettledFormalLedgerRecord
     record: Object.freeze({
       settled_record_provenance: 'SETTLED_LEDGER_ADAPTER_V1',
       record_id: record.record_id,
+      match_id: record.match_id,
       record_type: record.record_type,
       candidate_pipeline_state: record.candidate_pipeline_state,
       formal_recommendation: record.formal_recommendation,

@@ -9,6 +9,7 @@ function assert(condition: boolean, message: string): void {
 
 const baseRecord: HistoricalBacktestRecord = Object.freeze({
   record_id: 'formal-settled-001',
+  match_id: 'match-001',
   record_type: 'formal_ai_recommendation',
   formal_recommendation: true,
   candidate_pipeline_state: 'PRODUCTION_UNLOCKED',

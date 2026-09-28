@@ -10,7 +10,7 @@ import { CanonicalMatch } from '../02_canonical_model/types.js';
 import { MomentumTimelineFeatures, Layer03OpId } from './types.js';
 import { DeficitCollector } from '../00_common/DeficitCollector.js';
 import { Tracer } from '../00_common/Tracer.js';
-import { flattenMomentumPoints, calculateMomentumIntegral, TimedMomentumPoint } from './momentumMath.js';
+import { flattenMomentumPoints, calculateMomentumIntegral, calculateTimedMomentumIntegral, TimedMomentumPoint } from './momentumMath.js';
 
 function getTimedMomentumPoints(match: CanonicalMatch): {
   points: TimedMomentumPoint[];
@@ -92,12 +92,11 @@ function calculateTimedSlope(points: TimedMomentumPoint[]): number {
   return denominator === 0 ? 0 : Number(((n * sumXY - sumX * sumY) / denominator).toFixed(3));
 }
 
-function selectTimedWindow(points: TimedMomentumPoint[], cutoffMinute: number | null, duration: number): number[] {
+function selectTimedWindow(points: TimedMomentumPoint[], cutoffMinute: number | null, duration: number): TimedMomentumPoint[] {
   if (points.length === 0) return [];
   const end = cutoffMinute ?? points[points.length - 1].minute;
   return points
-    .filter((point) => point.minute > end - duration && point.minute <= end)
-    .map((point) => point.value);
+    .filter((point) => point.minute > end - duration && point.minute <= end);
 }
 
 /**
@@ -196,22 +195,23 @@ export function extractMomentumTimelineFeatures(
   const slope10 = calculateTimedSlope(timedPoints.filter((point) => point.minute > (timed.cutoffMinute ?? point.minute) - 10 && point.minute <= (timed.cutoffMinute ?? point.minute)));
   const slope15 = calculateTimedSlope(timedPoints.filter((point) => point.minute > (timed.cutoffMinute ?? point.minute) - 15 && point.minute <= (timed.cutoffMinute ?? point.minute)));
 
-  // 4. 计算多尺度能量积分 (Integrals)
-  const rawIntegral5 = calculateMomentumIntegral(slice5);
-  const rawIntegral15 = calculateMomentumIntegral(slice15);
-  const integralFull = calculateMomentumIntegral(rawPoints);
+  // 4. 计算多尺度能量积分 (Integrals)——P1-22 修复：统一为 dt 加权梯形积分（与 waveform AUC 同口径）。
+  const rawIntegral5 = calculateTimedMomentumIntegral(slice5);
+  const rawIntegral15 = calculateTimedMomentumIntegral(slice15);
+  const integralFull = calculateTimedMomentumIntegral(timedPoints);
 
   // 自适应能量调和：在开场样本不足时，按实际有效分钟数进行物理等效归一化，杜绝直接除以 15 带来的假稀释
-  const effectiveNorm5 = Math.max(1, slice5.length);
-  const effectiveNorm15 = Math.max(1, slice15.length);
+  // P1-22 配套修复：积分已按分钟 dt 加权，归一化应用「有效分钟数」而非「样本数」，避免采样率变化改变能量尺度。
+  const effectiveNorm5 = Math.max(1, actualDuration5);
+  const effectiveNorm15 = Math.max(1, actualDuration15);
   const energy5 = Number((rawIntegral5.net / effectiveNorm5).toFixed(2));
   const energy15 = Number((rawIntegral15.net / effectiveNorm15).toFixed(2));
 
   // 5. 攻守转换拐点识别 (近 15 个点内穿过 0 轴的次数)
   let inflections = 0;
   for (let i = 1; i < slice15.length; i++) {
-    const prev = slice15[i - 1];
-    const curr = slice15[i];
+    const prev = slice15[i - 1].value;
+    const curr = slice15[i].value;
     if ((prev > 0 && curr < 0) || (prev < 0 && curr > 0)) {
       inflections++;
     }
@@ -234,7 +234,15 @@ export function extractMomentumTimelineFeatures(
 
   // 8. 多尺度动量金字塔模型 (5m: 40%, 10m: 35%, 15m: 25%)
   const pyramidCompositeSlope = Number((0.40 * slope5 + 0.35 * slope10 + 0.25 * slope15).toFixed(3));
-  const pyramidCompositeEnergy = Number((0.40 * currentInstantMomentum + 0.35 * energy5 + 0.25 * energy15).toFixed(2));
+  // P1-23 + P1-24（能量部分）修复：
+  // 原 composite_energy = 0.40*currentInstantMomentum + 0.35*energy5 + 0.25*energy15，
+  // (1) 瞬时动量与窗口平均能量时间尺度不同，直接加权无物理意义（P1-23）；
+  // (2) energy5 ⊂ energy15 嵌套，同一事件被双重计数（P1-24）。
+  // 修复：合成正交时段能量（近5分钟 + 5~15分钟前），瞬时动量不再混入复合能量。
+  const energy15_5 = effectiveNorm15 > effectiveNorm5
+    ? Number(((rawIntegral15.net - rawIntegral5.net) / (effectiveNorm15 - effectiveNorm5)).toFixed(2))
+    : 0;
+  const pyramidCompositeEnergy = Number((0.60 * energy5 + 0.40 * energy15_5).toFixed(2));
 
   let pyramidConsistency: 'ALIGNED' | 'DIVERGENT' | 'TURNING' = 'DIVERGENT';
   const isSlope5NonZero = Math.abs(slope5) >= 1.0;

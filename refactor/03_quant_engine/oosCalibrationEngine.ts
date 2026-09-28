@@ -11,8 +11,13 @@ import {
 const MIN_VALIDATED_SAMPLE_SIZE = 200;
 const TEAM_SHRINKAGE_PRIOR_SIZE = 100;
 
-/** 二元市场理论盲猜 Brier 得分为 0.25；超过 0.28 说明模型校准严重失效或发生分布漂移，强制触发熔断 */
+/** P1-03：绝对 Brier 兜底熔断阈值。仅作为退化场景（baseline≈0，如 base rate 极端）与极端失准的兜底；
+ *  正常判定以 Brier Skill Score 为主（跨市场/基准率可比）。 */
 export const BRIER_CIRCUIT_BREAKER_THRESHOLD = 0.28;
+
+/** P1-03：Brier Skill Score 熔断阈值。BSS = 1 - Brier_model / Brier_baseline；
+ *  BSS < 0 表示模型预测劣于 climatology/market 基线（无技能），强制熔断。 */
+export const BRIER_SKILL_CIRCUIT_BREAKER_THRESHOLD = 0;
 
 function minuteBand(stage: MatchStage, minute: number | null): string {
   if (stage === MatchStage.PREMATCH) return 'PREMATCH';
@@ -34,7 +39,9 @@ function createProfile(
   redCardState: string,
   market: OosMarket,
   teamKey?: string,
-  stage?: 'PREMATCH' | 'LIVE' | 'ALL'
+  stage?: 'PREMATCH' | 'LIVE' | 'ALL',
+  line?: string,
+  side?: string
 ): QuantCalibrationProfile {
   const probabilityErrors = samples.map((sample) => {
     return (sample.model_probability - sample.outcome) ** 2;
@@ -48,15 +55,53 @@ function createProfile(
     ? 1
     : samples.length / (samples.length + TEAM_SHRINKAGE_PRIOR_SIZE);
   const sampleSize = samples.length;
-  const effectiveSampleSize = sampleSize;
+  // P1-02 修复：effectiveSampleSize 按「唯一比赛数」聚类（cluster ESS），
+  // 同一场比赛的多个盘口/方向/时段高度相关，不能简单累加为独立样本。
+  // 有 match_id 的样本按唯一 match_id 聚类；缺 match_id 的历史样本（跨层透传前的存量）退化为各自独立计数。
+  const uniqueMatchIds = new Set<string>();
+  let unclusteredCount = 0;
+  for (const sample of samples) {
+    const id = typeof sample.match_id === 'string' ? sample.match_id.trim() : '';
+    if (id.length > 0) {
+      uniqueMatchIds.add(id);
+    } else {
+      unclusteredCount += 1;
+    }
+  }
+  const effectiveSampleSize = uniqueMatchIds.size + unclusteredCount;
   const oosBrierScore = Number(average(probabilityErrors).toFixed(6));
 
   const inferredStage: 'PREMATCH' | 'LIVE' | 'ALL' = stage ?? (
     minuteBandKey === 'PREMATCH' ? 'PREMATCH' : minuteBandKey.startsWith('LIVE_') ? 'LIVE' : 'ALL'
   );
 
-  // 熔断判定：Brier 得分劣化熔断 (二元市场盲猜基准为 0.25，超过 0.28 说明校准严重劣化)
-  const isBrierCircuitBroken = Number.isFinite(oosBrierScore) && oosBrierScore > BRIER_CIRCUIT_BREAKER_THRESHOLD;
+  // P1-03 修复：Brier 熔断改用以基线为基准的 Brier Skill Score，而非固定 0.25 盲猜基准。
+  // 不同市场/基准率不可比：固定 0.28 对罕见事件太宽松、对常见事件太严格。
+  // 1) climatology 基线：base_rate = mean(outcome)，baseline = base_rate × (1 - base_rate)；
+  // 2) market 基线：有 market_probability 时用 mean((market_prob - outcome)^2)，优先采用（更贴近真实可比基准）。
+  const observedBaseRate = average(samples.map((sample) => sample.outcome));
+  const climatologyBaseline = observedBaseRate * (1 - observedBaseRate);
+  const marketBaselineSamples = samples.filter((sample) =>
+    typeof sample.market_probability === 'number' &&
+    Number.isFinite(sample.market_probability) &&
+    sample.market_probability >= 0 && sample.market_probability <= 1
+  );
+  const hasMarketBaseline = marketBaselineSamples.length > 0;
+  const marketBaseline = hasMarketBaseline
+    ? Number(average(marketBaselineSamples.map((sample) => (sample.market_probability! - sample.outcome) ** 2)).toFixed(6))
+    : NaN;
+  const brierBaseline = hasMarketBaseline ? marketBaseline : Number(climatologyBaseline.toFixed(6));
+  const baselineType: 'CLIMATOLOGY' | 'MARKET_IMPLIED' = hasMarketBaseline ? 'MARKET_IMPLIED' : 'CLIMATOLOGY';
+  // BSS = 1 - Brier_model / Brier_baseline；baseline≈0 时 BSS 无定义，置 null（交由绝对 Brier 兜底）。
+  const brierSkillScore = brierBaseline > 1e-9
+    ? Number((1 - oosBrierScore / brierBaseline).toFixed(6))
+    : null;
+
+  // 主熔断：BSS 显著为负（模型劣于 climatology/market 基线，无技能）
+  const isBrierSkillBroken = brierSkillScore !== null && brierSkillScore < BRIER_SKILL_CIRCUIT_BREAKER_THRESHOLD;
+  // 兜底熔断：绝对 Brier 超过阈值（baseline 退化或极端失准时仍拦截）
+  const isAbsoluteBrierBroken = Number.isFinite(oosBrierScore) && oosBrierScore > BRIER_CIRCUIT_BREAKER_THRESHOLD;
+  const isBrierCircuitBroken = isBrierSkillBroken || isAbsoluteBrierBroken;
 
   let status: 'VALIDATED' | 'INSUFFICIENT_EVIDENCE' | 'REJECTED';
   let circuitBreakerTriggered = false;
@@ -65,7 +110,9 @@ function createProfile(
   if (isBrierCircuitBroken) {
     status = 'REJECTED';
     circuitBreakerTriggered = true;
-    circuitBreakerReason = `OOS Brier score ${oosBrierScore} > ${BRIER_CIRCUIT_BREAKER_THRESHOLD} 触发严重校准质量劣化熔断，强制阻断。`;
+    circuitBreakerReason = isBrierSkillBroken
+      ? `OOS Brier Skill Score ${brierSkillScore} < ${BRIER_SKILL_CIRCUIT_BREAKER_THRESHOLD}（模型劣于 ${baselineType} 基线 ${brierBaseline}），触发严重校准质量劣化熔断，强制阻断。`
+      : `OOS Brier score ${oosBrierScore} > ${BRIER_CIRCUIT_BREAKER_THRESHOLD} 触发严重校准质量劣化熔断（绝对兜底），强制阻断。`;
   } else if (effectiveSampleSize >= MIN_VALIDATED_SAMPLE_SIZE) {
     status = 'VALIDATED';
   } else {
@@ -84,9 +131,14 @@ function createProfile(
     sample_size: sampleSize,
     effective_sample_size: effectiveSampleSize,
     oos_brier_score: oosBrierScore,
+    brier_baseline: Number.isFinite(brierBaseline) ? brierBaseline : null,
+    baseline_type: baselineType,
+    brier_skill_score: brierSkillScore,
     lambda_log_adjustment: Number((rawLogAdjustment * shrinkageWeight).toFixed(6)),
     circuit_breaker_triggered: circuitBreakerTriggered,
-    circuit_breaker_reason: circuitBreakerReason
+    circuit_breaker_reason: circuitBreakerReason,
+    line,
+    side
   });
 }
 
@@ -188,7 +240,10 @@ export function buildOosCalibrationArchive(samples: readonly OosCalibrationSampl
   const buckets = new Map<string, OosCalibrationSample[]>();
   for (const sample of samples) {
     const band = minuteBand(sample.stage === 'LIVE' ? MatchStage.LIVE : MatchStage.PREMATCH, sample.minute);
-    const key = [sample.stage, sample.league_key, band, sample.score_state, sample.red_card_state, sample.market].join('|');
+    // P1-01 修复：分桶 key 纳入归一化盘口与方向，避免不同盘共用同一校准档案。
+    const lineKey = sample.line ?? 'ALL';
+    const sideKey = sample.side ?? 'ALL';
+    const key = [sample.stage, sample.league_key, band, sample.score_state, sample.red_card_state, sample.market, lineKey, sideKey].join('|');
     const existing = buckets.get(key) ?? [];
     buckets.set(key, [...existing, sample]);
   }
@@ -199,12 +254,14 @@ export function buildOosCalibrationArchive(samples: readonly OosCalibrationSampl
     ...liveGlobalProfiles.values()
   ];
   for (const [key, bucketSamples] of buckets) {
-    const [sampleStage, leagueKey, band, scoreState, redCardState, market] = key.split('|');
+    const [sampleStage, leagueKey, band, scoreState, redCardState, market, lineKey, sideKey] = key.split('|');
     const stage = sampleStage as 'PREMATCH' | 'LIVE';
-    profiles.push(createProfile(bucketSamples, leagueKey, band, scoreState, redCardState, market as OosMarket, undefined, stage));
+    const line = lineKey === 'ALL' ? undefined : lineKey;
+    const side = sideKey === 'ALL' ? undefined : sideKey;
+    profiles.push(createProfile(bucketSamples, leagueKey, band, scoreState, redCardState, market as OosMarket, undefined, stage, line, side));
     for (const teamKey of new Set(bucketSamples.flatMap((sample) => [sample.home_team_key, sample.away_team_key]))) {
       const teamSamples = bucketSamples.filter((sample) => sample.home_team_key === teamKey || sample.away_team_key === teamKey);
-      profiles.push(createProfile(teamSamples, leagueKey, band, scoreState, redCardState, market as OosMarket, teamKey, stage));
+      profiles.push(createProfile(teamSamples, leagueKey, band, scoreState, redCardState, market as OosMarket, teamKey, stage, line, side));
     }
   }
 
@@ -242,13 +299,17 @@ function redCardState(match: CanonicalMatch): string {
 export function selectOosCalibrationProfile(
   archive: OosCalibrationArchive | undefined,
   match: CanonicalMatch,
-  market: OosMarket
+  market: OosMarket,
+  line?: string,
+  side?: string
 ): QuantCalibrationProfile | undefined {
   if (archive === undefined || archive.schema_version !== 1 ||
       archive.archive_provenance !== 'OOS_ARCHIVE_BUILDER_V1') return undefined;
 
   // 严格在准入时强制校验赛事时间戳是否落入 OOS 档案的预测窗口内
-  const matchTimestamp = Date.parse(match.created_at);
+  // P0-02 落地：优先使用 source_captured_at（数据源盘口快照时点，最接近「模型看到盘口/数据的预测时点」），
+  // 缺失时回退 created_at（组装时点，语义较模糊）。建档案侧(buildOosCalibrationArchive)已用 sample.prediction_at 严格校验未来样本。
+  const matchTimestamp = Date.parse(match.source_captured_at ?? match.created_at);
   const predictionStart = Date.parse(archive.prediction_window_start_at);
   const predictionEnd = Date.parse(archive.prediction_window_end_at);
   if (
@@ -281,7 +342,10 @@ export function selectOosCalibrationProfile(
       profile.score_state === score &&
       profile.red_card_state === redCardState(match) &&
       profile.market === market &&
-      (profile.team_key === undefined || profile.team_key === match.home_team_name || profile.team_key === match.away_team_name)
+      (profile.team_key === undefined || profile.team_key === match.home_team_name || profile.team_key === match.away_team_name) &&
+      // P1-01 修复：分桶档案（有 line/side）只匹配相同盘口/方向；全局聚合档案（无 line/side）匹配任何盘。
+      (profile.line === undefined || profile.line === line) &&
+      (profile.side === undefined || profile.side === side)
     );
   });
 

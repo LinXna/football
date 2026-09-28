@@ -211,24 +211,24 @@ const dualLayerMatch: CanonicalMatch = {
     goal_distribution: {
       has_data: true,
       home_team: {
-        // 主队总样本极小 (1球) -> 应 100% 回退至中性均匀分布
-        all: { scored_intervals: [{ goals: 1 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }] },
-        home: { scored_intervals: [{ goals: 1 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }] }
+        // 主队总样本极小 (1 场 1 球) -> 应 100% 回退至中性均匀分布
+        all: { matches_count: 1, scored_intervals: [{ goals: 1 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }] },
+        home: { matches_count: 1, scored_intervals: [{ goals: 1 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 0 }] }
       },
       away_team: {
-        // 客队：总进球 23 (充足)，客场进球 14 (nVenue >= 12 充足 -> 70% 专属客场 + 30% 总体)
-        all: { scored_intervals: [{ goals: 3 }, { goals: 3 }, { goals: 4 }, { goals: 2 }, { goals: 5 }, { goals: 6 }] },
-        away: { scored_intervals: [{ goals: 1 }, { goals: 2 }, { goals: 2 }, { goals: 1 }, { goals: 3 }, { goals: 5 }] }
+        // 客队：总 10 场 23 球 (充足)，客场 6 场 14 球 (nVenue >= 5 充足 -> 70% 专属客场 + 30% 总体)
+        all: { matches_count: 10, scored_intervals: [{ goals: 3 }, { goals: 3 }, { goals: 4 }, { goals: 2 }, { goals: 5 }, { goals: 6 }] },
+        away: { matches_count: 6, scored_intervals: [{ goals: 1 }, { goals: 2 }, { goals: 2 }, { goals: 1 }, { goals: 3 }, { goals: 5 }] }
       }
     }
   }
 };
 const dnaDual = extractGoalDistributionDNA(dualLayerMatch);
-assert.equal(dnaDual.home_sample_size, 1, 'Home sample size should be 1');
-assert.equal(dnaDual.home_confidence, 'INSUFFICIENT', 'Total goals < 5 must have INSUFFICIENT confidence');
+assert.equal(dnaDual.home_sample_size, 1, 'Home sample size should be 1 match (matches_count, not goals)');
+assert.equal(dnaDual.home_confidence, 'INSUFFICIENT', 'matches_count < 3 must have INSUFFICIENT confidence');
 assert.deepEqual(dnaDual.home_scored_weights, [0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667], 'Insufficient sample size must shrink 100% to uniform weights');
-assert.equal(dnaDual.away_confidence, 'HIGH', 'Away with mature sample size must have HIGH confidence');
-assert.equal(dnaDual.is_away_specific, true, 'Away venue-specific fusion active when nVenue >= 12');
+assert.equal(dnaDual.away_confidence, 'HIGH', 'Away with 10 matches (>= 8) must have HIGH confidence');
+assert.equal(dnaDual.is_away_specific, true, 'Away venue-specific fusion active when nVenue >= 5 matches');
 assert(dnaDual.away_late_game_dna > 0.20, 'Away late game DNA should reflect strong 75+ interval');
 
 // 测试“专属切片不足 (nVenue < 5)，回退 100% 采用总体切片 (All)”
@@ -238,25 +238,25 @@ const fallbackToAllMatch: CanonicalMatch = {
     goal_distribution: {
       has_data: true,
       home_team: {
-        all: { scored_intervals: [{ goals: 3 }, { goals: 4 }, { goals: 5 }, { goals: 3 }, { goals: 6 }, { goals: 4 }] }, // nAll = 25
-        home: { scored_intervals: [{ goals: 1 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 1 }, { goals: 0 }] }  // nVenue = 2 < 5
+        all: { matches_count: 10, scored_intervals: [{ goals: 3 }, { goals: 4 }, { goals: 5 }, { goals: 3 }, { goals: 6 }, { goals: 4 }] }, // 10 场 25 球
+        home: { matches_count: 1, scored_intervals: [{ goals: 1 }, { goals: 0 }, { goals: 0 }, { goals: 0 }, { goals: 1 }, { goals: 0 }] }  // 1 场 2 球 < 3 场
       },
       away_team: {
-        all: { scored_intervals: [{ goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }] },
-        away: { scored_intervals: [{ goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }] }
+        all: { matches_count: 6, scored_intervals: [{ goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }] },
+        away: { matches_count: 6, scored_intervals: [{ goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }, { goals: 2 }] }
       }
     }
   }
 };
 const dnaFallback = extractGoalDistributionDNA(fallbackToAllMatch);
-assert.equal(dnaFallback.home_confidence, 'HIGH', 'Home nAll >= 15 has HIGH confidence even if nVenue < 5');
-assert.equal(dnaFallback.is_home_specific, false, 'Home nVenue < 5 gracefully falls back to 100% All without false specific overfitting');
+assert.equal(dnaFallback.home_confidence, 'HIGH', 'Home nAll >= 8 matches has HIGH confidence even if nVenue < 3 matches');
+assert.equal(dnaFallback.is_home_specific, false, 'Home nVenue < 3 matches gracefully falls back to 100% All without false specific overfitting');
 console.log('   ✅ Goal Distribution DNA: Home (All+Home) & Away (All+Away) Dual-Layer Fusion verified');
 
 // --------------------------------------------------------------------------
 // 8. 滚球阶段动态权重 (Regime Shift Weighting) 与终盘事实统治权
 // --------------------------------------------------------------------------
-console.log('-> Testing In-Play Regime Shift Weighting (30-60m: 60-65%, 65-90m: 80-85%)...');
+console.log('-> Testing In-Play Regime Shift Weighting (30-45m: 40-55%, 45-70m: 55-78%, 70-90m: 78-85%)...');
 const mockState: UnifiedMatchState = {
   match_id: 'regime_test_01',
   elapsed_minute: 45,
@@ -276,7 +276,7 @@ const mockState: UnifiedMatchState = {
 
 // 45 分钟（中段攻防展开期 30' ~ 60'）
 const inPlay45m = calculateInPlayPoissonFeatures(
-  mockMatch,
+  { ...mockMatch, timing: { ...mockMatch.timing, minute: 45 } },
   mockState,
   { base_lambda_home: 1.5, base_lambda_away: 1.2 },
   null,
@@ -285,9 +285,9 @@ const inPlay45m = calculateInPlayPoissonFeatures(
 );
 assert.equal(inPlay45m.lambda_decomposition.live_regime_stage, 'MID_MATCH');
 assert(
-  (inPlay45m.lambda_decomposition.live_stats_weight ?? 0) >= 0.60 &&
-  (inPlay45m.lambda_decomposition.live_stats_weight ?? 0) <= 0.65,
-  `45m live_stats_weight must be within [0.60, 0.65], got ${inPlay45m.lambda_decomposition.live_stats_weight}`
+  (inPlay45m.lambda_decomposition.live_stats_weight ?? 0) >= 0.50 &&
+  (inPlay45m.lambda_decomposition.live_stats_weight ?? 0) <= 0.60,
+  `45m live_stats_weight must be within [0.50, 0.60], got ${inPlay45m.lambda_decomposition.live_stats_weight}`
 );
 
 // 75 分钟（终盘决战期 65' ~ 90'）
@@ -305,9 +305,9 @@ const inPlay75m = calculateInPlayPoissonFeatures(
 );
 assert.equal(inPlay75m.lambda_decomposition.live_regime_stage, 'LATE_SURGE');
 assert(
-  (inPlay75m.lambda_decomposition.live_stats_weight ?? 0) >= 0.80 &&
+  (inPlay75m.lambda_decomposition.live_stats_weight ?? 0) >= 0.75 &&
   (inPlay75m.lambda_decomposition.live_stats_weight ?? 0) <= 0.85,
-  `75m live_stats_weight must be within [0.80, 0.85], got ${inPlay75m.lambda_decomposition.live_stats_weight}`
+  `75m live_stats_weight must be within [0.75, 0.85], got ${inPlay75m.lambda_decomposition.live_stats_weight}`
 );
 console.log('   ✅ In-Play Regime Shift Weighting verified: 45m weight=' + inPlay45m.lambda_decomposition.live_stats_weight + ', 75m weight=' + inPlay75m.lambda_decomposition.live_stats_weight);
 

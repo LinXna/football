@@ -23,8 +23,10 @@ export function parseMarketValueToNumber(mvText: string | null | undefined): num
   const cleaned = mvText.replace(/[^0-9.]/g, '');
   const val = parseFloat(cleaned);
   if (isNaN(val)) return 0;
-  if (mvText.includes('亿') || mvText.toUpperCase().includes('B')) return val * 10000;
-  if (mvText.includes('万') || mvText.toUpperCase().includes('M')) return val;
+  if (mvText.includes('亿')) return val * 10000;                    // 1 亿 = 10000 万
+  if (mvText.toUpperCase().includes('B')) return val * 100000;      // 1 billion = 10 亿 = 100000 万
+  if (mvText.includes('万')) return val;                             // 万
+  if (mvText.toUpperCase().includes('M')) return val * 100;         // 1 million = 100 万
   return val;
 }
 
@@ -209,8 +211,7 @@ export function calculateLineupImpactScores(
 
   const evaluateAbsences = (
     injuries: ParsedPlayer[],
-    starters: ParsedPlayer[],
-    teamSquadMvTenK: number
+    starters: ParsedPlayer[]
   ): {
     lis: number;
     missing: string[];
@@ -246,7 +247,9 @@ export function calculateLineupImpactScores(
     }
 
     // 全队身价基准 (欧元)
-    const teamSquadMvEur = teamSquadMvTenK > 0 ? teamSquadMvTenK * 10000 : startersTotalMvEur * 1.35;
+    // P1-20 修复：injury impact 独立建模，只基于首发球员个体身价 (startersTotalMvEur)，
+    // 不再复用外部 squad market value (homeMv/awayMv)，避免与 prior 的球队身价信号重复使用。
+    const teamSquadMvEur = startersTotalMvEur > 0 ? startersTotalMvEur * 1.35 : 0;
     const effectiveSquadMvEur = Math.max(100000, teamSquadMvEur);
 
     // 2. 识别全队“大腿球员” (Talisman)
@@ -411,8 +414,8 @@ export function calculateLineupImpactScores(
   const homeInjuries = lineup?.home_injuries || [];
   const awayInjuries = lineup?.away_injuries || [];
 
-  const homeRes = evaluateAbsences(homeInjuries, homeStarters, homeMv);
-  const awayRes = evaluateAbsences(awayInjuries, awayStarters, awayMv);
+  const homeRes = evaluateAbsences(homeInjuries, homeStarters);
+  const awayRes = evaluateAbsences(awayInjuries, awayStarters);
 
   // 战术中轴骨干身价 (Spine: GK - CB - CM/DM - CF)
   const calcSpineMv = (starters: ParsedPlayer[]): number => {
@@ -430,6 +433,13 @@ export function calculateLineupImpactScores(
   const awaySpineMv = calcSpineMv(awayStarters);
 
   // 平均年龄与体能/经验差
+  // P1-21 修复：统一 number/string schema。雷速 lineup.home_average_age 为字符串（如 "27.5岁"），
+  // 原 fallbackAge 参数为 number 类型，字符串兜底从未生效；现解析字符串数字作为真正的兜底。
+  const parseAvgAgeFallback = (raw?: string | null): number | undefined => {
+    if (typeof raw !== 'string') return undefined;
+    const n = parseFloat(raw.replace(/[^0-9.]/g, ''));
+    return (Number.isFinite(n) && n > 15 && n < 50) ? Number(n.toFixed(1)) : undefined;
+  };
   const calcAvgAge = (starters: ParsedPlayer[], fallbackAge?: number): number | undefined => {
     if (typeof fallbackAge === 'number' && fallbackAge > 15 && fallbackAge < 50) return fallbackAge;
     const ages = starters.map(p => typeof p.age === 'number' && p.age > 15 && p.age < 50 ? p.age : 0).filter(a => a > 0);
@@ -438,9 +448,8 @@ export function calculateLineupImpactScores(
     }
     return undefined;
   };
-  // home_average_age/away_average_age 为字符串类型，与 calcAvgAge 的 number 兜底参数不匹配（原 as any 掩盖类型不匹配，兜底实际从未生效），故省略兜底参数。
-  const homeAvgAge = calcAvgAge(homeStarters);
-  const awayAvgAge = calcAvgAge(awayStarters);
+  const homeAvgAge = calcAvgAge(homeStarters, parseAvgAgeFallback(lineup?.home_average_age));
+  const awayAvgAge = calcAvgAge(awayStarters, parseAvgAgeFallback(lineup?.away_average_age));
   const ageGap = (homeAvgAge && awayAvgAge) ? Number(Math.abs(homeAvgAge - awayAvgAge).toFixed(1)) : undefined;
 
   // 阵型相克风险 (如 4-1-4-1 单后腰遭遇 3 中场绞杀)

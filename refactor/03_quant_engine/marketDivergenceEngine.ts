@@ -26,6 +26,7 @@ import { Tracer } from '../00_common/Tracer.js';
 import { calculateAsianHandicapEV, calculateTotalGoalsEV, devigShin, formatAsianHandicapLine } from './devigCalculator.js';
 import { computePoisson1X2 } from './prematchPriorEngine.js';
 import { calculateBivariatePoissonGrid } from './poissonDecayModel.js';
+import { poissonSupportUpperBound } from './devigMath.js';
 import { ParsedHandicapMarket, ParsedTotalMarket, ParsedWinnerMarket } from '../01_data_ingestion/leisu/types.js';
 
 interface MarketLambdaEstimate {
@@ -44,9 +45,11 @@ function requiredOdds(odds: number | null): number {
   return odds;
 }
 
-function proportionalFairOdds(firstOdds: number, secondOdds: number): readonly [number, number] {
-  const overround = 1 / firstOdds + 1 / secondOdds;
-  return [firstOdds * overround, secondOdds * overround];
+/** P1-06：统一去水方法。比例剥水改为 Shin 去抽水（与 1X2 独赢一致），校正 favorite-longshot bias。 */
+function shinFairOdds(firstOdds: number, secondOdds: number): readonly [number, number] {
+  const shin = devigShin([firstOdds, secondOdds]);
+  const [p0, p1] = shin.fair_probs;
+  return [p0 > 0 ? 1 / p0 : firstOdds, p1 > 0 ? 1 / p1 : secondOdds];
 }
 
 function jointMarketLambdaEstimate(
@@ -59,10 +62,10 @@ function jointMarketLambdaEstimate(
 ): MarketLambdaEstimate {
   const winnerFair = devigShin([requiredOdds(winner.home_odds), requiredOdds(winner.draw_odds), requiredOdds(winner.away_odds)]).fair_probs;
   const totalFairOdds = total !== undefined && total.line !== null && hasValidOdds(total.over_odds, total.under_odds)
-    ? proportionalFairOdds(requiredOdds(total.over_odds), requiredOdds(total.under_odds))
+    ? shinFairOdds(requiredOdds(total.over_odds), requiredOdds(total.under_odds))
     : undefined;
   const handicapFairOdds = handicap !== undefined && handicap.line !== null && hasValidOdds(handicap.home_odds, handicap.away_odds)
-    ? proportionalFairOdds(requiredOdds(handicap.home_odds), requiredOdds(handicap.away_odds))
+    ? shinFairOdds(requiredOdds(handicap.home_odds), requiredOdds(handicap.away_odds))
     : undefined;
   const currentTotalGoals = isInPlayMarket ? currentHomeScore + currentAwayScore : 0;
   let best: MarketLambdaEstimate | undefined;
@@ -81,7 +84,7 @@ function jointMarketLambdaEstimate(
       } else {
         // 滚球 1X2 机构赔率代表的是全场终态结果 (Full-Time Final Score)！
         // 必须结合已有比分 [currentHomeScore, currentAwayScore] 与剩余进球网格求解全场终态胜平负概率
-        const bivariate = calculateBivariatePoissonGrid(home, away, 6);
+        const bivariate = calculateBivariatePoissonGrid(home, away, Math.max(poissonSupportUpperBound(home), poissonSupportUpperBound(away)));
         const grid = bivariate.grid;
         for (let h = 0; h < grid.length; h++) {
           for (let a = 0; a < grid[h].length; a++) {
@@ -105,14 +108,20 @@ function jointMarketLambdaEstimate(
       const poisson = { lambda_home_rest: home, lambda_away_rest: away, expected_goals_rest: home + away };
       if (totalFairOdds !== undefined && total !== undefined && total.line !== null) {
         const ev = calculateTotalGoalsEV(String(total.line), totalFairOdds[0], totalFairOdds[1], currentTotalGoals, poisson);
-        error += ev.over_ev ** 2 + ev.under_ev ** 2;
+        // P1-05 修复：用模型等效全赢概率 vs 市场公允概率的平方差（proper scoring），替代 EV²（价格函数，尺度与概率不一致）。
+        const marketFairOver = 1 / totalFairOdds[0];
+        const marketFairUnder = 1 / totalFairOdds[1];
+        error += ((ev.over_model_probability ?? 0) - marketFairOver) ** 2 + ((ev.under_model_probability ?? 0) - marketFairUnder) ** 2;
       }
       if (handicapFairOdds !== undefined && handicap !== undefined && handicap.line !== null) {
         // 雷速亚盘已在 Layer 01 数据摄入层彻底归一化为 Master Home Line 物理基准 (负数表示主让, 正数表示主受让)
         // 与 calculateAsianHandicapEV 及 YBTY 选项规范完全一致，直接通过 formatAsianHandicapLine 格式化
         const handicapLineStr = formatAsianHandicapLine(handicap.line);
         const ev = calculateAsianHandicapEV(handicapLineStr, handicapFairOdds[0], handicapFairOdds[1], poisson);
-        error += ev.home_ev ** 2 + ev.away_ev ** 2;
+        // P1-05 修复：模型等效全赢概率 vs 市场公允概率的平方差（proper scoring）。
+        const marketFairHome = 1 / handicapFairOdds[0];
+        const marketFairAway = 1 / handicapFairOdds[1];
+        error += ((ev.home_model_probability ?? 0) - marketFairHome) ** 2 + ((ev.away_model_probability ?? 0) - marketFairAway) ** 2;
       }
       if (Number.isFinite(error) && error < bestError) {
         bestError = error;
@@ -195,6 +204,7 @@ export function calibrateWithMarketOdds(
       lambda_base_away: theoryPrior.lambda_away_theory,
       is_in_play_market: false,
       divergence_delta: 0.0,
+      divergence_total_delta: 0.0,
       market_stance: MarketStanceType.MARKET_DATA_MISSING,
       market_confidence_penalty: 0,
       implied_market_home_win_prob: theoryPrior.prior_fair_home_win_prob,
@@ -231,6 +241,8 @@ export function calibrateWithMarketOdds(
   const deltaH = theoryPrior.lambda_home_theory - lambda_mkt_H;
   const deltaA = theoryPrior.lambda_away_theory - lambda_mkt_A;
   const netDelta = Number((deltaH - deltaA).toFixed(3)); // 正数表示理论显著高于机构，负数表示机构显著高于理论
+  // P1-10 修复：同时输出总进球偏差 Δtotal = deltaH + deltaA，避免只描述主客进球差之差而丢失总 λ 分歧信息。
+  const totalDelta = Number((deltaH + deltaA).toFixed(3));
 
   // 5. 贝叶斯收缩融合 (Bayesian Shrinkage Fusion): 理论先验 vs 机构隐含
   const absNetDelta = Math.abs(netDelta);
@@ -282,6 +294,7 @@ export function calibrateWithMarketOdds(
     lambda_base_away: Number(finalBaseA.toFixed(3)),
     is_in_play_market: isInPlayMarket,
     divergence_delta: netDelta,
+    divergence_total_delta: totalDelta,
     market_stance: stance,
     market_confidence_penalty: penalty,
     implied_market_home_win_prob: Number(pH_mkt.toFixed(4)),
