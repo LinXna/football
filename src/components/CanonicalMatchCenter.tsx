@@ -62,7 +62,6 @@ import { QuantBettingDecisionMatrix } from "./QuantBettingDecisionMatrix";
 import { TimelineIncidentLegend, parseIncidentMeta, ProMatchEventIcon } from "./TimelineIncidentBadge";
 import { GenericTimelineEventPin } from "./IncidentIconsHelper";
 import { QuantitativeFeatures } from "../../refactor/03_quant_engine/types";
-import { MatchArchiveCenter } from "./MatchArchiveCenter";
 import { ManualLedgerModal } from "./ManualLedgerModal";
 
 function getMarketsSummary(mkts?: CleanMarketsGroup | null) {
@@ -237,6 +236,18 @@ export const CanonicalMatchCenter: React.FC = () => {
   const [ledgerFilter, setLedgerFilter] = useState<'ALL' | 'UNSETTLED' | 'SETTLED'>('ALL');
   const [appendingLedgerIds, setAppendingLedgerIds] = useState<Record<string, boolean>>({});
 
+  // 全生命周期统一复盘与核销中心 (Unified Settlement & Reflection Hub)
+  const [ledgerTrack, setLedgerTrack] = useState<'UNIVERSE' | 'FORMAL' | 'REFLECTION'>('UNIVERSE');
+  const [universeLedger, setUniverseLedger] = useState<any[]>([]);
+  const [universeSummary, setUniverseSummary] = useState<any>(null);
+  const [universeFilter, setUniverseFilter] = useState<'ALL' | 'UNSETTLED' | 'SETTLED' | 'AVOIDANCE' | 'FALSE_NEGATIVE'>('ALL');
+  const [reflectionFilter, setReflectionFilter] = useState<'ALL' | 'UNSETTLED' | 'SETTLED' | 'HIT' | 'EXACT' | 'MISS'>('ALL');
+  const [showQuickSettleModal, setShowQuickSettleModal] = useState<boolean>(false);
+  const [quickSettleMatch, setQuickSettleMatch] = useState<CanonicalMatch | null>(null);
+  const [quickSettleScore, setQuickSettleScore] = useState<{ home: string; away: string }>({ home: '', away: '' });
+  const [quickSettleSource, setQuickSettleSource] = useState<string>('雷速比分画布/接口校验');
+  const [isQuickSettling, setIsQuickSettling] = useState<boolean>(false);
+
   // State for AI Prompt & Evaluator Modal
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [aiSelectedMatchIds, setAiSelectedMatchIds] = useState<Set<string>>(new Set());
@@ -307,8 +318,10 @@ export const CanonicalMatchCenter: React.FC = () => {
     events: any[];
   } | null>(null);
 
-  // 主视图 Tab: 比赛对齐流转 / 赛事档案与赛后反思
-  const [mainViewTab, setMainViewTab] = useState<"matches" | "archive">("matches");
+  // 主视图 Tab: 实时赛事量化对齐 / 全生命周期统一复盘与核销中枢 (SSOT)
+  const [mainViewTab, setMainViewTab] = useState<"matches" | "hub">("matches");
+  const [hubSearchKeyword, setHubSearchKeyword] = useState<string>("");
+  const [showStandardsGuideModal, setShowStandardsGuideModal] = useState<boolean>(false);
   // 专家手动录入与 OOS 录入弹窗
   const [showManualLedgerModal, setShowManualLedgerModal] = useState<boolean>(false);
   const [manualLedgerDefaultMatch, setManualLedgerDefaultMatch] = useState<any>(undefined);
@@ -774,6 +787,8 @@ export const CanonicalMatchCenter: React.FC = () => {
       setAiImportJson('');
       loadAiEvaluations();
       await fetchRefactorLedger();
+      await fetchUniverseLedger();
+      await fetchOosStatus();
     } catch (err: any) {
       setAiFeedback({ type: 'error', message: `❌ 导入失败: ${err.message}` });
     } finally {
@@ -932,6 +947,101 @@ export const CanonicalMatchCenter: React.FC = () => {
     }
   }, []);
 
+  const fetchUniverseLedger = useCallback(async () => {
+    try {
+      const stage = mode === 'live' ? 'LIVE' : 'PREMATCH';
+      const response = await fetch(`/api/refactor/universe-ledger?stage=${stage}`);
+      const data = await response.json();
+      if (data.success) {
+        setUniverseLedger(data.records || []);
+        setUniverseSummary(data.summary || null);
+      }
+    } catch (err: any) {
+      console.warn("Failed to fetch universe ledger:", err);
+    }
+  }, [mode]);
+
+  const handleSettleUniverseRecord = async (recordId: string) => {
+    const input = settleInputs[recordId];
+    if (!input || input.home === '' || input.away === '') {
+      setLedgerFeedback('⚠️ 请先录入完整完场比分（主队得分 - 客队得分）');
+      return;
+    }
+    setSettlingIds((prev) => ({ ...prev, [recordId]: true }));
+    setLedgerFeedback('正在执行全量预测归因核销并同步 OOS 校准样本...');
+    try {
+      const source = settleSources[recordId] || '雷速比分画布/接口校验';
+      const res = await fetch('/api/refactor/universe-ledger/settle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          record_id: recordId,
+          stage: mode === 'live' ? 'LIVE' : 'PREMATCH',
+          final_score: { home: Number(input.home), away: Number(input.away) },
+          score_source: source,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const uni = data.universe_record;
+        const verdict = uni?.settlement?.attribution?.notes || `结果: [${uni?.settlement?.outcome}]`;
+        const oosMsg = data.oos_sample_ingested
+          ? '⚡ 已同步生成 OOS 校准样本！'
+          : '';
+        setLedgerFeedback(`✅ 全量记录核销成功！${verdict} ${oosMsg}`);
+        await fetchUniverseLedger();
+        await fetchRefactorLedger();
+        await fetchOosStatus();
+      } else {
+        setLedgerFeedback(`❌ 核销结算失败: ${data.error || '未知错误'}`);
+      }
+    } catch (e: any) {
+      setLedgerFeedback(`❌ 结算网络异常: ${e.message}`);
+    } finally {
+      setSettlingIds((prev) => ({ ...prev, [recordId]: false }));
+    }
+  };
+
+  const handleExecuteQuickSettle = async () => {
+    if (!quickSettleMatch) return;
+    if (quickSettleScore.home === '' || quickSettleScore.away === '') {
+      setLedgerFeedback('⚠️ 请先录入完整完场比分');
+      return;
+    }
+    setIsQuickSettling(true);
+    setLedgerFeedback(`正在为【${quickSettleMatch.home_team_name} vs ${quickSettleMatch.away_team_name}】核销比分...`);
+    try {
+      const res = await fetch('/api/refactor/universe-ledger/settle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          record_id: quickSettleMatch.canonical_id,
+          stage: mode === 'live' ? 'LIVE' : 'PREMATCH',
+          final_score: { home: Number(quickSettleScore.home), away: Number(quickSettleScore.away) },
+          score_source: quickSettleSource,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const uni = data.universe_record;
+        const verdict = uni?.settlement?.attribution?.notes || `结果: [${uni?.settlement?.outcome}]`;
+        setLedgerFeedback(`✅ 【${quickSettleMatch.home_team_name} vs ${quickSettleMatch.away_team_name}】核销成功！${verdict}`);
+        setShowQuickSettleModal(false);
+        setQuickSettleMatch(null);
+        setQuickSettleScore({ home: '', away: '' });
+        await fetchUniverseLedger();
+        await fetchRefactorLedger();
+        await fetchOosStatus();
+      } else {
+        setLedgerFeedback(`❌ 快捷核销失败: ${data.error || '未知错误'}`);
+      }
+    } catch (e: any) {
+      setLedgerFeedback(`❌ 快捷核销异常: ${e.message}`);
+    } finally {
+      setIsQuickSettling(false);
+    }
+  };
+
   const handleAppendToLedger = async (match: CanonicalMatch, aiEval: any) => {
     setAppendingLedgerIds((prev) => ({ ...prev, [match.canonical_id]: true }));
     setLedgerFeedback(`正在将 ${match.home_team_name} vs ${match.away_team_name} 推荐写入重构正式台账...`);
@@ -1067,6 +1177,10 @@ export const CanonicalMatchCenter: React.FC = () => {
   useEffect(() => {
     fetchOosStatus();
   }, [fetchOosStatus]);
+
+  useEffect(() => {
+    fetchUniverseLedger();
+  }, [fetchUniverseLedger]);
 
   const processRawJsonFile = (file: File) => {
     return new Promise<SniffedFileInfo>((resolve, reject) => {
@@ -1989,16 +2103,19 @@ export const CanonicalMatchCenter: React.FC = () => {
               📅 赛前赛事对齐 ({mode === "prematch" ? matches.length : "-"})
             </button>
             <button
-              id="tab-mode-archive"
-              onClick={() => setMainViewTab("archive")}
+              id="tab-mode-hub"
+              onClick={() => setMainViewTab("hub")}
               className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
-                mainViewTab === "archive"
+                mainViewTab === "hub"
                   ? "bg-indigo-600 text-white font-semibold shadow-xs"
                   : "text-slate-400 hover:text-slate-200"
               }`}
             >
-              <Database className="w-3.5 h-3.5" />
-              <span>📚 赛事建档与赛后反思</span>
+              <Layers className="w-3.5 h-3.5 text-indigo-300" />
+              <span>🎯 统一赛后复盘与核销中枢</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-950 text-indigo-200 border border-indigo-800 font-mono">
+                {universeLedger.length} 场
+              </span>
             </button>
           </div>
 
@@ -2054,17 +2171,36 @@ export const CanonicalMatchCenter: React.FC = () => {
         </div>
       </div>
 
-      {mainViewTab === "archive" ? (
-        <MatchArchiveCenter
-          currentMode={mode}
-          onRefreshParent={() => {
-            fetchCanonicalData(false);
-            fetchRefactorLedger();
-            fetchOosStatus();
-          }}
-        />
-      ) : (
-        <>
+      {mainViewTab === "hub" ? (
+        <div className="space-y-3.5 animate-in fade-in">
+          {/* 统一中枢专属头部导航条 */}
+          <div className="flex items-center justify-between bg-slate-900/90 p-3 rounded-xl border border-indigo-900/60 shadow-sm flex-wrap gap-2.5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                <Layers className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                  <span>全生命周期赛后复盘与核销结算中枢 (SSOT)</span>
+                  <span className="text-[10px] bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded border border-indigo-800 font-mono">
+                    三轨合一事实来源
+                  </span>
+                </h2>
+                <p className="text-[11px] text-slate-400">
+                  统一管辖：① 实盘真金盈亏核销与 OOS 样本沉淀、② 全量门禁避坑与误杀归因、③ 泊松分布推演与赛后反思梳理。
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setMainViewTab("matches")}
+                className="px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 font-medium shadow-xs"
+              >
+                <span>← 返回比赛实时推演工作台</span>
+              </button>
+            </div>
+          </div>
       {/* 重构体系：OOS 样本校准档案与实盘自增监控看板 */}
       <div className="bg-slate-900/80 rounded-xl border border-blue-950/80 p-3.5 space-y-3 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2148,45 +2284,207 @@ export const CanonicalMatchCenter: React.FC = () => {
         </div>
       </div>
 
-      {/* 重构正式推荐台账与实盘核销结算中心 */}
+      {/* 重构双轨台账与实盘核销结算中心 */}
       <div className="bg-slate-900/70 rounded-xl border border-indigo-900/60 p-3.5 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-indigo-200">
-                重构正式推荐台账与实盘核销中心 ({mode === "live" ? "滚球" : "赛前"})
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-indigo-400" />
+                <span>重构双轨台账与核销结算中心</span>
+                <span className="text-xs text-slate-400 font-normal">({mode === "live" ? "滚球" : "赛前"})</span>
               </span>
-              <span className="text-[10px] bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded border border-indigo-800 font-mono">
-                {formalLedger.length} 场记录
-              </span>
+
+              {/* 三维统一复盘与核销切换器 */}
+              <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-xs">
+                <button
+                  id="tab-track-universe"
+                  onClick={() => setLedgerTrack('UNIVERSE')}
+                  className={`px-3 py-1 rounded-md transition-all font-semibold flex items-center gap-1.5 ${
+                    ledgerTrack === 'UNIVERSE'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>全量门禁避坑归因</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-950 text-purple-200 border border-purple-800 font-mono">
+                    {universeLedger.length} 场
+                  </span>
+                </button>
+                <button
+                  id="tab-track-formal"
+                  onClick={() => setLedgerTrack('FORMAL')}
+                  className={`px-3 py-1 rounded-md transition-all font-semibold flex items-center gap-1.5 ${
+                    ledgerTrack === 'FORMAL'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>实盘推荐盈亏核销</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-950 text-indigo-200 border border-indigo-800 font-mono">
+                    {formalLedger.length} 场
+                  </span>
+                </button>
+                <button
+                  id="tab-track-reflection"
+                  onClick={() => setLedgerTrack('REFLECTION')}
+                  className={`px-3 py-1 rounded-md transition-all font-semibold flex items-center gap-1.5 ${
+                    ledgerTrack === 'REFLECTION'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Target className="w-3.5 h-3.5" />
+                  <span>比分推演与赛后反思</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-200 border border-emerald-800 font-mono">
+                    {universeLedger.filter(r => r.settlement?.is_settled).length} 已核销
+                  </span>
+                </button>
+              </div>
             </div>
+
             <div className="text-[11px] text-slate-400">
-              严格遵循 Layer 05/06 契约：仅写入 A/B 级且 PRODUCTION_UNLOCKED 的正式推荐；赛后录入真实比分完成确定性四分之一盘核销，结算结果自动增量沉淀至 OOS 档案。
+              {ledgerTrack === 'UNIVERSE' ? (
+                <span>
+                  🌟 <strong className="text-purple-300">门禁避坑归因模式</strong>：全量自动建档所有已完成量化推演与 AI 评定的比赛，赛后核销评估【成功避坑 (True Negative)】与【模型误杀 (False Negative)】归因矩阵。
+                </span>
+              ) : ledgerTrack === 'FORMAL' ? (
+                <span>
+                  🛡️ <strong className="text-indigo-300">实盘推荐盈亏模式</strong>：严格遵守 Layer 05/06 契约，仅收录 A/B 级可投注正式推荐，核销后精准计算净盈亏并自动沉淀 OOS 样本。
+                </span>
+              ) : (
+                <span>
+                  🎯 <strong className="text-emerald-300">比分推演与赛后反思模式</strong>：检验 Layer 03 泊松前瞻分布准确度，核对实际赛果是否落入 Top 3 预测分布，诊断净胜球与进球数偏差。
+                </span>
+              )}
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* 过滤器 */}
-            <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-xs">
-              <button
-                onClick={() => setLedgerFilter('ALL')}
-                className={`px-2 py-1 rounded transition-colors ${ledgerFilter === 'ALL' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'}`}
-              >
-                全部 ({formalLedger.length})
-              </button>
-              <button
-                onClick={() => setLedgerFilter('UNSETTLED')}
-                className={`px-2 py-1 rounded transition-colors ${ledgerFilter === 'UNSETTLED' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'}`}
-              >
-                待核销 ({formalLedger.filter(r => !r.settlement?.is_settled).length})
-              </button>
-              <button
-                onClick={() => setLedgerFilter('SETTLED')}
-                className={`px-2 py-1 rounded transition-colors ${ledgerFilter === 'SETTLED' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'}`}
-              >
-                已结算 ({formalLedger.filter(r => r.settlement?.is_settled).length})
-              </button>
+            {ledgerTrack === 'UNIVERSE' ? (
+              <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-xs">
+                <button
+                  onClick={() => setUniverseFilter('ALL')}
+                  className={`px-2 py-1 rounded transition-colors ${universeFilter === 'ALL' ? 'bg-purple-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  全部 ({universeLedger.length})
+                </button>
+                <button
+                  onClick={() => setUniverseFilter('UNSETTLED')}
+                  className={`px-2 py-1 rounded transition-colors ${universeFilter === 'UNSETTLED' ? 'bg-purple-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  待核销 ({universeLedger.filter(r => !r.settlement?.is_settled).length})
+                </button>
+                <button
+                  onClick={() => setUniverseFilter('SETTLED')}
+                  className={`px-2 py-1 rounded transition-colors ${universeFilter === 'SETTLED' ? 'bg-purple-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  已结算 ({universeLedger.filter(r => r.settlement?.is_settled).length})
+                </button>
+                <button
+                  onClick={() => setUniverseFilter('AVOIDANCE')}
+                  className={`px-2 py-1 rounded transition-colors ${universeFilter === 'AVOIDANCE' ? 'bg-emerald-600 text-white font-medium' : 'text-emerald-400 hover:text-emerald-200'}`}
+                  title="门禁拦截正确，比赛实际未打出"
+                >
+                  🛡️ 避坑 ({universeLedger.filter(r => r.settlement?.attribution?.verdict_label === 'SUCCESSFUL_AVOIDANCE').length})
+                </button>
+                <button
+                  onClick={() => setUniverseFilter('FALSE_NEGATIVE')}
+                  className={`px-2 py-1 rounded transition-colors ${universeFilter === 'FALSE_NEGATIVE' ? 'bg-amber-600 text-white font-medium' : 'text-amber-400 hover:text-amber-200'}`}
+                  title="门禁拦截保守，比赛实际打出"
+                >
+                  ⚠️ 误杀 ({universeLedger.filter(r => r.settlement?.attribution?.verdict_label === 'MODEL_FALSE_NEGATIVE').length})
+                </button>
+              </div>
+            ) : ledgerTrack === 'FORMAL' ? (
+              <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-xs">
+                <button
+                  onClick={() => setLedgerFilter('ALL')}
+                  className={`px-2 py-1 rounded transition-colors ${ledgerFilter === 'ALL' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  全部 ({formalLedger.length})
+                </button>
+                <button
+                  onClick={() => setLedgerFilter('UNSETTLED')}
+                  className={`px-2 py-1 rounded transition-colors ${ledgerFilter === 'UNSETTLED' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  待核销 ({formalLedger.filter(r => !r.settlement?.is_settled).length})
+                </button>
+                <button
+                  onClick={() => setLedgerFilter('SETTLED')}
+                  className={`px-2 py-1 rounded transition-colors ${ledgerFilter === 'SETTLED' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  已结算 ({formalLedger.filter(r => r.settlement?.is_settled).length})
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-xs">
+                <button
+                  onClick={() => setReflectionFilter('ALL')}
+                  className={`px-2 py-1 rounded transition-colors ${reflectionFilter === 'ALL' ? 'bg-emerald-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  全部 ({universeLedger.length})
+                </button>
+                <button
+                  onClick={() => setReflectionFilter('UNSETTLED')}
+                  className={`px-2 py-1 rounded transition-colors ${reflectionFilter === 'UNSETTLED' ? 'bg-emerald-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  待完场 ({universeLedger.filter(r => !r.settlement?.is_settled).length})
+                </button>
+                <button
+                  onClick={() => setReflectionFilter('HIT')}
+                  className={`px-2 py-1 rounded transition-colors ${reflectionFilter === 'HIT' ? 'bg-emerald-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'}`}
+                  title="命中 Top 3 预测分布"
+                >
+                  ✅ 命中Top3 ({universeLedger.filter(r => r.settlement?.reflection?.score_hit).length})
+                </button>
+                <button
+                  onClick={() => setReflectionFilter('EXACT')}
+                  className={`px-2 py-1 rounded transition-colors ${reflectionFilter === 'EXACT' ? 'bg-emerald-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'}`}
+                  title="精准命中最高概率预测比分"
+                >
+                  🎯 极高精度 ({universeLedger.filter(r => r.settlement?.reflection?.exact_score_hit).length})
+                </button>
+                <button
+                  onClick={() => setReflectionFilter('MISS')}
+                  className={`px-2 py-1 rounded transition-colors ${reflectionFilter === 'MISS' ? 'bg-rose-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'}`}
+                  title="未进入 Top 3 预测概率区"
+                >
+                  ⚠️ 偏差反思 ({universeLedger.filter(r => r.settlement?.is_settled && !r.settlement?.reflection?.score_hit).length})
+                </button>
+              </div>
+            )}
+
+            {/* 关键词搜索 */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="搜索联赛/球队..."
+                value={hubSearchKeyword}
+                onChange={(e) => setHubSearchKeyword(e.target.value)}
+                className="w-32 sm:w-44 px-2.5 py-1 text-xs bg-slate-950 text-slate-200 border border-slate-700 rounded focus:outline-none focus:border-indigo-500 font-mono"
+              />
+              {hubSearchKeyword && (
+                <button
+                  onClick={() => setHubSearchKeyword("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs"
+                >
+                  ×
+                </button>
+              )}
             </div>
+
+            <button
+              onClick={() => setShowStandardsGuideModal(true)}
+              className="px-2.5 py-1 text-xs rounded border border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800 transition-colors flex items-center gap-1 font-medium"
+              title="查看 Layer 05/06 双轨台账与 OOS 准入规范"
+            >
+              <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+              <span>准入规范</span>
+            </button>
 
             <button
               onClick={() => {
@@ -2212,6 +2510,7 @@ export const CanonicalMatchCenter: React.FC = () => {
                   const data = await res.json();
                   if (data.success) {
                     setLedgerFeedback(data.message || `雷速核销完成：已核销 ${data.settled_count} 场比赛！`);
+                    await fetchUniverseLedger();
                     await fetchRefactorLedger();
                     await fetchOosStatus();
                   } else {
@@ -2225,14 +2524,17 @@ export const CanonicalMatchCenter: React.FC = () => {
               }}
               disabled={autoSettlingLeisu}
               className="px-2.5 py-1 text-xs rounded border border-emerald-600 bg-emerald-950/80 text-emerald-300 hover:bg-emerald-900/80 transition-colors flex items-center gap-1 font-semibold shadow-xs"
-              title="读取雷速完场数据一键核销正式台账并沉淀 OOS 样本"
+              title="读取雷速完场数据一键核销正式与全量台账并沉淀 OOS 样本"
             >
               <Zap className={`w-3.5 h-3.5 ${autoSettlingLeisu ? "animate-spin" : "text-amber-300"}`} />
               <span>{autoSettlingLeisu ? "核销中..." : "雷速完场自动核销"}</span>
             </button>
 
             <button
-              onClick={fetchRefactorLedger}
+              onClick={() => {
+                fetchUniverseLedger();
+                fetchRefactorLedger();
+              }}
               className="px-2.5 py-1 text-xs rounded border border-indigo-800 text-indigo-300 hover:bg-indigo-950/60 transition-colors flex items-center gap-1"
             >
               <RefreshCw className="w-3 h-3" />
@@ -2242,7 +2544,7 @@ export const CanonicalMatchCenter: React.FC = () => {
             <button
               onClick={handleClearLedger}
               className="px-2.5 py-1 text-xs rounded border border-rose-800/80 text-rose-300 hover:bg-rose-950/60 transition-colors flex items-center gap-1"
-              title="一键清空当前阶段正式台账测试数据"
+              title="一键清空当前阶段台账测试数据"
             >
               <Trash2 className="w-3 h-3" />
               <span>清空测试数据</span>
@@ -2250,181 +2552,664 @@ export const CanonicalMatchCenter: React.FC = () => {
           </div>
         </div>
 
+        {/* 全量归因大盘指标条 (仅在全量模式展示) */}
+        {ledgerTrack === 'UNIVERSE' && universeSummary && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 bg-slate-950/90 p-2.5 rounded-lg border border-purple-900/40 text-xs">
+            <div className="bg-slate-900/80 p-2 rounded border border-slate-800">
+              <div className="text-[10px] text-slate-400">门禁避坑成功率</div>
+              <div className="text-sm font-bold text-emerald-300 font-mono mt-0.5">
+                {universeSummary.attribution.avoidance_rate}%
+              </div>
+              <div className="text-[9px] text-slate-500">True Negative Rate</div>
+            </div>
+
+            <div className="bg-slate-900/80 p-2 rounded border border-slate-800">
+              <div className="text-[10px] text-slate-400">成功避坑 (阻断风险)</div>
+              <div className="text-sm font-bold text-emerald-400 font-mono mt-0.5">
+                {universeSummary.attribution.avoidance_count} <span className="text-[10px] font-normal text-slate-400">场</span>
+              </div>
+              <div className="text-[9px] text-slate-500">拦截正确，实际未打出</div>
+            </div>
+
+            <div className="bg-slate-900/80 p-2 rounded border border-slate-800">
+              <div className="text-[10px] text-slate-400">模型误杀 (错失良机)</div>
+              <div className="text-sm font-bold text-amber-400 font-mono mt-0.5">
+                {universeSummary.attribution.false_negative_count} <span className="text-[10px] font-normal text-slate-400">场</span>
+              </div>
+              <div className="text-[9px] text-slate-500">拦截过于保守，实际打出</div>
+            </div>
+
+            <div className="bg-slate-900/80 p-2 rounded border border-slate-800">
+              <div className="text-[10px] text-slate-400">大模型 C 级拦截</div>
+              <div className="text-sm font-bold text-rose-300 font-mono mt-0.5">
+                {universeSummary.gate_distribution.blocked_by_c_grade} <span className="text-[10px] font-normal text-slate-400">场</span>
+              </div>
+              <div className="text-[9px] text-slate-500">基本面/风险不可控</div>
+            </div>
+
+            <div className="bg-slate-900/80 p-2 rounded border border-slate-800">
+              <div className="text-[10px] text-slate-400">WATCH 观望/诱盘</div>
+              <div className="text-sm font-bold text-amber-300 font-mono mt-0.5">
+                {universeSummary.gate_distribution.blocked_by_watch + universeSummary.gate_distribution.blocked_by_trap} <span className="text-[10px] font-normal text-slate-400">场</span>
+              </div>
+              <div className="text-[9px] text-slate-500">盘口异常 / 诱盘陷阱</div>
+            </div>
+
+            <div className="bg-slate-900/80 p-2 rounded border border-slate-800">
+              <div className="text-[10px] text-slate-400">纯量化 / A/B 合格</div>
+              <div className="text-sm font-bold text-blue-300 font-mono mt-0.5">
+                {universeSummary.gate_distribution.quant_machine_only} / {universeSummary.gate_distribution.formal_qualified} <span className="text-[10px] font-normal text-slate-400">场</span>
+              </div>
+              <div className="text-[9px] text-slate-500">待核验 / 正式合格</div>
+            </div>
+          </div>
+        )}
+
+        {/* 比分推演与反思大盘指标条 (仅在反思模式展示) */}
+        {ledgerTrack === 'REFLECTION' && universeSummary?.reflection && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2 bg-slate-950/90 p-2.5 rounded-lg border border-emerald-900/40 text-xs">
+            <div className="bg-slate-900/80 p-2 rounded border border-slate-800">
+              <div className="text-[10px] text-slate-400">Top 3 比分命中率</div>
+              <div className="text-sm font-bold text-emerald-300 font-mono mt-0.5">
+                {universeSummary.reflection.score_hit_rate}%
+              </div>
+              <div className="text-[9px] text-slate-500">{universeSummary.reflection.score_hits} / {universeSummary.settled_records} 场已完场</div>
+            </div>
+
+            <div className="bg-slate-900/80 p-2 rounded border border-slate-800">
+              <div className="text-[10px] text-slate-400">最高概率极高精度命中</div>
+              <div className="text-sm font-bold text-teal-300 font-mono mt-0.5">
+                {universeSummary.reflection.exact_hit_rate}%
+              </div>
+              <div className="text-[9px] text-slate-500">{universeSummary.reflection.exact_score_hits} 场精准打出</div>
+            </div>
+
+            <div className="bg-slate-900/80 p-2 rounded border border-slate-800">
+              <div className="text-[10px] text-slate-400">已完场核销反思</div>
+              <div className="text-sm font-bold text-slate-200 font-mono mt-0.5">
+                {universeSummary.settled_records} <span className="text-[10px] font-normal text-slate-400">场</span>
+              </div>
+              <div className="text-[9px] text-slate-500">已生成赛后反思梳理</div>
+            </div>
+
+            <div className="bg-slate-900/80 p-2 rounded border border-slate-800">
+              <div className="text-[10px] text-slate-400">待完场追踪赛事</div>
+              <div className="text-sm font-bold text-amber-300 font-mono mt-0.5">
+                {universeSummary.pending_records} <span className="text-[10px] font-normal text-slate-400">场</span>
+              </div>
+              <div className="text-[9px] text-slate-500">等待赛后比分核销</div>
+            </div>
+
+            <div className="bg-slate-900/80 p-2 rounded border border-slate-800">
+              <div className="text-[10px] text-slate-400">总推演建档赛事</div>
+              <div className="text-sm font-bold text-indigo-300 font-mono mt-0.5">
+                {universeSummary.total_records} <span className="text-[10px] font-normal text-slate-400">场</span>
+              </div>
+              <div className="text-[9px] text-slate-500">全量 SSOT 档案覆盖</div>
+            </div>
+          </div>
+        )}
+
         {ledgerFeedback && (
           <div className="text-xs p-2 rounded bg-indigo-950/50 border border-indigo-800/60 text-indigo-200 animate-in fade-in">
             {ledgerFeedback}
           </div>
         )}
 
-        {formalLedger.length === 0 ? (
-          <div className="text-xs text-slate-500 py-4 text-center bg-slate-950/40 rounded-lg border border-slate-800/60 space-y-1">
-            <div>当前模式（{mode === "live" ? "滚球" : "赛前"}）暂无正式重构台账记录。</div>
-            <div className="text-slate-600">
-              您可在下方比赛卡片点击【写入正式台账】，或在顶部导入合格的 A/B 级 AI 评估，系统将自动验证门禁并持久化入账。
+        {/* 轨道二：全量预测与拦截归因记录列表 */}
+        {ledgerTrack === 'UNIVERSE' ? (
+          universeLedger.length === 0 ? (
+            <div className="text-xs text-slate-500 py-4 text-center bg-slate-950/40 rounded-lg border border-slate-800/60 space-y-1">
+              <div>当前模式（{mode === "live" ? "滚球" : "赛前"}）暂无全量预测归因记录。</div>
+              <div className="text-slate-600">
+                只要在上方导入比赛并完成 Layer 03 量化推演，系统将全自动将所有比赛落盘入账，无需任何手动准入操作。
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="space-y-2.5">
-            {formalLedger
-              .filter(record => {
-                if (ledgerFilter === 'UNSETTLED') return !record.settlement?.is_settled;
-                if (ledgerFilter === 'SETTLED') return record.settlement?.is_settled;
-                return true;
-              })
-              .map((record) => {
-              const isSettled = record.settlement?.is_settled;
-              const outcome = record.settlement?.outcome;
-              const profitLoss = record.settlement?.profit_loss;
-              const curInput = settleInputs[record.record_id] || { home: "", away: "" };
-              const curSource = settleSources[record.record_id] || "雷速比分画布/接口校验";
-              const isSettling = settlingIds[record.record_id];
+          ) : (
+            <div className="space-y-2.5">
+              {universeLedger
+                .filter(record => {
+                  if (universeFilter === 'UNSETTLED') return !record.settlement?.is_settled;
+                  if (universeFilter === 'SETTLED') return record.settlement?.is_settled;
+                  if (universeFilter === 'AVOIDANCE') return record.settlement?.attribution?.verdict_label === 'SUCCESSFUL_AVOIDANCE';
+                  if (universeFilter === 'FALSE_NEGATIVE') return record.settlement?.attribution?.verdict_label === 'MODEL_FALSE_NEGATIVE';
+                  return true;
+                })
+                .map((record) => {
+                  const isSettled = record.settlement?.is_settled;
+                  const outcome = record.settlement?.outcome;
+                  const attribution = record.settlement?.attribution;
+                  const curInput = settleInputs[record.record_id] || { home: "", away: "" };
+                  const curSource = settleSources[record.record_id] || "雷速比分画布/接口校验";
+                  const isSettling = settlingIds[record.record_id];
 
-              return (
-                <div
-                  key={record.record_id}
-                  className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-950/80 rounded-lg p-3 border border-slate-800 hover:border-slate-700 transition-all"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-bold text-slate-100">
-                        {record.teams?.home} vs {record.teams?.away}
-                      </span>
-                      <span className="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
-                        {record.league_key || record.league_name || "赛事"}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        {record.beijing_start_time || "未标时间"}
-                      </span>
-                      <span className="text-[10px] text-blue-400 font-mono bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-900">
-                        {record.condition_snapshot?.match_minute != null ? `第 ${record.condition_snapshot.match_minute}' 分钟` : '赛前'} (推荐时比分: {record.prediction_snapshot?.score_at_recommendation || '0-0'})
-                      </span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
-                        String(record.ai_assessment?.grade || '').startsWith('A')
-                          ? 'bg-emerald-950/70 text-emerald-300 border-emerald-700'
-                          : 'bg-blue-950/70 text-blue-300 border-blue-700'
-                      }`}>
-                        AI定级: {record.ai_assessment?.grade} ({record.ai_assessment?.confidence_score}分)
-                      </span>
-                    </div>
+                  // 门禁样式
+                  const gateBadgeClass = record.gate_category === 'QUALIFIED_FORMAL'
+                    ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                    : record.gate_category === 'BLOCKED_BY_AI_C_GRADE'
+                    ? 'bg-rose-950 text-rose-300 border-rose-700'
+                    : record.gate_category === 'BLOCKED_BY_AI_WATCH' || record.gate_category === 'BLOCKED_BY_AI_TRAP'
+                    ? 'bg-amber-950 text-amber-300 border-amber-700'
+                    : 'bg-slate-900 text-slate-300 border-slate-700';
 
-                    <div className="flex items-center gap-2.5 text-xs text-slate-300 flex-wrap pt-0.5">
-                      <span className="font-semibold text-amber-300">
-                        {record.prediction_snapshot?.market || record.leg?.market} {record.prediction_snapshot?.line || record.leg?.selected_line}
-                      </span>
-                      <span className="text-indigo-300 font-medium">
-                        方向: {record.leg?.direction}
-                      </span>
-                      <span className="font-mono text-slate-400">
-                        @ {record.prediction_snapshot?.odds || record.leg?.current_odds}
-                      </span>
-                      {record.prediction_snapshot?.model_probability && (
-                        <span className="text-[10px] text-emerald-400 font-mono">
-                          (模型公允胜率 {(record.prediction_snapshot.model_probability * 100).toFixed(1)}%)
-                        </span>
-                      )}
-                      {record.prediction_snapshot?.predicted_lambda && (
-                        <span className="text-[10px] text-purple-300 font-mono">
-                          (λ: 主 {record.prediction_snapshot.predicted_lambda.home?.toFixed(2)} / 客 {record.prediction_snapshot.predicted_lambda.away?.toFixed(2)})
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 核销结算区 */}
-                  <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-                    {isSettled ? (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span
-                          className={`text-xs px-2.5 py-1 rounded font-bold border ${
-                            outcome === "WIN" || outcome === "WIN_HALF"
-                              ? "bg-emerald-950/80 text-emerald-300 border-emerald-600"
-                              : outcome === "LOSE" || outcome === "LOSE_HALF"
-                              ? "bg-rose-950/80 text-rose-300 border-rose-600"
-                              : "bg-slate-900 text-slate-300 border-slate-700"
-                          }`}
-                        >
-                          {outcome === "WIN" ? "赢" : outcome === "WIN_HALF" ? "赢半" : outcome === "LOSE" ? "输" : outcome === "LOSE_HALF" ? "输半" : "走盘"}
-                          {profitLoss != null && ` (${profitLoss > 0 ? "+" : ""}${profitLoss.toFixed(2)}u)`}
-                        </span>
-                        <span className="text-xs font-mono text-slate-300 bg-slate-900 px-2 py-1 rounded border border-slate-800">
-                          完场: {record.settlement?.final_score_verified} ({record.settlement?.final_score_source || '雷速校验'})
-                        </span>
-                        {outcome === "WIN" || outcome === "LOSE" ? (
-                          <span className="text-[10px] text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800">
-                            ⚡ 已沉淀 OOS 样本
+                  return (
+                    <div
+                      key={record.record_id}
+                      className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-950/80 rounded-lg p-3 border border-slate-800 hover:border-slate-700 transition-all"
+                    >
+                      <div className="space-y-1.5 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-slate-100">
+                            {record.teams?.home} vs {record.teams?.away}
                           </span>
+                          <span className="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
+                            {record.league_key}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {record.kickoff_time?.slice(11, 16) || record.minute_or_status}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${gateBadgeClass}`}>
+                            {record.gate_category === 'QUALIFIED_FORMAL' ? '✅ A/B可实盘' : record.gate_category}
+                          </span>
+                          {record.ai_grade && (
+                            <span className="text-[10px] text-purple-300 bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-800 font-mono">
+                              AI: {record.ai_grade} ({record.ai_confidence ?? '-'}分)
+                            </span>
+                          )}
+                        </div>
+
+                        {/* 门禁拦截原因与量化快照 */}
+                        <div className="text-xs text-slate-300 space-y-0.5">
+                          <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                            <span className="font-semibold text-slate-300">门禁判定:</span>
+                            <span className={record.gate_category === 'QUALIFIED_FORMAL' ? 'text-emerald-400' : 'text-amber-300'}>
+                              {record.gate_reason_description}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2.5 text-xs text-slate-400 flex-wrap pt-0.5">
+                            {record.predicted_direction && (
+                              <span className="font-semibold text-amber-300">
+                                方向: {record.predicted_direction.selection} @ {record.predicted_direction.odds}
+                              </span>
+                            )}
+                            <span className="font-mono text-purple-300">
+                              首选预测比分: {record.quant_snapshot?.projected_final_score || '0-0'}
+                            </span>
+                            <span className="font-mono text-slate-400">
+                              λ(主 {record.quant_snapshot?.lambda_home?.toFixed(2)} / 客 {record.quant_snapshot?.lambda_away?.toFixed(2)})
+                            </span>
+                            <span className="text-blue-300 font-mono">
+                              BDI: {record.quant_snapshot?.bdi}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* 赛后归因结论 */}
+                        {attribution && (
+                          <div className="pt-1">
+                            <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded font-semibold border ${
+                              attribution.verdict_label === 'SUCCESSFUL_AVOIDANCE'
+                                ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600'
+                                : attribution.verdict_label === 'MODEL_FALSE_NEGATIVE'
+                                ? 'bg-amber-950/80 text-amber-300 border-amber-600'
+                                : attribution.verdict_label === 'FORMAL_WIN'
+                                ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600'
+                                : attribution.verdict_label === 'FORMAL_LOSE'
+                                ? 'bg-rose-950/80 text-rose-300 border-rose-600'
+                                : 'bg-slate-900 text-slate-300 border-slate-700'
+                            }`}>
+                              {attribution.notes}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 核销结算区 */}
+                      <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+                        {isSettled ? (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-xs px-2.5 py-1 rounded font-bold border ${
+                              outcome === 'WIN' || outcome === 'WIN_HALF'
+                                ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600'
+                                : outcome === 'LOSE' || outcome === 'LOSE_HALF'
+                                ? 'bg-rose-950/80 text-rose-300 border-rose-600'
+                                : 'bg-slate-900 text-slate-300 border-slate-700'
+                            }`}>
+                              {outcome === 'WIN' ? '打出 (WIN)' : outcome === 'LOSE' ? '未打出 (LOSE)' : outcome}
+                            </span>
+                            <span className="text-xs font-mono text-slate-300 bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                              完场: {record.settlement?.final_score?.home} - {record.settlement?.final_score?.away}
+                            </span>
+                          </div>
                         ) : (
-                          <span className="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800" title="非二元结算按 Layer 06 契约不进入二元 OOS 样本库">
-                            ⚪ 非二元结算
+                          <div className="flex items-center gap-1.5 bg-slate-900 p-1.5 rounded-lg border border-slate-800 flex-wrap">
+                            <span className="text-[11px] text-slate-400">完场:</span>
+                            <input
+                              type="number"
+                              placeholder="主"
+                              value={curInput.home}
+                              onChange={(e) =>
+                                setSettleInputs((prev) => ({
+                                  ...prev,
+                                  [record.record_id]: { ...curInput, home: e.target.value },
+                                }))
+                              }
+                              className="w-10 px-1.5 py-0.5 bg-slate-950 text-slate-200 border border-slate-700 rounded text-center text-xs focus:outline-none focus:border-blue-500 font-mono"
+                            />
+                            <span className="text-slate-500 text-xs">-</span>
+                            <input
+                              type="number"
+                              placeholder="客"
+                              value={curInput.away}
+                              onChange={(e) =>
+                                setSettleInputs((prev) => ({
+                                  ...prev,
+                                  [record.record_id]: { ...curInput, away: e.target.value },
+                                }))
+                              }
+                              className="w-10 px-1.5 py-0.5 bg-slate-950 text-slate-200 border border-slate-700 rounded text-center text-xs focus:outline-none focus:border-blue-500 font-mono"
+                            />
+                            <select
+                              value={curSource}
+                              onChange={(e) =>
+                                setSettleSources((prev) => ({
+                                  ...prev,
+                                  [record.record_id]: e.target.value,
+                                }))
+                              }
+                              className="bg-slate-950 text-[10px] text-slate-300 border border-slate-700 rounded px-1.5 py-0.5 focus:outline-none"
+                            >
+                              <option value="雷速比分画布/接口校验">雷速比分画布/接口</option>
+                              <option value="官方完场赛果核验">官方完场核验</option>
+                              <option value="人工/现场核对">人工核对</option>
+                            </select>
+                            <button
+                              onClick={() => handleSettleUniverseRecord(record.record_id)}
+                              disabled={isSettling}
+                              className="px-2.5 py-1 bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white rounded text-xs font-medium transition-colors shadow-xs"
+                            >
+                              {isSettling ? "核销中..." : "录入核销"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )
+        ) : ledgerTrack === 'FORMAL' ? (
+          /* 轨道一：实盘正式推荐台账列表 */
+          formalLedger.length === 0 ? (
+            <div className="text-xs text-slate-500 py-4 text-center bg-slate-950/40 rounded-lg border border-slate-800/60 space-y-1">
+              <div>当前模式（{mode === "live" ? "滚球" : "赛前"}）暂无正式实盘推荐记录（需符合 A/B 级可投注审核）。</div>
+              <div className="text-slate-600">
+                您可在【全量预测与拦截归因台账】中查看所有比赛的量化推演与门禁拦截归因；或在下方比赛卡片导入 A/B 级 AI 评估后写入正式台账。
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {formalLedger
+                .filter(record => {
+                  if (ledgerFilter === 'UNSETTLED') return !record.settlement?.is_settled;
+                  if (ledgerFilter === 'SETTLED') return record.settlement?.is_settled;
+                  return true;
+                })
+                .map((record) => {
+                const isSettled = record.settlement?.is_settled;
+                const outcome = record.settlement?.outcome;
+                const profitLoss = record.settlement?.profit_loss;
+                const curInput = settleInputs[record.record_id] || { home: "", away: "" };
+                const curSource = settleSources[record.record_id] || "雷速比分画布/接口校验";
+                const isSettling = settlingIds[record.record_id];
+
+                return (
+                  <div
+                    key={record.record_id}
+                    className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-950/80 rounded-lg p-3 border border-slate-800 hover:border-slate-700 transition-all"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-slate-100">
+                          {record.teams?.home} vs {record.teams?.away}
+                        </span>
+                        <span className="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
+                          {record.league_key || record.league_name || "赛事"}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {record.beijing_start_time || "未标时间"}
+                        </span>
+                        <span className="text-[10px] text-blue-400 font-mono bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-900">
+                          {record.condition_snapshot?.match_minute != null ? `第 ${record.condition_snapshot.match_minute}' 分钟` : '赛前'} (推荐时比分: {record.prediction_snapshot?.score_at_recommendation || '0-0'})
+                        </span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                          String(record.ai_assessment?.grade || '').startsWith('A')
+                            ? 'bg-emerald-950/70 text-emerald-300 border-emerald-700'
+                            : 'bg-blue-950/70 text-blue-300 border-blue-700'
+                        }`}>
+                          AI定级: {record.ai_assessment?.grade} ({record.ai_assessment?.confidence_score}分)
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2.5 text-xs text-slate-300 flex-wrap pt-0.5">
+                        <span className="font-semibold text-amber-300">
+                          {record.prediction_snapshot?.market || record.leg?.market} {record.prediction_snapshot?.line || record.leg?.selected_line}
+                        </span>
+                        <span className="text-indigo-300 font-medium">
+                          方向: {record.leg?.direction}
+                        </span>
+                        <span className="font-mono text-slate-400">
+                          @ {record.prediction_snapshot?.odds || record.leg?.current_odds}
+                        </span>
+                        {record.prediction_snapshot?.model_probability && (
+                          <span className="text-[10px] text-emerald-400 font-mono">
+                            (模型公允胜率 {(record.prediction_snapshot.model_probability * 100).toFixed(1)}%)
+                          </span>
+                        )}
+                        {record.prediction_snapshot?.predicted_lambda && (
+                          <span className="text-[10px] text-purple-300 font-mono">
+                            (λ: 主 {record.prediction_snapshot.predicted_lambda.home?.toFixed(2)} / 客 {record.prediction_snapshot.predicted_lambda.away?.toFixed(2)})
                           </span>
                         )}
                       </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5 bg-slate-900 p-1.5 rounded-lg border border-slate-800 flex-wrap">
-                        <span className="text-[11px] text-slate-400">完场:</span>
-                        <input
-                          type="number"
-                          placeholder="主"
-                          value={curInput.home}
-                          onChange={(e) =>
-                            setSettleInputs((prev) => ({
-                              ...prev,
-                              [record.record_id]: { ...curInput, home: e.target.value },
-                            }))
-                          }
-                          className="w-10 px-1.5 py-0.5 bg-slate-950 text-slate-200 border border-slate-700 rounded text-center text-xs focus:outline-none focus:border-blue-500 font-mono"
-                        />
-                        <span className="text-slate-500 text-xs">-</span>
-                        <input
-                          type="number"
-                          placeholder="客"
-                          value={curInput.away}
-                          onChange={(e) =>
-                            setSettleInputs((prev) => ({
-                              ...prev,
-                              [record.record_id]: { ...curInput, away: e.target.value },
-                            }))
-                          }
-                          className="w-10 px-1.5 py-0.5 bg-slate-950 text-slate-200 border border-slate-700 rounded text-center text-xs focus:outline-none focus:border-blue-500 font-mono"
-                        />
-                        <select
-                          value={curSource}
-                          onChange={(e) =>
-                            setSettleSources((prev) => ({
-                              ...prev,
-                              [record.record_id]: e.target.value,
-                            }))
-                          }
-                          className="bg-slate-950 text-[10px] text-slate-300 border border-slate-700 rounded px-1.5 py-0.5 focus:outline-none"
-                        >
-                          <option value="雷速比分画布/接口校验">雷速比分画布/接口</option>
-                          <option value="官方完场赛果核验">官方完场核验</option>
-                          <option value="人工/现场核对">人工核对</option>
-                        </select>
-                        <button
-                          onClick={() => handleSettleRecord(record.record_id)}
-                          disabled={isSettling}
-                          className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded text-xs font-medium transition-colors shadow-xs"
-                        >
-                          {isSettling ? "核销中..." : "录入比分核销"}
-                        </button>
-                      </div>
-                    )}
+                    </div>
 
-                    <button
-                      onClick={() => handleDeleteRecord(record.record_id)}
-                      className="px-2 py-1 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 rounded text-xs transition-colors flex items-center gap-1"
-                      title="删除单条台账记录"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      <span>删除</span>
-                    </button>
+                    {/* 核销结算区 */}
+                    <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+                      {isSettled ? (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`text-xs px-2.5 py-1 rounded font-bold border ${
+                              outcome === "WIN" || outcome === "WIN_HALF"
+                                ? "bg-emerald-950/80 text-emerald-300 border-emerald-600"
+                                : outcome === "LOSE" || outcome === "LOSE_HALF"
+                                ? "bg-rose-950/80 text-rose-300 border-rose-600"
+                                : "bg-slate-900 text-slate-300 border-slate-700"
+                            }`}
+                          >
+                            {outcome === "WIN" ? "赢" : outcome === "WIN_HALF" ? "赢半" : outcome === "LOSE" ? "输" : outcome === "LOSE_HALF" ? "输半" : "走盘"}
+                            {profitLoss != null && ` (${profitLoss > 0 ? "+" : ""}${profitLoss.toFixed(2)}u)`}
+                          </span>
+                          <span className="text-xs font-mono text-slate-300 bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                            完场: {record.settlement?.final_score_verified} ({record.settlement?.final_score_source || '雷速校验'})
+                          </span>
+                          {outcome === "WIN" || outcome === "LOSE" ? (
+                            <span className="text-[10px] text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800">
+                              ⚡ 已沉淀 OOS 样本
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800" title="非二元结算按 Layer 06 契约不进入二元 OOS 样本库">
+                              ⚪ 非二元结算
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 bg-slate-900 p-1.5 rounded-lg border border-slate-800 flex-wrap">
+                          <span className="text-[11px] text-slate-400">完场:</span>
+                          <input
+                            type="number"
+                            placeholder="主"
+                            value={curInput.home}
+                            onChange={(e) =>
+                              setSettleInputs((prev) => ({
+                                ...prev,
+                                [record.record_id]: { ...curInput, home: e.target.value },
+                              }))
+                            }
+                            className="w-10 px-1.5 py-0.5 bg-slate-950 text-slate-200 border border-slate-700 rounded text-center text-xs focus:outline-none focus:border-blue-500 font-mono"
+                          />
+                          <span className="text-slate-500 text-xs">-</span>
+                          <input
+                            type="number"
+                            placeholder="客"
+                            value={curInput.away}
+                            onChange={(e) =>
+                              setSettleInputs((prev) => ({
+                                ...prev,
+                                [record.record_id]: { ...curInput, away: e.target.value },
+                              }))
+                            }
+                            className="w-10 px-1.5 py-0.5 bg-slate-950 text-slate-200 border border-slate-700 rounded text-center text-xs focus:outline-none focus:border-blue-500 font-mono"
+                          />
+                          <select
+                            value={curSource}
+                            onChange={(e) =>
+                              setSettleSources((prev) => ({
+                                ...prev,
+                                [record.record_id]: e.target.value,
+                              }))
+                            }
+                            className="bg-slate-950 text-[10px] text-slate-300 border border-slate-700 rounded px-1.5 py-0.5 focus:outline-none"
+                          >
+                            <option value="雷速比分画布/接口校验">雷速比分画布/接口</option>
+                            <option value="官方完场赛果核验">官方完场核验</option>
+                            <option value="人工/现场核对">人工核对</option>
+                          </select>
+                          <button
+                            onClick={() => handleSettleRecord(record.record_id)}
+                            disabled={isSettling}
+                            className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded text-xs font-medium transition-colors shadow-xs"
+                          >
+                            {isSettling ? "核销中..." : "录入比分核销"}
+                          </button>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => handleDeleteRecord(record.record_id)}
+                        className="px-2 py-1 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 rounded text-xs transition-colors flex items-center gap-1"
+                        title="删除单条台账记录"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>删除</span>
+                      </button>
+                    </div>
                   </div>
+                );
+              })}
+            </div>
+          )) : (
+            /* 轨道三：比分推演与赛后反思梳理列表 */
+            universeLedger.length === 0 ? (
+              <div className="text-xs text-slate-500 py-4 text-center bg-slate-950/40 rounded-lg border border-slate-800/60 space-y-1">
+                <div>当前模式（{mode === "live" ? "滚球" : "赛前"}）暂无推演反思记录。</div>
+                <div className="text-slate-600">
+                  只要在上方导入比赛并完成 Layer 03 量化推演，系统将自动建档预测分布快照，赛后比分核销后即可在此查看诊断反思。
                 </div>
-              );
-            })}
-          </div>
-        )}
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {universeLedger
+                  .filter(record => {
+                    const isSettled = record.settlement?.is_settled;
+                    const isHit = record.settlement?.reflection?.score_hit;
+                    const isExact = record.settlement?.reflection?.exact_score_hit;
+                    if (reflectionFilter === 'UNSETTLED') return !isSettled;
+                    if (reflectionFilter === 'SETTLED') return isSettled;
+                    if (reflectionFilter === 'HIT') return isHit;
+                    if (reflectionFilter === 'EXACT') return isExact;
+                    if (reflectionFilter === 'MISS') return isSettled && !isHit;
+                    return true;
+                  })
+                  .map((record) => {
+                    const isSettled = record.settlement?.is_settled;
+                    const reflection = record.settlement?.reflection;
+                    const topScores = record.quant_snapshot?.top_scores || [];
+                    const curInput = settleInputs[record.record_id] || { home: "", away: "" };
+                    const curSource = settleSources[record.record_id] || "雷速比分画布/接口校验";
+                    const isSettling = settlingIds[record.record_id];
+
+                    return (
+                      <div
+                        key={record.record_id}
+                        className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-950/80 rounded-lg p-3 border border-slate-800 hover:border-slate-700 transition-all"
+                      >
+                        <div className="space-y-1.5 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-slate-100">
+                              {record.teams?.home} vs {record.teams?.away}
+                            </span>
+                            <span className="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
+                              {record.league_key}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {record.kickoff_time ? record.kickoff_time.slice(0, 16).replace('T', ' ') : '赛前'}
+                            </span>
+                            <span className="text-[10px] text-blue-400 font-mono bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-900">
+                              推演时: {record.minute_or_status} ({record.score_at_prediction.home}-{record.score_at_prediction.away})
+                            </span>
+
+                            {/* 预测命中反思徽章 */}
+                            {isSettled ? (
+                              reflection?.exact_score_hit ? (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded border bg-emerald-950 text-emerald-300 border-emerald-600 flex items-center gap-1">
+                                  🎯 极高精度完全命中最高概率预测
+                                </span>
+                              ) : reflection?.score_hit ? (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded border bg-teal-950 text-teal-300 border-teal-700 flex items-center gap-1">
+                                  ✅ 命中模型 Top 3 预测分布
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded border bg-amber-950 text-amber-300 border-amber-700 flex items-center gap-1">
+                                  ⚠️ 偏差反思 (未入Top 3概率区)
+                                </span>
+                              )
+                            ) : (
+                              <span className="text-[10px] bg-slate-900 text-slate-400 px-2 py-0.5 rounded border border-slate-700 font-mono">
+                                待完场核销
+                              </span>
+                            )}
+                          </div>
+
+                          {/* 预测比分对比与Top3概率分布 */}
+                          <div className="flex items-center gap-3 text-xs text-slate-300 flex-wrap pt-0.5">
+                            <div className="flex items-center gap-1.5 bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                              <span className="text-slate-400 text-[10px]">模型首选:</span>
+                              <span className="font-bold text-amber-300 font-mono">
+                                {record.quant_snapshot?.projected_final_score || '0-0'}
+                              </span>
+                            </div>
+
+                            {isSettled && (
+                              <div className="flex items-center gap-1.5 bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                                <span className="text-slate-400 text-[10px]">实际完场比分:</span>
+                                <span className="font-bold text-emerald-400 font-mono text-sm">
+                                  {record.settlement?.final_score?.home} - {record.settlement?.final_score?.away}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Top 3 预测分布芯片 */}
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-slate-500">Top3推演分布:</span>
+                              {topScores.slice(0, 3).map((ts: any, idx: number) => {
+                                const isThisHit = isSettled && `${record.settlement?.final_score?.home}-${record.settlement?.final_score?.away}` === ts.score;
+                                return (
+                                  <span
+                                    key={idx}
+                                    className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                                      isThisHit
+                                        ? 'bg-emerald-900/80 text-emerald-200 border-emerald-600 font-bold'
+                                        : 'bg-slate-900 text-slate-400 border-slate-800'
+                                    }`}
+                                  >
+                                    {ts.score} ({((ts.probability || 0) * 100).toFixed(1)}%)
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* 赛后反思便签与偏差分析 */}
+                          {isSettled && reflection?.diagnostic_notes && (
+                            <div className="text-[11px] text-slate-300 bg-slate-900/60 px-2.5 py-1.5 rounded border border-slate-800/80 flex items-center gap-2 flex-wrap">
+                              <span>{reflection.diagnostic_notes}</span>
+                              <span className="text-slate-500 font-mono text-[10px]">
+                                [完场总进球: {reflection.actual_total_goals} | 净胜球差: {reflection.goal_diff_actual > 0 ? `+${reflection.goal_diff_actual}` : reflection.goal_diff_actual}]
+                              </span>
+                              {reflection.ah_outcome && (
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">
+                                  让球盘: {reflection.ah_outcome}
+                                </span>
+                              )}
+                              {reflection.ou_outcome && (
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-teal-950 text-teal-300 border border-teal-800">
+                                  大小球盘: {reflection.ou_outcome}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 右侧：单场比分录入与核销 */}
+                        <div className="flex items-center gap-2">
+                          {!isSettled ? (
+                            <div className="flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-lg border border-slate-800">
+                              <input
+                                type="number"
+                                placeholder="主"
+                                value={curInput.home}
+                                onChange={(e) =>
+                                  setSettleInputs((prev) => ({
+                                    ...prev,
+                                    [record.record_id]: { ...curInput, home: e.target.value },
+                                  }))
+                                }
+                                className="w-10 px-1.5 py-0.5 bg-slate-950 text-slate-200 border border-slate-700 rounded text-center text-xs focus:outline-none focus:border-emerald-500 font-mono"
+                              />
+                              <span className="text-slate-500 text-xs">:</span>
+                              <input
+                                type="number"
+                                placeholder="客"
+                                value={curInput.away}
+                                onChange={(e) =>
+                                  setSettleInputs((prev) => ({
+                                    ...prev,
+                                    [record.record_id]: { ...curInput, away: e.target.value },
+                                  }))
+                                }
+                                className="w-10 px-1.5 py-0.5 bg-slate-950 text-slate-200 border border-slate-700 rounded text-center text-xs focus:outline-none focus:border-emerald-500 font-mono"
+                              />
+                              <select
+                                value={curSource}
+                                onChange={(e) =>
+                                  setSettleSources((prev) => ({
+                                    ...prev,
+                                    [record.record_id]: e.target.value,
+                                  }))
+                                }
+                                className="bg-slate-950 text-[10px] text-slate-300 border border-slate-700 rounded px-1.5 py-0.5 focus:outline-none"
+                              >
+                                <option value="雷速比分画布/接口校验">雷速比分画布/接口</option>
+                                <option value="官方完场赛果核验">官方完场核验</option>
+                                <option value="人工/现场核对">人工核对</option>
+                              </select>
+                              <button
+                                onClick={() => handleSettleUniverseRecord(record.record_id)}
+                                disabled={isSettling}
+                                className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded text-xs font-medium transition-colors shadow-xs"
+                              >
+                                {isSettling ? "核销中..." : "录入反思"}
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="text-right">
+                              <span className="text-xs font-mono text-emerald-400 bg-emerald-950/60 px-2 py-1 rounded border border-emerald-900 font-semibold">
+                                已反思
+                              </span>
+                              <div className="text-[9px] text-slate-500 mt-1">
+                                来源: {record.settlement?.final_score_source || '雷速校验'}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )
+          )}
       </div>
 
       {/* 搜索与多维过滤条 */}
@@ -2853,6 +3638,25 @@ export const CanonicalMatchCenter: React.FC = () => {
                           ? `缺口体检 (${m.missing_reasons.length}项)`
                           : "✅ 11维全齐备"}
                       </span>
+                    </button>
+
+                    {/* 快捷完赛核销入口 */}
+                    <button
+                      id={`btn-quick-settle-${idx}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setQuickSettleMatch(m);
+                        setQuickSettleScore({
+                          home: m.score.home_score != null ? String(m.score.home_score) : '',
+                          away: m.score.away_score != null ? String(m.score.away_score) : '',
+                        });
+                        setShowQuickSettleModal(true);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-950/80 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-700 transition-colors shadow-xs"
+                      title="快捷录入完场比分，立即触发双轨核销与 OOS 样本沉淀"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>完赛核销</span>
                     </button>
 
                     {/* 正式台账状态与写入入口 */}
@@ -5279,6 +6083,110 @@ export const CanonicalMatchCenter: React.FC = () => {
               >
                 关闭体检报告
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 快捷完赛比分核销模态框 */}
+      {showQuickSettleModal && quickSettleMatch && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-slate-900 rounded-2xl w-full max-w-md border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-emerald-400" />
+                <div>
+                  <h3 className="font-bold text-slate-100 text-sm">快捷完赛核销与双轨归因</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    录入真实赛果，同步结算实盘推荐并评估门禁避坑/误杀归因
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowQuickSettleModal(false);
+                  setQuickSettleMatch(null);
+                }}
+                className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center space-y-1">
+                <div className="text-xs text-slate-400 font-mono">
+                  {quickSettleMatch.league_name} · {quickSettleMatch.timing?.beijing_start_time || '进行中'}
+                </div>
+                <div className="text-sm font-bold text-slate-100">
+                  {quickSettleMatch.home_team_name} vs {quickSettleMatch.away_team_name}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-300">
+                  完场最终比分 (主队得分 - 客队得分):
+                </label>
+                <div className="flex items-center justify-center gap-3">
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] text-slate-400 mb-1">{quickSettleMatch.home_team_name} (主)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={quickSettleScore.home}
+                      onChange={(e) => setQuickSettleScore(prev => ({ ...prev, home: e.target.value }))}
+                      placeholder="0"
+                      className="w-16 h-12 text-center text-xl font-bold bg-slate-950 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500 font-mono"
+                    />
+                  </div>
+                  <span className="text-xl font-bold text-slate-500 pt-4">-</span>
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] text-slate-400 mb-1">{quickSettleMatch.away_team_name} (客)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={quickSettleScore.away}
+                      onChange={(e) => setQuickSettleScore(prev => ({ ...prev, away: e.target.value }))}
+                      placeholder="0"
+                      className="w-16 h-12 text-center text-xl font-bold bg-slate-950 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">比分核实来源:</label>
+                <select
+                  value={quickSettleSource}
+                  onChange={(e) => setQuickSettleSource(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-xs text-slate-200 rounded-lg p-2.5 focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="雷速比分画布/接口校验">雷速比分画布/接口校验</option>
+                  <option value="官方赛果核验">官方赛果核验</option>
+                  <option value="人工/现场核对">人工现场核对</option>
+                </select>
+              </div>
+
+              <div className="text-[11px] text-slate-400 bg-indigo-950/40 p-2.5 rounded-lg border border-indigo-900/50">
+                💡 <strong>自动双轨分发</strong>：录入后系统将自动更新【全量归因台账】并判定是否避坑/误杀；若本场包含 A/B 级正式推荐，将同步沉淀为 OOS 校准样本。
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  onClick={() => setShowQuickSettleModal(false)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleExecuteQuickSettle}
+                  disabled={isQuickSettling || quickSettleScore.home === '' || quickSettleScore.away === ''}
+                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-md"
+                >
+                  {isQuickSettling ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  <span>{isQuickSettling ? "核销中..." : "确认核销并沉淀"}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

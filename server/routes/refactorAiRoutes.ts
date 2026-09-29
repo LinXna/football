@@ -3,6 +3,10 @@ import fs from 'fs';
 import path from 'path';
 import { generateRefactoredPrompt } from '../../refactor/04_ai_evaluator/promptExporter.js';
 import { projectPath } from '../../config/projectPaths.js';
+import { UniverseLedgerPersistence } from '../../refactor/05_portfolio_risk/universeLedgerPersistence.js';
+import { LedgerPersistence } from '../../refactor/05_portfolio_risk/ledgerPersistence.js';
+import { extractAiEvaluationBrief } from '../../refactor/02_canonical_model/canonicalMatchAssembler.js';
+import { CanonicalMatch } from '../../refactor/02_canonical_model/types.js';
 
 interface RefactorAiImportPayload {
   raw_text?: string;
@@ -188,13 +192,75 @@ export function registerRefactorAiRoutes(app: express.Express): void {
         console.warn('[RefactorAiRoutes] Failed to persist refactor_ai_evaluations.json:', saveErr);
       }
 
+      // 1. 同步全量归因台账 (Universe Audit Ledger) 中的 AI 门禁与定性评级
+      let autoFormalAppended = 0;
+      try {
+        for (const stg of ['LIVE', 'PREMATCH'] as const) {
+          const batchFile = path.resolve(process.cwd(), 'refactor', 'runtime', stg === 'LIVE' ? 'live_batch.json' : 'prematch_batch.json');
+          if (fs.existsSync(batchFile)) {
+            const batch = JSON.parse(fs.readFileSync(batchFile, 'utf-8'));
+            const batchMatches: CanonicalMatch[] = Array.isArray(batch?.matches)
+              ? batch.matches
+              : (Array.isArray(batch?.canonicalMatches) ? batch.canonicalMatches : []);
+            const batchQuant = batch?.quantitative_features || batch?.quantitativeFeatures || {};
+
+            if (batchMatches.length > 0) {
+              UniverseLedgerPersistence.autoIngestFromCanonicalBatch(
+                stg,
+                batchMatches,
+                batchQuant,
+                historyList
+              );
+
+              // 2. 自动化入账：对新导入评估中符合 A/B 级的推荐，自动尝试写入实盘正式台账
+              for (const mItem of normalizedMatches) {
+                const gradeStr = String(mItem.grade || mItem.grade_raw || '').toUpperCase();
+                if (gradeStr.startsWith('A') || gradeStr.startsWith('B')) {
+                  const targetMatch = batchMatches.find(bm =>
+                    bm.canonical_id === mItem.canonical_id ||
+                    bm.canonical_id === mItem.match_id ||
+                    (mItem.ybty_home && bm.home_team_name.includes(mItem.ybty_home))
+                  );
+                  if (targetMatch) {
+                    const qf = batchQuant[targetMatch.canonical_id];
+                    const legs = Array.isArray(mItem.recommended_legs) && mItem.recommended_legs.length > 0
+                      ? mItem.recommended_legs
+                      : (mItem.recommendation ? [mItem.recommendation] : []);
+                    if (legs.length > 0) {
+                      try {
+                        const brief = extractAiEvaluationBrief(targetMatch);
+                        const written = LedgerPersistence.appendApprovedLegs(
+                          { ai_brief: brief, quant_features: qf },
+                          mItem,
+                          legs.map((l: any) => ({
+                            ...l,
+                            basis: l.basis || (stg === 'LIVE' ? 'REMAINING_GOALS' : 'FULL_MATCH')
+                          })),
+                          stg
+                        );
+                        autoFormalAppended += written.length;
+                      } catch (appendErr) {
+                        console.warn('[RefactorAiRoutes] Auto-append formal ledger failed for match:', targetMatch.canonical_id, appendErr);
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (uniErr) {
+        console.warn('[RefactorAiRoutes] Failed to sync universe ledger or auto-append formal ledger:', uniErr);
+      }
+
       res.json({
         success: true,
         mode,
         match_count: normalizedMatches.length,
+        auto_formal_appended: autoFormalAppended,
         result: {
           matches: normalizedMatches,
-          summary: `成功导入 ${normalizedMatches.length} 场重构版 AI 风险评估`
+          summary: `成功导入 ${normalizedMatches.length} 场重构版 AI 风险评估${autoFormalAppended > 0 ? ` (已自动落盘 ${autoFormalAppended} 条合格推荐至实盘正式台账)` : ''}`
         }
       });
     } catch (error: any) {

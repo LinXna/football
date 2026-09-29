@@ -22,6 +22,13 @@
 
 ## Completed Fixes
 
+- [2026-09-29 双轨全量录入与拦截归因架构落地]: 彻底解决重构系统“必须 A/B 级才能入账导致样本为 0、入口隐蔽且到处死锁”的痛点，落地双轨全量归因架构：
+  1. 轨道一【实盘正式推荐台账】（`formal_ledger_live.json`/`prematch.json`）：保持 A/B 级且置信度 ≥ 70 门禁，用于实盘真实投注胜率与正式 OOS 样本抽取；
+  2. 轨道二【全量预测与拦截归因台账】（`universe_audit_ledger_live.json`/`prematch.json`）：全量自动建档所有完成量化推演或 AI 评估的比赛，记录清晰门禁分类（`BLOCKED_BY_AI_C_GRADE`、`BLOCKED_BY_AI_WATCH`、`BLOCKED_BY_AI_TRAP`、`BLOCKED_BY_LOW_CONF`、`BLOCKED_NO_POSITIVE_EV`、`QUANT_MACHINE_ONLY` 等）；
+  3. 自动化入账：数据导入装配（`canonicalRoutes`）与 AI 评估导入（`refactorAiRoutes`）全自动落盘轨道二，合格推荐全自动落盘轨道一，无需在卡片上手动寻找按钮；
+  4. 双轨联动核销与拦截归因：录入比分或雷速自动核销时，同步核销双轨与档案（`MatchArchiveStore`），精准判定【避坑成功 (True Negative)】与【模型误杀 (False Negative)】；
+  5. 界面常驻完赛入口与双轨看板：在比赛卡片上常驻【完赛核销】入口，并在【重构双轨台账与核销结算中心】提供双轨大盘切换与归因分析。验证：`verify_universe_ledger`、`verify_portfolio_risk`、`verify_settlement_engine` 100% 通过，`compile_applet` 成功。
+
 - [2026-09-29 grade 第二处门禁补修]: GRADE-FMT-FIX-01 遗漏——`refactor/05_portfolio_risk/ledgerPersistence.ts:217` 的 `appendApprovedLegs` 内部还有第二处 `evaluation.grade === 'B_GRADE'` 精确匹配门禁（与 `refactorLedgerRoutes.ts` 的 append 门禁同逻辑），手动导入评估（import-evaluation 归一化为 "B"）在台账写入内部被 throw "Only A_GRADE or B_GRADE can be persisted"，导致台账空、样本 0，且前端 `handleImportAiEvaluation` 还静默吞掉 append 失败、用户毫无提示。修复：append 端点把 grade 统一规范化为 `RecommendationGrade.A_GRADE/B_GRADE`（"B"→"B_GRADE"，一处修复，下游 `ledgerPersistence`/`ledgerRecordAdapter` 全通过）；前端收集 append 失败原因并可见报错。验证 `npx tsc --noEmit` 零错误 + `npm run test:ts` 115/115。
 
 - [2026-09-29 grade 格式不一致修复]: 排查发现「推荐→台账」断链——`server/routes/refactorAiRoutes.ts`（import-evaluation）把 grade 从 `B_GRADE` 归一化为 `B`（该行为被 `tests-ts/aiRoutesSeparation.test.ts:131` 断言锁定，不可改），而 `server/routes/refactorLedgerRoutes.ts`（append）评级门禁要求 `=== "B_GRADE"`（带后缀精确匹配），两处格式不一致导致 A/B 级推荐永远无法写入台账（返回 400），进而「写比分核销」入口不出现、OOS 样本无法沉淀。修复 append 门禁为归一化判断（`String(grade).toUpperCase().replace(/_GRADE$/, '')` 后判断 A/B），兼容两种格式，且不触碰 import-evaluation 与前端（两者本就兼容）。验证：`npx tsc --noEmit` 零错误 + `npm run test:ts` 115/115。恢复「导入评估→台账→写比分核销→OOS 样本沉淀」完整闭环。

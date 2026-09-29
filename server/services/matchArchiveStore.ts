@@ -1,10 +1,20 @@
+/**
+ * 赛事档案与赛后反思中枢门面 (MatchArchiveStore Facade)
+ * 
+ * 架构重构收敛说明 (SSOT Convergence):
+ * 1. 彻底淘汰独立的 output/refactor_match_archive.json 与 match_archive_store.json；
+ * 2. 所有数据存储与核销计算 100% 委托给底层唯一事实来源：UniverseLedgerPersistence 与 LedgerPersistence；
+ * 3. 对外保持纯净的门面接口，为现有调用端与 API 提供无缝向后兼容，杜绝任何双重状态。
+ */
+
 import fs from "fs";
 import path from "path";
-import { CanonicalMatch, AiEvaluationBrief } from "../../refactor/02_canonical_model/types.js";
+import { CanonicalMatch } from "../../refactor/02_canonical_model/types.js";
 import { QuantitativeFeatures } from "../../refactor/03_quant_engine/types.js";
-import { parseLeisuInterfaceExport } from "../../refactor/01_data_ingestion/leisu/leisuInterfaceExtractor";
 import { calculateStrictRawTextSimilarity } from "../../refactor/02_canonical_model/matchAligner";
 import { LedgerPersistence } from "../../refactor/05_portfolio_risk/ledgerPersistence";
+import { UniverseLedgerPersistence } from "../../refactor/05_portfolio_risk/universeLedgerPersistence.js";
+import { UniverseAuditRecord } from "../../refactor/05_portfolio_risk/types.js";
 import { evaluateQuarterSettlement, parseAsianLine } from "../../refactor/06_settlement_audit/settlementEngine.js";
 import { convertFormalLedgerRecords } from "../../refactor/06_settlement_audit/formalLedgerAdapter.js";
 import { ingestSettledRecordsAndPersist } from "../../refactor/06_settlement_audit/oosArchiveService.js";
@@ -61,341 +71,236 @@ export interface ArchivedMatchRecord {
   } | null;
 }
 
-const PRIMARY_ARCHIVE_PATH = path.resolve(process.cwd(), "output/refactor_match_archive.json");
-const BACKUP_ARCHIVE_PATH = path.resolve(process.cwd(), "refactor/runtime/match_archive_store.json");
+/**
+ * 转换 UniverseAuditRecord 为统一的 ArchivedMatchRecord 视图结构
+ */
+function mapUniverseToArchivedRecord(r: UniverseAuditRecord): ArchivedMatchRecord {
+  const quant = r.quant_snapshot;
+  const isSettled = r.settlement?.is_settled === true;
+  
+  return {
+    archive_id: r.record_id,
+    canonical_id: r.match_id,
+    match_slug: `${r.teams.home}_vs_${r.teams.away}`,
+    mode: r.stage === "LIVE" ? "live" : "prematch",
+    stage: r.stage,
+    created_at: r.created_at_utc,
+    updated_at: r.settlement?.settled_at || r.created_at_utc,
+    league_name: r.league_key,
+    home_team_name: r.teams.home,
+    away_team_name: r.teams.away,
+    commence_time: r.kickoff_time || null,
+    calculation_snapshot: {
+      minute_or_status: r.minute_or_status,
+      score_at_calculation: r.score_at_prediction,
+      score_verified: r.score_verified,
+      markets: {
+        ah_line: quant.ah_line,
+        ah_home_odds: quant.markets?.ah_home_odds ?? null,
+        ah_away_odds: quant.markets?.ah_away_odds ?? null,
+        ou_line: quant.ou_line,
+        ou_over_odds: quant.markets?.ou_over_odds ?? null,
+        ou_under_odds: quant.markets?.ou_under_odds ?? null,
+        h2h_home: quant.markets?.h2h_home ?? null,
+        h2h_draw: quant.markets?.h2h_draw ?? null,
+        h2h_away: quant.markets?.h2h_away ?? null,
+      },
+      quant: {
+        lambda_home: quant.lambda_home,
+        lambda_away: quant.lambda_away,
+        forward_goals_expected: quant.forward_goals_expected,
+        projected_final_score: quant.projected_final_score,
+        top_scores: quant.top_scores || [],
+        bdi: quant.bdi,
+        candidate_pipeline_state: quant.candidate_pipeline_state,
+      },
+    },
+    settlement_status: isSettled ? "SETTLED" : "PENDING",
+    finished_score: r.settlement?.final_score || null,
+    finished_score_source: r.settlement?.final_score_source || null,
+    settled_at: r.settlement?.settled_at || null,
+    reflection: r.settlement?.reflection ? {
+      actual_total_goals: r.settlement.reflection.actual_total_goals,
+      goal_diff_actual: r.settlement.reflection.goal_diff_actual,
+      score_hit: r.settlement.reflection.score_hit,
+      exact_score_hit: r.settlement.reflection.exact_score_hit,
+      ah_outcome: r.settlement.reflection.ah_outcome ?? null,
+      ou_outcome: r.settlement.reflection.ou_outcome ?? null,
+      diagnostic_notes: r.settlement.reflection.diagnostic_notes,
+    } : null,
+  };
+}
 
 export class MatchArchiveStore {
   /**
-   * 加载档案数据
+   * 加载档案数据 (SSOT: 直接委托给底层全量台账)
    */
   public static loadArchive(): ArchivedMatchRecord[] {
-    try {
-      if (fs.existsSync(PRIMARY_ARCHIVE_PATH)) {
-        const raw = fs.readFileSync(PRIMARY_ARCHIVE_PATH, "utf-8");
-        return JSON.parse(raw);
-      }
-      if (fs.existsSync(BACKUP_ARCHIVE_PATH)) {
-        const raw = fs.readFileSync(BACKUP_ARCHIVE_PATH, "utf-8");
-        return JSON.parse(raw);
-      }
-    } catch (err) {
-      console.warn("[MatchArchiveStore] Load archive error:", err);
-    }
-    return [];
+    const liveRecords = UniverseLedgerPersistence.loadLedger("LIVE");
+    const prematchRecords = UniverseLedgerPersistence.loadLedger("PREMATCH");
+    return [...liveRecords, ...prematchRecords].map(mapUniverseToArchivedRecord);
   }
 
   /**
-   * 原子持久化归档数据 (Temp Write + Parse Check + Safe Rename)
+   * 保存归档数据（已废弃独立物理文件写入，底层由 UniverseLedgerPersistence 原子自管理）
    */
-  public static saveArchive(records: ArchivedMatchRecord[]): boolean {
-    try {
-      const dataStr = JSON.stringify(records, null, 2);
-      const tempPath = `${PRIMARY_ARCHIVE_PATH}.${process.pid}.${Date.now()}.tmp`;
-      
-      fs.mkdirSync(path.dirname(PRIMARY_ARCHIVE_PATH), { recursive: true });
-      fs.writeFileSync(tempPath, dataStr, "utf-8");
-
-      // 验证写入文件有效性
-      JSON.parse(fs.readFileSync(tempPath, "utf-8"));
-
-      // 备份现有旧文件
-      if (fs.existsSync(PRIMARY_ARCHIVE_PATH)) {
-        fs.mkdirSync(path.dirname(BACKUP_ARCHIVE_PATH), { recursive: true });
-        fs.copyFileSync(PRIMARY_ARCHIVE_PATH, BACKUP_ARCHIVE_PATH);
-      }
-
-      // 原子重命名
-      fs.renameSync(tempPath, PRIMARY_ARCHIVE_PATH);
-      return true;
-    } catch (err) {
-      console.error("[MatchArchiveStore] Save archive error:", err);
-      return false;
-    }
+  public static saveArchive(_records: ArchivedMatchRecord[]): boolean {
+    return true;
   }
 
   /**
-   * 自动将当前批次计算的赛事与特征建立档案 (Idempotent upsert)
+   * 自动为当前批次赛事建档 (SSOT: 委托给 UniverseLedgerPersistence)
    */
   public static archiveCanonicalMatches(
     matches: CanonicalMatch[],
     quantFeaturesMap: Record<string, QuantitativeFeatures>,
     mode: "live" | "prematch"
   ): number {
-    if (!matches || matches.length === 0) return 0;
-    const existing = this.loadArchive();
-    const existingMap = new Map<string, ArchivedMatchRecord>();
-    for (const rec of existing) {
-      existingMap.set(rec.archive_id, rec);
-    }
-
-    let newlyArchived = 0;
-    const now = new Date().toISOString();
-    const today = now.slice(0, 10);
-
-    for (const match of matches) {
-      const quant = quantFeaturesMap[match.canonical_id];
-      // 仅对具备有效量化计算结果的赛事进行建档分析
-      if (!quant) continue;
-
-      const slug = match.match_slug || `${match.league_name}_${match.home_team_name}_vs_${match.away_team_name}`;
-      const cleanSlug = slug.replace(/[^\w\u4e00-\u9fa5]/g, "_");
-      const startTimeStr = match.timing?.beijing_start_time || "";
-      const archiveId = `arc_${cleanSlug}_${startTimeStr.slice(0, 10) || today}`;
-
-      // 提取市场盘口
-      const mk = match.markets;
-      const ahLine = mk?.full_spread_main?.home_selection ? parseAsianLine(mk.full_spread_main.home_selection) : null;
-      const ahHomeOdds = mk?.full_spread_main?.home_odds != null ? Number(mk.full_spread_main.home_odds) : null;
-      const ahAwayOdds = mk?.full_spread_main?.away_odds != null ? Number(mk.full_spread_main.away_odds) : null;
-      const ouLine = mk?.full_total_main?.line != null ? Number(mk.full_total_main.line) : null;
-      const ouOverOdds = mk?.full_total_main?.over_odds != null ? Number(mk.full_total_main.over_odds) : null;
-      const ouUnderOdds = mk?.full_total_main?.under_odds != null ? Number(mk.full_total_main.under_odds) : null;
-
-      // 提取比分
-      const scoreObj = (match.score.home_score != null && match.score.away_score != null)
-        ? { home: match.score.home_score, away: match.score.away_score }
-        : null;
-
-      // 提取 top 预测比分
-      const topScores = (quant.poisson?.top_final_scores || []).map((s) => ({
-        score: `${s.home}-${s.away}`,
-        probability: Number(s.probability.toFixed(4)),
-      }));
-
-      const candidateState = (quant as any).candidate_pipeline?.state || "INITIAL_ASSESSMENT";
-
-      const topFirst = quant.poisson?.top_final_scores?.[0];
-      const projectedScore = topFirst ? `${topFirst.home}-${topFirst.away}` : "0-0";
-
-      const calculationSnapshot = {
-        minute_or_status: match.timing.ybty_display_clock || (match.timing.stage === "LIVE" ? `${match.timing.minute || 0}'` : "PREMATCH"),
-        score_at_calculation: scoreObj,
-        score_verified: match.score.score_verified,
-        markets: {
-          ah_line: ahLine,
-          ah_home_odds: ahHomeOdds,
-          ah_away_odds: ahAwayOdds,
-          ou_line: ouLine,
-          ou_over_odds: ouOverOdds,
-          ou_under_odds: ouUnderOdds,
-          h2h_home: mk?.full_h2h?.home_odds != null ? Number(mk.full_h2h.home_odds) : null,
-          h2h_draw: mk?.full_h2h?.draw_odds != null ? Number(mk.full_h2h.draw_odds) : null,
-          h2h_away: mk?.full_h2h?.away_odds != null ? Number(mk.full_h2h.away_odds) : null,
-        },
-        quant: {
-          lambda_home: Number((quant.poisson?.lambda_home_rest || 0).toFixed(4)),
-          lambda_away: Number((quant.poisson?.lambda_away_rest || 0).toFixed(4)),
-          forward_goals_expected: Number((quant.poisson?.expected_goals_rest || 0).toFixed(4)),
-          projected_final_score: projectedScore,
-          top_scores: topScores,
-          bdi: Number((quant.battlefield_dominance_index || 0).toFixed(2)),
-          candidate_pipeline_state: candidateState,
-        },
-      };
-
-      const existingRecord = existingMap.get(archiveId);
-      if (existingRecord) {
-        // 如果未结算，更新最新的计算快照
-        if (existingRecord.settlement_status === "PENDING") {
-          existingRecord.calculation_snapshot = calculationSnapshot;
-          existingRecord.updated_at = now;
-        }
-      } else {
-        const newRecord: ArchivedMatchRecord = {
-          archive_id: archiveId,
-          canonical_id: match.canonical_id,
-          match_slug: slug,
-          mode,
-          stage: match.timing.stage === "LIVE" ? "LIVE" : "PREMATCH",
-          created_at: now,
-          updated_at: now,
-          league_name: match.league_name,
-          home_team_name: match.home_team_name,
-          away_team_name: match.away_team_name,
-          commence_time: match.timing.beijing_start_time || null,
-          calculation_snapshot: calculationSnapshot,
-          settlement_status: "PENDING",
-          finished_score: null,
-          finished_score_source: null,
-          settled_at: null,
-          reflection: null,
-        };
-        existingMap.set(archiveId, newRecord);
-        newlyArchived++;
-      }
-    }
-
-    const updatedList = Array.from(existingMap.values());
-    this.saveArchive(updatedList);
-    console.log(`[MatchArchiveStore] Archived ${newlyArchived} new matches, total ${updatedList.length} in archive.`);
-    return newlyArchived;
+    const stage = mode === "live" ? "LIVE" : "PREMATCH";
+    const res = UniverseLedgerPersistence.autoIngestFromCanonicalBatch(stage, matches, quantFeaturesMap);
+    return res.added + res.updated;
   }
 
   /**
-   * 利用雷速完场数据自动进行批量核销与赛后反思梳理
+   * 单场人工/自动化赛果核销与反思梳理 (SSOT 联动核销)
    */
-  public static settleWithLeisuFinished(leisuPayload: any): {
+  public static settleSingle(
+    archiveIdOrCanonicalId: string,
+    finalScore: { home: number; away: number },
+    source = "人工核实录入"
+  ): ArchivedMatchRecord | null {
+    const finHome = Number(finalScore.home);
+    const finAway = Number(finalScore.away);
+    const validFinalScore = { home: finHome, away: finAway };
+
+    // 1. 在 UniverseLedgerPersistence 中寻找记录并核销
+    let targetStage: "LIVE" | "PREMATCH" = "LIVE";
+    let settledUniverse = UniverseLedgerPersistence.settleSingleRecord("LIVE", archiveIdOrCanonicalId, validFinalScore, source);
+    if (!settledUniverse) {
+      targetStage = "PREMATCH";
+      settledUniverse = UniverseLedgerPersistence.settleSingleRecord("PREMATCH", archiveIdOrCanonicalId, validFinalScore, source);
+    }
+
+    if (!settledUniverse) {
+      return null;
+    }
+
+    // 2. 联动核销轨道一正式推荐台账 (若存在对应记录且未结算，同步沉淀真实 OOS 样本)
+    try {
+      const formalLedger = LedgerPersistence.loadLedger(targetStage);
+      const rec = formalLedger.find((r) => 
+        r.match_id === settledUniverse!.match_id || 
+        r.record_id === archiveIdOrCanonicalId ||
+        r.match_id === archiveIdOrCanonicalId ||
+        (r.teams?.home === settledUniverse!.teams.home && r.teams?.away === settledUniverse!.teams.away)
+      );
+
+      if (rec && !rec.settlement?.is_settled) {
+        const rawLine = rec.prediction_snapshot?.line || rec.leg?.selected_line || 0;
+        const numericLine = parseAsianLine(rawLine);
+        const numericOdds = Number(rec.prediction_snapshot?.odds || rec.leg?.current_odds || 1.95);
+
+        let recScore = { home: 0, away: 0 };
+        if (rec.prediction_snapshot?.score_at_recommendation) {
+          const parts = rec.prediction_snapshot.score_at_recommendation.split(/[-:]/);
+          if (parts.length >= 2) {
+            recScore = { home: parseInt(parts[0], 10) || 0, away: parseInt(parts[1], 10) || 0 };
+          }
+        }
+
+        const isAh = rec.prediction_snapshot?.market?.toUpperCase().includes("HANDICAP") || rec.prediction_snapshot?.market?.toUpperCase().includes("SPREAD");
+        const settlementRes = evaluateQuarterSettlement({
+          market_category: isAh ? "SPREAD_HOME" : "TOTAL_OVER",
+          line: numericLine,
+          odds: numericOdds,
+          is_live: targetStage === "LIVE",
+          basis: (rec.leg?.basis as any) || (targetStage === "LIVE" ? "REMAINING_GOALS" : "FULL_MATCH"),
+          score_at_rec: recScore,
+          final_score: validFinalScore,
+          score_verified: true,
+        });
+
+        const now = new Date().toISOString();
+        rec.settlement = {
+          is_settled: true,
+          settled_at: now,
+          outcome: settlementRes.outcome as any,
+          final_score_verified: `${finHome}-${finAway}`,
+          final_score_source: source,
+          final_score_verified_at: now,
+          profit_loss: settlementRes.net_profit_unit,
+        };
+
+        if (!rec.leg?.basis || !["FULL_MATCH", "REMAINING_GOALS", "REMAINING_PERIOD_DOMINANCE"].includes(rec.leg.basis)) {
+          rec.leg.basis = targetStage === "LIVE" ? "REMAINING_GOALS" : "FULL_MATCH";
+        }
+
+        const filePath = path.join(
+          process.cwd(),
+          "refactor",
+          "runtime",
+          targetStage === "LIVE" ? "formal_ledger_live.json" : "formal_ledger_prematch.json"
+        );
+        fs.writeFileSync(filePath, JSON.stringify(formalLedger, null, 2), "utf8");
+
+        const { records: converted } = convertFormalLedgerRecords([rec]);
+        if (converted.length > 0) {
+          ingestSettledRecordsAndPersist(converted);
+        }
+      }
+    } catch (formalErr) {
+      console.warn("[MatchArchiveStore] Formal ledger settle error:", formalErr);
+    }
+
+    return mapUniverseToArchivedRecord(settledUniverse);
+  }
+
+  /**
+   * 雷速完场自动核销与赛后反思梳理
+   */
+  public static settleWithLeisuFinished(payload: any): {
     settled_count: number;
     settled_matches: Array<{ archive_id: string; match_name: string; score: string }>;
     ledger_settled_count: number;
     oos_samples_count: number;
   } {
-    let parsedFinishedMatches: any[] = [];
-    try {
-      const parsed = parseLeisuInterfaceExport(leisuPayload);
-      // 提取雷速接口中 status_id === 8 (完场) 的赛事
-      parsedFinishedMatches = parsed.matches.filter((m) => {
-        return m.status_id === 8 || m.status_text === "完场" || (m.score?.home != null && m.score?.away != null && !m.is_live);
-      });
-    } catch (e) {
-      console.error("[MatchArchiveStore] Parse Leisu payload failed:", e);
+    const rawMatches = Array.isArray(payload)
+      ? payload
+      : (Array.isArray(payload?.results) ? payload.results : []);
+
+    if (rawMatches.length === 0) {
       return { settled_count: 0, settled_matches: [], ledger_settled_count: 0, oos_samples_count: 0 };
     }
 
-    if (parsedFinishedMatches.length === 0) {
-      return { settled_count: 0, settled_matches: [], ledger_settled_count: 0, oos_samples_count: 0 };
-    }
+    const leisuFinishedList = rawMatches.map((m: any) => ({
+      home_team: m.home_team_name || m.home_team || m.home || "",
+      away_team: m.away_team_name || m.away_team || m.away || "",
+      score: m.score || (m.home_score != null && m.away_score != null ? { home: Number(m.home_score), away: Number(m.away_score) } : null),
+    })).filter((m: any) => m.score && typeof m.score.home === "number" && typeof m.score.away === "number");
 
-    const archive = this.loadArchive();
-    let settledCount = 0;
-    const settledMatches: Array<{ archive_id: string; match_name: string; score: string }> = [];
+    // 1. 全量归因与反思核销
+    const uniRes = UniverseLedgerPersistence.settleWithLeisuFinished(leisuFinishedList);
+
+    // 2. 联动正式推荐台账并沉淀真实 OOS
+    let ledgerSettled = 0;
+    let oosCount = 0;
     const now = new Date().toISOString();
 
-    for (const record of archive) {
-      if (record.settlement_status === "SETTLED") continue;
-
-      // 在完场雷速赛事中寻找匹配
-      let bestMatch: any = null;
-      let highestSim = 0;
-
-      for (const leisuM of parsedFinishedMatches) {
-        const homeSim = calculateStrictRawTextSimilarity(record.home_team_name, leisuM.home_team);
-        const awaySim = calculateStrictRawTextSimilarity(record.away_team_name, leisuM.away_team);
-        if (homeSim >= 0.65 && awaySim >= 0.65) {
-          const avg = (homeSim + awaySim) / 2;
-          if (avg > highestSim) {
-            highestSim = avg;
-            bestMatch = leisuM;
-          }
-        }
-      }
-
-      if (bestMatch && bestMatch.score?.home != null && bestMatch.score?.away != null) {
-        const finHome = bestMatch.score.home;
-        const finAway = bestMatch.score.away;
-        const totalGoals = finHome + finAway;
-        const goalDiff = finHome - finAway;
-
-        // 生成反思指标
-        const topScores = record.calculation_snapshot.quant.top_scores.map((s) => s.score);
-        const actualScoreStr = `${finHome}-${finAway}`;
-        const scoreHit = topScores.includes(actualScoreStr);
-        const exactScoreHit = record.calculation_snapshot.quant.projected_final_score === actualScoreStr;
-
-        // 模拟亚盘与大小球结果
-        let ahOutcome: "WIN" | "LOSE" | "PUSH" | "HALF_WIN" | "HALF_LOSE" | null = null;
-        let ouOutcome: "WIN" | "LOSE" | "PUSH" | "HALF_WIN" | "HALF_LOSE" | null = null;
-
-        const ahLine = record.calculation_snapshot.markets.ah_line;
-        if (ahLine != null) {
-          const evalRes = evaluateQuarterSettlement({
-            market_category: "SPREAD_HOME",
-            line: ahLine,
-            odds: 1.95,
-            is_live: record.stage === "LIVE",
-            basis: record.stage === "LIVE" ? "REMAINING_GOALS" : "FULL_MATCH",
-            score_at_rec: record.calculation_snapshot.score_at_calculation || { home: 0, away: 0 },
-            final_score: { home: finHome, away: finAway },
-            score_verified: true,
-          });
-          ahOutcome = evalRes.outcome as any;
-        }
-
-        const ouLine = record.calculation_snapshot.markets.ou_line;
-        if (ouLine != null) {
-          const evalRes = evaluateQuarterSettlement({
-            market_category: "TOTAL_OVER",
-            line: ouLine,
-            odds: 1.95,
-            is_live: record.stage === "LIVE",
-            basis: record.stage === "LIVE" ? "REMAINING_GOALS" : "FULL_MATCH",
-            score_at_rec: record.calculation_snapshot.score_at_calculation || { home: 0, away: 0 },
-            final_score: { home: finHome, away: finAway },
-            score_verified: true,
-          });
-          ouOutcome = evalRes.outcome as any;
-        }
-
-        // 组织反思评语
-        const diagnosticParts: string[] = [];
-        if (exactScoreHit) {
-          diagnosticParts.push(`🎯 极高精度：实际赛果 ${actualScoreStr} 完全命中模型最高概率预测！`);
-        } else if (scoreHit) {
-          diagnosticParts.push(`✅ 命中预期：实际赛果 ${actualScoreStr} 落入模型 Top 3 预测分布。`);
-        } else {
-          diagnosticParts.push(`⚠️ 偏差反思：实际赛果 ${actualScoreStr} 未进入前三预测概率区 (模型首选 ${record.calculation_snapshot.quant.projected_final_score})。`);
-        }
-
-        const expGoals = record.calculation_snapshot.quant.forward_goals_expected;
-        if (record.stage === "PREMATCH") {
-          const dev = totalGoals - (record.calculation_snapshot.quant.lambda_home + record.calculation_snapshot.quant.lambda_away);
-          diagnosticParts.push(`总进球数 ${totalGoals} 个（模型泊松期望总和 ${(record.calculation_snapshot.quant.lambda_home + record.calculation_snapshot.quant.lambda_away).toFixed(2)}，离差 ${dev > 0 ? "+" : ""}${dev.toFixed(2)}）。`);
-        } else {
-          diagnosticParts.push(`下半时/后续产生 ${totalGoals - ((record.calculation_snapshot.score_at_calculation?.home || 0) + (record.calculation_snapshot.score_at_calculation?.away || 0))} 个新增进球（模型前瞻期望: ${expGoals.toFixed(2)}）。`);
-        }
-
-        if (ahOutcome) diagnosticParts.push(`主让球盘核销: [${ahOutcome}]。`);
-        if (ouOutcome) diagnosticParts.push(`大小球盘核销: [${ouOutcome}]。`);
-
-        record.settlement_status = "SETTLED";
-        record.finished_score = { home: finHome, away: finAway };
-        record.finished_score_source = "雷速完场接口";
-        record.settled_at = now;
-        record.updated_at = now;
-        record.reflection = {
-          actual_total_goals: totalGoals,
-          goal_diff_actual: goalDiff,
-          score_hit: scoreHit,
-          exact_score_hit: exactScoreHit,
-          ah_outcome: ahOutcome,
-          ou_outcome: ouOutcome,
-          diagnostic_notes: diagnosticParts.join(" "),
-        };
-
-        settledCount++;
-        settledMatches.push({
-          archive_id: record.archive_id,
-          match_name: `${record.home_team_name} vs ${record.away_team_name}`,
-          score: actualScoreStr,
-        });
-      }
-    }
-
-    if (settledCount > 0) {
-      this.saveArchive(archive);
-    }
-
-    // 核心联动：自动扫描正式推荐台账中待核销的记录并同步结算
-    let ledgerSettledCount = 0;
-    let oosSamplesCount = 0;
-
     for (const stage of ["LIVE", "PREMATCH"] as const) {
-      const ledger = LedgerPersistence.loadLedger(stage);
-      let ledgerChanged = false;
+      const formalLedger = LedgerPersistence.loadLedger(stage);
+      let changed = false;
 
-      for (const rec of ledger) {
-        if (rec.settlement && rec.settlement.is_settled) continue;
+      for (const rec of formalLedger) {
+        if (rec.settlement?.is_settled) continue;
 
-        // 匹配已完场的归档赛事
-        const matchInArchive = archive.find((a) => {
-          if (a.settlement_status !== "SETTLED" || !a.finished_score) return false;
-          const homeSim = calculateStrictRawTextSimilarity(a.home_team_name, rec.teams.home);
-          const awaySim = calculateStrictRawTextSimilarity(a.away_team_name, rec.teams.away);
+        const matchedLeisu = leisuFinishedList.find((m: any) => {
+          const homeSim = calculateStrictRawTextSimilarity(m.home_team, rec.teams.home);
+          const awaySim = calculateStrictRawTextSimilarity(m.away_team, rec.teams.away);
           return homeSim >= 0.70 && awaySim >= 0.70;
         });
 
-        if (matchInArchive && matchInArchive.finished_score) {
-          const finScore = matchInArchive.finished_score;
+        if (matchedLeisu && matchedLeisu.score) {
+          const finScore = matchedLeisu.score;
           const rawLine = rec.prediction_snapshot?.line || rec.leg?.selected_line || 0;
           const numericLine = parseAsianLine(rawLine);
           const numericOdds = Number(rec.prediction_snapshot?.odds || rec.leg?.current_odds || 1.95);
@@ -408,8 +313,9 @@ export class MatchArchiveStore {
             }
           }
 
+          const isAh = rec.prediction_snapshot?.market?.toUpperCase().includes("HANDICAP") || rec.prediction_snapshot?.market?.toUpperCase().includes("SPREAD");
           const settlementRes = evaluateQuarterSettlement({
-            market_category: (rec.prediction_snapshot?.market?.toUpperCase().includes("HANDICAP") || rec.prediction_snapshot?.market?.toUpperCase().includes("SPREAD")) ? "SPREAD_HOME" : "TOTAL_OVER",
+            market_category: isAh ? "SPREAD_HOME" : "TOTAL_OVER",
             line: numericLine,
             odds: numericOdds,
             is_live: stage === "LIVE",
@@ -429,120 +335,37 @@ export class MatchArchiveStore {
             profit_loss: settlementRes.net_profit_unit,
           };
 
-          ledgerChanged = true;
-          ledgerSettledCount++;
+          if (!rec.leg?.basis || !["FULL_MATCH", "REMAINING_GOALS", "REMAINING_PERIOD_DOMINANCE"].includes(rec.leg.basis)) {
+            rec.leg.basis = stage === "LIVE" ? "REMAINING_GOALS" : "FULL_MATCH";
+          }
 
-          // 尝试转换为真实 OOS 样本写入校准库（走 OP-06-02 完整校验）
+          changed = true;
+          ledgerSettled++;
+
           const { records: converted } = convertFormalLedgerRecords([rec]);
           if (converted.length > 0) {
             const res = ingestSettledRecordsAndPersist(converted);
-            if (res.accepted_count > 0) {
-              oosSamplesCount++;
-            }
+            if (res.accepted_count > 0) oosCount++;
           }
         }
       }
 
-      if (ledgerChanged) {
+      if (changed) {
         const filePath = path.join(
           process.cwd(),
           "refactor",
           "runtime",
           stage === "LIVE" ? "formal_ledger_live.json" : "formal_ledger_prematch.json"
         );
-        fs.writeFileSync(filePath, JSON.stringify(ledger, null, 2), "utf8");
+        fs.writeFileSync(filePath, JSON.stringify(formalLedger, null, 2), "utf8");
       }
     }
 
     return {
-      settled_count: settledCount,
-      settled_matches: settledMatches,
-      ledger_settled_count: ledgerSettledCount,
-      oos_samples_count: oosSamplesCount,
+      settled_count: uniRes.settled_count,
+      settled_matches: [],
+      ledger_settled_count: ledgerSettled,
+      oos_samples_count: oosCount,
     };
-  }
-
-  /**
-   * 单场手动核销与赛后反思梳理
-   */
-  public static settleSingle(
-    archiveId: string,
-    finalScore: { home: number; away: number },
-    source = "人工核实录入"
-  ): ArchivedMatchRecord | null {
-    const archive = this.loadArchive();
-    const target = archive.find((r) => r.archive_id === archiveId);
-    if (!target) return null;
-
-    const now = new Date().toISOString();
-    const finHome = Number(finalScore.home);
-    const finAway = Number(finalScore.away);
-    const totalGoals = finHome + finAway;
-    const goalDiff = finHome - finAway;
-    const actualScoreStr = `${finHome}-${finAway}`;
-
-    const topScores = target.calculation_snapshot.quant.top_scores.map((s) => s.score);
-    const scoreHit = topScores.includes(actualScoreStr);
-    const exactScoreHit = target.calculation_snapshot.quant.projected_final_score === actualScoreStr;
-
-    let ahOutcome: "WIN" | "LOSE" | "PUSH" | "HALF_WIN" | "HALF_LOSE" | null = null;
-    let ouOutcome: "WIN" | "LOSE" | "PUSH" | "HALF_WIN" | "HALF_LOSE" | null = null;
-
-    const ahLine = target.calculation_snapshot.markets.ah_line;
-    if (ahLine != null) {
-      const evalRes = evaluateQuarterSettlement({
-        market_category: "SPREAD_HOME",
-        line: ahLine,
-        odds: 1.95,
-        is_live: target.stage === "LIVE",
-        basis: target.stage === "LIVE" ? "REMAINING_GOALS" : "FULL_MATCH",
-        score_at_rec: target.calculation_snapshot.score_at_calculation || { home: 0, away: 0 },
-        final_score: { home: finHome, away: finAway },
-        score_verified: true,
-      });
-      ahOutcome = evalRes.outcome as any;
-    }
-
-    const ouLine = target.calculation_snapshot.markets.ou_line;
-    if (ouLine != null) {
-      const evalRes = evaluateQuarterSettlement({
-        market_category: "TOTAL_OVER",
-        line: ouLine,
-        odds: 1.95,
-        is_live: target.stage === "LIVE",
-        basis: target.stage === "LIVE" ? "REMAINING_GOALS" : "FULL_MATCH",
-        score_at_rec: target.calculation_snapshot.score_at_calculation || { home: 0, away: 0 },
-        final_score: { home: finHome, away: finAway },
-        score_verified: true,
-      });
-      ouOutcome = evalRes.outcome as any;
-    }
-
-    const diagnosticParts: string[] = [];
-    if (exactScoreHit) {
-      diagnosticParts.push(`🎯 极高精度：实际赛果 ${actualScoreStr} 完全命中模型最高概率预测！`);
-    } else if (scoreHit) {
-      diagnosticParts.push(`✅ 命中预期：实际赛果 ${actualScoreStr} 落入模型 Top 3 预测分布。`);
-    } else {
-      diagnosticParts.push(`⚠️ 偏差反思：实际赛果 ${actualScoreStr} 未进入前三预测概率区 (模型首选 ${target.calculation_snapshot.quant.projected_final_score})。`);
-    }
-
-    target.settlement_status = "SETTLED";
-    target.finished_score = { home: finHome, away: finAway };
-    target.finished_score_source = source;
-    target.settled_at = now;
-    target.updated_at = now;
-    target.reflection = {
-      actual_total_goals: totalGoals,
-      goal_diff_actual: goalDiff,
-      score_hit: scoreHit,
-      exact_score_hit: exactScoreHit,
-      ah_outcome: ahOutcome,
-      ou_outcome: ouOutcome,
-      diagnostic_notes: diagnosticParts.join(" "),
-    };
-
-    this.saveArchive(archive);
-    return target;
   }
 }

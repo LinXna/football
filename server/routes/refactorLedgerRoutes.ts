@@ -16,6 +16,7 @@ import fs from "fs";
 import path from "path";
 import { randomUUID } from "node:crypto";
 import { LedgerPersistence } from "../../refactor/05_portfolio_risk/ledgerPersistence.js";
+import { UniverseLedgerPersistence } from "../../refactor/05_portfolio_risk/universeLedgerPersistence.js";
 import { evaluateQuarterSettlement, parseAsianLine, QuarterMarketCategory } from "../../refactor/06_settlement_audit/settlementEngine.js";
 import { convertFormalLedgerRecords } from "../../refactor/06_settlement_audit/formalLedgerAdapter.js";
 import { getOosStatus, ingestSettledRecordsAndPersist } from "../../refactor/06_settlement_audit/oosArchiveService.js";
@@ -25,6 +26,7 @@ import { RecommendationGrade } from "../../refactor/04_ai_evaluator/enums.js";
 import { extractAiEvaluationBrief } from "../../refactor/02_canonical_model/canonicalMatchAssembler.js";
 import { CanonicalMatch } from "../../refactor/02_canonical_model/types.js";
 import { QuantitativeFeatures } from "../../refactor/03_quant_engine/types.js";
+import { MatchArchiveStore } from "../services/matchArchiveStore.js";
 
 function detectRefactorQuarterCategory(record: FormalRecommendation): QuarterMarketCategory {
   const legDir = String(record.leg?.direction || "").toUpperCase();
@@ -454,6 +456,30 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
       );
       fs.writeFileSync(filePath, JSON.stringify(ledger, null, 2), "utf8");
 
+      // 同步核销轨道二全量归因台账 (Universe Audit Ledger)
+      let universeRecord: any = null;
+      try {
+        universeRecord = UniverseLedgerPersistence.settleSingleRecord(
+          bettingStage,
+          targetRecord.match_id || targetRecord.record_id,
+          validFinalScore,
+          score_source
+        );
+      } catch (uniErr) {
+        console.warn("[RefactorLedgerRoutes] Universe settle error:", uniErr);
+      }
+
+      // 同步核销赛事档案 (MatchArchiveStore)
+      try {
+        MatchArchiveStore.settleSingle(
+          targetRecord.match_id || targetRecord.record_id,
+          validFinalScore,
+          score_source
+        );
+      } catch (archErr) {
+        console.warn("[RefactorLedgerRoutes] MatchArchive settle error:", archErr);
+      }
+
       // 核心闭环：通过 Layer 06 标准适配器转换并抽取真实 OOS 样本
       let oosSampleIngested = false;
       let skippedReason: string | undefined;
@@ -476,7 +502,8 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
         explanation: settlementRes.explanation,
         oos_sample_ingested: oosSampleIngested,
         skipped_reason: skippedReason,
-        oos_status: getOosStatus()
+        oos_status: getOosStatus(),
+        universe_record: universeRecord
       });
     } catch (e: any) {
       console.error("Refactor settle error:", e);
@@ -532,6 +559,258 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
     } catch (e: any) {
       console.error("Refactor ledger clear error:", e);
       res.status(500).json({ success: false, error: e?.message || "清空台账异常" });
+    }
+  });
+
+  /**
+   * GET /api/refactor/universe-ledger
+   * 轨道二：获取全量预测与拦截归因记录大盘
+   */
+  app.get("/api/refactor/universe-ledger", (req, res) => {
+    try {
+      const stage = (req.query.stage as string)?.toUpperCase() || "ALL";
+      const validStage = (stage === "LIVE" || stage === "PREMATCH" || stage === "ALL") ? stage : "ALL";
+
+      let records: any[] = [];
+      if (validStage === "ALL" || validStage === "LIVE") {
+        records.push(...UniverseLedgerPersistence.loadLedger("LIVE"));
+      }
+      if (validStage === "ALL" || validStage === "PREMATCH") {
+        records.push(...UniverseLedgerPersistence.loadLedger("PREMATCH"));
+      }
+
+      const summary = UniverseLedgerPersistence.getUniverseAttributionSummary(validStage as any);
+
+      res.json({
+        success: true,
+        stage: validStage,
+        records,
+        summary
+      });
+    } catch (e: any) {
+      console.error("Universe ledger fetch error:", e);
+      res.status(500).json({ success: false, error: e?.message || "获取全量归因台账失败" });
+    }
+  });
+
+  /**
+   * 统一单场核销中枢执行器 (Unified Settlement Engine for Single Match)
+   */
+  const executeUnifiedSettlement = (
+    stage: string,
+    record_id: string,
+    final_score: { home: number; away: number },
+    score_source = "人工录入核销"
+  ) => {
+    const bettingStage: BettingStage = String(stage).toUpperCase() === "PREMATCH" ? "PREMATCH" : "LIVE";
+    const validFinalScore = { home: Number(final_score.home), away: Number(final_score.away) };
+
+    // 1. 核销全量归因台账 (含避坑归因 + Top3比分命中反思)
+    const settledUniverse = UniverseLedgerPersistence.settleSingleRecord(
+      bettingStage,
+      record_id,
+      validFinalScore,
+      score_source
+    );
+
+    // 2. 检查轨道一正式推荐台账中是否有对应比赛，若有则联动核销并沉淀 OOS 样本
+    let formalSettled: any = null;
+    let oosSampleIngested = false;
+    const formalLedger = LedgerPersistence.loadLedger(bettingStage);
+    const formalTarget = formalLedger.find((r) => 
+      r.record_id === record_id || 
+      r.match_id === record_id ||
+      (settledUniverse && r.match_id === settledUniverse.match_id)
+    );
+
+    if (formalTarget && !formalTarget.settlement?.is_settled) {
+      const isLive = bettingStage === "LIVE";
+      const marketCategory = detectRefactorQuarterCategory(formalTarget);
+      const rawLine = formalTarget.prediction_snapshot?.line || formalTarget.leg?.selected_line || 0;
+      const numericLine = parseAsianLine(rawLine);
+      const numericOdds = Number(formalTarget.prediction_snapshot?.odds || formalTarget.leg?.current_odds || 1.95);
+
+      let recScore = { home: 0, away: 0 };
+      if (formalTarget.prediction_snapshot?.score_at_recommendation) {
+        const parts = formalTarget.prediction_snapshot.score_at_recommendation.split(/[-:]/);
+        if (parts.length >= 2) {
+          recScore = { home: parseInt(parts[0], 10) || 0, away: parseInt(parts[1], 10) || 0 };
+        }
+      }
+
+      const settlementRes = evaluateQuarterSettlement({
+        market_category: marketCategory,
+        line: numericLine,
+        odds: numericOdds,
+        is_live: isLive,
+        basis: (formalTarget.leg?.basis as any) || (isLive ? "REMAINING_GOALS" : "FULL_MATCH"),
+        score_at_rec: recScore,
+        final_score: validFinalScore,
+        score_verified: true
+      });
+
+      const settledAt = new Date().toISOString();
+      formalTarget.settlement = {
+        is_settled: true,
+        settled_at: settledAt,
+        outcome: settlementRes.outcome as any,
+        final_score_verified: `${validFinalScore.home}-${validFinalScore.away}`,
+        final_score_source: score_source,
+        final_score_verified_at: settledAt,
+        profit_loss: settlementRes.net_profit_unit
+      } as any;
+
+      if (!formalTarget.leg?.basis || !["FULL_MATCH", "REMAINING_GOALS", "REMAINING_PERIOD_DOMINANCE"].includes(formalTarget.leg.basis)) {
+        formalTarget.leg.basis = isLive ? "REMAINING_GOALS" : "FULL_MATCH";
+      }
+
+      const formalPath = path.join(
+        process.cwd(),
+        "refactor",
+        "runtime",
+        bettingStage === "LIVE" ? "formal_ledger_live.json" : "formal_ledger_prematch.json"
+      );
+      fs.writeFileSync(formalPath, JSON.stringify(formalLedger, null, 2), "utf8");
+
+      const { records: converted } = convertFormalLedgerRecords([formalTarget]);
+      if (converted.length > 0) {
+        const ingestRes = ingestSettledRecordsAndPersist(converted);
+        oosSampleIngested = ingestRes.accepted_count > 0;
+      }
+      formalSettled = formalTarget;
+    }
+
+    return {
+      universe_record: settledUniverse,
+      formal_record: formalSettled,
+      oos_sample_ingested: oosSampleIngested,
+      summary: UniverseLedgerPersistence.getUniverseAttributionSummary(bettingStage)
+    };
+  };
+
+  /**
+   * POST /api/refactor/settlement/execute
+   * 全生命周期统一单场核销中枢接口 (Unified Settlement Entrypoint)
+   */
+  app.post("/api/refactor/settlement/execute", (req, res) => {
+    try {
+      const {
+        record_id,
+        stage = "LIVE",
+        final_score,
+        score_source = "人工录入核销"
+      } = req.body;
+
+      if (!record_id || !final_score || typeof final_score.home !== "number" || typeof final_score.away !== "number") {
+        return res.status(400).json({ success: false, error: "缺少有效 record_id 或 final_score (home/away)" });
+      }
+
+      const result = executeUnifiedSettlement(stage, record_id, final_score, score_source);
+      return res.json({ success: true, ...result });
+    } catch (e: any) {
+      console.error("Unified settlement error:", e);
+      return res.status(500).json({ success: false, error: e?.message || "统一核销异常" });
+    }
+  });
+
+  /**
+   * POST /api/refactor/settlement/execute-leisu
+   * 全生命周期统一雷速完场批量核销接口
+   */
+  app.post("/api/refactor/settlement/execute-leisu", (req, res) => {
+    try {
+      const { leisu_payload } = req.body;
+      let payloadToUse = leisu_payload;
+
+      if (!payloadToUse) {
+        const candidates = [
+          path.resolve(process.cwd(), "refactor/runtime/active_leisu_live.json"),
+          path.resolve(process.cwd(), "refactor/runtime/active_leisu_prematch.json"),
+          path.resolve(process.cwd(), "LYX/leisu_v2.8.0_interface_data_2026-08-20T20-20-34-708Z.json"),
+          path.resolve(process.cwd(), "output/leisu_prematch_latest.json"),
+        ];
+        for (const filePath of candidates) {
+          if (fs.existsSync(filePath)) {
+            try {
+              const content = fs.readFileSync(filePath, "utf-8");
+              const parsed = JSON.parse(content);
+              if (parsed && Array.isArray(parsed.results) && parsed.results.length > 0) {
+                payloadToUse = parsed;
+                break;
+              }
+            } catch {}
+          }
+        }
+      }
+
+      if (!payloadToUse) {
+        return res.status(400).json({
+          success: false,
+          error: "未检测到可用的雷速完场数据，请先上传包含完场比分的雷速数据",
+        });
+      }
+
+      const result = MatchArchiveStore.settleWithLeisuFinished(payloadToUse);
+      return res.json({
+        success: true,
+        message: `雷速完场统一核销完成: 已结算 ${result.settled_count} 场推演赛事，联动核销 ${result.ledger_settled_count} 条正式推荐，沉淀 ${result.oos_samples_count} 条真实 OOS 校准样本！`,
+        ...result,
+      });
+    } catch (e: any) {
+      console.error("Unified Leisu settlement error:", e);
+      return res.status(500).json({ success: false, error: e?.message || "雷速统一核销异常" });
+    }
+  });
+
+  /**
+   * POST /api/refactor/universe-ledger/settle
+   * 兼容路由：委托至统一核销执行器
+   */
+  app.post("/api/refactor/universe-ledger/settle", (req, res) => {
+    try {
+      const {
+        record_id,
+        stage = "LIVE",
+        final_score,
+        score_source = "人工录入核销"
+      } = req.body;
+
+      if (!record_id || !final_score || typeof final_score.home !== "number" || typeof final_score.away !== "number") {
+        return res.status(400).json({ success: false, error: "缺少有效 record_id 或 final_score (home/away)" });
+      }
+
+      const result = executeUnifiedSettlement(stage, record_id, final_score, score_source);
+      res.json({ success: true, ...result });
+    } catch (e: any) {
+      console.error("Universe ledger settle error:", e);
+      res.status(500).json({ success: false, error: e?.message || "核销全量记录异常" });
+    }
+  });
+
+  /**
+   * POST /api/refactor/universe-ledger/clear
+   * 清空全量归因台账数据
+   */
+  app.post("/api/refactor/universe-ledger/clear", (req, res) => {
+    try {
+      const { stage = "ALL" } = req.body;
+      const validStage = (stage === "LIVE" || stage === "PREMATCH" || stage === "ALL") ? stage : "ALL";
+
+      if (validStage === "ALL" || validStage === "LIVE") {
+        UniverseLedgerPersistence.saveLedger("LIVE", []);
+      }
+      if (validStage === "ALL" || validStage === "PREMATCH") {
+        UniverseLedgerPersistence.saveLedger("PREMATCH", []);
+      }
+
+      res.json({
+        success: true,
+        message: `已成功清空 ${validStage} 模式全量归因台账数据`,
+        stage: validStage
+      });
+    } catch (e: any) {
+      console.error("Universe ledger clear error:", e);
+      res.status(500).json({ success: false, error: e?.message || "清空全量台账异常" });
     }
   });
 }

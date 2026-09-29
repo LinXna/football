@@ -68,7 +68,11 @@ export function convertFormalLedgerRecords(
       skipped.push({ record_id: record.record_id, reason: 'UNSUPPORTED_OOS_MARKET' });
       continue;
     }
-    if (!isSettlementBasis(record.leg?.basis)) {
+    let settlementBasis = record.leg?.basis;
+    if (!isSettlementBasis(settlementBasis)) {
+      settlementBasis = record.stage === 'LIVE' ? 'REMAINING_GOALS' : 'FULL_MATCH';
+    }
+    if (!isSettlementBasis(settlementBasis)) {
       skipped.push({ record_id: record.record_id, reason: 'INVALID_SETTLEMENT_BASIS' });
       continue;
     }
@@ -117,7 +121,7 @@ export function convertFormalLedgerRecords(
       model_probability: record.prediction_snapshot.model_probability,
       predicted_lambda: record.prediction_snapshot.predicted_lambda.home + record.prediction_snapshot.predicted_lambda.away,
       settlement_market: normalizeOosMarket(record.prediction_snapshot.market),
-      settlement_basis: normalizeSettlementBasis(record.leg.basis),
+      settlement_basis: normalizeSettlementBasis(settlementBasis),
       settlement_outcome: settlement.outcome
     });
   }

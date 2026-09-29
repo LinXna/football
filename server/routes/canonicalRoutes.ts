@@ -32,7 +32,7 @@ import {
 } from "../../refactor/00_common/errors";
 
 import { sniffIngressPayload } from "../../refactor/01_data_ingestion/ingressSniffer";
-import { MatchArchiveStore } from "../services/matchArchiveStore";
+import { UniverseLedgerPersistence } from "../../refactor/05_portfolio_risk/universeLedgerPersistence.js";
 
 // 重构系统专有文件路径（完全物理隔离，零外部 output/ 依赖）
 const REFACTOR_STORAGE = {
@@ -132,15 +132,24 @@ function persistRuntimeBatch(
     throw new Error(`Failed to persist refactor ${mode} runtime batch`);
   }
 
-  // 核心建档：自动为当前批次的所有量化计算赛事建立/增量更新档案，支持赛后复盘反思
+  // 统一单一事实来源 (SSOT)：自动为当前批次的所有量化计算赛事建立/增量更新轨道二全量预测归因台账 (含比分分布与反思快照)
   try {
-    MatchArchiveStore.archiveCanonicalMatches(
+    let aiEvals: any[] = [];
+    const aiFile = path.resolve(process.cwd(), "output", "refactor_ai_evaluations.json");
+    if (fs.existsSync(aiFile)) {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(aiFile, "utf-8"));
+        if (Array.isArray(parsed)) aiEvals = parsed;
+      } catch {}
+    }
+    UniverseLedgerPersistence.autoIngestFromCanonicalBatch(
+      mode === "live" ? "LIVE" : "PREMATCH",
       result.canonicalMatches,
       quantitativeFeatures,
-      mode
+      aiEvals
     );
-  } catch (archErr) {
-    console.warn("[CanonicalRoutes] MatchArchiveStore auto-archive warning:", archErr);
+  } catch (uniErr) {
+    console.warn("[CanonicalRoutes] UniverseLedgerPersistence auto-ingest warning:", uniErr);
   }
 
   return batch;
