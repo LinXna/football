@@ -1,29 +1,21 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: SETTLEMENT-RESET-AND-RE-EDIT-UX-01（双轨台账与核销中心支持单场重新核销/修改比分与一键重置恢复待核销状态）
-- **当前状态 (Status)**: `IN_PROGRESS`
-- **任务目标 (Goal)**: 
-  1. 响应用户误点击一键核销的紧急回滚需求，提供两层完备的重置与修改能力：
-     - 单场维度：已核销卡片支持【✏️ 修改比分 / 重新核销】与【↺ 重置为待核销】；
-     - 全局维度：工具栏提供【↺ 一键重置全部核销状态】撤销误操作；
-  2. 后端数据持久化支持：
-     - 在 `UniverseLedgerPersistence` 与 `LedgerPersistence` 增加 `resetSettlement` 方法；
-     - 在 `refactorLedgerRoutes.ts` 提供 `POST /api/refactor/settlement/reset` 接口；
-     - 联动清理误沉淀的 OOS 样本并同步重新编译或清空 OOS 档案；
-  3. 前端 UI 交互增强：已核销卡片提供就地修改比分输入与一键重置，工具栏增加撤销按钮。
-- **改动文件清单 (Target Files)**:
-  1. `refactor/05_portfolio_risk/universeLedgerPersistence.ts`
-  2. `refactor/06_settlement_audit/oosArchiveService.ts`
-  3. `server/routes/refactorLedgerRoutes.ts`
-  4. `src/components/CanonicalMatchCenter.tsx`
-  5. `refactor/HANDOVER_AND_PROGRESS.md`
-- **阶段进度 (Phase)**: `06 结算审计：误操作核销撤销与比分二次修改`
-- **交付产物与验证 (Delivered & Verified)**: 待执行
-- **下一步待办 (Next)**: 实现接口与前端交互，验证重置与二次核销，解答用户。
+- **当前状态 (Status)**: `IDLE`
+- **最近完成任务 (Last Completed)**: `ALIGNMENT-DISCREPANCY-CIRCUIT-BREAKER-AND-PURGE-01`（Layer 02 赛事对齐别名有效性字根验真、拒绝机械 100% 假匹配、雷速原始队名保真与解除关联联动物理抹除脏别名）
+- **交付产物与验证 (Delivered & Verified)**:
+  1. `refactor/02_canonical_model/matchAligner.ts`: 引入 `verifyAliasLegitimacy` 双端字根与相似度合理性验真门禁。若别名库命中但两端文字无共有字符且相似度为 0（如门兴 vs 皇家社会），直接标记为 `is_corrupted_alias_suspected: true`，剥夺 100% 别名加分资格并强制降为 0 分未匹配 (`UNMATCHED`)，从底层彻底终结机械式 100% 假匹配与错误替换。
+  2. `server/routes/aliasReadRoutes.ts`: 新增防投毒常识门禁 `isAliasSanityAcceptable`，在 `POST /api/aliases` 与批量沉淀中直接拦截零相似度且无共有字的对阵错配写入；`DELETE /api/aliases` 扩展支持 `alias` 字段进行双向精准物理抹除。
+  3. `src/components/CanonicalMatchCenter.tsx`: 待核验清单支持 `⚠️ 疑似错误别名绑定` 标牌与优先置顶；点击【解除关联】提供二次确认模态弹窗，一键联动调用后台彻底从别名库中物理抹除错误映射；主客颠倒纠正增加常识门禁阻断，防止错误保存。
+  4. 23/23 单元测试、防投毒拦截测试与精准抹除测试 100% 全绿，编译与静态类型检查 100% 通过。
+- **下一步待办 (Next)**: 待接管新原子任务。
 
 ---
 
 ## 历史活动快照 (Historical Active Snapshots)
+
+- **[DONE] ALIGNMENT-DISCREPANCY-CIRCUIT-BREAKER-AND-PURGE-01**: Layer 02 赛事对齐别名有效性字根验真、拒绝机械 100% 假匹配、雷速原始队名保真与解除关联联动物理抹除脏别名。
+
+- **[DONE] SETTLEMENT-RESET-AND-RE-EDIT-UX-01**: 双轨台账与核销结算中心误操作单场二次修改比分重新核销、单场重置恢复待核销与一键批量防误触加固。
 
 - **[DONE] DUAL-LEDGER-BATCH-SETTLE-AND-LEISU-TEAMS-01**: 双轨台账一键批量核销与雷速双源队名对照显示（新增 `POST /api/refactor/settlement/execute-batch` 批量核销接口、`renderDualTeamNames` 队名对照）。
 

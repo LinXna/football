@@ -260,6 +260,10 @@ export interface ImportPendingMatch {
   // 主客场颠倒预警
   is_swapped_suspected: boolean;
 
+  // 疑似错误绑定预警
+  is_corrupted_alias_suspected?: boolean;
+  corrupted_alias_reason?: string;
+
   // 主客队匹配状态
   home_similarity: number;
   home_alias_hit: boolean;
@@ -934,6 +938,11 @@ export const CanonicalMatchCenter: React.FC = () => {
         m.alignment?.is_swapped_suspected ||
         m.alignment?.status === MatchAlignmentStatus.SWAPPED_HOME_AWAY
       );
+      const isCorruptedAlias = !!(
+        hMatch?.is_corrupted_alias_suspected ||
+        aMatch?.is_corrupted_alias_suspected
+      );
+      const corruptedReason = hMatch?.corrupted_alias_reason || aMatch?.corrupted_alias_reason || "";
 
       const homeNeedsPersist = !!(hMatch && !hMatch.is_alias_exact_hit && hMatch.leisu_name);
       const awayNeedsPersist = !!(aMatch && !aMatch.is_alias_exact_hit && aMatch.leisu_name);
@@ -946,6 +955,7 @@ export const CanonicalMatchCenter: React.FC = () => {
         (m.alignment?.status === MatchAlignmentStatus.MATCHED_BY_ALIAS ||
           m.alignment?.status === MatchAlignmentStatus.MATCHED_AUTO) &&
         !isSwapped &&
+        !isCorruptedAlias &&
         (lMatch?.status === LeagueMatchStatus.MATCHED_BY_ALIAS ||
           lMatch?.status === LeagueMatchStatus.MATCHED_FUZZY);
 
@@ -1001,6 +1011,8 @@ export const CanonicalMatchCenter: React.FC = () => {
           league_alias_hit: !!lMatch?.is_alias_exact_hit,
 
           is_swapped_suspected: isSwapped,
+          is_corrupted_alias_suspected: isCorruptedAlias,
+          corrupted_alias_reason: corruptedReason,
 
           home_similarity: hMatch?.raw_text_similarity ?? 0,
           home_alias_hit: !!hMatch?.is_alias_exact_hit,
@@ -1011,10 +1023,11 @@ export const CanonicalMatchCenter: React.FC = () => {
       }
     }
 
-    // 排序：按匹配度升序排序（低的在上面），若存在主客颠倒疑似，优先排在最前！
+    // 排序：疑似错误绑定与主客颠倒优先置顶，提醒用户优先纠错；其余按置信度升序排列
     unconfirmed.sort((a, b) => {
-      if (a.is_swapped_suspected && !b.is_swapped_suspected) return -1;
-      if (!a.is_swapped_suspected && b.is_swapped_suspected) return 1;
+      const aDanger = (a.is_corrupted_alias_suspected ? 2 : 0) + (a.is_swapped_suspected ? 1 : 0);
+      const bDanger = (b.is_corrupted_alias_suspected ? 2 : 0) + (b.is_swapped_suspected ? 1 : 0);
+      if (aDanger !== bDanger) return bDanger - aDanger;
       return a.confidence_score - b.confidence_score;
     });
 
@@ -1159,10 +1172,6 @@ export const CanonicalMatchCenter: React.FC = () => {
   };
 
   const handleResetAllSettlements = async () => {
-    const confirmed = window.confirm(
-      `⚠️ 确认重置当前【${mode === "live" ? "滚球" : "赛前"}】全部已核销比赛吗？\n\n这会将所有已核销比赛恢复为待核销状态，并同步清除本次核销沉淀的 OOS 样本。`
-    );
-    if (!confirmed) return;
     setIsResettingSettlement(true);
     setLedgerFeedback("正在重置当前阶段全部核销状态...");
     try {
@@ -1570,13 +1579,15 @@ export const CanonicalMatchCenter: React.FC = () => {
             const batchAliases: Array<{ canonical_name: string; alias: string }> = [];
             for (const m of newMatches) {
               if (m.reference) {
-                if (!m.alignment?.home_team_match?.is_alias_exact_hit && m.reference.leisu_home_name) {
+                const homeSim = m.alignment?.home_team_match?.raw_text_similarity ?? 0;
+                const awaySim = m.alignment?.away_team_match?.raw_text_similarity ?? 0;
+                if (!m.alignment?.home_team_match?.is_alias_exact_hit && m.reference.leisu_home_name && homeSim >= 0.4) {
                   batchAliases.push({
                     canonical_name: m.home_team_name,
                     alias: m.reference.leisu_home_name,
                   });
                 }
-                if (!m.alignment?.away_team_match?.is_alias_exact_hit && m.reference.leisu_away_name) {
+                if (!m.alignment?.away_team_match?.is_alias_exact_hit && m.reference.leisu_away_name && awaySim >= 0.4) {
                   batchAliases.push({
                     canonical_name: m.away_team_name,
                     alias: m.reference.leisu_away_name,
@@ -1658,7 +1669,7 @@ export const CanonicalMatchCenter: React.FC = () => {
     setAliasUpdatingKey(cand.canonical_id);
     try {
       // 1. YBTY 主队对应雷速客队
-      await fetch("/api/aliases", {
+      const res1 = await fetch("/api/aliases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1666,9 +1677,13 @@ export const CanonicalMatchCenter: React.FC = () => {
           alias: cand.leisu_away,
         }),
       });
+      const data1 = await res1.json();
+      if (!res1.ok || data1.error) {
+        throw new Error(data1.error || "主队对调别名未通过常识门禁校验");
+      }
 
       // 2. YBTY 客队对应雷速主队
-      await fetch("/api/aliases", {
+      const res2 = await fetch("/api/aliases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1676,6 +1691,10 @@ export const CanonicalMatchCenter: React.FC = () => {
           alias: cand.leisu_home,
         }),
       });
+      const data2 = await res2.json();
+      if (!res2.ok || data2.error) {
+        throw new Error(data2.error || "客队对调别名未通过常识门禁校验");
+      }
 
       // 3. 联赛别名（若需要）
       if (cand.leisu_league && cand.league_status === LeagueMatchStatus.MATCHED_FUZZY) {
@@ -1706,8 +1725,44 @@ export const CanonicalMatchCenter: React.FC = () => {
     }
   };
 
-  // 拒绝关联 / 解除雷速关联
-  const handleDissociateMatch = (cand: ImportPendingMatch) => {
+  // 拒绝关联 / 解除雷速关联（支持一键彻底物理抹除脏别名）
+  const handleDissociateMatch = async (cand: ImportPendingMatch) => {
+    const isCorrupted = cand.is_corrupted_alias_suspected || (cand.leisu_home && cand.home_similarity < 0.25);
+    const confirmPrompt = isCorrupted
+      ? `检测到【${cand.ybty_home} ↔ ${cand.leisu_home}】疑似历史错误绑定！\n\n是否彻底从系统别名库中【物理删除】该错误别名映射？\n\n• 点击【确定】：彻底物理抹除该别名，并解除关联（推荐，防止后续导入死灰复燃）\n• 点击【取消】：仅解除当前场次关联`
+      : `确定要解除【${cand.ybty_home} vs ${cand.ybty_away}】与雷速赛事的关联吗？\n\n是否同时彻底从系统别名库中删除对应的队名别名映射？\n\n• 点击【确定】：彻底物理删除该别名映射，并解除关联\n• 点击【取消】：仅解除当前场次关联`;
+
+    const shouldPurge = window.confirm(confirmPrompt);
+
+    if (shouldPurge && cand.leisu_home) {
+      try {
+        await fetch("/api/aliases", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            canonical_name: cand.ybty_home,
+            alias: cand.leisu_home,
+          }),
+        });
+        if (cand.leisu_away) {
+          await fetch("/api/aliases", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              canonical_name: cand.ybty_away,
+              alias: cand.leisu_away,
+            }),
+          });
+        }
+        setImportFeedback({
+          success: true,
+          message: `已解除关联，并成功从底层别名库中物理抹除【${cand.ybty_home} ↔ ${cand.leisu_home}】！`,
+        });
+      } catch (err: any) {
+        console.warn("Failed to purge alias:", err);
+      }
+    }
+
     setImportPendingMatches((prev) =>
       prev.map((c) => {
         if (c.canonical_id === cand.canonical_id) {
@@ -1721,6 +1776,7 @@ export const CanonicalMatchCenter: React.FC = () => {
             leisu_score: null,
             league_status: LeagueMatchStatus.UNMATCHED,
             is_swapped_suspected: false,
+            is_corrupted_alias_suspected: false,
             confidence_score: 0,
             status: MatchAlignmentStatus.UNMATCHED,
             has_unconfirmed_aliases: false,
@@ -3685,12 +3741,13 @@ export const CanonicalMatchCenter: React.FC = () => {
                           )}
                           <button
                             onClick={() => {
-                              const parts = String(record.settlement?.final_score_verified || '').split(/[-:]/);
+                              const fs = (record.settlement as any)?.final_score;
+                              const parts = String(record.settlement?.final_score_verified || (fs ? `${fs.home}-${fs.away}` : '')).split(/[-:]/);
                               setSettleInputs((prev) => ({
                                 ...prev,
                                 [record.record_id]: {
-                                  home: parts[0] ? parts[0].trim() : String(defaultScore.home),
-                                  away: parts[1] ? parts[1].trim() : String(defaultScore.away),
+                                  home: parts[0] && parts[0].trim() !== '' ? parts[0].trim() : String(defaultScore.home),
+                                  away: parts[1] && parts[1].trim() !== '' ? parts[1].trim() : String(defaultScore.away),
                                 },
                               }));
                               setEditingSettleIds((prev) => ({ ...prev, [record.record_id]: true }));
@@ -7526,6 +7583,16 @@ export const CanonicalMatchCenter: React.FC = () => {
 
                               {/* 操作按钮组 */}
                               <div className="flex items-center gap-2 flex-wrap">
+                                {/* 疑似历史错误绑定预警标牌 */}
+                                {cand.is_corrupted_alias_suspected && (
+                                  <span
+                                    className="px-2 py-0.5 bg-rose-950/90 border border-rose-600 text-rose-300 rounded text-xs font-bold flex items-center gap-1 shadow-xs"
+                                    title={cand.corrupted_alias_reason || "检测到双方文字完全无关，疑似对阵双方历史错误绑定"}
+                                  >
+                                    ⚠️ 疑似错误别名绑定
+                                  </span>
+                                )}
+
                                 {/* 若疑似颠倒，显示专属一键纠正按钮 */}
                                 {cand.is_swapped_suspected && (
                                   <button
@@ -7550,14 +7617,18 @@ export const CanonicalMatchCenter: React.FC = () => {
                                   更换雷速关联
                                 </button>
 
-                                {/* 解除关联 */}
+                                {/* 解除关联 / 纠错抹除别名 */}
                                 {cand.leisu_home && (
                                   <button
                                     onClick={() => handleDissociateMatch(cand)}
-                                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-rose-300 rounded text-xs border border-slate-800 transition-colors"
-                                    title="解除与雷速赛事的关联"
+                                    className={`px-2.5 py-1 rounded text-xs border transition-colors ${
+                                      cand.is_corrupted_alias_suspected
+                                        ? "bg-rose-950 hover:bg-rose-900 text-rose-300 border-rose-600 font-bold shadow-xs cursor-pointer"
+                                        : "bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-rose-300 border-slate-800"
+                                    }`}
+                                    title={cand.is_corrupted_alias_suspected ? "一键纠错并彻底从别名库物理删除该错误映射" : "解除与雷速赛事的关联"}
                                   >
-                                    解除关联
+                                    {cand.is_corrupted_alias_suspected ? "🚨 纠错并抹除别名" : "解除关联"}
                                   </button>
                                 )}
 

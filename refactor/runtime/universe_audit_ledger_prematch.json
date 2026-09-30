@@ -16,33 +16,33 @@
       "away": 0
     },
     "score_verified": false,
-    "gate_category": "BLOCKED_BY_AI_WATCH",
-    "gate_reason_description": "大模型判定为观望拦截 (WATCH)",
+    "gate_category": "BLOCKED_NO_POSITIVE_EV",
+    "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
     "quant_snapshot": {
-      "lambda_home": 0.743,
-      "lambda_away": 1.923,
-      "forward_goals_expected": 2.666,
-      "projected_final_score": "0-1",
+      "lambda_home": 0.763,
+      "lambda_away": 2.261,
+      "forward_goals_expected": 3.024,
+      "projected_final_score": "0-2",
       "top_scores": [
         {
-          "score": "0-1",
-          "probability": 0.1387
+          "score": "0-2",
+          "probability": 0.1242
         },
         {
-          "score": "0-2",
-          "probability": 0.1286
+          "score": "0-1",
+          "probability": 0.1141
         },
         {
           "score": "1-2",
-          "probability": 0.0955
-        },
-        {
-          "score": "1-1",
-          "probability": 0.0944
+          "probability": 0.0948
         },
         {
           "score": "0-3",
-          "probability": 0.0824
+          "probability": 0.0936
+        },
+        {
+          "score": "1-1",
+          "probability": 0.0797
         }
       ],
       "bdi": 0,
@@ -93,33 +93,33 @@
       "away": 0
     },
     "score_verified": false,
-    "gate_category": "QUALIFIED_FORMAL",
-    "gate_reason_description": "A/B 级可投注审核通过 (AI评级: B, 置信度: 79)",
+    "gate_category": "BLOCKED_NO_POSITIVE_EV",
+    "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
     "quant_snapshot": {
-      "lambda_home": 2.781,
-      "lambda_away": 0.629,
-      "forward_goals_expected": 3.41,
+      "lambda_home": 2.877,
+      "lambda_away": 0.689,
+      "forward_goals_expected": 3.566,
       "projected_final_score": "2-0",
       "top_scores": [
         {
           "score": "2-0",
-          "probability": 0.1278
+          "probability": 0.117
         },
         {
           "score": "3-0",
-          "probability": 0.1184
+          "probability": 0.1122
         },
         {
           "score": "1-0",
-          "probability": 0.0948
+          "probability": 0.0841
         },
         {
           "score": "4-0",
-          "probability": 0.0823
+          "probability": 0.0807
         },
         {
           "score": "2-1",
-          "probability": 0.0804
+          "probability": 0.0806
         }
       ],
       "bdi": 0,
@@ -170,33 +170,33 @@
       "away": 0
     },
     "score_verified": false,
-    "gate_category": "BLOCKED_BY_AI_WATCH",
-    "gate_reason_description": "大模型判定为观望拦截 (WATCH)",
+    "gate_category": "BLOCKED_NO_POSITIVE_EV",
+    "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
     "quant_snapshot": {
-      "lambda_home": 2.489,
-      "lambda_away": 0.809,
-      "forward_goals_expected": 3.298,
+      "lambda_home": 2.526,
+      "lambda_away": 0.902,
+      "forward_goals_expected": 3.428,
       "projected_final_score": "2-0",
       "top_scores": [
         {
           "score": "2-0",
-          "probability": 0.1145
-        },
-        {
-          "score": "1-0",
-          "probability": 0.0957
-        },
-        {
-          "score": "3-0",
-          "probability": 0.095
+          "probability": 0.1035
         },
         {
           "score": "2-1",
-          "probability": 0.0926
+          "probability": 0.0934
+        },
+        {
+          "score": "3-0",
+          "probability": 0.0872
+        },
+        {
+          "score": "1-0",
+          "probability": 0.0857
         },
         {
           "score": "3-1",
-          "probability": 0.0768
+          "probability": 0.0786
         }
       ],
       "bdi": 0,
@@ -250,30 +250,30 @@
     "gate_category": "BLOCKED_NO_POSITIVE_EV",
     "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
     "quant_snapshot": {
-      "lambda_home": 1.212,
-      "lambda_away": 1.314,
-      "forward_goals_expected": 2.526,
+      "lambda_home": 1.147,
+      "lambda_away": 1.412,
+      "forward_goals_expected": 2.559,
       "projected_final_score": "1-1",
       "top_scores": [
         {
           "score": "1-1",
-          "probability": 0.121
+          "probability": 0.1191
         },
         {
           "score": "0-1",
-          "probability": 0.1115
+          "probability": 0.1155
         },
         {
           "score": "1-0",
-          "probability": 0.1033
+          "probability": 0.095
         },
         {
           "score": "1-2",
-          "probability": 0.0837
+          "probability": 0.0885
         },
         {
-          "score": "2-1",
-          "probability": 0.0772
+          "score": "0-2",
+          "probability": 0.0771
         }
       ],
       "bdi": 0,
@@ -324,30 +324,30 @@
     "gate_category": "BLOCKED_NO_POSITIVE_EV",
     "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
     "quant_snapshot": {
-      "lambda_home": 1.272,
-      "lambda_away": 0.765,
-      "forward_goals_expected": 2.037,
+      "lambda_home": 1.214,
+      "lambda_away": 0.824,
+      "forward_goals_expected": 2.038,
       "projected_final_score": "1-0",
       "top_scores": [
         {
           "score": "1-0",
-          "probability": 0.1722
-        },
-        {
-          "score": "0-0",
-          "probability": 0.1241
+          "probability": 0.1647
         },
         {
           "score": "1-1",
-          "probability": 0.1206
+          "probability": 0.1238
+        },
+        {
+          "score": "0-0",
+          "probability": 0.1238
         },
         {
           "score": "0-1",
-          "probability": 0.1061
+          "probability": 0.1139
         },
         {
           "score": "2-0",
-          "probability": 0.1055
+          "probability": 0.096
         }
       ],
       "bdi": 0,
@@ -398,30 +398,30 @@
     "gate_category": "BLOCKED_NO_POSITIVE_EV",
     "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
     "quant_snapshot": {
-      "lambda_home": 0.711,
-      "lambda_away": 1.379,
-      "forward_goals_expected": 2.09,
+      "lambda_home": 0.69,
+      "lambda_away": 1.511,
+      "forward_goals_expected": 2.201,
       "projected_final_score": "0-1",
       "top_scores": [
         {
           "score": "0-1",
-          "probability": 0.1766
-        },
-        {
-          "score": "0-0",
-          "probability": 0.1176
+          "probability": 0.173
         },
         {
           "score": "0-2",
-          "probability": 0.1176
+          "probability": 0.1264
         },
         {
           "score": "1-1",
-          "probability": 0.1152
+          "probability": 0.1096
         },
         {
-          "score": "1-0",
-          "probability": 0.094
+          "score": "0-0",
+          "probability": 0.1049
+        },
+        {
+          "score": "1-2",
+          "probability": 0.0872
         }
       ],
       "bdi": 0,
@@ -472,30 +472,30 @@
     "gate_category": "BLOCKED_NO_POSITIVE_EV",
     "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
     "quant_snapshot": {
-      "lambda_home": 1.809,
-      "lambda_away": 0.673,
-      "forward_goals_expected": 2.482,
+      "lambda_home": 1.704,
+      "lambda_away": 0.695,
+      "forward_goals_expected": 2.399,
       "projected_final_score": "1-0",
       "top_scores": [
         {
           "score": "1-0",
-          "probability": 0.1563
+          "probability": 0.1601
         },
         {
           "score": "2-0",
-          "probability": 0.1368
+          "probability": 0.1318
         },
         {
           "score": "1-1",
-          "probability": 0.0967
+          "probability": 0.1022
         },
         {
           "score": "2-1",
-          "probability": 0.092
+          "probability": 0.0916
         },
         {
-          "score": "3-0",
-          "probability": 0.0825
+          "score": "0-0",
+          "probability": 0.0854
         }
       ],
       "bdi": 0,
@@ -546,30 +546,30 @@
     "gate_category": "BLOCKED_NO_POSITIVE_EV",
     "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
     "quant_snapshot": {
-      "lambda_home": 1.187,
-      "lambda_away": 1.398,
-      "forward_goals_expected": 2.585,
-      "projected_final_score": "1-1",
+      "lambda_home": 1.089,
+      "lambda_away": 1.542,
+      "forward_goals_expected": 2.631,
+      "projected_final_score": "0-1",
       "top_scores": [
         {
-          "score": "1-1",
-          "probability": 0.1189
-        },
-        {
           "score": "0-1",
-          "probability": 0.1117
+          "probability": 0.1171
         },
         {
-          "score": "1-0",
-          "probability": 0.0958
+          "score": "1-1",
+          "probability": 0.1149
         },
         {
           "score": "1-2",
-          "probability": 0.0875
+          "probability": 0.0932
         },
         {
-          "score": "2-1",
-          "probability": 0.0743
+          "score": "0-2",
+          "probability": 0.0856
+        },
+        {
+          "score": "1-0",
+          "probability": 0.0845
         }
       ],
       "bdi": 0,
@@ -620,30 +620,30 @@
     "gate_category": "BLOCKED_NO_POSITIVE_EV",
     "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
     "quant_snapshot": {
-      "lambda_home": 1.536,
-      "lambda_away": 0.801,
-      "forward_goals_expected": 2.337,
+      "lambda_home": 1.497,
+      "lambda_away": 0.812,
+      "forward_goals_expected": 2.309,
       "projected_final_score": "1-0",
       "top_scores": [
         {
           "score": "1-0",
-          "probability": 0.1543
-        },
-        {
-          "score": "2-0",
-          "probability": 0.114
+          "probability": 0.1548
         },
         {
           "score": "1-1",
-          "probability": 0.1129
+          "probability": 0.1147
         },
         {
-          "score": "2-1",
-          "probability": 0.0913
+          "score": "2-0",
+          "probability": 0.1113
         },
         {
           "score": "0-0",
-          "probability": 0.0907
+          "probability": 0.0933
+        },
+        {
+          "score": "2-1",
+          "probability": 0.0904
         }
       ],
       "bdi": 0,

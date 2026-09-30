@@ -70,7 +70,34 @@
     },
     "ai_grade": "WATCH",
     "ai_confidence": 52,
-    "ai_summary": "Mathematically open line with positive raw EV, but execution is blocked due to low model stability (52/100) and post-goal window locking."
+    "ai_summary": "Mathematically open line with positive raw EV, but execution is blocked due to low model stability (52/100) and post-goal window locking.",
+    "settlement": {
+      "is_settled": true,
+      "settled_at": "2026-09-30T18:34:31.343Z",
+      "final_score": {
+        "home": 3,
+        "away": 0
+      },
+      "final_score_source": "雷速比分画布/接口校验",
+      "outcome": "LOSE",
+      "profit_loss": -1,
+      "explanation": "Remaining Spread (Away): Added Away (0) - Added Home (2) = -2. Split: -1 -> LOSE, -0.5 -> LOSE",
+      "attribution": {
+        "is_gate_correct": true,
+        "is_false_negative": false,
+        "verdict_label": "SUCCESSFUL_AVOIDANCE",
+        "notes": "🛡️ 避坑成功：门禁【BLOCKED_BY_AI_WATCH】拦截正确，该被拦截比赛实际未打出 (Remaining Spread (Away): Added Away (0) - Added Home (2) = -2. Split: -1 -> LOSE, -0.5 -> LOSE)"
+      },
+      "reflection": {
+        "actual_total_goals": 3,
+        "goal_diff_actual": 3,
+        "score_hit": false,
+        "exact_score_hit": false,
+        "ah_outcome": "WIN",
+        "ou_outcome": null,
+        "diagnostic_notes": "⚠️ 偏差反思：实际赛果 3-0 未进入前三预测概率区 (模型首选 1-1)。"
+      }
+    }
   },
   {
     "record_id": "uni_live_4558575_1790722611745",
@@ -143,7 +170,34 @@
     },
     "ai_grade": "B",
     "ai_confidence": 79,
-    "ai_summary": "High positive EV on Newcastle rest-of-match spread supported by strong live physical metrics and verified scoreline under cold-start permissive exemption."
+    "ai_summary": "High positive EV on Newcastle rest-of-match spread supported by strong live physical metrics and verified scoreline under cold-start permissive exemption.",
+    "settlement": {
+      "is_settled": true,
+      "settled_at": "2026-09-30T18:34:33.417Z",
+      "final_score": {
+        "home": 2,
+        "away": 1
+      },
+      "final_score_source": "雷速比分画布/接口校验",
+      "outcome": "LOSE",
+      "profit_loss": -1,
+      "explanation": "Remaining Spread (Home): Added Home (0) - Added Away (1) = -1",
+      "attribution": {
+        "is_gate_correct": false,
+        "is_false_negative": false,
+        "verdict_label": "FORMAL_LOSE",
+        "notes": "❌ 实盘推荐亏损：A/B 级推荐未打出"
+      },
+      "reflection": {
+        "actual_total_goals": 3,
+        "goal_diff_actual": 1,
+        "score_hit": false,
+        "exact_score_hit": false,
+        "ah_outcome": "LOSE",
+        "ou_outcome": "LOSE",
+        "diagnostic_notes": "⚠️ 偏差反思：实际赛果 2-1 未进入前三预测概率区 (模型首选 4-0)。"
+      }
+    }
   },
   {
     "record_id": "uni_live_4558562_1790722611745",
@@ -216,7 +270,34 @@
     },
     "ai_grade": "WATCH",
     "ai_confidence": 78,
-    "ai_summary": "High raw EV signal blocked by confirmed trap detection as live physical metrics (Ipswich xT and momentum dominance) strongly contradict engine home spread pricing."
+    "ai_summary": "High raw EV signal blocked by confirmed trap detection as live physical metrics (Ipswich xT and momentum dominance) strongly contradict engine home spread pricing.",
+    "settlement": {
+      "is_settled": true,
+      "settled_at": "2026-09-30T18:34:34.930Z",
+      "final_score": {
+        "home": 1,
+        "away": 0
+      },
+      "final_score_source": "雷速比分画布/接口校验",
+      "outcome": "LOSE_HALF",
+      "profit_loss": -0.5,
+      "explanation": "Remaining Spread (Home): Added Home (0) - Added Away (0) = 0. Split: -0.5 -> LOSE, 0 -> PUSH",
+      "attribution": {
+        "is_gate_correct": true,
+        "is_false_negative": false,
+        "verdict_label": "SUCCESSFUL_AVOIDANCE",
+        "notes": "🛡️ 避坑成功：门禁【BLOCKED_BY_AI_WATCH】拦截正确，该被拦截比赛实际未打出 (Remaining Spread (Home): Added Home (0) - Added Away (0) = 0. Split: -0.5 -> LOSE, 0 -> PUSH)"
+      },
+      "reflection": {
+        "actual_total_goals": 1,
+        "goal_diff_actual": 1,
+        "score_hit": false,
+        "exact_score_hit": false,
+        "ah_outcome": "LOSE_HALF",
+        "ou_outcome": null,
+        "diagnostic_notes": "⚠️ 偏差反思：实际赛果 1-0 未进入前三预测概率区 (模型首选 3-0)。"
+      }
+    }
   },
   {
     "record_id": "uni_live_4467625_1790722611745",
@@ -289,7 +370,34 @@
     },
     "ai_grade": "WATCH",
     "ai_confidence": 74,
-    "ai_summary": "Under 4.0 total goals line is mathematically open with positive EV, but active post-goal cooling window lock prevents immediate execution."
+    "ai_summary": "Under 4.0 total goals line is mathematically open with positive EV, but active post-goal cooling window lock prevents immediate execution.",
+    "settlement": {
+      "is_settled": true,
+      "settled_at": "2026-09-30T18:34:36.058Z",
+      "final_score": {
+        "home": 1,
+        "away": 3
+      },
+      "final_score_source": "雷速比分画布/接口校验",
+      "outcome": "WIN",
+      "profit_loss": 0.95,
+      "explanation": "Remaining Spread (Away): Added Away (2) - Added Home (0) = 2. Split: -1 -> WIN, -0.5 -> WIN",
+      "attribution": {
+        "is_gate_correct": false,
+        "is_false_negative": true,
+        "verdict_label": "MODEL_FALSE_NEGATIVE",
+        "notes": "⚠️ 模型误杀：门禁【BLOCKED_BY_AI_WATCH】拦截过于保守，该比赛实际打出 (Remaining Spread (Away): Added Away (2) - Added Home (0) = 2. Split: -1 -> WIN, -0.5 -> WIN)"
+      },
+      "reflection": {
+        "actual_total_goals": 4,
+        "goal_diff_actual": -2,
+        "score_hit": true,
+        "exact_score_hit": false,
+        "ah_outcome": "LOSE",
+        "ou_outcome": null,
+        "diagnostic_notes": "✅ 命中预期：实际赛果 1-3 落入模型 Top 3 预测分布。"
+      }
+    }
   },
   {
     "record_id": "uni_live_4566260_1790790381022",
@@ -367,7 +475,34 @@
     },
     "ai_grade": "C",
     "ai_confidence": 73,
-    "ai_summary": "法兰克福与弗赖堡半场打出2-1的高比分，客队xT与射门数领先但比分落后，攻防大开大合。引擎模型在大小球5球线及亚盘受让盘给出强+EV信号，但受限于历史战绩数据盲区硬性门禁，本场被强制上限锁定为C_GRADE，禁止下发推荐指令。"
+    "ai_summary": "法兰克福与弗赖堡半场打出2-1的高比分，客队xT与射门数领先但比分落后，攻防大开大合。引擎模型在大小球5球线及亚盘受让盘给出强+EV信号，但受限于历史战绩数据盲区硬性门禁，本场被强制上限锁定为C_GRADE，禁止下发推荐指令。",
+    "settlement": {
+      "is_settled": true,
+      "settled_at": "2026-09-30T18:34:37.243Z",
+      "final_score": {
+        "home": 2,
+        "away": 2
+      },
+      "final_score_source": "雷速比分画布/接口校验",
+      "outcome": "WIN",
+      "profit_loss": 0.95,
+      "explanation": "Remaining Spread (Away): Added Away (1) - Added Home (0) = 1. Split: -0.5 -> WIN, 0 -> WIN",
+      "attribution": {
+        "is_gate_correct": false,
+        "is_false_negative": true,
+        "verdict_label": "MODEL_FALSE_NEGATIVE",
+        "notes": "⚠️ 模型误杀：门禁【BLOCKED_BY_AI_C_GRADE】拦截过于保守，该比赛实际打出 (Remaining Spread (Away): Added Away (1) - Added Home (0) = 1. Split: -0.5 -> WIN, 0 -> WIN)"
+      },
+      "reflection": {
+        "actual_total_goals": 4,
+        "goal_diff_actual": 0,
+        "score_hit": true,
+        "exact_score_hit": false,
+        "ah_outcome": "LOSE",
+        "ou_outcome": null,
+        "diagnostic_notes": "✅ 命中预期：实际赛果 2-2 落入模型 Top 3 预测分布。"
+      }
+    }
   },
   {
     "record_id": "uni_live_4566524_1790790381022",
@@ -380,11 +515,7 @@
       "home": "门兴格拉德巴赫",
       "away": "美因茨"
     },
-    "reference_teams": {
-      "leisu_home": "皇家社会",
-      "leisu_away": "美因茨",
-      "leisu_league": "德甲"
-    },
+    "reference_teams": null,
     "minute_or_status": "中场休息",
     "score_at_prediction": {
       "home": 1,
@@ -445,7 +576,34 @@
     },
     "ai_grade": "B",
     "ai_confidence": 75,
-    "ai_summary": "美因茨半场补时连进球反超比分，门兴防线漏洞暴露明显。全场4.5大球盘口具备0.6004的强劲期望值与81.66%的模型胜率，模型稳定性高且通过冷启动豁免门禁，具备明确的操作价值。"
+    "ai_summary": "美因茨半场补时连进球反超比分，门兴防线漏洞暴露明显。全场4.5大球盘口具备0.6004的强劲期望值与81.66%的模型胜率，模型稳定性高且通过冷启动豁免门禁，具备明确的操作价值。",
+    "settlement": {
+      "is_settled": true,
+      "settled_at": "2026-09-30T18:34:38.332Z",
+      "final_score": {
+        "home": 3,
+        "away": 4
+      },
+      "final_score_source": "雷速比分画布/接口校验",
+      "outcome": "PUSH",
+      "profit_loss": 0,
+      "explanation": "Remaining Spread (Away): Added Away (2) - Added Home (2) = 0",
+      "attribution": {
+        "is_gate_correct": false,
+        "is_false_negative": false,
+        "verdict_label": "PUSH",
+        "notes": "⚪ 实盘推荐走盘退款"
+      },
+      "reflection": {
+        "actual_total_goals": 7,
+        "goal_diff_actual": -1,
+        "score_hit": false,
+        "exact_score_hit": false,
+        "ah_outcome": "PUSH",
+        "ou_outcome": "LOSE",
+        "diagnostic_notes": "⚠️ 偏差反思：实际赛果 3-4 未进入前三预测概率区 (模型首选 1-3)。"
+      }
+    }
   },
   {
     "record_id": "uni_live_4566264_1790790381022",
@@ -523,7 +681,34 @@
     },
     "ai_grade": "B",
     "ai_confidence": 70,
-    "ai_summary": "汉堡半场临近结束前破门取得1-0领先，科隆虽掌控71%控球率但转化为射正能力不足(0射正)，呈现典型无效统治。主队受让盘口具备+EV，但因比赛刚破门处于进球冷却窗口锁定期，下发执行被封锁。"
+    "ai_summary": "汉堡半场临近结束前破门取得1-0领先，科隆虽掌控71%控球率但转化为射正能力不足(0射正)，呈现典型无效统治。主队受让盘口具备+EV，但因比赛刚破门处于进球冷却窗口锁定期，下发执行被封锁。",
+    "settlement": {
+      "is_settled": true,
+      "settled_at": "2026-09-30T18:38:28.722Z",
+      "final_score": {
+        "home": 2,
+        "away": 1
+      },
+      "final_score_source": "批量一键核销",
+      "outcome": "LOSE_HALF",
+      "profit_loss": -0.5,
+      "explanation": "Remaining Spread (Away): Added Away (1) - Added Home (1) = 0. Split: -0.5 -> LOSE, 0 -> PUSH",
+      "attribution": {
+        "is_gate_correct": false,
+        "is_false_negative": false,
+        "verdict_label": "FORMAL_LOSE",
+        "notes": "❌ 实盘推荐亏损：A/B 级推荐未打出"
+      },
+      "reflection": {
+        "actual_total_goals": 3,
+        "goal_diff_actual": 1,
+        "score_hit": false,
+        "exact_score_hit": false,
+        "ah_outcome": "WIN_HALF",
+        "ou_outcome": "LOSE",
+        "diagnostic_notes": "⚠️ 偏差反思：实际赛果 2-1 未进入前三预测概率区 (模型首选 1-0)。"
+      }
+    }
   },
   {
     "record_id": "uni_live_4566266_1790790381023",
@@ -601,6 +786,33 @@
     },
     "ai_grade": "B",
     "ai_confidence": 71,
-    "ai_summary": "不莱梅半场意外0-1落后，但场上攻势形成持续围攻态势，BDI指数高达84.60。全场2.5大球盘口赔率高于最低可接受赔率，场上进攻动量强劲，下半场补进2球确定性高，属于高价值正期望值信号。"
+    "ai_summary": "不莱梅半场意外0-1落后，但场上攻势形成持续围攻态势，BDI指数高达84.60。全场2.5大球盘口赔率高于最低可接受赔率，场上进攻动量强劲，下半场补进2球确定性高，属于高价值正期望值信号。",
+    "settlement": {
+      "is_settled": true,
+      "settled_at": "2026-09-30T18:38:28.726Z",
+      "final_score": {
+        "home": 3,
+        "away": 2
+      },
+      "final_score_source": "批量一键核销",
+      "outcome": "WIN",
+      "profit_loss": 0.95,
+      "explanation": "Remaining Spread (Home): Added Home (3) - Added Away (1) = 2. Split: -0.5 -> WIN, 0 -> WIN",
+      "attribution": {
+        "is_gate_correct": false,
+        "is_false_negative": false,
+        "verdict_label": "FORMAL_WIN",
+        "notes": "✅ 实盘推荐命中：A/B 级可投注方向打出"
+      },
+      "reflection": {
+        "actual_total_goals": 5,
+        "goal_diff_actual": 1,
+        "score_hit": false,
+        "exact_score_hit": false,
+        "ah_outcome": "WIN",
+        "ou_outcome": "WIN",
+        "diagnostic_notes": "⚠️ 偏差反思：实际赛果 3-2 未进入前三预测概率区 (模型首选 1-1)。"
+      }
+    }
   }
 ]

@@ -76,6 +76,8 @@ export interface TeamNameMatchResult {
   leisu_name: string;
   is_alias_exact_hit: boolean;
   raw_text_similarity: number; // 0.0 ~ 1.0 (保留原文字符顺序，不剔除U19/B队/青年队)
+  is_corrupted_alias_suspected?: boolean; // 是否疑似历史错误绑定/脏别名（无字面关联、被纠错拦截）
+  corrupted_alias_reason?: string;        // 错误绑定原因说明
 }
 
 /**

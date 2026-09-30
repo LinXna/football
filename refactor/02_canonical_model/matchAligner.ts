@@ -340,6 +340,46 @@ export function matchLeague(
 }
 
 /**
+ * 校验别名在两端真实文本上的合理性，防止对阵双方（如门兴 vs 皇家社会、曼城 vs 布莱克本）因历史错误录入别名库而机械式 100% 误配
+ */
+export function verifyAliasLegitimacy(
+  yTrim: string,
+  lTrim: string,
+  rawSimilarity: number
+): { isLegitimate: boolean; reason?: string } {
+  // 1. 若纯原文字符顺序相似度已达到 0.18 以上，说明存在明显字面重叠或缩写顺序，属于正常别名
+  if (rawSimilarity >= 0.18) {
+    return { isLegitimate: true };
+  }
+
+  // 2. 统计非通用词汇、非标点的共有字符数
+  const yChars = new Set(
+    yTrim
+      .toLowerCase()
+      .split('')
+      .filter((c) => !GENERIC_FOOTBALL_TOKENS.has(c) && !/[\s\-_·.()（）]/.test(c))
+  );
+  let commonCharCount = 0;
+  for (const char of lTrim.toLowerCase()) {
+    if (yChars.has(char)) {
+      commonCharCount++;
+    }
+  }
+
+  // 3. 如果有至少 1 个有区分度的共有字符（或者包含另一方），判定为合法翻译别名
+  if (commonCharCount >= 1 || yTrim.toLowerCase().includes(lTrim.toLowerCase()) || lTrim.toLowerCase().includes(yTrim.toLowerCase())) {
+    return { isLegitimate: true };
+  }
+
+  // 4. 否则：共有字符为 0 且相似度为 0（如“门兴格拉德巴赫” vs “皇家社会”）
+  // 判定为疑似历史对阵双方错配进别名库的脏别名
+  return {
+    isLegitimate: false,
+    reason: `YBTY [${yTrim}] 与雷速 [${lTrim}] 共有字符为 0 且字面相似度为 ${(rawSimilarity * 100).toFixed(0)}%，无任何字根关联，已阻止机械 100% 假匹配与错误替换`,
+  };
+}
+
+/**
  * 单支球队比对匹配
  */
 export function matchSingleTeam(
@@ -356,47 +396,59 @@ export function matchSingleTeam(
       leisu_name: lTrim,
       is_alias_exact_hit: false,
       raw_text_similarity: 0,
+      is_corrupted_alias_suspected: false,
     };
   }
 
+  // 计算真实纯原文字符顺序相似度
+  const rawSimilarity = calculateStrictRawTextSimilarity(yTrim, lTrim);
+
   // 1. 优先查验静态别名库
+  let isAliasHit = false;
   const rawAliasVal = aliases[yTrim];
   if (rawAliasVal) {
     const aliasArray = Array.isArray(rawAliasVal) ? rawAliasVal : [rawAliasVal];
-    const isHit = aliasArray.some((al) => String(al).trim().toLowerCase() === lTrim.toLowerCase());
-    if (isHit) {
-      return {
-        ybty_name: yTrim,
-        leisu_name: lTrim,
-        is_alias_exact_hit: true,
-        raw_text_similarity: 1.0,
-      };
+    isAliasHit = aliasArray.some((al) => String(al).trim().toLowerCase() === lTrim.toLowerCase());
+  }
+
+  if (!isAliasHit) {
+    // 查验反向 key (以防别名库以雷速名为 key)
+    const rawReverseVal = aliases[lTrim];
+    if (rawReverseVal) {
+      const aliasArray = Array.isArray(rawReverseVal) ? rawReverseVal : [rawReverseVal];
+      isAliasHit = aliasArray.some((al) => String(al).trim().toLowerCase() === yTrim.toLowerCase());
     }
   }
 
-  // 查验反向 key (以防别名库以雷速名为 key)
-  const rawReverseVal = aliases[lTrim];
-  if (rawReverseVal) {
-    const aliasArray = Array.isArray(rawReverseVal) ? rawReverseVal : [rawReverseVal];
-    const isHit = aliasArray.some((al) => String(al).trim().toLowerCase() === yTrim.toLowerCase());
-    if (isHit) {
+  if (isAliasHit) {
+    // 别名命中二次合理性验真：严禁将文字相似度为 0 且无共有字根的对阵双方机械式判定为 100% 匹配
+    const verification = verifyAliasLegitimacy(yTrim, lTrim, rawSimilarity);
+    if (!verification.isLegitimate) {
       return {
         ybty_name: yTrim,
         leisu_name: lTrim,
-        is_alias_exact_hit: true,
-        raw_text_similarity: 1.0,
+        is_alias_exact_hit: false,
+        raw_text_similarity: rawSimilarity,
+        is_corrupted_alias_suspected: true,
+        corrupted_alias_reason: verification.reason,
       };
     }
-  }
 
-  // 2. 未命中别名库时，执行纯原文字符顺序相似度计算
-  const similarity = calculateStrictRawTextSimilarity(yTrim, lTrim);
+    return {
+      ybty_name: yTrim,
+      leisu_name: lTrim,
+      is_alias_exact_hit: true,
+      raw_text_similarity: Math.max(0.95, rawSimilarity),
+      is_corrupted_alias_suspected: false,
+    };
+  }
 
   return {
     ybty_name: yTrim,
     leisu_name: lTrim,
     is_alias_exact_hit: false,
-    raw_text_similarity: similarity,
+    raw_text_similarity: rawSimilarity,
+    is_corrupted_alias_suspected: false,
   };
 }
 
@@ -419,7 +471,25 @@ export function alignMatches(
   const leagueResult = matchLeague(yLeague, leisuMatch.competition, leagueAliases);
   const leagueScore = leagueResult.similarity;
 
-  // 2. 反向比对（检测主客颠倒反装风险：YBTY主 vs 雷速客, YBTY客 vs 雷速主）
+  // 2. 疑似历史错误别名绑定拦截门禁：坚决拒绝机械 100% 假匹配与错误替换
+  if (homeResult.is_corrupted_alias_suspected || awayResult.is_corrupted_alias_suspected) {
+    const errorSide = homeResult.is_corrupted_alias_suspected
+      ? `主队 [${homeResult.ybty_name} ↔ ${homeResult.leisu_name}]`
+      : `客队 [${awayResult.ybty_name} ↔ ${awayResult.leisu_name}]`;
+    const detailReason = homeResult.corrupted_alias_reason || awayResult.corrupted_alias_reason;
+    return {
+      status: MatchAlignmentStatus.UNMATCHED,
+      confidence_score: 0,
+      home_team_match: homeResult,
+      away_team_match: awayResult,
+      league_match: leagueResult,
+      league_match_score: leagueScore,
+      is_swapped_suspected: false,
+      alignment_reason: `⚠️ 拦截错误别名：检测到${errorSide}无任何共有字根且相似度为0%，已判定为疑似对阵双方历史错误绑定，坚决拒绝机械 100% 假匹配与错误替换 (${detailReason || ''})`,
+    };
+  }
+
+  // 3. 反向比对（检测主客颠倒反装风险：YBTY主 vs 雷速客, YBTY客 vs 雷速主）
   const reverseHomeResult = matchSingleTeam(yHome, leisuMatch.away_team, aliases);
   const reverseAwayResult = matchSingleTeam(yAway, leisuMatch.home_team, aliases);
 
@@ -447,7 +517,7 @@ export function alignMatches(
     };
   }
 
-  // 3. 别名双命中直接 100 分
+  // 4. 别名双命中直接 100 分
   if (homeResult.is_alias_exact_hit && awayResult.is_alias_exact_hit) {
     return {
       status: MatchAlignmentStatus.MATCHED_BY_ALIAS,
@@ -461,9 +531,11 @@ export function alignMatches(
     };
   }
 
-  // 4. 权重分配与门禁核验：主队 40% + 客队 40% + 联赛 20%
+  // 5. 权重分配与门禁核验：主队 40% + 客队 40% + 联赛 20%
   const minTeamSimilarity = Math.min(homeResult.raw_text_similarity, awayResult.raw_text_similarity);
-  const hasSevereTeamAsymmetry = minTeamSimilarity < 0.38 && !homeResult.is_alias_exact_hit && !awayResult.is_alias_exact_hit;
+  const hasSevereTeamAsymmetry =
+    minTeamSimilarity === 0 ||
+    (minTeamSimilarity < 0.38 && !homeResult.is_alias_exact_hit && !awayResult.is_alias_exact_hit);
   const hasSevereLeagueMismatch = leagueScore < 0.25 && !homeResult.is_alias_exact_hit && !awayResult.is_alias_exact_hit;
 
   // 严格拦截：如果其中一支球队完全不匹配，或者跨联赛毫不相关，严禁误判为同场比赛！
