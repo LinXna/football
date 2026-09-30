@@ -68,33 +68,6 @@
       "odds": 1.95,
       "model_probability": 0.45
     },
-    "settlement": {
-      "is_settled": true,
-      "settled_at": "2026-09-30T13:20:42.480Z",
-      "final_score": {
-        "home": 3,
-        "away": 0
-      },
-      "final_score_source": "雷速比分画布/接口校验",
-      "outcome": "LOSE",
-      "profit_loss": -1,
-      "explanation": "Spread (Away): Away (0) - Home (3) = -3. Split: 0.5 -> LOSE, 1 -> LOSE",
-      "attribution": {
-        "is_gate_correct": true,
-        "is_false_negative": false,
-        "verdict_label": "SUCCESSFUL_AVOIDANCE",
-        "notes": "🛡️ 避坑成功：门禁【BLOCKED_BY_AI_WATCH】拦截正确，该被拦截比赛实际未打出 (Spread (Away): Away (0) - Home (3) = -3. Split: 0.5 -> LOSE, 1 -> LOSE)"
-      },
-      "reflection": {
-        "actual_total_goals": 3,
-        "goal_diff_actual": 3,
-        "score_hit": false,
-        "exact_score_hit": false,
-        "ah_outcome": "WIN",
-        "ou_outcome": null,
-        "diagnostic_notes": "⚠️ 偏差反思：实际赛果 3-0 未进入前三预测概率区 (模型首选 1-1)。"
-      }
-    },
     "ai_grade": "WATCH",
     "ai_confidence": 52,
     "ai_summary": "Mathematically open line with positive raw EV, but execution is blocked due to low model stability (52/100) and post-goal window locking."
@@ -167,33 +140,6 @@
       "line": -0.5,
       "odds": 1.95,
       "model_probability": 0.55
-    },
-    "settlement": {
-      "is_settled": true,
-      "settled_at": "2026-09-30T13:20:44.492Z",
-      "final_score": {
-        "home": 2,
-        "away": 1
-      },
-      "final_score_source": "雷速比分画布/接口校验",
-      "outcome": "WIN",
-      "profit_loss": 0.95,
-      "explanation": "Spread (Home): Home (2) - Away (1) = 1",
-      "attribution": {
-        "is_gate_correct": false,
-        "is_false_negative": false,
-        "verdict_label": "FORMAL_WIN",
-        "notes": "✅ 实盘推荐命中：A/B 级可投注方向打出"
-      },
-      "reflection": {
-        "actual_total_goals": 3,
-        "goal_diff_actual": 1,
-        "score_hit": false,
-        "exact_score_hit": false,
-        "ah_outcome": "WIN",
-        "ou_outcome": "LOSE",
-        "diagnostic_notes": "⚠️ 偏差反思：实际赛果 2-1 未进入前三预测概率区 (模型首选 4-0)。"
-      }
     },
     "ai_grade": "B",
     "ai_confidence": 79,
@@ -268,33 +214,6 @@
       "odds": 1.95,
       "model_probability": 0.55
     },
-    "settlement": {
-      "is_settled": true,
-      "settled_at": "2026-09-30T13:20:45.913Z",
-      "final_score": {
-        "home": 1,
-        "away": 0
-      },
-      "final_score_source": "雷速比分画布/接口校验",
-      "outcome": "WIN",
-      "profit_loss": 0.95,
-      "explanation": "Spread (Home): Home (1) - Away (0) = 1. Split: -0.5 -> WIN, 0 -> WIN",
-      "attribution": {
-        "is_gate_correct": false,
-        "is_false_negative": true,
-        "verdict_label": "MODEL_FALSE_NEGATIVE",
-        "notes": "⚠️ 模型误杀：门禁【BLOCKED_BY_AI_WATCH】拦截过于保守，该比赛实际打出 (Spread (Home): Home (1) - Away (0) = 1. Split: -0.5 -> WIN, 0 -> WIN)"
-      },
-      "reflection": {
-        "actual_total_goals": 1,
-        "goal_diff_actual": 1,
-        "score_hit": false,
-        "exact_score_hit": false,
-        "ah_outcome": "WIN",
-        "ou_outcome": null,
-        "diagnostic_notes": "⚠️ 偏差反思：实际赛果 1-0 未进入前三预测概率区 (模型首选 3-0)。"
-      }
-    },
     "ai_grade": "WATCH",
     "ai_confidence": 78,
     "ai_summary": "High raw EV signal blocked by confirmed trap detection as live physical metrics (Ipswich xT and momentum dominance) strongly contradict engine home spread pricing."
@@ -368,35 +287,320 @@
       "odds": 1.95,
       "model_probability": 0.45
     },
-    "settlement": {
-      "is_settled": true,
-      "settled_at": "2026-09-30T13:20:47.160Z",
-      "final_score": {
-        "home": 1,
-        "away": 3
-      },
-      "final_score_source": "雷速比分画布/接口校验",
-      "outcome": "WIN",
-      "profit_loss": 0.95,
-      "explanation": "Spread (Away): Away (3) - Home (1) = 2. Split: 0.5 -> WIN, 1 -> WIN",
-      "attribution": {
-        "is_gate_correct": false,
-        "is_false_negative": true,
-        "verdict_label": "MODEL_FALSE_NEGATIVE",
-        "notes": "⚠️ 模型误杀：门禁【BLOCKED_BY_AI_WATCH】拦截过于保守，该比赛实际打出 (Spread (Away): Away (3) - Home (1) = 2. Split: 0.5 -> WIN, 1 -> WIN)"
-      },
-      "reflection": {
-        "actual_total_goals": 4,
-        "goal_diff_actual": -2,
-        "score_hit": true,
-        "exact_score_hit": false,
-        "ah_outcome": "LOSE",
-        "ou_outcome": null,
-        "diagnostic_notes": "✅ 命中预期：实际赛果 1-3 落入模型 Top 3 预测分布。"
-      }
-    },
     "ai_grade": "WATCH",
     "ai_confidence": 74,
     "ai_summary": "Under 4.0 total goals line is mathematically open with positive EV, but active post-goal cooling window lock prevents immediate execution."
+  },
+  {
+    "record_id": "uni_live_4566260_1790790381022",
+    "stage": "LIVE",
+    "created_at_utc": "2026-09-30T17:46:21.021Z",
+    "match_id": "4566260",
+    "kickoff_time": "2026-09-19 21:30:00",
+    "league_key": "德国甲级联赛",
+    "teams": {
+      "home": "法兰克福",
+      "away": "弗赖堡"
+    },
+    "reference_teams": {
+      "leisu_home": "法兰克福",
+      "leisu_away": "弗赖堡",
+      "leisu_league": "德甲"
+    },
+    "minute_or_status": "中场休息",
+    "score_at_prediction": {
+      "home": 2,
+      "away": 1
+    },
+    "score_verified": true,
+    "gate_category": "BLOCKED_BY_AI_C_GRADE",
+    "gate_reason_description": "大模型评估为 C 级拦截：基本面/战意/风险不可控 (C)",
+    "quant_snapshot": {
+      "lambda_home": 1.203,
+      "lambda_away": 1.161,
+      "forward_goals_expected": 2.364,
+      "projected_final_score": "3-2",
+      "top_scores": [
+        {
+          "score": "3-2",
+          "probability": 0.1248
+        },
+        {
+          "score": "3-1",
+          "probability": 0.1197
+        },
+        {
+          "score": "2-2",
+          "probability": 0.1158
+        },
+        {
+          "score": "2-1",
+          "probability": 0.0875
+        },
+        {
+          "score": "4-2",
+          "probability": 0.079
+        }
+      ],
+      "bdi": -29.53,
+      "ah_line": 0.25,
+      "ou_line": null,
+      "markets": {
+        "ah_home_odds": 2,
+        "ah_away_odds": 1.9,
+        "ou_over_odds": 1.94,
+        "ou_under_odds": 1.94,
+        "h2h_home": 1.63,
+        "h2h_draw": 3.9,
+        "h2h_away": 5.3
+      },
+      "ev_direction": null,
+      "ev_value": null,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE"
+    },
+    "predicted_direction": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selection": "AWAY -0.25",
+      "line": 0.25,
+      "odds": 1.95,
+      "model_probability": 0.45
+    },
+    "ai_grade": "C",
+    "ai_confidence": 73,
+    "ai_summary": "法兰克福与弗赖堡半场打出2-1的高比分，客队xT与射门数领先但比分落后，攻防大开大合。引擎模型在大小球5球线及亚盘受让盘给出强+EV信号，但受限于历史战绩数据盲区硬性门禁，本场被强制上限锁定为C_GRADE，禁止下发推荐指令。"
+  },
+  {
+    "record_id": "uni_live_4566524_1790790381022",
+    "stage": "LIVE",
+    "created_at_utc": "2026-09-30T17:46:21.021Z",
+    "match_id": "4566524",
+    "kickoff_time": "2026-09-19 21:30:00",
+    "league_key": "德国甲级联赛",
+    "teams": {
+      "home": "门兴格拉德巴赫",
+      "away": "美因茨"
+    },
+    "reference_teams": {
+      "leisu_home": "皇家社会",
+      "leisu_away": "美因茨",
+      "leisu_league": "德甲"
+    },
+    "minute_or_status": "中场休息",
+    "score_at_prediction": {
+      "home": 1,
+      "away": 2
+    },
+    "score_verified": true,
+    "gate_category": "QUALIFIED_FORMAL",
+    "gate_reason_description": "A/B 级可投注审核通过 (AI评级: B, 置信度: 75)",
+    "quant_snapshot": {
+      "lambda_home": 1.057,
+      "lambda_away": 1.63,
+      "forward_goals_expected": 2.687,
+      "projected_final_score": "1-3",
+      "top_scores": [
+        {
+          "score": "1-3",
+          "probability": 0.1168
+        },
+        {
+          "score": "2-3",
+          "probability": 0.1114
+        },
+        {
+          "score": "2-4",
+          "probability": 0.0956
+        },
+        {
+          "score": "1-4",
+          "probability": 0.0904
+        },
+        {
+          "score": "2-2",
+          "probability": 0.0778
+        }
+      ],
+      "bdi": 6.42,
+      "ah_line": 0,
+      "ou_line": 4.5,
+      "markets": {
+        "ah_home_odds": 2.05,
+        "ah_away_odds": 1.85,
+        "ou_over_odds": 1.96,
+        "ou_under_odds": 1.92,
+        "h2h_home": 9,
+        "h2h_draw": 4.5,
+        "h2h_away": 1.39
+      },
+      "ev_direction": null,
+      "ev_value": null,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE"
+    },
+    "predicted_direction": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selection": "AWAY 0",
+      "line": 0,
+      "odds": 1.95,
+      "model_probability": 0.45
+    },
+    "ai_grade": "B",
+    "ai_confidence": 75,
+    "ai_summary": "美因茨半场补时连进球反超比分，门兴防线漏洞暴露明显。全场4.5大球盘口具备0.6004的强劲期望值与81.66%的模型胜率，模型稳定性高且通过冷启动豁免门禁，具备明确的操作价值。"
+  },
+  {
+    "record_id": "uni_live_4566264_1790790381022",
+    "stage": "LIVE",
+    "created_at_utc": "2026-09-30T17:46:21.021Z",
+    "match_id": "4566264",
+    "kickoff_time": "2026-09-19 21:30:00",
+    "league_key": "德国甲级联赛",
+    "teams": {
+      "home": "汉堡",
+      "away": "科隆"
+    },
+    "reference_teams": {
+      "leisu_home": "汉堡",
+      "leisu_away": "科隆",
+      "leisu_league": "德甲"
+    },
+    "minute_or_status": "中场休息",
+    "score_at_prediction": {
+      "home": 1,
+      "away": 0
+    },
+    "score_verified": true,
+    "gate_category": "QUALIFIED_FORMAL",
+    "gate_reason_description": "A/B 级可投注审核通过 (AI评级: B, 置信度: 70)",
+    "quant_snapshot": {
+      "lambda_home": 0.598,
+      "lambda_away": 0.88,
+      "forward_goals_expected": 1.478,
+      "projected_final_score": "1-0",
+      "top_scores": [
+        {
+          "score": "1-0",
+          "probability": 0.2221
+        },
+        {
+          "score": "1-1",
+          "probability": 0.2067
+        },
+        {
+          "score": "2-0",
+          "probability": 0.1424
+        },
+        {
+          "score": "2-1",
+          "probability": 0.114
+        },
+        {
+          "score": "1-2",
+          "probability": 0.0883
+        }
+      ],
+      "bdi": -22.58,
+      "ah_line": 0.25,
+      "ou_line": 2.5,
+      "markets": {
+        "ah_home_odds": 2.08,
+        "ah_away_odds": 1.82,
+        "ou_over_odds": 2.01,
+        "ou_under_odds": 1.87,
+        "h2h_home": 1.69,
+        "h2h_draw": 3.65,
+        "h2h_away": 5.3
+      },
+      "ev_direction": null,
+      "ev_value": null,
+      "candidate_pipeline_state": "DATA_LOCKED"
+    },
+    "predicted_direction": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selection": "AWAY -0.25",
+      "line": 0.25,
+      "odds": 1.95,
+      "model_probability": 0.45
+    },
+    "ai_grade": "B",
+    "ai_confidence": 70,
+    "ai_summary": "汉堡半场临近结束前破门取得1-0领先，科隆虽掌控71%控球率但转化为射正能力不足(0射正)，呈现典型无效统治。主队受让盘口具备+EV，但因比赛刚破门处于进球冷却窗口锁定期，下发执行被封锁。"
+  },
+  {
+    "record_id": "uni_live_4566266_1790790381023",
+    "stage": "LIVE",
+    "created_at_utc": "2026-09-30T17:46:21.021Z",
+    "match_id": "4566266",
+    "kickoff_time": "2026-09-19 21:30:00",
+    "league_key": "德国甲级联赛",
+    "teams": {
+      "home": "云达不莱梅",
+      "away": "奥格斯堡"
+    },
+    "reference_teams": {
+      "leisu_home": "云达不莱梅",
+      "leisu_away": "奥格斯堡",
+      "leisu_league": "德甲"
+    },
+    "minute_or_status": "中场休息",
+    "score_at_prediction": {
+      "home": 0,
+      "away": 1
+    },
+    "score_verified": true,
+    "gate_category": "QUALIFIED_FORMAL",
+    "gate_reason_description": "A/B 级可投注审核通过 (AI评级: B, 置信度: 71)",
+    "quant_snapshot": {
+      "lambda_home": 1.017,
+      "lambda_away": 0.9,
+      "forward_goals_expected": 1.917,
+      "projected_final_score": "1-1",
+      "top_scores": [
+        {
+          "score": "1-1",
+          "probability": 0.1563
+        },
+        {
+          "score": "0-1",
+          "probability": 0.1403
+        },
+        {
+          "score": "0-2",
+          "probability": 0.1391
+        },
+        {
+          "score": "1-2",
+          "probability": 0.1279
+        },
+        {
+          "score": "2-1",
+          "probability": 0.076
+        }
+      ],
+      "bdi": 85.3,
+      "ah_line": -0.25,
+      "ou_line": 2.5,
+      "markets": {
+        "ah_home_odds": 1.91,
+        "ah_away_odds": 1.99,
+        "ou_over_odds": 1.87,
+        "ou_under_odds": 2.01,
+        "h2h_home": 5.6,
+        "h2h_draw": 3.75,
+        "h2h_away": 1.63
+      },
+      "ev_direction": null,
+      "ev_value": null,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE"
+    },
+    "predicted_direction": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selection": "HOME -0.25",
+      "line": -0.25,
+      "odds": 1.95,
+      "model_probability": 0.55
+    },
+    "ai_grade": "B",
+    "ai_confidence": 71,
+    "ai_summary": "不莱梅半场意外0-1落后，但场上攻势形成持续围攻态势，BDI指数高达84.60。全场2.5大球盘口赔率高于最低可接受赔率，场上进攻动量强劲，下半场补进2球确定性高，属于高价值正期望值信号。"
   }
 ]

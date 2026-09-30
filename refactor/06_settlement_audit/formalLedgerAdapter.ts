@@ -7,13 +7,14 @@ export interface FormalLedgerConversionResult {
 }
 
 const isOosMarket = (value: unknown): value is HistoricalBacktestRecord['market'] =>
-  value === 'ASIAN_HANDICAP_MAIN' || value === 'TOTAL_GOALS_MAIN' || value === 'MONEYLINE_1X2' || value === 'EURO_1X2' || value === 'ASIAN_HANDICAP';
+  value === 'ASIAN_HANDICAP_MAIN' || value === 'TOTAL_GOALS_MAIN' || value === 'MONEYLINE_1X2' || value === 'EURO_1X2' || value === 'ASIAN_HANDICAP' || value === 'ASIAN_HANDICAP_SECONDARY' || value === 'TOTAL_GOALS' || value === 'TOTAL_GOALS_SECONDARY';
 
 const isSettlementBasis = (value: unknown): value is NonNullable<HistoricalBacktestRecord['settlement_basis']> =>
   value === 'FULL_MATCH' || value === 'REMAINING_GOALS' || value === 'REMAINING_PERIOD_DOMINANCE' || value === 'FULL_MATCH_NORMAL' || value === 'REST_OF_MATCH';
 
 const normalizeOosMarket = (value: unknown): HistoricalBacktestRecord['market'] => {
-  if (value === 'ASIAN_HANDICAP') return 'ASIAN_HANDICAP_MAIN';
+  if (value === 'ASIAN_HANDICAP' || value === 'ASIAN_HANDICAP_SECONDARY') return 'ASIAN_HANDICAP_MAIN';
+  if (value === 'TOTAL_GOALS' || value === 'TOTAL_GOALS_SECONDARY') return 'TOTAL_GOALS_MAIN';
   return value as HistoricalBacktestRecord['market'];
 };
 

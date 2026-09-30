@@ -216,12 +216,21 @@ export class UniverseLedgerPersistence {
         ? (dir.selection.includes('HOME') || dir.selection.includes('主') ? 'SPREAD_HOME' : 'SPREAD_AWAY')
         : (dir.selection.includes('OVER') || dir.selection.includes('大') ? 'TOTAL_OVER' : 'TOTAL_UNDER');
 
+      let numericLine = typeof dir.line === 'number' ? dir.line : parseAsianLine(dir.line);
+      if (isAh) {
+        if (dir.selection.includes('-') && numericLine > 0) {
+          numericLine = -numericLine;
+        } else if (dir.selection.includes('+') && numericLine < 0) {
+          numericLine = Math.abs(numericLine);
+        }
+      }
+
       const evalRes = evaluateQuarterSettlement({
         market_category: category,
-        line: dir.line,
+        line: numericLine,
         odds: dir.odds,
         is_live: stage === 'LIVE',
-        basis: stage === 'LIVE' ? 'REMAINING_GOALS' : 'FULL_MATCH',
+        basis: stage === 'LIVE' ? (isAh ? 'REMAINING_PERIOD_DOMINANCE' : 'REMAINING_GOALS') : 'FULL_MATCH',
         score_at_rec: target.score_at_prediction,
         final_score: { home: finHome, away: finAway },
         score_verified: true,
@@ -292,7 +301,7 @@ export class UniverseLedgerPersistence {
         line: target.quant_snapshot.ah_line,
         odds: 1.95,
         is_live: stage === 'LIVE',
-        basis: stage === 'LIVE' ? 'REMAINING_GOALS' : 'FULL_MATCH',
+        basis: stage === 'LIVE' ? 'REMAINING_PERIOD_DOMINANCE' : 'FULL_MATCH',
         score_at_rec: target.score_at_prediction,
         final_score: { home: finHome, away: finAway },
         score_verified: true,
@@ -625,5 +634,25 @@ export class UniverseLedgerPersistence {
     }
 
     return undefined;
+  }
+
+  /**
+   * 重置核销状态：支持单场撤销或批量撤销，恢复待核销状态
+   */
+  public static resetSettlement(stage: BettingStage, recordIdOrMatchId?: string): { reset_count: number } {
+    const list = this.loadLedger(stage);
+    let count = 0;
+    for (const r of list) {
+      if (!recordIdOrMatchId || r.record_id === recordIdOrMatchId || r.match_id === recordIdOrMatchId) {
+        if (r.settlement?.is_settled) {
+          delete (r as any).settlement;
+          count++;
+        }
+      }
+    }
+    if (count > 0) {
+      this.saveLedger(stage, list);
+    }
+    return { reset_count: count };
   }
 }

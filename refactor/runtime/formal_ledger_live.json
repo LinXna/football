@@ -1,1 +1,257 @@
-[]
+[
+  {
+    "record_type": "formal_ai_recommendation",
+    "formal_recommendation": true,
+    "record_id": "1c39ca04-7065-43c2-a0be-c35113c65d9c",
+    "stage": "LIVE",
+    "created_at_utc": "2026-09-30T17:40:31.371Z",
+    "match_id": "4558575",
+    "kickoff_time": "2026-09-19 22:00:00 (雷速补充)",
+    "league_key": "英格兰超级联赛",
+    "teams": {
+      "home": "纽卡斯尔联",
+      "away": "赫尔城"
+    },
+    "condition_snapshot": {
+      "match_minute": "LIVE 34' (2-0)",
+      "current_score": "2 - 0",
+      "bdi": 28.04,
+      "goal_phase_alert": "IMMINENT_GOAL",
+      "machine_candidate_count": 0,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE",
+      "oos_status": "OOS_COLD_START_EXEMPT",
+      "score_verified": true,
+      "source": "YBTY"
+    },
+    "candidate_pipeline_state": "COLD_START_PERMISSIVE",
+    "oos_status": "OOS_COLD_START_EXEMPT",
+    "ai_assessment": {
+      "grade": "B_GRADE",
+      "confidence_score": 79,
+      "blind_spot_analysis": {
+        "1_global_motivation": "Newcastle United leading 2-0 early at 34' maintains intense offensive pressure (60% possession, 1.12 xT), while Hull City's defensive structure remains vulnerable.",
+        "2_asian_handicap_reality": "Live Asian Handicap resets score to 0:0. Newcastle United -0.5/1 requires winning the rest of the match by 2+ goals for full win, or 1 goal for half win.",
+        "3_total_goals_reality": "Full match score is 2-0. Over 4.0/4.5 evaluates full-match total, requiring 3+ additional goals.",
+        "tactical_regime_evaluation": "GENUINE_DOMINANCE",
+        "trap_detection_result": "POTENTIAL_TRAP"
+      },
+      "internal_logical_audit": "Scanned line ASIAN_HANDICAP_SECONDARY Newcastle United -0.5/1 (odds 2.40, raw_ev 0.9714) is mathematically open and settlement verified with full 5-state distribution. Model stability score (79) passes gate (>=70) and score (2-0) is verified. Cold-start permissive exemption applies, permitting B_GRADE exploratory actionability.",
+      "qualitative_summary": "High positive EV on Newcastle rest-of-match spread supported by strong live physical metrics and verified scoreline under cold-start permissive exemption."
+    },
+    "leg": {
+      "market": "ASIAN_HANDICAP_SECONDARY",
+      "selected_line": "-0.5/1",
+      "current_odds": 2.4,
+      "minimum_acceptable_odds": 0,
+      "direction": "HOME",
+      "basis": "REMAINING_GOALS"
+    },
+    "prediction_snapshot": {
+      "model_version": "refactor-layer03-v1",
+      "prediction_at": "2026-09-28T19:56:57.695Z",
+      "market": "ASIAN_HANDICAP_SECONDARY",
+      "line": "-0/0.5",
+      "odds": 1.75,
+      "model_probability": 0.8373,
+      "predicted_lambda": {
+        "home": 2.588,
+        "away": 0.442
+      },
+      "minute": 34,
+      "score_at_recommendation": "2 - 0",
+      "score_verified": true,
+      "score_source": "canonical_score_verification",
+      "red_card_state": "1.00/1.00"
+    }
+  },
+  {
+    "record_type": "formal_ai_recommendation",
+    "formal_recommendation": true,
+    "record_id": "627e24a5-fc08-4961-b5f7-5924e406cfb4",
+    "stage": "LIVE",
+    "created_at_utc": "2026-09-30T17:53:01.415Z",
+    "match_id": "4566524",
+    "kickoff_time": "2026-09-19 21:30:00 (雷速补充)",
+    "league_key": "德国甲级联赛",
+    "teams": {
+      "home": "门兴格拉德巴赫",
+      "away": "美因茨"
+    },
+    "condition_snapshot": {
+      "match_minute": "HALF-TIME 中场休息 (1-2)",
+      "current_score": "1 - 2",
+      "bdi": 6.42,
+      "goal_phase_alert": "IMMINENT_GOAL",
+      "machine_candidate_count": 0,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE",
+      "oos_status": "OOS_COLD_START_EXEMPT",
+      "score_verified": true,
+      "source": "YBTY"
+    },
+    "candidate_pipeline_state": "COLD_START_PERMISSIVE",
+    "oos_status": "OOS_COLD_START_EXEMPT",
+    "ai_assessment": {
+      "grade": "B_GRADE",
+      "confidence_score": 75,
+      "blind_spot_analysis": {
+        "1_global_motivation": "主队门兴1-2落后，下半场必须全线压上反扑；客队美因茨手握1球优势且进攻效率极高，反击威胁将彻底拉开场上空间。",
+        "2_asian_handicap_reality": "滚球让球盘0盘下半场从0:0起算，美因茨下半场净胜即全赢、打平走水。美因茨半场补时阶段完成反超，士气与攻势占优。",
+        "3_total_goals_reality": "全场大小球基准线4.5球，当前已产生3球。下半场仅需2球即可全赢，门兴防守漏洞系数高达1.202，大球穿盘几率极高。",
+        "tactical_regime_evaluation": "GENUINE_DOMINANCE",
+        "trap_detection_result": "POTENTIAL_TRAP"
+      },
+      "internal_logical_audit": "门兴半场1-2落后，全场大小球4.5 Over盘口赔率1.96，Layer 03引擎计算模型概率为81.66%，提供+0.6004的高额正EV。该盘口 mathematically_closed = false，结算语义VERIFIED。模型稳定性得分92分，历史战绩样本充足(31/32场)。候选流水线处于COLD_START_PERMISSIVE状态，获得OOS_COLD_START_EXEMPT豁免准入。虽然博彩公司姿态存在高赔诱盘提示，但无双重独立类别确诊陷阱证据。满足所有执行门禁，评定为B_GRADE试水推荐。",
+      "qualitative_summary": "美因茨半场补时连进球反超比分，门兴防线漏洞暴露明显。全场4.5大球盘口具备0.6004的强劲期望值与81.66%的模型胜率，模型稳定性高且通过冷启动豁免门禁，具备明确的操作价值。"
+    },
+    "leg": {
+      "market": "TOTAL_GOALS_MAIN",
+      "selected_line": "4.5",
+      "current_odds": 1.96,
+      "minimum_acceptable_odds": 1.22,
+      "direction": "OVER",
+      "basis": "REMAINING_GOALS"
+    },
+    "prediction_snapshot": {
+      "model_version": "refactor-layer03-v1",
+      "prediction_at": "2026-09-30T17:51:30.472Z",
+      "market": "TOTAL_GOALS_MAIN",
+      "line": "4.5",
+      "odds": 1.96,
+      "model_probability": 0.7431,
+      "predicted_lambda": {
+        "home": 1.057,
+        "away": 1.63
+      },
+      "minute": null,
+      "score_at_recommendation": "1 - 2",
+      "score_verified": true,
+      "score_source": "canonical_score_verification",
+      "red_card_state": "1.00/1.00"
+    }
+  },
+  {
+    "record_type": "formal_ai_recommendation",
+    "formal_recommendation": true,
+    "record_id": "0e7f59fe-2888-4c0d-bb46-71633bf234b3",
+    "stage": "LIVE",
+    "created_at_utc": "2026-09-30T17:53:01.826Z",
+    "match_id": "4566266",
+    "kickoff_time": "2026-09-19 21:30:00 (雷速补充)",
+    "league_key": "德国甲级联赛",
+    "teams": {
+      "home": "云达不莱梅",
+      "away": "奥格斯堡"
+    },
+    "condition_snapshot": {
+      "match_minute": "HALF-TIME 中场休息 (0-1)",
+      "current_score": "0 - 1",
+      "bdi": 85.3,
+      "goal_phase_alert": "NONE",
+      "machine_candidate_count": 0,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE",
+      "oos_status": "OOS_COLD_START_EXEMPT",
+      "score_verified": true,
+      "source": "YBTY"
+    },
+    "candidate_pipeline_state": "COLD_START_PERMISSIVE",
+    "oos_status": "OOS_COLD_START_EXEMPT",
+    "ai_assessment": {
+      "grade": "B_GRADE",
+      "confidence_score": 71,
+      "blind_spot_analysis": {
+        "1_global_motivation": "不莱梅半场0-1落后，但实测控球61%、危攻45-17、BDI压制指数高达84.60，下半场具备极强的扳平与逆转动因；奥格斯堡防线面临巨大围攻压力。",
+        "2_asian_handicap_reality": "让球盘-0/0.5主队EV为负，盘口资金流向与场上统治力存在错配，让球盘不具备投注价值。",
+        "3_total_goals_reality": "全场大小球基准线2.5球，当前比分0-1（共1球）。下半场仅需打入2球即可全赢。不莱梅高位压迫下肋部空档暴露(0.75)，双方均有强烈破门预期。",
+        "tactical_regime_evaluation": "GENUINE_DOMINANCE",
+        "trap_detection_result": "SAFE_VALUE"
+      },
+      "internal_logical_audit": "不莱梅半场0-1落后，但场上物理数据呈现绝对压制(BDI 84.60，危攻45-17，xT 1.63-0.81)。大小球2.5 Over盘口赔率1.87，模型计算概率为55.27%，具备+0.0336的期望值，MAO为1.81(当前1.87 >= 1.81)。数学开放且结算完整，模型稳定性79分，候选流水线处于COLD_START_PERMISSIVE并通过OOS豁免。无任何阻断器与诱盘风险，满足所有执行门禁，判定为ACTIONABLE并给出B_GRADE探索性推荐。",
+      "qualitative_summary": "不莱梅半场意外0-1落后，但场上攻势形成持续围攻态势，BDI指数高达84.60。全场2.5大球盘口赔率高于最低可接受赔率，场上进攻动量强劲，下半场补进2球确定性高，属于高价值正期望值信号。"
+    },
+    "leg": {
+      "market": "TOTAL_GOALS_MAIN",
+      "selected_line": "2.5",
+      "current_odds": 1.87,
+      "minimum_acceptable_odds": 1.81,
+      "direction": "OVER",
+      "basis": "REMAINING_GOALS"
+    },
+    "prediction_snapshot": {
+      "model_version": "refactor-layer03-v1",
+      "prediction_at": "2026-09-30T17:51:39.499Z",
+      "market": "TOTAL_GOALS_MAIN",
+      "line": "2.5",
+      "odds": 1.87,
+      "model_probability": 0.5643,
+      "predicted_lambda": {
+        "home": 1.017,
+        "away": 0.9
+      },
+      "minute": null,
+      "score_at_recommendation": "0 - 1",
+      "score_verified": true,
+      "score_source": "canonical_score_verification",
+      "red_card_state": "1.00/1.00"
+    }
+  },
+  {
+    "record_type": "formal_ai_recommendation",
+    "formal_recommendation": true,
+    "record_id": "632657ec-a9db-4073-ba7a-cef71951d638",
+    "stage": "LIVE",
+    "created_at_utc": "2026-09-30T17:46:21.021Z",
+    "match_id": "4566264",
+    "kickoff_time": "2026-09-19 21:30:00",
+    "league_key": "德国甲级联赛",
+    "teams": {
+      "home": "汉堡",
+      "away": "科隆"
+    },
+    "candidate_pipeline_state": "COLD_START_PERMISSIVE",
+    "oos_status": "OOS_COLD_START_EXEMPT",
+    "condition_snapshot": {
+      "match_minute": "中场休息",
+      "current_score": "1 - 0",
+      "bdi": -22.58,
+      "goal_phase_alert": "NONE",
+      "machine_candidate_count": 1,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE",
+      "oos_status": "OOS_COLD_START_EXEMPT",
+      "score_verified": true,
+      "source": "YBTY"
+    },
+    "ai_assessment": {
+      "grade": "B",
+      "confidence_score": 70,
+      "blind_spot_analysis": [],
+      "internal_logical_audit": [],
+      "qualitative_summary": "汉堡半场临近结束前破门取得1-0领先，科隆虽掌控71%控球率但转化为射正能力不足(0射正)，呈现典型无效统治。主队受让盘口具备+EV，但因比赛刚破门处于进球冷却窗口锁定期，下发执行被封锁。"
+    },
+    "leg": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selected_line": "0.25",
+      "current_odds": 1.95,
+      "minimum_acceptable_odds": 1.95,
+      "direction": "AWAY",
+      "basis": "REMAINING_PERIOD_DOMINANCE",
+      "oos_status": "OOS_COLD_START_EXEMPT"
+    },
+    "prediction_snapshot": {
+      "model_version": "layer03-v1",
+      "prediction_at": "2026-09-30T17:46:21.021Z",
+      "market": "ASIAN_HANDICAP_MAIN",
+      "line": "0.25",
+      "odds": 1.95,
+      "model_probability": 0.45,
+      "predicted_lambda": {
+        "home": 0.598,
+        "away": 0.88
+      },
+      "minute": 35,
+      "score_at_recommendation": "1 - 0",
+      "score_verified": true,
+      "score_source": "YBTY",
+      "red_card_state": "0 - 0"
+    }
+  }
+]

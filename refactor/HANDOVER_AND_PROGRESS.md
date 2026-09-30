@@ -1,29 +1,25 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: DUAL-LEDGER-FULL-03-MARKETS-DISPLAY-01（双轨台账 Layer 03 全盘口矩阵与完整预测特征全景呈现）
-- **当前状态 (Status)**: `DONE`
+- **任务编号 (Task)**: SETTLEMENT-RESET-AND-RE-EDIT-UX-01（双轨台账与核销中心支持单场重新核销/修改比分与一键重置恢复待核销状态）
+- **当前状态 (Status)**: `IN_PROGRESS`
 - **任务目标 (Goal)**: 
-  1. 确认与解答用户疑问：底层已完整执行并持久化了 Layer 03 预测计算，包含让球、大小球、独赢三项全盘口及泊松期望矩阵；
-  2. 界面全盘口与预测特征补全展示：
-     - 在台账卡片上直观渲染【让球主盘 (Full Spread)】、【大小球主盘 (Full Total)】、【独赢主盘 (1X2)】具体盘口与双方水位；
-     - 增加前瞻预期进球 xG、Top 3 预测比分分布概率直观展示；
-     - 提供【展开 03 量化推演与博弈明细】折叠开关，展开可查看完整的全盘口去抽水公允率、正期望值 (+EV) 信号与泊松比分矩阵；
-  3. 静态检查与回归测试闭环。
+  1. 响应用户误点击一键核销的紧急回滚需求，提供两层完备的重置与修改能力：
+     - 单场维度：已核销卡片支持【✏️ 修改比分 / 重新核销】与【↺ 重置为待核销】；
+     - 全局维度：工具栏提供【↺ 一键重置全部核销状态】撤销误操作；
+  2. 后端数据持久化支持：
+     - 在 `UniverseLedgerPersistence` 与 `LedgerPersistence` 增加 `resetSettlement` 方法；
+     - 在 `refactorLedgerRoutes.ts` 提供 `POST /api/refactor/settlement/reset` 接口；
+     - 联动清理误沉淀的 OOS 样本并同步重新编译或清空 OOS 档案；
+  3. 前端 UI 交互增强：已核销卡片提供就地修改比分输入与一键重置，工具栏增加撤销按钮。
 - **改动文件清单 (Target Files)**:
-  1. `src/components/CanonicalMatchCenter.tsx`（封装 `renderQuantMarketSnapshot`，直观呈现让球、大小球、独赢三项主盘与展开明细）
-  2. `refactor/HANDOVER_AND_PROGRESS.md`
-- **阶段进度 (Phase)**: `06 结算审计：Layer 03 全盘口与预测全景呈现（已闭环）`
-- **交付产物与验证 (Delivered & Verified)**:
-  - `compile_applet`：通过，前端构建打包零错误；
-  - `npm run lint` (`tsc --noEmit`)：零错误通过；
-  - 界面呈现验证：
-    - 轨道一、轨道二、轨道三所有卡片均已直观展现三大主盘胶囊：
-      - 【让球 (Full Spread)】：让球盘口 line 与主/客双方水位；
-      - 【大小球 (Full Total)】：大小球盘口 line 与大/小双方水位；
-      - 【独赢 (1X2)】：主胜、平局、客胜三项赔率；
-    - 首选预测比分、λ 参数、xG 进球总期望、BDI 指数全维度陈列；
-    - 支持就地点击【展开 03 推演明细】，展开三列网格（让球博弈、大小球博弈、独赢博弈）及 Top 5 泊松全比分二维联合概率分布。
-- **下一步待办 (Next)**: 系统运行稳定，待办事项已全部闭环。
+  1. `refactor/05_portfolio_risk/universeLedgerPersistence.ts`
+  2. `refactor/06_settlement_audit/oosArchiveService.ts`
+  3. `server/routes/refactorLedgerRoutes.ts`
+  4. `src/components/CanonicalMatchCenter.tsx`
+  5. `refactor/HANDOVER_AND_PROGRESS.md`
+- **阶段进度 (Phase)**: `06 结算审计：误操作核销撤销与比分二次修改`
+- **交付产物与验证 (Delivered & Verified)**: 待执行
+- **下一步待办 (Next)**: 实现接口与前端交互，验证重置与二次核销，解答用户。
 
 ---
 

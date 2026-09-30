@@ -284,3 +284,64 @@ export function ingestSettledRecordsAndPersist(
     return { accepted_count: 0, rejected_count: records.length, rejected_reasons: [message] };
   }
 }
+
+/**
+ * 撤销/移除指定赛事或全部 OOS 样本并重新编译档案
+ */
+export function removeSamplesAndRebuildArchive(
+  identifier?: string
+): { removed_count: number; remaining_count: number } {
+  ensureOosArchiveInitialized();
+  if (!identifier) {
+    const count = cachedSamples.length;
+    cachedSamples = [];
+    cachedArchive = null;
+    try { fs.unlinkSync(oosArchivePath()); } catch {}
+    atomicWriteJsonSync(oosSamplesPath(), []);
+    return { removed_count: count, remaining_count: 0 };
+  }
+
+  const beforeLen = cachedSamples.length;
+  cachedSamples = cachedSamples.filter(
+    (s) => s.match_id !== identifier && s.sample_id !== identifier && !s.sample_id.includes(identifier)
+  );
+  const removed = beforeLen - cachedSamples.length;
+  if (removed > 0) {
+    if (cachedSamples.length === 0) {
+      cachedArchive = null;
+      try { fs.unlinkSync(oosArchivePath()); } catch {}
+      atomicWriteJsonSync(oosSamplesPath(), []);
+    } else {
+      let minPredTime = Infinity;
+      let maxPredTime = -Infinity;
+      for (const s of cachedSamples) {
+        const t = Date.parse(s.prediction_at);
+        if (!isNaN(t)) {
+          if (t < minPredTime) minPredTime = t;
+          if (t > maxPredTime) maxPredTime = t;
+        }
+      }
+      const nowTime = Date.now();
+      const effectiveGeneratedTime = Math.max(nowTime, isFinite(maxPredTime) ? maxPredTime + 2000 : nowTime);
+      const generatedAt = new Date(effectiveGeneratedTime).toISOString();
+      const predEnd = isFinite(maxPredTime) ? new Date(maxPredTime + 1000).toISOString() : generatedAt;
+      const predStart = isFinite(minPredTime) ? new Date(minPredTime - 1000).toISOString() : new Date(effectiveGeneratedTime - 3600000).toISOString();
+      const trainEnd = new Date(Date.parse(predStart) - 86400 * 1000).toISOString();
+      const trainStart = new Date(Date.parse(trainEnd) - 365 * 86400 * 1000).toISOString();
+
+      const options: OosArchiveBuildOptions = {
+        model_version: cachedSamples[0]?.model_version || 'layer03-v1',
+        generated_at: generatedAt,
+        training_window_start_at: trainStart,
+        training_window_end_at: trainEnd,
+        prediction_window_start_at: predStart,
+        prediction_window_end_at: predEnd,
+      };
+      const nextArchive = buildOosCalibrationArchive(cachedSamples, options);
+      cachedArchive = nextArchive;
+      atomicWriteJsonSync(oosArchivePath(), nextArchive);
+      atomicWriteJsonSync(oosSamplesPath(), cachedSamples);
+    }
+  }
+  return { removed_count: removed, remaining_count: cachedSamples.length };
+}

@@ -148,6 +148,33 @@ function getDefaultScoreForRecord(record: any): { home: string; away: string } {
 }
 
 /**
+ * 统一提取并格式化【推荐/推演时的现场实时比分】(如 "0 - 1", "0 - 0")
+ * 遵循 Layer 05/06 及滚球核销硬性约束：滚球核销结算基准依据推荐时已有比分
+ */
+export const getScoreAtPredictionString = (record: any): string => {
+  if (!record) return "0 - 0";
+  if (record.score_at_prediction && typeof record.score_at_prediction.home === "number") {
+    return `${record.score_at_prediction.home} - ${record.score_at_prediction.away}`;
+  }
+  if (record.prediction_snapshot?.score_at_recommendation) {
+    return String(record.prediction_snapshot.score_at_recommendation).replace(/[-:]/, " - ");
+  }
+  if (record.condition_snapshot?.score_at_recommendation) {
+    const s = record.condition_snapshot.score_at_recommendation;
+    return typeof s === "object" ? `${s.home} - ${s.away}` : String(s).replace(/[-:]/, " - ");
+  }
+  if (record.condition_snapshot?.current_score) {
+    return String(record.condition_snapshot.current_score).replace(/[-:]/, " - ");
+  }
+  if (record.score) {
+    const h = record.score.home_score ?? record.score.home ?? 0;
+    const a = record.score.away_score ?? record.score.away ?? 0;
+    return `${h} - ${a}`;
+  }
+  return "0 - 0";
+};
+
+/**
  * 严格清理并约束比分输入为非负整数 (>= 0)
  */
 function sanitizeScoreInput(val: string): string {
@@ -341,6 +368,8 @@ export const CanonicalMatchCenter: React.FC = () => {
   const [quickSettleScore, setQuickSettleScore] = useState<{ home: string; away: string }>({ home: '', away: '' });
   const [quickSettleSource, setQuickSettleSource] = useState<string>('雷速比分画布/接口校验');
   const [isQuickSettling, setIsQuickSettling] = useState<boolean>(false);
+  const [editingSettleIds, setEditingSettleIds] = useState<{ [id: string]: boolean }>({});
+  const [isResettingSettlement, setIsResettingSettlement] = useState<boolean>(false);
 
   // State for AI Prompt & Evaluator Modal
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -1100,6 +1129,62 @@ export const CanonicalMatchCenter: React.FC = () => {
       setLedgerFeedback(`❌ 结算网络异常: ${e.message}`);
     } finally {
       setSettlingIds((prev) => ({ ...prev, [recordId]: false }));
+    }
+  };
+
+  const handleResetSingleSettlement = async (recordId: string) => {
+    setLedgerFeedback("正在重置该比赛核销状态...");
+    try {
+      const res = await fetch("/api/refactor/settlement/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stage: mode === "live" ? "LIVE" : "PREMATCH",
+          record_id: recordId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLedgerFeedback(`✅ ${data.message}`);
+        setEditingSettleIds((prev) => ({ ...prev, [recordId]: false }));
+        await fetchUniverseLedger();
+        await fetchRefactorLedger();
+        await fetchOosStatus();
+      } else {
+        setLedgerFeedback(`❌ 重置核销失败: ${data.error || '未知错误'}`);
+      }
+    } catch (err: any) {
+      setLedgerFeedback(`❌ 重置网络异常: ${err?.message || err}`);
+    }
+  };
+
+  const handleResetAllSettlements = async () => {
+    const confirmed = window.confirm(
+      `⚠️ 确认重置当前【${mode === "live" ? "滚球" : "赛前"}】全部已核销比赛吗？\n\n这会将所有已核销比赛恢复为待核销状态，并同步清除本次核销沉淀的 OOS 样本。`
+    );
+    if (!confirmed) return;
+    setIsResettingSettlement(true);
+    setLedgerFeedback("正在重置当前阶段全部核销状态...");
+    try {
+      const res = await fetch("/api/refactor/settlement/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: mode === "live" ? "LIVE" : "PREMATCH" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLedgerFeedback(`✅ ${data.message}`);
+        setEditingSettleIds({});
+        await fetchUniverseLedger();
+        await fetchRefactorLedger();
+        await fetchOosStatus();
+      } else {
+        setLedgerFeedback(`❌ 重置核销失败: ${data.error || '未知错误'}`);
+      }
+    } catch (err: any) {
+      setLedgerFeedback(`❌ 重置网络异常: ${err?.message || err}`);
+    } finally {
+      setIsResettingSettlement(false);
     }
   };
 
@@ -2224,7 +2309,69 @@ export const CanonicalMatchCenter: React.FC = () => {
   };
 
   /**
-   * 渲染 Layer 03 完整量化盘口与博弈推演特征全景矩阵
+   * 格式化数值分段盘口 (如 0.75 -> 0.5/1, 2.75 -> 2.5/3)
+   */
+  const formatFractionNotation = (val: number): string => {
+    const abs = Math.abs(val);
+    if (Math.abs(abs - 0.25) < 1e-4) return '0/0.5';
+    if (Math.abs(abs - 0.75) < 1e-4) return '0.5/1';
+    if (Math.abs(abs - 1.25) < 1e-4) return '1/1.5';
+    if (Math.abs(abs - 1.75) < 1e-4) return '1.5/2';
+    if (Math.abs(abs - 2.25) < 1e-4) return '2/2.5';
+    if (Math.abs(abs - 2.75) < 1e-4) return '2.5/3';
+    if (Math.abs(abs - 3.25) < 1e-4) return '3/3.5';
+    if (Math.abs(abs - 3.75) < 1e-4) return '3.5/4';
+    return `${abs}`;
+  };
+
+  /**
+   * 格式化带正负号的让球盘口 (如 -1, +0.5/1, -0.5/1, 0)
+   */
+  const formatLineWithSign = (num: number): string => {
+    if (isNaN(num)) return '-';
+    if (num === 0 || Object.is(num, -0)) return '0';
+    const notation = formatFractionNotation(num);
+    return num > 0 ? `+${notation}` : `-${notation}`;
+  };
+
+  /**
+   * 格式化大小球主盘口（如 2.75 -> 2.5/3球, 3 -> 3球）
+   */
+  const formatOuDisplay = (rawLine: any): string => {
+    if (rawLine === undefined || rawLine === null || rawLine === '') return '-';
+    const str = String(rawLine).trim();
+    if (str.includes('/')) return str.endsWith('球') ? str : `${str}球`;
+    const num = parseFloat(str);
+    if (isNaN(num)) return str;
+    const notation = formatFractionNotation(num);
+    return `${notation}球`;
+  };
+
+  /**
+   * 规范化推荐方向文案呈现
+   */
+  const formatSelectionText = (sel: string): string => {
+    if (!sel) return '';
+    return sel
+      .replace(/HOME/gi, '主队')
+      .replace(/AWAY/gi, '客队')
+      .replace(/OVER/gi, '大球')
+      .replace(/UNDER/gi, '小球')
+      .replace(/DRAW/gi, '平局')
+      .replace(/-0\.75|\+0\.75|0\.75/g, (m) => m.startsWith('-') ? '-0.5/1' : m.startsWith('+') ? '+0.5/1' : '0.5/1')
+      .replace(/-0\.25|\+0\.25|0\.25/g, (m) => m.startsWith('-') ? '-0/0.5' : m.startsWith('+') ? '+0/0.5' : '0/0.5')
+      .replace(/-1\.25|\+1\.25|1\.25/g, (m) => m.startsWith('-') ? '-1/1.5' : m.startsWith('+') ? '+1/1.5' : '1/1.5')
+      .replace(/-1\.75|\+1\.75|1\.75/g, (m) => m.startsWith('-') ? '-1.5/2' : m.startsWith('+') ? '+1.5/2' : '1.5/2')
+      .replace(/-2\.25|\+2\.25|2\.25/g, (m) => m.startsWith('-') ? '-2/2.5' : m.startsWith('+') ? '+2/2.5' : '2/2.5')
+      .replace(/-2\.75|\+2\.75|2\.75/g, (m) => m.startsWith('-') ? '-2.5/3' : m.startsWith('+') ? '+2.5/3' : '2.5/3');
+  };
+
+  /**
+   * 渲染 Layer 03 完整量化盘口与 YBTY 推荐投注项全景矩阵
+   * 严格遵循 YBTY 盘口格式展示：
+   * 让球: 推荐主队 -1 / 推荐客队 +0.5/1
+   * 大小: 推荐大 3球 / 推荐大 2.5/3球 / 推荐小 2.5球
+   * 独赢: 推荐主赢 / 推荐客赢 / 推荐平局
    */
   const renderQuantMarketSnapshot = (record: any) => {
     const linkedMatch = matches.find(
@@ -2233,17 +2380,76 @@ export const CanonicalMatchCenter: React.FC = () => {
     const quant = record.quant_snapshot || {};
     const mkts = quant.markets || {};
 
-    const ahLine = quant.ah_line ?? (linkedMatch?.markets?.full_spread_main as any)?.line ?? linkedMatch?.markets?.full_spread_main?.home_selection;
+    // 1. 让球盘解析 (以主队视角为 SSOT：正数代表主队受让，负数代表主队让球)
+    const rawAh = quant.ah_line ?? (linkedMatch?.markets?.full_spread_main as any)?.line ?? linkedMatch?.markets?.full_spread_main?.home_selection;
+    let homeAhNum = 0;
+    if (typeof rawAh === 'number') {
+      homeAhNum = rawAh;
+    } else if (rawAh) {
+      const cleanAh = String(rawAh).trim();
+      if (cleanAh.includes('/')) {
+        const pts = cleanAh.split('/');
+        const p1 = parseFloat(pts[0]);
+        const p2 = parseFloat(pts[1]);
+        if (!isNaN(p1) && !isNaN(p2)) {
+          homeAhNum = (Math.abs(p1) + Math.abs(p2)) / 2;
+          if (cleanAh.includes('-')) homeAhNum = -homeAhNum;
+        }
+      } else {
+        homeAhNum = parseFloat(cleanAh) || 0;
+      }
+    }
+    const awayAhNum = -homeAhNum;
+    const homeAhDisplay = formatLineWithSign(homeAhNum);
+    const awayAhDisplay = formatLineWithSign(awayAhNum);
     const ahHomeOdds = mkts.ah_home_odds ?? linkedMatch?.markets?.full_spread_main?.home_odds;
     const ahAwayOdds = mkts.ah_away_odds ?? linkedMatch?.markets?.full_spread_main?.away_odds;
 
-    const ouLine = quant.ou_line ?? linkedMatch?.markets?.full_total_main?.line;
+    // 2. 大小球盘解析
+    const rawOu = quant.ou_line ?? linkedMatch?.markets?.full_total_main?.line;
+    let ouNum = 2.5;
+    if (typeof rawOu === 'number') {
+      ouNum = rawOu;
+    } else if (rawOu) {
+      const cleanOu = String(rawOu).trim();
+      if (cleanOu.includes('/')) {
+        const pts = cleanOu.split('/');
+        const p1 = parseFloat(pts[0]);
+        const p2 = parseFloat(pts[1]);
+        if (!isNaN(p1) && !isNaN(p2)) ouNum = (p1 + p2) / 2;
+      } else {
+        ouNum = parseFloat(cleanOu) || 2.5;
+      }
+    }
+    const ouDisplay = formatFractionNotation(ouNum);
     const ouOverOdds = mkts.ou_over_odds ?? linkedMatch?.markets?.full_total_main?.over_odds;
     const ouUnderOdds = mkts.ou_under_odds ?? linkedMatch?.markets?.full_total_main?.under_odds;
 
+    // 3. 独赢盘解析
     const h2hHome = mkts.h2h_home ?? linkedMatch?.markets?.full_h2h?.home_odds;
     const h2hDraw = mkts.h2h_draw ?? linkedMatch?.markets?.full_h2h?.draw_odds;
     const h2hAway = mkts.h2h_away ?? linkedMatch?.markets?.full_h2h?.away_odds;
+
+    // 4. 推荐方向与各玩法投注项匹配
+    const predDirection = record.predicted_direction;
+    const predSel = (predDirection?.selection || record.leg?.direction || '').toUpperCase();
+    const predMkt = (predDirection?.market || record.leg?.market || '').toUpperCase();
+
+    // 让球推荐状态
+    const isAhHomeRec = (predSel.includes('HOME') || predSel.includes('主队') || predSel.includes('主让')) && !predMkt.includes('H2H');
+    const isAhAwayRec = (predSel.includes('AWAY') || predSel.includes('客队') || predSel.includes('客受让') || predSel.includes('客让')) && !predMkt.includes('H2H');
+    const hasAhRec = isAhHomeRec || isAhAwayRec || predMkt.includes('SPREAD') || predMkt.includes('HANDICAP');
+
+    // 大小球推荐状态
+    const isOuOverRec = predSel.includes('OVER') || predSel.includes('大');
+    const isOuUnderRec = predSel.includes('UNDER') || predSel.includes('小');
+    const hasOuRec = isOuOverRec || isOuUnderRec || predMkt.includes('TOTAL');
+
+    // 独赢推荐状态
+    const isH2hHomeRec = (predSel === 'HOME' || predSel.includes('主胜') || predSel.includes('主赢')) && (predMkt.includes('H2H') || !predSel.includes('-') && !predSel.includes('+'));
+    const isH2hDrawRec = predSel === 'DRAW' || predSel.includes('平局') || predSel.includes('平');
+    const isH2hAwayRec = (predSel === 'AWAY' || predSel.includes('客胜') || predSel.includes('客赢')) && (predMkt.includes('H2H') || !predSel.includes('-') && !predSel.includes('+'));
+    const hasH2hRec = isH2hHomeRec || isH2hDrawRec || isH2hAwayRec || predMkt.includes('H2H');
 
     const topScores = quant.top_scores || [];
     const xG = quant.forward_goals_expected != null 
@@ -2254,36 +2460,90 @@ export const CanonicalMatchCenter: React.FC = () => {
 
     return (
       <div className="space-y-1.5 pt-0.5">
-        {/* 第一行：Layer 03 核心三大交易盘口 (让球、大小球、独赢) 显式全景 */}
+        {/* 第一行：YBTY 标准投注项推荐胶囊 (让球、大小球、独赢) */}
         <div className="flex items-center gap-2 text-xs flex-wrap font-mono">
-          {/* 让球主盘 */}
-          <div className="flex items-center gap-1 bg-slate-900/90 px-2 py-0.5 rounded border border-blue-900/50 text-[11px]" title="全场让球主盘口与主客水位">
+          <span className="text-[10px] text-amber-300 bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-700/80 font-sans font-bold" title="YBTY 标准盘口投注项推荐与全景市场报价">
+            YBTY 盘口推荐
+          </span>
+
+          {/* 让球盘：YBTY 投注项格式 (如 推荐主队 -1 @ 1.98 / 推荐客队 +0.5/1 @ 1.92) */}
+          <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] border ${
+            hasAhRec && (isAhHomeRec || isAhAwayRec)
+              ? 'bg-blue-950/80 border-blue-500/70 text-blue-200 shadow-xs'
+              : 'bg-slate-900/90 border-slate-800 text-slate-300'
+          }`} title="YBTY 让球盘口投注项（以主客队让球/受让盘口标定）">
             <span className="text-blue-400 font-bold font-sans">让球:</span>
-            <span className="text-blue-300 font-semibold">{ahLine != null ? (Number(ahLine) > 0 ? `+${ahLine}` : ahLine) : (linkedMatch?.markets?.full_spread_main?.home_selection || '-')}</span>
-            <span className="text-slate-500">|</span>
-            <span className="text-slate-300">主 {ahHomeOdds ?? '-'}</span>
-            <span className="text-slate-500">/</span>
-            <span className="text-slate-300">客 {ahAwayOdds ?? '-'}</span>
+            {isAhHomeRec ? (
+              <span className="text-amber-300 font-bold bg-amber-950/90 px-1.5 py-0.2 rounded border border-amber-600/70 flex items-center gap-1">
+                <span>🎯 推荐主队 {homeAhDisplay}</span>
+                <span className="text-slate-300 font-normal">@{ahHomeOdds ?? '-'}</span>
+              </span>
+            ) : isAhAwayRec ? (
+              <span className="text-amber-300 font-bold bg-amber-950/90 px-1.5 py-0.2 rounded border border-amber-600/70 flex items-center gap-1">
+                <span>🎯 推荐客队 {awayAhDisplay}</span>
+                <span className="text-slate-300 font-normal">@{ahAwayOdds ?? '-'}</span>
+              </span>
+            ) : (
+              <span className="text-slate-400 flex items-center gap-1">
+                <span className="text-slate-500">观望</span>
+                <span className="text-[10px] text-slate-500 font-mono">(主队 {homeAhDisplay} {ahHomeOdds ?? '-'} / 客队 {awayAhDisplay} {ahAwayOdds ?? '-'})</span>
+              </span>
+            )}
           </div>
 
-          {/* 大小球主盘 */}
-          <div className="flex items-center gap-1 bg-slate-900/90 px-2 py-0.5 rounded border border-emerald-900/50 text-[11px]" title="全场大小球主盘口与大小水位">
+          {/* 大小球盘：YBTY 投注项格式 (如 推荐大 3球 @ 1.86 / 推荐大 2.5/3球 @ 1.86 / 推荐小 2.5球 @ 2.02) */}
+          <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] border ${
+            hasOuRec && (isOuOverRec || isOuUnderRec)
+              ? 'bg-emerald-950/80 border-emerald-500/70 text-emerald-200 shadow-xs'
+              : 'bg-slate-900/90 border-slate-800 text-slate-300'
+          }`} title="YBTY 大小球盘口投注项">
             <span className="text-emerald-400 font-bold font-sans">大小:</span>
-            <span className="text-emerald-300 font-semibold">{ouLine != null ? `${ouLine}球` : '-'}</span>
-            <span className="text-slate-500">|</span>
-            <span className="text-slate-300">大 {ouOverOdds ?? '-'}</span>
-            <span className="text-slate-500">/</span>
-            <span className="text-slate-300">小 {ouUnderOdds ?? '-'}</span>
+            {isOuOverRec ? (
+              <span className="text-emerald-300 font-bold bg-emerald-950/90 px-1.5 py-0.2 rounded border border-emerald-600/70 flex items-center gap-1">
+                <span>🎯 推荐大 {ouDisplay}球</span>
+                <span className="text-slate-300 font-normal">@{ouOverOdds ?? '-'}</span>
+              </span>
+            ) : isOuUnderRec ? (
+              <span className="text-emerald-300 font-bold bg-emerald-950/90 px-1.5 py-0.2 rounded border border-emerald-600/70 flex items-center gap-1">
+                <span>🎯 推荐小 {ouDisplay}球</span>
+                <span className="text-slate-300 font-normal">@{ouUnderOdds ?? '-'}</span>
+              </span>
+            ) : (
+              <span className="text-slate-400 flex items-center gap-1">
+                <span className="text-slate-500">观望</span>
+                <span className="text-[10px] text-slate-500 font-mono">(大 {ouDisplay}球 {ouOverOdds ?? '-'} / 小 {ouUnderOdds ?? '-'})</span>
+              </span>
+            )}
           </div>
 
-          {/* 独赢主盘 */}
-          <div className="flex items-center gap-1 bg-slate-900/90 px-2 py-0.5 rounded border border-purple-900/50 text-[11px]" title="全场独赢 (1X2) 胜平负三项赔率">
+          {/* 独赢盘：YBTY 投注项格式 (如 推荐主赢 @ 2.17 / 推荐客赢 @ 3.35 / 推荐平局 @ 3.40) */}
+          <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] border ${
+            hasH2hRec && (isH2hHomeRec || isH2hAwayRec || isH2hDrawRec)
+              ? 'bg-purple-950/80 border-purple-500/70 text-purple-200 shadow-xs'
+              : 'bg-slate-900/90 border-slate-800 text-slate-300'
+          }`} title="YBTY 独赢盘口投注项 (主赢 / 平局 / 客赢)">
             <span className="text-purple-400 font-bold font-sans">独赢:</span>
-            <span className="text-slate-300">主 {h2hHome ?? '-'}</span>
-            <span className="text-slate-500">/</span>
-            <span className="text-slate-300">平 {h2hDraw ?? '-'}</span>
-            <span className="text-slate-500">/</span>
-            <span className="text-slate-300">客 {h2hAway ?? '-'}</span>
+            {isH2hHomeRec ? (
+              <span className="text-purple-300 font-bold bg-purple-950/90 px-1.5 py-0.2 rounded border border-purple-600/70 flex items-center gap-1">
+                <span>🎯 推荐主赢</span>
+                <span className="text-slate-300 font-normal">@{h2hHome ?? '-'}</span>
+              </span>
+            ) : isH2hAwayRec ? (
+              <span className="text-purple-300 font-bold bg-purple-950/90 px-1.5 py-0.2 rounded border border-purple-600/70 flex items-center gap-1">
+                <span>🎯 推荐客赢</span>
+                <span className="text-slate-300 font-normal">@{h2hAway ?? '-'}</span>
+              </span>
+            ) : isH2hDrawRec ? (
+              <span className="text-purple-300 font-bold bg-purple-950/90 px-1.5 py-0.2 rounded border border-purple-600/70 flex items-center gap-1">
+                <span>🎯 推荐平局</span>
+                <span className="text-slate-300 font-normal">@{h2hDraw ?? '-'}</span>
+              </span>
+            ) : (
+              <span className="text-slate-400 flex items-center gap-1">
+                <span className="text-slate-500">观望</span>
+                <span className="text-[10px] text-slate-500 font-mono">(主赢 {h2hHome ?? '-'} / 平局 {h2hDraw ?? '-'} / 客赢 {h2hAway ?? '-'})</span>
+              </span>
+            )}
           </div>
 
           {/* 展开/收起 03 详情按钮 */}
@@ -2298,11 +2558,21 @@ export const CanonicalMatchCenter: React.FC = () => {
 
         {/* 第二行：核心预测特征 (方向、首选比分、λ攻防强度、预期进球xG、BDI、Top3比分分布) */}
         <div className="flex items-center gap-2.5 text-xs text-slate-400 flex-wrap pt-0.5 font-mono">
-          {record.predicted_direction && (
-            <span className="font-semibold text-amber-300 bg-amber-950/60 px-1.5 py-0.2 rounded border border-amber-800/60">
-              推荐方向: {record.predicted_direction.selection} @ {record.predicted_direction.odds}
+          {record.predicted_direction ? (
+            <span className="font-semibold text-amber-300 bg-amber-950/60 px-1.5 py-0.2 rounded border border-amber-800/60 flex items-center gap-1">
+              <span>🎯 正式推荐:</span>
+              <span className="font-bold">{formatSelectionText(record.predicted_direction.selection)}</span>
+              <span>@ {record.predicted_direction.odds}</span>
+            </span>
+          ) : (
+            <span className="text-slate-500 bg-slate-900/60 px-1.5 py-0.2 rounded border border-slate-800">
+              推荐方向: 暂无（风控门禁拦截或处于监控池）
             </span>
           )}
+          <span className="text-cyan-300 bg-cyan-950/60 px-1.5 py-0.2 rounded border border-cyan-800/60 flex items-center gap-1 font-mono" title="推演/推荐时现场实时比分">
+            <span className="text-slate-400">推荐时比分:</span>
+            <span className="font-bold text-amber-300">{getScoreAtPredictionString(record)}</span>
+          </span>
           <span className="text-purple-300 font-bold">
             首选预测比分: {quant.projected_final_score || '0-0'}
           </span>
@@ -2337,7 +2607,7 @@ export const CanonicalMatchCenter: React.FC = () => {
               <div className="bg-slate-900/80 p-2 rounded border border-slate-800 space-y-1">
                 <div className="text-[11px] font-bold text-blue-400 flex items-center justify-between">
                   <span>全场让球盘 (Asian Handicap)</span>
-                  <span className="text-[10px] text-slate-400 font-mono">{ahLine != null ? (Number(ahLine) > 0 ? `+${ahLine}` : ahLine) : '-'}</span>
+                  <span className="text-[10px] text-slate-400 font-mono">主队 {homeAhDisplay} / 客队 {awayAhDisplay}</span>
                 </div>
                 <div className="text-[10px] text-slate-300 flex justify-between font-mono">
                   <span>主队水位: {ahHomeOdds ?? '-'}</span>
@@ -2352,7 +2622,7 @@ export const CanonicalMatchCenter: React.FC = () => {
               <div className="bg-slate-900/80 p-2 rounded border border-slate-800 space-y-1">
                 <div className="text-[11px] font-bold text-emerald-400 flex items-center justify-between">
                   <span>全场大小球盘 (Over / Under)</span>
-                  <span className="text-[10px] text-slate-400 font-mono">{ouLine != null ? `${ouLine}球` : '-'}</span>
+                  <span className="text-[10px] text-slate-400 font-mono">{ouDisplay}球</span>
                 </div>
                 <div className="text-[10px] text-slate-300 flex justify-between font-mono">
                   <span>大球水位: {ouOverOdds ?? '-'}</span>
@@ -2935,6 +3205,18 @@ export const CanonicalMatchCenter: React.FC = () => {
             </button>
 
             <button
+              onClick={handleResetAllSettlements}
+              disabled={isResettingSettlement || (ledgerTrack === 'UNIVERSE' || ledgerTrack === 'REFLECTION' ? universeLedger.filter((r) => r.settlement?.is_settled).length === 0 : formalLedger.filter((r) => r.settlement?.is_settled).length === 0)}
+              className="px-2.5 py-1 text-xs rounded border border-amber-800/80 bg-amber-950/60 text-amber-200 hover:bg-amber-900/80 disabled:opacity-40 transition-colors flex items-center gap-1 font-medium shadow-xs"
+              title="误点击核销时，一键撤销并恢复当前阶段比赛为待核销状态"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${isResettingSettlement ? "animate-spin text-amber-200" : "text-amber-300"}`} />
+              <span>
+                {isResettingSettlement ? "重置中..." : "↺ 重置全部核销状态"}
+              </span>
+            </button>
+
+            <button
               onClick={() => {
                 fetchUniverseLedger();
                 fetchRefactorLedger();
@@ -3131,11 +3413,12 @@ export const CanonicalMatchCenter: React.FC = () => {
                             <span className="text-slate-400">📅</span>
                             <span>{formatKickoffDateTime(record.kickoff_time, record.minute_or_status || '赛前')}</span>
                           </span>
-                          {record.minute_or_status && record.minute_or_status !== '赛前' && record.minute_or_status !== formatKickoffDateTime(record.kickoff_time) && (
-                            <span className="text-[10px] text-blue-400 font-mono bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-900">
-                              推演时: {record.minute_or_status}
-                            </span>
-                          )}
+                          <span className="text-[10px] text-cyan-300 font-mono bg-cyan-950/70 px-2 py-0.5 rounded border border-cyan-800/80 flex items-center gap-1 shadow-xs" title="推演建档时的比赛进行分钟与现场即时比分（滚球核销核心依据）">
+                            <span>⏱️ 推荐时:</span>
+                            <span className="font-semibold text-cyan-200">{record.minute_or_status || '赛前'}</span>
+                            <span className="text-slate-500">|</span>
+                            <span className="font-bold text-amber-300">比分: {getScoreAtPredictionString(record)}</span>
+                          </span>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${gateBadgeClass}`}>
                             {record.gate_category === 'QUALIFIED_FORMAL' ? '✅ A/B可实盘' : record.gate_category}
                           </span>
@@ -3181,7 +3464,7 @@ export const CanonicalMatchCenter: React.FC = () => {
 
                       {/* 核销结算区 */}
                       <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-                        {isSettled ? (
+                        {isSettled && !editingSettleIds[record.record_id] ? (
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={`text-xs px-2.5 py-1 rounded font-bold border ${
                               outcome === 'WIN' || outcome === 'WIN_HALF'
@@ -3195,6 +3478,29 @@ export const CanonicalMatchCenter: React.FC = () => {
                             <span className="text-xs font-mono text-slate-300 bg-slate-900 px-2 py-1 rounded border border-slate-800">
                               完场: {record.settlement?.final_score?.home} - {record.settlement?.final_score?.away}
                             </span>
+                            <button
+                              onClick={() => {
+                                setSettleInputs((prev) => ({
+                                  ...prev,
+                                  [record.record_id]: {
+                                    home: String(record.settlement?.final_score?.home ?? defaultScore.home),
+                                    away: String(record.settlement?.final_score?.away ?? defaultScore.away),
+                                  },
+                                }));
+                                setEditingSettleIds((prev) => ({ ...prev, [record.record_id]: true }));
+                              }}
+                              className="px-2 py-0.5 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors font-medium flex items-center gap-1 shadow-xs"
+                              title="重新修改完场比分并再次核销"
+                            >
+                              <span>✏️ 修改比分</span>
+                            </button>
+                            <button
+                              onClick={() => handleResetSingleSettlement(record.record_id)}
+                              className="px-2 py-0.5 text-xs rounded bg-amber-950/50 hover:bg-amber-900/80 text-amber-300 border border-amber-800/80 transition-colors font-medium flex items-center gap-1 shadow-xs"
+                              title="撤销本次核销，恢复为待核销状态"
+                            >
+                              <span>↺ 重置待核销</span>
+                            </button>
                           </div>
                         ) : (
                           <div className="flex items-center gap-1.5 bg-slate-900 p-1.5 rounded-lg border border-slate-800 flex-wrap">
@@ -3245,8 +3551,16 @@ export const CanonicalMatchCenter: React.FC = () => {
                               disabled={isSettling}
                               className="px-2.5 py-1 bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white rounded text-xs font-medium transition-colors shadow-xs"
                             >
-                              {isSettling ? "核销中..." : "录入核销"}
+                              {isSettling ? "核销中..." : isSettled ? "重新核销" : "录入核销"}
                             </button>
+                            {isSettled && (
+                              <button
+                                onClick={() => setEditingSettleIds((prev) => ({ ...prev, [record.record_id]: false }))}
+                                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded text-xs transition-colors"
+                              >
+                                取消
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -3300,8 +3614,11 @@ export const CanonicalMatchCenter: React.FC = () => {
                           <span className="text-slate-400">📅</span>
                           <span>{formatKickoffDateTime(record.kickoff_time || record.beijing_start_time || (record as any).match_time, '赛前')}</span>
                         </span>
-                        <span className="text-[10px] text-blue-400 font-mono bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-900">
-                          {record.condition_snapshot?.match_minute != null ? `第 ${record.condition_snapshot.match_minute}' 分钟` : '赛前'} (推荐时比分: {record.prediction_snapshot?.score_at_recommendation || '0-0'})
+                        <span className="text-[10px] text-cyan-300 font-mono bg-cyan-950/70 px-2 py-0.5 rounded border border-cyan-800/80 flex items-center gap-1 shadow-xs" title="实盘推荐建档时的比赛进行分钟与现场即时比分（滚球核销核心依据）">
+                          <span>⏱️ 推荐时:</span>
+                          <span className="font-semibold text-cyan-200">{record.condition_snapshot?.match_minute != null ? `第 ${record.condition_snapshot.match_minute}' 分钟` : (record.minute_or_status || '赛前')}</span>
+                          <span className="text-slate-500">|</span>
+                          <span className="font-bold text-amber-300">比分: {getScoreAtPredictionString(record)}</span>
                         </span>
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
                           String(record.ai_assessment?.grade || '').startsWith('A')
@@ -3340,7 +3657,7 @@ export const CanonicalMatchCenter: React.FC = () => {
 
                     {/* 核销结算区 */}
                     <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-                      {isSettled ? (
+                      {isSettled && !editingSettleIds[record.record_id] ? (
                         <div className="flex items-center gap-2 flex-wrap">
                           <span
                             className={`text-xs px-2.5 py-1 rounded font-bold border ${
@@ -3366,6 +3683,30 @@ export const CanonicalMatchCenter: React.FC = () => {
                               ⚪ 非二元结算
                             </span>
                           )}
+                          <button
+                            onClick={() => {
+                              const parts = String(record.settlement?.final_score_verified || '').split(/[-:]/);
+                              setSettleInputs((prev) => ({
+                                ...prev,
+                                [record.record_id]: {
+                                  home: parts[0] ? parts[0].trim() : String(defaultScore.home),
+                                  away: parts[1] ? parts[1].trim() : String(defaultScore.away),
+                                },
+                              }));
+                              setEditingSettleIds((prev) => ({ ...prev, [record.record_id]: true }));
+                            }}
+                            className="px-2 py-0.5 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors font-medium flex items-center gap-1 shadow-xs"
+                            title="重新修改完场比分并再次核销"
+                          >
+                            <span>✏️ 修改比分</span>
+                          </button>
+                          <button
+                            onClick={() => handleResetSingleSettlement(record.record_id)}
+                            className="px-2 py-0.5 text-xs rounded bg-amber-950/50 hover:bg-amber-900/80 text-amber-300 border border-amber-800/80 transition-colors font-medium flex items-center gap-1 shadow-xs"
+                            title="撤销本次核销，恢复为待核销状态"
+                          >
+                            <span>↺ 重置待核销</span>
+                          </button>
                         </div>
                       ) : (
                         <div className="flex items-center gap-1.5 bg-slate-900 p-1.5 rounded-lg border border-slate-800 flex-wrap">
@@ -3416,8 +3757,16 @@ export const CanonicalMatchCenter: React.FC = () => {
                             disabled={isSettling}
                             className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded text-xs font-medium transition-colors shadow-xs"
                           >
-                            {isSettling ? "核销中..." : "录入比分核销"}
+                            {isSettling ? "核销中..." : isSettled ? "重新核销" : "录入比分核销"}
                           </button>
+                          {isSettled && (
+                            <button
+                              onClick={() => setEditingSettleIds((prev) => ({ ...prev, [record.record_id]: false }))}
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded text-xs transition-colors"
+                            >
+                              取消
+                            </button>
+                          )}
                         </div>
                       )}
 
@@ -3485,8 +3834,11 @@ export const CanonicalMatchCenter: React.FC = () => {
                               <span className="text-slate-400">📅</span>
                               <span>{formatKickoffDateTime(record.kickoff_time, '赛前')}</span>
                             </span>
-                            <span className="text-[10px] text-blue-400 font-mono bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-900">
-                              推演时: {record.minute_or_status} ({record.score_at_prediction.home}-{record.score_at_prediction.away})
+                            <span className="text-[10px] text-cyan-300 font-mono bg-cyan-950/70 px-2 py-0.5 rounded border border-cyan-800/80 flex items-center gap-1 shadow-xs" title="推演建档时的比赛进行分钟与现场即时比分（滚球核销核心依据）">
+                              <span>⏱️ 推荐时:</span>
+                              <span className="font-semibold text-cyan-200">{record.minute_or_status || '赛前'}</span>
+                              <span className="text-slate-500">|</span>
+                              <span className="font-bold text-amber-300">比分: {getScoreAtPredictionString(record)}</span>
                             </span>
 
                             {/* 预测命中反思徽章 */}

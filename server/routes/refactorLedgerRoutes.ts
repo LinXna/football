@@ -19,7 +19,7 @@ import { LedgerPersistence } from "../../refactor/05_portfolio_risk/ledgerPersis
 import { UniverseLedgerPersistence } from "../../refactor/05_portfolio_risk/universeLedgerPersistence.js";
 import { evaluateQuarterSettlement, parseAsianLine, QuarterMarketCategory } from "../../refactor/06_settlement_audit/settlementEngine.js";
 import { convertFormalLedgerRecords } from "../../refactor/06_settlement_audit/formalLedgerAdapter.js";
-import { getOosStatus, ingestSettledRecordsAndPersist } from "../../refactor/06_settlement_audit/oosArchiveService.js";
+import { getOosStatus, ingestSettledRecordsAndPersist, removeSamplesAndRebuildArchive } from "../../refactor/06_settlement_audit/oosArchiveService.js";
 import { BettingStage, FormalRecommendation } from "../../refactor/05_portfolio_risk/types.js";
 import { AiEvaluationResult, EvaluatorPayload, RecommendedLeg } from "../../refactor/04_ai_evaluator/types.js";
 import { RecommendationGrade } from "../../refactor/04_ai_evaluator/enums.js";
@@ -420,12 +420,14 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
       }
 
       const isLive = bettingStage === "LIVE";
+      const isAhMarket = marketCategory.startsWith("SPREAD");
+      const resolvedBasis = targetRecord.leg?.basis || (isLive ? (isAhMarket ? "REMAINING_PERIOD_DOMINANCE" : "REMAINING_GOALS") : "FULL_MATCH");
       const settlementRes = evaluateQuarterSettlement({
         market_category: marketCategory,
         line: numericLine,
         odds: numericOdds,
         is_live: isLive,
-        basis: (targetRecord.leg?.basis as any) || (isLive ? "REMAINING_GOALS" : "FULL_MATCH"),
+        basis: resolvedBasis as any,
         score_at_rec: recScore,
         final_score: validFinalScore,
         score_verified: score_verified !== false
@@ -444,7 +446,7 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
 
       // 确保 leg.basis 符合标准枚举，防止 OOS 适配器拦截
       if (!targetRecord.leg?.basis || !["FULL_MATCH", "REMAINING_GOALS", "REMAINING_PERIOD_DOMINANCE"].includes(targetRecord.leg.basis)) {
-        targetRecord.leg.basis = isLive ? "REMAINING_GOALS" : "FULL_MATCH";
+        targetRecord.leg.basis = resolvedBasis as any;
       }
 
       // 保存更新后的台账
@@ -606,11 +608,83 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
     let formalSettled: any = null;
     let oosSampleIngested = false;
     const formalLedger = LedgerPersistence.loadLedger(bettingStage);
-    const formalTarget = formalLedger.find((r) => 
+    let formalTarget = formalLedger.find((r) => 
       r.record_id === record_id || 
       r.match_id === record_id ||
       (settledUniverse && r.match_id === settledUniverse.match_id)
     );
+
+    // 自动桥接机制：若该比赛在门禁中已被确认评定为 QUALIFIED_FORMAL（A/B 级可投注实盘推荐），
+    // 且正式台账中尚未建档，则自动将其建档入账，打通实盘与 OOS 样本自增链路
+    if (!formalTarget && settledUniverse && settledUniverse.gate_category === "QUALIFIED_FORMAL" && settledUniverse.predicted_direction) {
+      const dir = settledUniverse.predicted_direction;
+      const isAh = dir.market.includes("HANDICAP") || dir.market.includes("SPREAD");
+      const recH = settledUniverse.score_at_prediction?.home ?? 0;
+      const recA = settledUniverse.score_at_prediction?.away ?? 0;
+
+      const newFormal: FormalRecommendation = {
+        record_type: "formal_ai_recommendation",
+        formal_recommendation: true,
+        record_id: randomUUID(),
+        stage: bettingStage,
+        created_at_utc: settledUniverse.created_at_utc || new Date().toISOString(),
+        match_id: String(settledUniverse.match_id),
+        kickoff_time: settledUniverse.kickoff_time || new Date().toISOString(),
+        league_key: settledUniverse.league_key || "未知联赛",
+        teams: settledUniverse.teams,
+        candidate_pipeline_state: "COLD_START_PERMISSIVE",
+        oos_status: "OOS_COLD_START_EXEMPT",
+        condition_snapshot: {
+          match_minute: settledUniverse.minute_or_status || (bettingStage === "PREMATCH" ? "PREMATCH" : "LIVE"),
+          current_score: `${recH} - ${recA}`,
+          bdi: settledUniverse.quant_snapshot?.bdi || 0,
+          goal_phase_alert: "NONE",
+          machine_candidate_count: 1,
+          candidate_pipeline_state: "COLD_START_PERMISSIVE",
+          oos_status: "OOS_COLD_START_EXEMPT",
+          score_verified: true,
+          source: "YBTY",
+        },
+        ai_assessment: {
+          grade: (settledUniverse.ai_grade || "B") as any,
+          confidence_score: settledUniverse.ai_confidence || 75,
+          blind_spot_analysis: [] as any,
+          internal_logical_audit: [] as any,
+          qualitative_summary: settledUniverse.ai_summary || settledUniverse.gate_reason_description || "A/B 级可投注实盘推荐",
+        },
+        leg: {
+          market: dir.market,
+          selected_line: String(dir.line),
+          current_odds: dir.odds || 1.95,
+          minimum_acceptable_odds: dir.odds || 1.90,
+          direction: (dir.selection.includes("HOME") || dir.selection.includes("主")) ? "HOME"
+            : (dir.selection.includes("AWAY") || dir.selection.includes("客")) ? "AWAY"
+            : (dir.selection.includes("OVER") || dir.selection.includes("大")) ? "OVER" : "UNDER",
+          basis: bettingStage === "LIVE" ? (isAh ? "REMAINING_PERIOD_DOMINANCE" : "REMAINING_GOALS") : "FULL_MATCH",
+          oos_status: "OOS_COLD_START_EXEMPT",
+        },
+        prediction_snapshot: {
+          model_version: "layer03-v1",
+          prediction_at: settledUniverse.created_at_utc || new Date().toISOString(),
+          market: isAh ? "ASIAN_HANDICAP_MAIN" : "TOTAL_GOALS_MAIN",
+          line: String(dir.line),
+          odds: dir.odds || 1.95,
+          model_probability: dir.model_probability || 0.55,
+          predicted_lambda: {
+            home: settledUniverse.quant_snapshot?.lambda_home || 1.5,
+            away: settledUniverse.quant_snapshot?.lambda_away || 1.2,
+          },
+          minute: parseInt(String(settledUniverse.minute_or_status || "35").replace(/\D/g, ""), 10) || 35,
+          score_at_recommendation: `${recH} - ${recA}`,
+          score_verified: true,
+          score_source: "YBTY",
+          red_card_state: "0 - 0",
+        },
+      };
+
+      formalLedger.push(newFormal);
+      formalTarget = newFormal;
+    }
 
     if (formalTarget && !formalTarget.settlement?.is_settled) {
       const isLive = bettingStage === "LIVE";
@@ -627,12 +701,14 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
         }
       }
 
+      const isAhMarket = marketCategory.startsWith("SPREAD");
+      const resolvedBasis = formalTarget.leg?.basis || (isLive ? (isAhMarket ? "REMAINING_PERIOD_DOMINANCE" : "REMAINING_GOALS") : "FULL_MATCH");
       const settlementRes = evaluateQuarterSettlement({
         market_category: marketCategory,
         line: numericLine,
         odds: numericOdds,
         is_live: isLive,
-        basis: (formalTarget.leg?.basis as any) || (isLive ? "REMAINING_GOALS" : "FULL_MATCH"),
+        basis: resolvedBasis as any,
         score_at_rec: recScore,
         final_score: validFinalScore,
         score_verified: true
@@ -650,7 +726,7 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
       } as any;
 
       if (!formalTarget.leg?.basis || !["FULL_MATCH", "REMAINING_GOALS", "REMAINING_PERIOD_DOMINANCE"].includes(formalTarget.leg.basis)) {
-        formalTarget.leg.basis = isLive ? "REMAINING_GOALS" : "FULL_MATCH";
+        formalTarget.leg.basis = resolvedBasis as any;
       }
 
       const formalPath = path.join(
@@ -731,12 +807,13 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
           }
 
           const isAh = rec.prediction_snapshot?.market?.toUpperCase().includes("HANDICAP") || rec.prediction_snapshot?.market?.toUpperCase().includes("SPREAD");
+          const resolvedBasis = (rec.leg?.basis as any) || (stage === "LIVE" ? (isAh ? "REMAINING_PERIOD_DOMINANCE" : "REMAINING_GOALS") : "FULL_MATCH");
           const settlementRes = evaluateQuarterSettlement({
             market_category: isAh ? "SPREAD_HOME" : "TOTAL_OVER",
             line: numericLine,
             odds: numericOdds,
             is_live: stage === "LIVE",
-            basis: (rec.leg?.basis as any) || (stage === "LIVE" ? "REMAINING_GOALS" : "FULL_MATCH"),
+            basis: resolvedBasis,
             score_at_rec: recScore,
             final_score: finScore,
             score_verified: true,
@@ -753,7 +830,7 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
           };
 
           if (!rec.leg?.basis || !["FULL_MATCH", "REMAINING_GOALS", "REMAINING_PERIOD_DOMINANCE"].includes(rec.leg.basis)) {
-            rec.leg.basis = stage === "LIVE" ? "REMAINING_GOALS" : "FULL_MATCH";
+            rec.leg.basis = resolvedBasis;
           }
 
           changed = true;
@@ -850,6 +927,74 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
     } catch (e: any) {
       console.error("Batch unified settlement error:", e);
       return res.status(500).json({ success: false, error: e?.message || "批量核销异常" });
+    }
+  });
+
+  /**
+   * POST /api/refactor/settlement/reset
+   * 重置指定比赛或全部比赛的核销状态（支持单场回滚或全量回退至待核销状态，联动清理 OOS 样本）
+   */
+  app.post("/api/refactor/settlement/reset", (req, res) => {
+    try {
+      const { stage = "ALL", record_id } = req.body;
+      const stagesToReset: BettingStage[] = 
+        stage === "ALL" ? ["LIVE", "PREMATCH"] 
+        : stage === "PREMATCH" ? ["PREMATCH"] 
+        : ["LIVE"];
+
+      let universeResetCount = 0;
+      let formalResetCount = 0;
+
+      for (const st of stagesToReset) {
+        // 1. 重置 Universe Ledger
+        const uniRes = UniverseLedgerPersistence.resetSettlement(st, record_id);
+        universeResetCount += uniRes.reset_count;
+
+        // 2. 重置 Formal Ledger
+        const formalLedger = LedgerPersistence.loadLedger(st);
+        let formalChanged = false;
+        for (const rec of formalLedger) {
+          if (!record_id || rec.record_id === record_id || rec.match_id === record_id) {
+            if (rec.settlement?.is_settled) {
+              delete (rec as any).settlement;
+              formalChanged = true;
+              formalResetCount++;
+            }
+          }
+        }
+        if (formalChanged) {
+          const formalPath = path.join(
+            process.cwd(),
+            "refactor",
+            "runtime",
+            st === "LIVE" ? "formal_ledger_live.json" : "formal_ledger_prematch.json"
+          );
+          fs.writeFileSync(formalPath, JSON.stringify(formalLedger, null, 2), "utf8");
+        }
+      }
+
+      // 3. 联动清理对应 OOS 样本并重新编译档案
+      const oosRes = removeSamplesAndRebuildArchive(record_id);
+
+      // 4. 获取最新统计大盘与 OOS 状态
+      const summary = UniverseLedgerPersistence.getUniverseAttributionSummary(stage === "ALL" ? "ALL" : (stage as BettingStage));
+      const oosStatus = getOosStatus();
+
+      return res.json({
+        success: true,
+        message: record_id 
+          ? `已成功重置记录 [${record_id}] 的核销状态为待核销` 
+          : `已成功将 ${universeResetCount} 场比赛重置回待核销状态`,
+        universe_reset_count: universeResetCount,
+        formal_reset_count: formalResetCount,
+        oos_samples_removed: oosRes.removed_count,
+        oos_samples_remaining: oosRes.remaining_count,
+        summary,
+        oos_status: oosStatus,
+      });
+    } catch (e: any) {
+      console.error("Reset settlement error:", e);
+      return res.status(500).json({ success: false, error: e?.message || "重置核销状态异常" });
     }
   });
 
