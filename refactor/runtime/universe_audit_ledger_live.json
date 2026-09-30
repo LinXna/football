@@ -1,0 +1,402 @@
+[
+  {
+    "record_id": "uni_live_4558560_1790722611745",
+    "stage": "LIVE",
+    "created_at_utc": "2026-09-29T22:56:51.744Z",
+    "match_id": "4558560",
+    "kickoff_time": "2026-09-19 22:00:00",
+    "league_key": "英格兰超级联赛",
+    "teams": {
+      "home": "布莱顿",
+      "away": "阿森纳"
+    },
+    "minute_or_status": "34:50",
+    "score_at_prediction": {
+      "home": 1,
+      "away": 0
+    },
+    "score_verified": true,
+    "gate_category": "BLOCKED_BY_AI_WATCH",
+    "gate_reason_description": "大模型判定为观望拦截 (WATCH)",
+    "quant_snapshot": {
+      "lambda_home": 0.398,
+      "lambda_away": 1.369,
+      "forward_goals_expected": 1.767,
+      "projected_final_score": "1-1",
+      "top_scores": [
+        {
+          "score": "1-1",
+          "probability": 0.2385
+        },
+        {
+          "score": "1-0",
+          "probability": 0.1662
+        },
+        {
+          "score": "1-2",
+          "probability": 0.1601
+        },
+        {
+          "score": "2-1",
+          "probability": 0.0884
+        },
+        {
+          "score": "1-3",
+          "probability": 0.0731
+        }
+      ],
+      "bdi": 32.21,
+      "ah_line": 0.75,
+      "ou_line": null,
+      "markets": {
+        "ah_home_odds": 1.98,
+        "ah_away_odds": 1.92,
+        "ou_over_odds": 1.86,
+        "ou_under_odds": 2.02,
+        "h2h_home": 2.17,
+        "h2h_draw": 3.4,
+        "h2h_away": 3.35
+      },
+      "ev_direction": null,
+      "ev_value": null,
+      "candidate_pipeline_state": "DATA_LOCKED"
+    },
+    "predicted_direction": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selection": "AWAY -0.75",
+      "line": 0.75,
+      "odds": 1.95,
+      "model_probability": 0.45
+    },
+    "settlement": {
+      "is_settled": true,
+      "settled_at": "2026-09-30T13:20:42.480Z",
+      "final_score": {
+        "home": 3,
+        "away": 0
+      },
+      "final_score_source": "雷速比分画布/接口校验",
+      "outcome": "LOSE",
+      "profit_loss": -1,
+      "explanation": "Spread (Away): Away (0) - Home (3) = -3. Split: 0.5 -> LOSE, 1 -> LOSE",
+      "attribution": {
+        "is_gate_correct": true,
+        "is_false_negative": false,
+        "verdict_label": "SUCCESSFUL_AVOIDANCE",
+        "notes": "🛡️ 避坑成功：门禁【BLOCKED_BY_AI_WATCH】拦截正确，该被拦截比赛实际未打出 (Spread (Away): Away (0) - Home (3) = -3. Split: 0.5 -> LOSE, 1 -> LOSE)"
+      },
+      "reflection": {
+        "actual_total_goals": 3,
+        "goal_diff_actual": 3,
+        "score_hit": false,
+        "exact_score_hit": false,
+        "ah_outcome": "WIN",
+        "ou_outcome": null,
+        "diagnostic_notes": "⚠️ 偏差反思：实际赛果 3-0 未进入前三预测概率区 (模型首选 1-1)。"
+      }
+    },
+    "ai_grade": "WATCH",
+    "ai_confidence": 52,
+    "ai_summary": "Mathematically open line with positive raw EV, but execution is blocked due to low model stability (52/100) and post-goal window locking."
+  },
+  {
+    "record_id": "uni_live_4558575_1790722611745",
+    "stage": "LIVE",
+    "created_at_utc": "2026-09-29T22:56:51.744Z",
+    "match_id": "4558575",
+    "kickoff_time": "2026-09-19 22:00:00",
+    "league_key": "英格兰超级联赛",
+    "teams": {
+      "home": "纽卡斯尔联",
+      "away": "赫尔城"
+    },
+    "minute_or_status": "34:59",
+    "score_at_prediction": {
+      "home": 2,
+      "away": 0
+    },
+    "score_verified": true,
+    "gate_category": "QUALIFIED_FORMAL",
+    "gate_reason_description": "A/B 级可投注审核通过 (AI评级: B, 置信度: 79)",
+    "quant_snapshot": {
+      "lambda_home": 2.588,
+      "lambda_away": 0.442,
+      "forward_goals_expected": 3.03,
+      "projected_final_score": "4-0",
+      "top_scores": [
+        {
+          "score": "4-0",
+          "probability": 0.1618
+        },
+        {
+          "score": "5-0",
+          "probability": 0.1396
+        },
+        {
+          "score": "3-0",
+          "probability": 0.1278
+        },
+        {
+          "score": "6-0",
+          "probability": 0.0903
+        },
+        {
+          "score": "4-1",
+          "probability": 0.0715
+        }
+      ],
+      "bdi": 28.04,
+      "ah_line": -0.5,
+      "ou_line": 4,
+      "markets": {
+        "ah_home_odds": 2.11,
+        "ah_away_odds": 1.8,
+        "ou_over_odds": 2.06,
+        "ou_under_odds": 1.82,
+        "h2h_home": 1.05,
+        "h2h_draw": 13,
+        "h2h_away": 37
+      },
+      "ev_direction": null,
+      "ev_value": null,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE"
+    },
+    "predicted_direction": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selection": "HOME -0.5",
+      "line": -0.5,
+      "odds": 1.95,
+      "model_probability": 0.55
+    },
+    "settlement": {
+      "is_settled": true,
+      "settled_at": "2026-09-30T13:20:44.492Z",
+      "final_score": {
+        "home": 2,
+        "away": 1
+      },
+      "final_score_source": "雷速比分画布/接口校验",
+      "outcome": "WIN",
+      "profit_loss": 0.95,
+      "explanation": "Spread (Home): Home (2) - Away (1) = 1",
+      "attribution": {
+        "is_gate_correct": false,
+        "is_false_negative": false,
+        "verdict_label": "FORMAL_WIN",
+        "notes": "✅ 实盘推荐命中：A/B 级可投注方向打出"
+      },
+      "reflection": {
+        "actual_total_goals": 3,
+        "goal_diff_actual": 1,
+        "score_hit": false,
+        "exact_score_hit": false,
+        "ah_outcome": "WIN",
+        "ou_outcome": "LOSE",
+        "diagnostic_notes": "⚠️ 偏差反思：实际赛果 2-1 未进入前三预测概率区 (模型首选 4-0)。"
+      }
+    },
+    "ai_grade": "B",
+    "ai_confidence": 79,
+    "ai_summary": "High positive EV on Newcastle rest-of-match spread supported by strong live physical metrics and verified scoreline under cold-start permissive exemption."
+  },
+  {
+    "record_id": "uni_live_4558562_1790722611745",
+    "stage": "LIVE",
+    "created_at_utc": "2026-09-29T22:56:51.744Z",
+    "match_id": "4558562",
+    "kickoff_time": "2026-09-19 22:00:00",
+    "league_key": "英格兰超级联赛",
+    "teams": {
+      "home": "埃弗顿",
+      "away": "伊普斯维奇"
+    },
+    "minute_or_status": "34:40",
+    "score_at_prediction": {
+      "home": 1,
+      "away": 0
+    },
+    "score_verified": true,
+    "gate_category": "BLOCKED_BY_AI_WATCH",
+    "gate_reason_description": "大模型判定为观望拦截 (WATCH)",
+    "quant_snapshot": {
+      "lambda_home": 2.235,
+      "lambda_away": 0.695,
+      "forward_goals_expected": 2.93,
+      "projected_final_score": "3-0",
+      "top_scores": [
+        {
+          "score": "3-0",
+          "probability": 0.1334
+        },
+        {
+          "score": "2-0",
+          "probability": 0.1235
+        },
+        {
+          "score": "4-0",
+          "probability": 0.0994
+        },
+        {
+          "score": "3-1",
+          "probability": 0.0927
+        },
+        {
+          "score": "2-1",
+          "probability": 0.0788
+        }
+      ],
+      "bdi": 15.23,
+      "ah_line": -0.25,
+      "ou_line": null,
+      "markets": {
+        "ah_home_odds": 1.99,
+        "ah_away_odds": 1.91,
+        "ou_over_odds": 1.86,
+        "ou_under_odds": 2.02,
+        "h2h_home": 1.31,
+        "h2h_draw": 5.1,
+        "h2h_away": 10
+      },
+      "ev_direction": null,
+      "ev_value": null,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE"
+    },
+    "predicted_direction": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selection": "HOME -0.25",
+      "line": -0.25,
+      "odds": 1.95,
+      "model_probability": 0.55
+    },
+    "settlement": {
+      "is_settled": true,
+      "settled_at": "2026-09-30T13:20:45.913Z",
+      "final_score": {
+        "home": 1,
+        "away": 0
+      },
+      "final_score_source": "雷速比分画布/接口校验",
+      "outcome": "WIN",
+      "profit_loss": 0.95,
+      "explanation": "Spread (Home): Home (1) - Away (0) = 1. Split: -0.5 -> WIN, 0 -> WIN",
+      "attribution": {
+        "is_gate_correct": false,
+        "is_false_negative": true,
+        "verdict_label": "MODEL_FALSE_NEGATIVE",
+        "notes": "⚠️ 模型误杀：门禁【BLOCKED_BY_AI_WATCH】拦截过于保守，该比赛实际打出 (Spread (Home): Home (1) - Away (0) = 1. Split: -0.5 -> WIN, 0 -> WIN)"
+      },
+      "reflection": {
+        "actual_total_goals": 1,
+        "goal_diff_actual": 1,
+        "score_hit": false,
+        "exact_score_hit": false,
+        "ah_outcome": "WIN",
+        "ou_outcome": null,
+        "diagnostic_notes": "⚠️ 偏差反思：实际赛果 1-0 未进入前三预测概率区 (模型首选 3-0)。"
+      }
+    },
+    "ai_grade": "WATCH",
+    "ai_confidence": 78,
+    "ai_summary": "High raw EV signal blocked by confirmed trap detection as live physical metrics (Ipswich xT and momentum dominance) strongly contradict engine home spread pricing."
+  },
+  {
+    "record_id": "uni_live_4467625_1790722611745",
+    "stage": "LIVE",
+    "created_at_utc": "2026-09-29T22:56:51.744Z",
+    "match_id": "4467625",
+    "kickoff_time": "2026-09-19 22:00:00",
+    "league_key": "挪威超级联赛",
+    "teams": {
+      "home": "克里斯蒂安松",
+      "away": "罗森博格"
+    },
+    "minute_or_status": "33:41",
+    "score_at_prediction": {
+      "home": 1,
+      "away": 1
+    },
+    "score_verified": true,
+    "gate_category": "BLOCKED_BY_AI_WATCH",
+    "gate_reason_description": "大模型判定为观望拦截 (WATCH)",
+    "quant_snapshot": {
+      "lambda_home": 0.44,
+      "lambda_away": 1.195,
+      "forward_goals_expected": 1.635,
+      "projected_final_score": "1-2",
+      "top_scores": [
+        {
+          "score": "1-2",
+          "probability": 0.2381
+        },
+        {
+          "score": "1-1",
+          "probability": 0.1898
+        },
+        {
+          "score": "1-3",
+          "probability": 0.1392
+        },
+        {
+          "score": "2-2",
+          "probability": 0.0974
+        },
+        {
+          "score": "2-1",
+          "probability": 0.0909
+        }
+      ],
+      "bdi": -18.56,
+      "ah_line": 0.75,
+      "ou_line": null,
+      "markets": {
+        "ah_home_odds": 1.96,
+        "ah_away_odds": 1.92,
+        "ou_over_odds": 1.97,
+        "ou_under_odds": 1.89,
+        "h2h_home": 4.8,
+        "h2h_draw": 3.4,
+        "h2h_away": 1.71
+      },
+      "ev_direction": null,
+      "ev_value": null,
+      "candidate_pipeline_state": "DATA_LOCKED"
+    },
+    "predicted_direction": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selection": "AWAY -0.75",
+      "line": 0.75,
+      "odds": 1.95,
+      "model_probability": 0.45
+    },
+    "settlement": {
+      "is_settled": true,
+      "settled_at": "2026-09-30T13:20:47.160Z",
+      "final_score": {
+        "home": 1,
+        "away": 3
+      },
+      "final_score_source": "雷速比分画布/接口校验",
+      "outcome": "WIN",
+      "profit_loss": 0.95,
+      "explanation": "Spread (Away): Away (3) - Home (1) = 2. Split: 0.5 -> WIN, 1 -> WIN",
+      "attribution": {
+        "is_gate_correct": false,
+        "is_false_negative": true,
+        "verdict_label": "MODEL_FALSE_NEGATIVE",
+        "notes": "⚠️ 模型误杀：门禁【BLOCKED_BY_AI_WATCH】拦截过于保守，该比赛实际打出 (Spread (Away): Away (3) - Home (1) = 2. Split: 0.5 -> WIN, 1 -> WIN)"
+      },
+      "reflection": {
+        "actual_total_goals": 4,
+        "goal_diff_actual": -2,
+        "score_hit": true,
+        "exact_score_hit": false,
+        "ah_outcome": "LOSE",
+        "ou_outcome": null,
+        "diagnostic_notes": "✅ 命中预期：实际赛果 1-3 落入模型 Top 3 预测分布。"
+      }
+    },
+    "ai_grade": "WATCH",
+    "ai_confidence": 74,
+    "ai_summary": "Under 4.0 total goals line is mathematically open with positive EV, but active post-goal cooling window lock prevents immediate execution."
+  }
+]

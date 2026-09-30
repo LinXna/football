@@ -1,0 +1,677 @@
+[
+  {
+    "record_id": "uni_prematch_4558560_1790722611790",
+    "stage": "PREMATCH",
+    "created_at_utc": "2026-09-29T22:56:51.790Z",
+    "match_id": "4558560",
+    "kickoff_time": "2026-09-19 22:00:00",
+    "league_key": "英格兰超级联赛",
+    "teams": {
+      "home": "布莱顿",
+      "away": "阿森纳"
+    },
+    "minute_or_status": "即将开赛",
+    "score_at_prediction": {
+      "home": 0,
+      "away": 0
+    },
+    "score_verified": false,
+    "gate_category": "BLOCKED_BY_AI_WATCH",
+    "gate_reason_description": "大模型判定为观望拦截 (WATCH)",
+    "quant_snapshot": {
+      "lambda_home": 0.743,
+      "lambda_away": 1.923,
+      "forward_goals_expected": 2.666,
+      "projected_final_score": "0-1",
+      "top_scores": [
+        {
+          "score": "0-1",
+          "probability": 0.1387
+        },
+        {
+          "score": "0-2",
+          "probability": 0.1286
+        },
+        {
+          "score": "1-2",
+          "probability": 0.0955
+        },
+        {
+          "score": "1-1",
+          "probability": 0.0944
+        },
+        {
+          "score": "0-3",
+          "probability": 0.0824
+        }
+      ],
+      "bdi": 0,
+      "ah_line": 0.75,
+      "ou_line": 2.5,
+      "markets": {
+        "ah_home_odds": 2.05,
+        "ah_away_odds": 1.85,
+        "ou_over_odds": 1.79,
+        "ou_under_odds": 2.09,
+        "h2h_home": 4.95,
+        "h2h_draw": 4.1,
+        "h2h_away": 1.64
+      },
+      "ev_direction": null,
+      "ev_value": null,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE"
+    },
+    "predicted_direction": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selection": "AWAY -0.75",
+      "line": 0.75,
+      "odds": 1.95,
+      "model_probability": 0.45
+    },
+    "settlement": {
+      "is_settled": false,
+      "outcome": "PENDING"
+    },
+    "ai_grade": "WATCH",
+    "ai_confidence": 52,
+    "ai_summary": "Mathematically open line with positive raw EV, but execution is blocked due to low model stability (52/100) and post-goal window locking."
+  },
+  {
+    "record_id": "uni_prematch_4558575_1790722611790",
+    "stage": "PREMATCH",
+    "created_at_utc": "2026-09-29T22:56:51.790Z",
+    "match_id": "4558575",
+    "kickoff_time": "2026-09-19 22:00:00",
+    "league_key": "英格兰超级联赛",
+    "teams": {
+      "home": "纽卡斯尔联",
+      "away": "赫尔城"
+    },
+    "minute_or_status": "即将开赛",
+    "score_at_prediction": {
+      "home": 0,
+      "away": 0
+    },
+    "score_verified": false,
+    "gate_category": "QUALIFIED_FORMAL",
+    "gate_reason_description": "A/B 级可投注审核通过 (AI评级: B, 置信度: 79)",
+    "quant_snapshot": {
+      "lambda_home": 2.781,
+      "lambda_away": 0.629,
+      "forward_goals_expected": 3.41,
+      "projected_final_score": "2-0",
+      "top_scores": [
+        {
+          "score": "2-0",
+          "probability": 0.1278
+        },
+        {
+          "score": "3-0",
+          "probability": 0.1184
+        },
+        {
+          "score": "1-0",
+          "probability": 0.0948
+        },
+        {
+          "score": "4-0",
+          "probability": 0.0823
+        },
+        {
+          "score": "2-1",
+          "probability": 0.0804
+        }
+      ],
+      "bdi": 0,
+      "ah_line": -1,
+      "ou_line": 3,
+      "markets": {
+        "ah_home_odds": 2.06,
+        "ah_away_odds": 1.84,
+        "ou_over_odds": 1.91,
+        "ou_under_odds": 1.97,
+        "h2h_home": 1.61,
+        "h2h_draw": 4.45,
+        "h2h_away": 4.8
+      },
+      "ev_direction": null,
+      "ev_value": null,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE"
+    },
+    "predicted_direction": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selection": "HOME -1",
+      "line": -1,
+      "odds": 1.95,
+      "model_probability": 0.55
+    },
+    "settlement": {
+      "is_settled": false,
+      "outcome": "PENDING"
+    },
+    "ai_grade": "B",
+    "ai_confidence": 79,
+    "ai_summary": "High positive EV on Newcastle rest-of-match spread supported by strong live physical metrics and verified scoreline under cold-start permissive exemption."
+  },
+  {
+    "record_id": "uni_prematch_4558562_1790722611790",
+    "stage": "PREMATCH",
+    "created_at_utc": "2026-09-29T22:56:51.790Z",
+    "match_id": "4558562",
+    "kickoff_time": "2026-09-19 22:00:00",
+    "league_key": "英格兰超级联赛",
+    "teams": {
+      "home": "埃弗顿",
+      "away": "伊普斯维奇"
+    },
+    "minute_or_status": "即将开赛",
+    "score_at_prediction": {
+      "home": 0,
+      "away": 0
+    },
+    "score_verified": false,
+    "gate_category": "BLOCKED_BY_AI_WATCH",
+    "gate_reason_description": "大模型判定为观望拦截 (WATCH)",
+    "quant_snapshot": {
+      "lambda_home": 2.489,
+      "lambda_away": 0.809,
+      "forward_goals_expected": 3.298,
+      "projected_final_score": "2-0",
+      "top_scores": [
+        {
+          "score": "2-0",
+          "probability": 0.1145
+        },
+        {
+          "score": "1-0",
+          "probability": 0.0957
+        },
+        {
+          "score": "3-0",
+          "probability": 0.095
+        },
+        {
+          "score": "2-1",
+          "probability": 0.0926
+        },
+        {
+          "score": "3-1",
+          "probability": 0.0768
+        }
+      ],
+      "bdi": 0,
+      "ah_line": -0.75,
+      "ou_line": null,
+      "markets": {
+        "ah_home_odds": 1.94,
+        "ah_away_odds": 1.96,
+        "ou_over_odds": 1.88,
+        "ou_under_odds": 2,
+        "h2h_home": 1.73,
+        "h2h_draw": 3.95,
+        "h2h_away": 4.4
+      },
+      "ev_direction": null,
+      "ev_value": null,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE"
+    },
+    "predicted_direction": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selection": "HOME -0.75",
+      "line": -0.75,
+      "odds": 1.95,
+      "model_probability": 0.55
+    },
+    "settlement": {
+      "is_settled": false,
+      "outcome": "PENDING"
+    },
+    "ai_grade": "WATCH",
+    "ai_confidence": 78,
+    "ai_summary": "High raw EV signal blocked by confirmed trap detection as live physical metrics (Ipswich xT and momentum dominance) strongly contradict engine home spread pricing."
+  },
+  {
+    "record_id": "uni_prematch_4563588_1790722611790",
+    "stage": "PREMATCH",
+    "created_at_utc": "2026-09-29T22:56:51.790Z",
+    "match_id": "4563588",
+    "kickoff_time": "2026-09-19 22:00:00",
+    "league_key": "英格兰冠军联赛",
+    "teams": {
+      "home": "伯明翰",
+      "away": "米德尔斯堡"
+    },
+    "minute_or_status": "即将开赛",
+    "score_at_prediction": {
+      "home": 0,
+      "away": 0
+    },
+    "score_verified": false,
+    "gate_category": "BLOCKED_NO_POSITIVE_EV",
+    "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
+    "quant_snapshot": {
+      "lambda_home": 1.212,
+      "lambda_away": 1.314,
+      "forward_goals_expected": 2.526,
+      "projected_final_score": "1-1",
+      "top_scores": [
+        {
+          "score": "1-1",
+          "probability": 0.121
+        },
+        {
+          "score": "0-1",
+          "probability": 0.1115
+        },
+        {
+          "score": "1-0",
+          "probability": 0.1033
+        },
+        {
+          "score": "1-2",
+          "probability": 0.0837
+        },
+        {
+          "score": "2-1",
+          "probability": 0.0772
+        }
+      ],
+      "bdi": 0,
+      "ah_line": 0.25,
+      "ou_line": null,
+      "markets": {
+        "ah_home_odds": 1.81,
+        "ah_away_odds": 2.07,
+        "ou_over_odds": 1.87,
+        "ou_under_odds": 1.99,
+        "h2h_home": 2.72,
+        "h2h_draw": 3.65,
+        "h2h_away": 2.25
+      },
+      "ev_direction": null,
+      "ev_value": null,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE"
+    },
+    "predicted_direction": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selection": "AWAY -0.25",
+      "line": 0.25,
+      "odds": 1.95,
+      "model_probability": 0.45
+    },
+    "settlement": {
+      "is_settled": false,
+      "outcome": "PENDING"
+    }
+  },
+  {
+    "record_id": "uni_prematch_4563593_1790722611790",
+    "stage": "PREMATCH",
+    "created_at_utc": "2026-09-29T22:56:51.790Z",
+    "match_id": "4563593",
+    "kickoff_time": "2026-09-19 22:00:00",
+    "league_key": "英格兰冠军联赛",
+    "teams": {
+      "home": "朴茨茅斯",
+      "away": "布莱克本"
+    },
+    "minute_or_status": "即将开赛",
+    "score_at_prediction": {
+      "home": 0,
+      "away": 0
+    },
+    "score_verified": false,
+    "gate_category": "BLOCKED_NO_POSITIVE_EV",
+    "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
+    "quant_snapshot": {
+      "lambda_home": 1.272,
+      "lambda_away": 0.765,
+      "forward_goals_expected": 2.037,
+      "projected_final_score": "1-0",
+      "top_scores": [
+        {
+          "score": "1-0",
+          "probability": 0.1722
+        },
+        {
+          "score": "0-0",
+          "probability": 0.1241
+        },
+        {
+          "score": "1-1",
+          "probability": 0.1206
+        },
+        {
+          "score": "0-1",
+          "probability": 0.1061
+        },
+        {
+          "score": "2-0",
+          "probability": 0.1055
+        }
+      ],
+      "bdi": 0,
+      "ah_line": -0.25,
+      "ou_line": null,
+      "markets": {
+        "ah_home_odds": 1.93,
+        "ah_away_odds": 1.95,
+        "ou_over_odds": 1.84,
+        "ou_under_odds": 2.02,
+        "h2h_home": 2.23,
+        "h2h_draw": 3.25,
+        "h2h_away": 3.05
+      },
+      "ev_direction": null,
+      "ev_value": null,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE"
+    },
+    "predicted_direction": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selection": "HOME -0.25",
+      "line": -0.25,
+      "odds": 1.95,
+      "model_probability": 0.55
+    },
+    "settlement": {
+      "is_settled": false,
+      "outcome": "PENDING"
+    }
+  },
+  {
+    "record_id": "uni_prematch_4563598_1790722611791",
+    "stage": "PREMATCH",
+    "created_at_utc": "2026-09-29T22:56:51.790Z",
+    "match_id": "4563598",
+    "kickoff_time": "2026-09-19 22:00:00",
+    "league_key": "英格兰冠军联赛",
+    "teams": {
+      "home": "林肯城",
+      "away": "斯旺西"
+    },
+    "minute_or_status": "即将开赛",
+    "score_at_prediction": {
+      "home": 0,
+      "away": 0
+    },
+    "score_verified": false,
+    "gate_category": "BLOCKED_NO_POSITIVE_EV",
+    "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
+    "quant_snapshot": {
+      "lambda_home": 0.711,
+      "lambda_away": 1.379,
+      "forward_goals_expected": 2.09,
+      "projected_final_score": "0-1",
+      "top_scores": [
+        {
+          "score": "0-1",
+          "probability": 0.1766
+        },
+        {
+          "score": "0-0",
+          "probability": 0.1176
+        },
+        {
+          "score": "0-2",
+          "probability": 0.1176
+        },
+        {
+          "score": "1-1",
+          "probability": 0.1152
+        },
+        {
+          "score": "1-0",
+          "probability": 0.094
+        }
+      ],
+      "bdi": 0,
+      "ah_line": 0.25,
+      "ou_line": null,
+      "markets": {
+        "ah_home_odds": 1.85,
+        "ah_away_odds": 2.03,
+        "ou_over_odds": 1.88,
+        "ou_under_odds": 1.98,
+        "h2h_home": 2.91,
+        "h2h_draw": 3.35,
+        "h2h_away": 2.26
+      },
+      "ev_direction": null,
+      "ev_value": null,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE"
+    },
+    "predicted_direction": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selection": "AWAY -0.25",
+      "line": 0.25,
+      "odds": 1.95,
+      "model_probability": 0.45
+    },
+    "settlement": {
+      "is_settled": false,
+      "outcome": "PENDING"
+    }
+  },
+  {
+    "record_id": "uni_prematch_4563590_1790722611791",
+    "stage": "PREMATCH",
+    "created_at_utc": "2026-09-29T22:56:51.790Z",
+    "match_id": "4563590",
+    "kickoff_time": "2026-09-19 22:00:00",
+    "league_key": "英格兰冠军联赛",
+    "teams": {
+      "home": "伯恩利",
+      "away": "德比郡"
+    },
+    "minute_or_status": "即将开赛",
+    "score_at_prediction": {
+      "home": 0,
+      "away": 0
+    },
+    "score_verified": false,
+    "gate_category": "BLOCKED_NO_POSITIVE_EV",
+    "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
+    "quant_snapshot": {
+      "lambda_home": 1.809,
+      "lambda_away": 0.673,
+      "forward_goals_expected": 2.482,
+      "projected_final_score": "1-0",
+      "top_scores": [
+        {
+          "score": "1-0",
+          "probability": 0.1563
+        },
+        {
+          "score": "2-0",
+          "probability": 0.1368
+        },
+        {
+          "score": "1-1",
+          "probability": 0.0967
+        },
+        {
+          "score": "2-1",
+          "probability": 0.092
+        },
+        {
+          "score": "3-0",
+          "probability": 0.0825
+        }
+      ],
+      "bdi": 0,
+      "ah_line": -0.75,
+      "ou_line": null,
+      "markets": {
+        "ah_home_odds": 2.06,
+        "ah_away_odds": 1.82,
+        "ou_over_odds": 2.01,
+        "ou_under_odds": 1.85,
+        "h2h_home": 1.79,
+        "h2h_draw": 3.5,
+        "h2h_away": 3.95
+      },
+      "ev_direction": null,
+      "ev_value": null,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE"
+    },
+    "predicted_direction": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selection": "HOME -0.75",
+      "line": -0.75,
+      "odds": 1.95,
+      "model_probability": 0.55
+    },
+    "settlement": {
+      "is_settled": false,
+      "outcome": "PENDING"
+    }
+  },
+  {
+    "record_id": "uni_prematch_4563599_1790722611791",
+    "stage": "PREMATCH",
+    "created_at_utc": "2026-09-29T22:56:51.790Z",
+    "match_id": "4563599",
+    "kickoff_time": "2026-09-19 22:00:00",
+    "league_key": "英格兰冠军联赛",
+    "teams": {
+      "home": "威斯汉姆",
+      "away": "南安普顿"
+    },
+    "minute_or_status": "即将开赛",
+    "score_at_prediction": {
+      "home": 0,
+      "away": 0
+    },
+    "score_verified": false,
+    "gate_category": "BLOCKED_NO_POSITIVE_EV",
+    "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
+    "quant_snapshot": {
+      "lambda_home": 1.187,
+      "lambda_away": 1.398,
+      "forward_goals_expected": 2.585,
+      "projected_final_score": "1-1",
+      "top_scores": [
+        {
+          "score": "1-1",
+          "probability": 0.1189
+        },
+        {
+          "score": "0-1",
+          "probability": 0.1117
+        },
+        {
+          "score": "1-0",
+          "probability": 0.0958
+        },
+        {
+          "score": "1-2",
+          "probability": 0.0875
+        },
+        {
+          "score": "2-1",
+          "probability": 0.0743
+        }
+      ],
+      "bdi": 0,
+      "ah_line": 0,
+      "ou_line": null,
+      "markets": {
+        "ah_home_odds": 1.88,
+        "ah_away_odds": 2,
+        "ou_over_odds": 1.91,
+        "ou_under_odds": 1.95,
+        "h2h_home": 2.46,
+        "h2h_draw": 3.65,
+        "h2h_away": 2.48
+      },
+      "ev_direction": null,
+      "ev_value": null,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE"
+    },
+    "predicted_direction": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selection": "AWAY 0",
+      "line": 0,
+      "odds": 1.95,
+      "model_probability": 0.45
+    },
+    "settlement": {
+      "is_settled": false,
+      "outcome": "PENDING"
+    }
+  },
+  {
+    "record_id": "uni_prematch_4563594_1790722611791",
+    "stage": "PREMATCH",
+    "created_at_utc": "2026-09-29T22:56:51.790Z",
+    "match_id": "4563594",
+    "kickoff_time": "2026-09-19 22:00:00",
+    "league_key": "英格兰冠军联赛",
+    "teams": {
+      "home": "女王公园巡游者",
+      "away": "普雷斯顿"
+    },
+    "minute_or_status": "即将开赛",
+    "score_at_prediction": {
+      "home": 0,
+      "away": 0
+    },
+    "score_verified": false,
+    "gate_category": "BLOCKED_NO_POSITIVE_EV",
+    "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
+    "quant_snapshot": {
+      "lambda_home": 1.536,
+      "lambda_away": 0.801,
+      "forward_goals_expected": 2.337,
+      "projected_final_score": "1-0",
+      "top_scores": [
+        {
+          "score": "1-0",
+          "probability": 0.1543
+        },
+        {
+          "score": "2-0",
+          "probability": 0.114
+        },
+        {
+          "score": "1-1",
+          "probability": 0.1129
+        },
+        {
+          "score": "2-1",
+          "probability": 0.0913
+        },
+        {
+          "score": "0-0",
+          "probability": 0.0907
+        }
+      ],
+      "bdi": 0,
+      "ah_line": -0.75,
+      "ou_line": null,
+      "markets": {
+        "ah_home_odds": 1.99,
+        "ah_away_odds": 1.89,
+        "ou_over_odds": 1.99,
+        "ou_under_odds": 1.87,
+        "h2h_home": 1.75,
+        "h2h_draw": 3.65,
+        "h2h_away": 4.2
+      },
+      "ev_direction": null,
+      "ev_value": null,
+      "candidate_pipeline_state": "COLD_START_PERMISSIVE"
+    },
+    "predicted_direction": {
+      "market": "ASIAN_HANDICAP_MAIN",
+      "selection": "HOME -0.75",
+      "line": -0.75,
+      "odds": 1.95,
+      "model_probability": 0.55
+    },
+    "settlement": {
+      "is_settled": false,
+      "outcome": "PENDING"
+    }
+  }
+]

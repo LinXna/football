@@ -1,7 +1,8 @@
 import { Express, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
-import { MatchArchiveStore } from "../services/matchArchiveStore";
+import { UniverseLedgerPersistence } from "../../refactor/05_portfolio_risk/universeLedgerPersistence.js";
+import { UniverseAuditRecord } from "../../refactor/05_portfolio_risk/types.js";
 
 const REFACTOR_STORAGE = {
   liveLeisuActive: path.resolve(process.cwd(), "refactor/runtime/active_leisu_live.json"),
@@ -10,16 +11,75 @@ const REFACTOR_STORAGE = {
   prematchLeisuDefault: path.resolve(process.cwd(), "output/leisu_prematch_latest.json"),
 };
 
+function mapUniverseToArchivedRecord(r: UniverseAuditRecord) {
+  const quant = r.quant_snapshot;
+  const isSettled = r.settlement?.is_settled === true;
+
+  return {
+    archive_id: r.record_id,
+    canonical_id: r.match_id,
+    match_slug: `${r.teams.home}_vs_${r.teams.away}`,
+    mode: r.stage === "LIVE" ? "live" : "prematch",
+    stage: r.stage,
+    created_at: r.created_at_utc,
+    updated_at: r.settlement?.settled_at || r.created_at_utc,
+    league_name: r.league_key,
+    home_team_name: r.teams.home,
+    away_team_name: r.teams.away,
+    commence_time: r.kickoff_time || null,
+    calculation_snapshot: {
+      minute_or_status: r.minute_or_status,
+      score_at_calculation: r.score_at_prediction,
+      score_verified: r.score_verified,
+      markets: {
+        ah_line: quant.ah_line,
+        ah_home_odds: quant.markets?.ah_home_odds ?? null,
+        ah_away_odds: quant.markets?.ah_away_odds ?? null,
+        ou_line: quant.ou_line,
+        ou_over_odds: quant.markets?.ou_over_odds ?? null,
+        ou_under_odds: quant.markets?.ou_under_odds ?? null,
+        h2h_home: quant.markets?.h2h_home ?? null,
+        h2h_draw: quant.markets?.h2h_draw ?? null,
+        h2h_away: quant.markets?.h2h_away ?? null,
+      },
+      quant: {
+        lambda_home: quant.lambda_home,
+        lambda_away: quant.lambda_away,
+        forward_goals_expected: quant.forward_goals_expected,
+        projected_final_score: quant.projected_final_score,
+        top_scores: quant.top_scores || [],
+        bdi: quant.bdi,
+        candidate_pipeline_state: quant.candidate_pipeline_state,
+      },
+    },
+    settlement_status: isSettled ? "SETTLED" : "PENDING",
+    finished_score: r.settlement?.final_score || null,
+    finished_score_source: r.settlement?.final_score_source || null,
+    settled_at: r.settlement?.settled_at || null,
+    reflection: isSettled && r.settlement?.reflection ? {
+      actual_total_goals: r.settlement.reflection.actual_total_goals,
+      goal_diff_actual: r.settlement.reflection.goal_diff_actual,
+      score_hit: r.settlement.reflection.score_hit,
+      exact_score_hit: r.settlement.reflection.exact_score_hit,
+      ah_outcome: r.settlement.reflection.ah_outcome || null,
+      ou_outcome: r.settlement.reflection.ou_outcome || null,
+      diagnostic_notes: r.settlement.reflection.diagnostic_notes,
+    } : null,
+  };
+}
+
 export function registerMatchArchiveRoutes(app: Express) {
   /**
    * GET /api/refactor/match-archive
-   * 获取所有建档赛事的预测快照、核销状态与赛后反思记录
+   * 获取所有建档赛事的预测快照、核销状态与赛后反思记录 (直接由底层 UniverseLedgerPersistence 驱动)
    */
   app.get("/api/refactor/match-archive", (req: Request, res: Response) => {
     try {
       const mode = req.query.mode as string | undefined;
       const status = req.query.status as string | undefined;
-      let records = MatchArchiveStore.loadArchive();
+      const liveRecords = UniverseLedgerPersistence.loadLedger("LIVE");
+      const prematchRecords = UniverseLedgerPersistence.loadLedger("PREMATCH");
+      let records = [...liveRecords, ...prematchRecords].map(mapUniverseToArchivedRecord);
 
       if (mode === "live" || mode === "prematch") {
         records = records.filter((r) => r.mode === mode);
@@ -66,7 +126,6 @@ export function registerMatchArchiveRoutes(app: Express) {
       let payloadToUse = leisu_payload;
 
       if (!payloadToUse) {
-        // 依次尝试读取活跃与预置雷速数据文件
         const candidates = [
           REFACTOR_STORAGE.liveLeisuActive,
           REFACTOR_STORAGE.prematchLeisuActive,
@@ -96,15 +155,24 @@ export function registerMatchArchiveRoutes(app: Express) {
         });
       }
 
-      const result = MatchArchiveStore.settleWithLeisuFinished(payloadToUse);
+      const rawMatches = Array.isArray(payloadToUse)
+        ? payloadToUse
+        : (Array.isArray(payloadToUse?.results) ? payloadToUse.results : []);
+
+      const leisuFinishedList = rawMatches.map((m: any) => ({
+        home_team: m.home_team_name || m.home_team || m.home || "",
+        away_team: m.away_team_name || m.away_team || m.away || "",
+        score: m.score || (m.home_score != null && m.away_score != null ? { home: Number(m.home_score), away: Number(m.away_score) } : null),
+      })).filter((m: any) => m.score && typeof m.score.home === "number" && typeof m.score.away === "number");
+
+      const result = UniverseLedgerPersistence.settleWithLeisuFinished(leisuFinishedList);
 
       res.json({
         success: true,
-        message: `雷速完场反思核销完成: 已结算 ${result.settled_count} 场建档赛事，联动核销 ${result.ledger_settled_count} 条正式推荐，沉淀 ${result.oos_samples_count} 条真实 OOS 校准样本！`,
+        message: `雷速完场反思核销完成: 已结算 ${result.settled_count} 场建档赛事！`,
         settled_count: result.settled_count,
-        settled_matches: result.settled_matches,
-        ledger_settled_count: result.ledger_settled_count,
-        oos_samples_count: result.oos_samples_count,
+        avoidance_count: result.avoidance_count,
+        false_negative_count: result.false_negative_count,
       });
     } catch (e: any) {
       console.error("[MatchArchiveRoutes] Error in settle-leisu:", e);
@@ -123,11 +191,16 @@ export function registerMatchArchiveRoutes(app: Express) {
         return res.status(400).json({ success: false, error: "缺少有效 archive_id 或 final_score (home/away)" });
       }
 
-      const updated = MatchArchiveStore.settleSingle(archive_id, final_score, source);
-      if (!updated) {
+      const validFinalScore = { home: Number(final_score.home), away: Number(final_score.away) };
+      let settled = UniverseLedgerPersistence.settleSingleRecord("LIVE", archive_id, validFinalScore, source);
+      if (!settled) {
+        settled = UniverseLedgerPersistence.settleSingleRecord("PREMATCH", archive_id, validFinalScore, source);
+      }
+      if (!settled) {
         return res.status(404).json({ success: false, error: `未找到档案记录: ${archive_id}` });
       }
 
+      const updated = mapUniverseToArchivedRecord(settled);
       res.json({
         success: true,
         message: `成功为 ${updated.home_team_name} vs ${updated.away_team_name} 录入完场比分并生成反思分析`,

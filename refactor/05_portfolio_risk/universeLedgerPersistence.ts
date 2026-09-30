@@ -127,7 +127,7 @@ export class UniverseLedgerPersistence {
             ou_line: ouLine,
             markets: marketsSnapshot,
             ev_direction: quant.positive_ev_signals?.[0]?.market || null,
-            ev_value: quant.positive_ev_signals?.[0]?.expected_value_percent || null,
+            ev_value: quant.positive_ev_signals?.[0]?.ev ?? null,
             candidate_pipeline_state: quant.candidate_pipeline?.state || 'INITIAL_ASSESSMENT',
           };
           if (predictedDirection) existing.predicted_direction = predictedDirection;
@@ -142,6 +142,11 @@ export class UniverseLedgerPersistence {
           kickoff_time: match.timing.beijing_start_time || now,
           league_key: match.league_name || 'UNKNOWN',
           teams: { home: match.home_team_name, away: match.away_team_name },
+          reference_teams: match.reference ? {
+            leisu_home: match.reference.leisu_home_name,
+            leisu_away: match.reference.leisu_away_name,
+            leisu_league: match.reference.leisu_league_name,
+          } : null,
           minute_or_status: minuteStatus,
           score_at_prediction: {
             home: match.score.home_score ?? 0,
@@ -164,7 +169,7 @@ export class UniverseLedgerPersistence {
             ou_line: ouLine,
             markets: marketsSnapshot,
             ev_direction: quant.positive_ev_signals?.[0]?.market || null,
-            ev_value: quant.positive_ev_signals?.[0]?.expected_value_percent || null,
+            ev_value: quant.positive_ev_signals?.[0]?.ev ?? null,
             candidate_pipeline_state: quant.candidate_pipeline?.state || 'INITIAL_ASSESSMENT',
           },
           predicted_direction: predictedDirection,
@@ -388,8 +393,8 @@ export class UniverseLedgerPersistence {
     const summary = this.getUniverseAttributionSummary('ALL');
     return {
       settled_count: totalSettled,
-      avoidance_count: summary.avoidance_count,
-      false_negative_count: summary.false_negative_count,
+      avoidance_count: summary.attribution.avoidance_count,
+      false_negative_count: summary.attribution.false_negative_count,
     };
   }
 
@@ -561,9 +566,10 @@ export class UniverseLedgerPersistence {
     const hasEv = quant.positive_ev_signals && quant.positive_ev_signals.length > 0;
     if (hasEv) {
       const topSignal = quant.positive_ev_signals[0];
+      const evPct = ((topSignal.ev ?? 0) * 100).toFixed(1);
       return {
         gateCategory: 'QUANT_MACHINE_ONLY',
-        gateDescription: `量化模型产出 +EV 优势信号 (${topSignal.market} EV: +${topSignal.expected_value_percent.toFixed(1)}%)，待大模型核验`,
+        gateDescription: `量化模型产出 +EV 优势信号 (${topSignal.market} EV: +${evPct}%)，待大模型核验`,
       };
     }
 
@@ -584,9 +590,9 @@ export class UniverseLedgerPersistence {
       const isAh = sig.market.includes('HANDICAP') || sig.market.includes('SPREAD');
       return {
         market: isAh ? 'ASIAN_HANDICAP_MAIN' : 'TOTAL_GOALS_MAIN',
-        selection: `${sig.direction} ${sig.line}`,
-        line: sig.line,
-        odds: sig.fair_odds || 1.95,
+        selection: `${sig.side || ''} ${sig.line || ''}`.trim(),
+        line: parseFloat(sig.line) || 0,
+        odds: sig.odds || 1.95,
         model_probability: sig.model_probability || 0.5,
       };
     }

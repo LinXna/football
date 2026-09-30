@@ -64,6 +64,100 @@ import { GenericTimelineEventPin } from "./IncidentIconsHelper";
 import { QuantitativeFeatures } from "../../refactor/03_quant_engine/types";
 import { ManualLedgerModal } from "./ManualLedgerModal";
 
+/**
+ * 格式化比赛开赛日期与时间 (保留 YYYY-MM-DD HH:mm，杜绝截断仅留时间)
+ */
+function formatKickoffDateTime(rawTime?: string | null, fallback?: string): string {
+  if (!rawTime) return fallback || "未标时间";
+  const str = String(rawTime).trim();
+  if (!str) return fallback || "未标时间";
+  if (str.includes("T") || str.includes("-") || str.includes("/")) {
+    const normalized = str.replace("T", " ");
+    if (normalized.length >= 16) {
+      return normalized.slice(0, 16); // e.g. "2026-09-30 22:00"
+    }
+    return normalized;
+  }
+  return str || fallback || "未标时间";
+}
+
+/**
+ * 解析并获取单场比赛的默认完场比分
+ * 规则：
+ * 1. 滚球比赛：默认填充当时的滚球比分（推演/推荐时现场实时比分）；
+ * 2. 赛前比赛：默认填充 0-0；
+ * 3. 下限严格为 0，杜绝负值。
+ */
+function getDefaultScoreForRecord(record: any): { home: string; away: string } {
+  if (!record) return { home: "0", away: "0" };
+
+  const isLive = record.stage === "LIVE" || 
+                 record.mode === "live" || 
+                 (record.condition_snapshot?.match_minute != null && record.condition_snapshot.match_minute !== "PREMATCH") ||
+                 (record.timing?.stage === "LIVE");
+
+  if (!isLive) {
+    return { home: "0", away: "0" };
+  }
+
+  // 1. 尝试从 UniverseAuditRecord 提取推演时比分
+  if (record.score_at_prediction && typeof record.score_at_prediction.home === "number") {
+    return {
+      home: String(Math.max(0, record.score_at_prediction.home)),
+      away: String(Math.max(0, record.score_at_prediction.away)),
+    };
+  }
+
+  // 2. 尝试从 FormalRecommendation 的 prediction_snapshot 提取
+  if (record.prediction_snapshot?.score_at_recommendation) {
+    const parts = String(record.prediction_snapshot.score_at_recommendation).split(/[-:]/);
+    if (parts.length >= 2) {
+      const h = parseInt(parts[0].trim(), 10);
+      const a = parseInt(parts[1].trim(), 10);
+      return {
+        home: String(isNaN(h) ? 0 : Math.max(0, h)),
+        away: String(isNaN(a) ? 0 : Math.max(0, a)),
+      };
+    }
+  }
+
+  // 3. 尝试从 condition_snapshot 提取
+  if (record.condition_snapshot?.current_score) {
+    const parts = String(record.condition_snapshot.current_score).split(/[-:]/);
+    if (parts.length >= 2) {
+      const h = parseInt(parts[0].trim(), 10);
+      const a = parseInt(parts[1].trim(), 10);
+      return {
+        home: String(isNaN(h) ? 0 : Math.max(0, h)),
+        away: String(isNaN(a) ? 0 : Math.max(0, a)),
+      };
+    }
+  }
+
+  // 4. 尝试从 CanonicalMatch 的 score 提取
+  if (record.score) {
+    const h = record.score.home_score ?? record.score.home ?? 0;
+    const a = record.score.away_score ?? record.score.away ?? 0;
+    return {
+      home: String(Math.max(0, Number(h) || 0)),
+      away: String(Math.max(0, Number(a) || 0)),
+    };
+  }
+
+  return { home: "0", away: "0" };
+}
+
+/**
+ * 严格清理并约束比分输入为非负整数 (>= 0)
+ */
+function sanitizeScoreInput(val: string): string {
+  if (val === "") return "";
+  const clean = val.replace(/[^0-9]/g, "");
+  if (!clean) return "";
+  const num = parseInt(clean, 10);
+  return isNaN(num) ? "0" : String(Math.max(0, num));
+}
+
 function getMarketsSummary(mkts?: CleanMarketsGroup | null) {
   if (!mkts) return { count: 0, text: "0个玩法" };
   let count = 0;
@@ -326,6 +420,8 @@ export const CanonicalMatchCenter: React.FC = () => {
   const [showManualLedgerModal, setShowManualLedgerModal] = useState<boolean>(false);
   const [manualLedgerDefaultMatch, setManualLedgerDefaultMatch] = useState<any>(undefined);
   const [autoSettlingLeisu, setAutoSettlingLeisu] = useState<boolean>(false);
+  const [isBatchSettling, setIsBatchSettling] = useState<boolean>(false);
+  const [expandedLedgerRecordIds, setExpandedLedgerRecordIds] = useState<Record<string, boolean>>({});
 
   // 持续加载 AI 评估历史（优先重构版专用，回退兼容旧版）
   const loadAiEvaluations = useCallback(() => {
@@ -962,11 +1058,16 @@ export const CanonicalMatchCenter: React.FC = () => {
   }, [mode]);
 
   const handleSettleUniverseRecord = async (recordId: string) => {
-    const input = settleInputs[recordId];
-    if (!input || input.home === '' || input.away === '') {
-      setLedgerFeedback('⚠️ 请先录入完整完场比分（主队得分 - 客队得分）');
-      return;
-    }
+    const record = universeLedger.find((r) => r.record_id === recordId || r.match_id === recordId);
+    const defaultScore = getDefaultScoreForRecord(record);
+    const rawInput = settleInputs[recordId];
+    const homeStr = rawInput?.home !== undefined && rawInput.home !== '' ? rawInput.home : defaultScore.home;
+    const awayStr = rawInput?.away !== undefined && rawInput.away !== '' ? rawInput.away : defaultScore.away;
+    const finalScore = {
+      home: Math.max(0, parseInt(homeStr, 10) || 0),
+      away: Math.max(0, parseInt(awayStr, 10) || 0),
+    };
+
     setSettlingIds((prev) => ({ ...prev, [recordId]: true }));
     setLedgerFeedback('正在执行全量预测归因核销并同步 OOS 校准样本...');
     try {
@@ -977,7 +1078,7 @@ export const CanonicalMatchCenter: React.FC = () => {
         body: JSON.stringify({
           record_id: recordId,
           stage: mode === 'live' ? 'LIVE' : 'PREMATCH',
-          final_score: { home: Number(input.home), away: Number(input.away) },
+          final_score: finalScore,
           score_source: source,
         }),
       });
@@ -1004,10 +1105,14 @@ export const CanonicalMatchCenter: React.FC = () => {
 
   const handleExecuteQuickSettle = async () => {
     if (!quickSettleMatch) return;
-    if (quickSettleScore.home === '' || quickSettleScore.away === '') {
-      setLedgerFeedback('⚠️ 请先录入完整完场比分');
-      return;
-    }
+    const defaultScore = getDefaultScoreForRecord(quickSettleMatch);
+    const homeStr = quickSettleScore.home !== '' ? quickSettleScore.home : defaultScore.home;
+    const awayStr = quickSettleScore.away !== '' ? quickSettleScore.away : defaultScore.away;
+    const finalScore = {
+      home: Math.max(0, parseInt(homeStr, 10) || 0),
+      away: Math.max(0, parseInt(awayStr, 10) || 0),
+    };
+
     setIsQuickSettling(true);
     setLedgerFeedback(`正在为【${quickSettleMatch.home_team_name} vs ${quickSettleMatch.away_team_name}】核销比分...`);
     try {
@@ -1017,7 +1122,7 @@ export const CanonicalMatchCenter: React.FC = () => {
         body: JSON.stringify({
           record_id: quickSettleMatch.canonical_id,
           stage: mode === 'live' ? 'LIVE' : 'PREMATCH',
-          final_score: { home: Number(quickSettleScore.home), away: Number(quickSettleScore.away) },
+          final_score: finalScore,
           score_source: quickSettleSource,
         }),
       });
@@ -1039,6 +1144,63 @@ export const CanonicalMatchCenter: React.FC = () => {
       setLedgerFeedback(`❌ 快捷核销异常: ${e.message}`);
     } finally {
       setIsQuickSettling(false);
+    }
+  };
+
+  const handleBatchSettleAll = async () => {
+    // 找出当前活跃台账中全部未核销的记录
+    const targetList = (ledgerTrack === 'UNIVERSE' || ledgerTrack === 'REFLECTION')
+      ? universeLedger.filter((r) => !r.settlement?.is_settled)
+      : formalLedger.filter((r) => !r.settlement?.is_settled);
+
+    if (targetList.length === 0) {
+      setLedgerFeedback('ℹ️ 当前台账中没有待核销的比赛记录。');
+      return;
+    }
+
+    setIsBatchSettling(true);
+    setLedgerFeedback(`正在一键批量核销当前 ${targetList.length} 场待核销比赛...`);
+
+    const items = targetList.map((record) => {
+      const defaultScore = getDefaultScoreForRecord(record);
+      const rawInput = settleInputs[record.record_id];
+      const homeStr = rawInput?.home !== undefined && rawInput.home !== '' ? rawInput.home : defaultScore.home;
+      const awayStr = rawInput?.away !== undefined && rawInput.away !== '' ? rawInput.away : defaultScore.away;
+      const finalScore = {
+        home: Math.max(0, parseInt(homeStr, 10) || 0),
+        away: Math.max(0, parseInt(awayStr, 10) || 0),
+      };
+      const source = settleSources[record.record_id] || '批量一键核销';
+      return {
+        record_id: record.record_id,
+        stage: mode === 'live' ? 'LIVE' : 'PREMATCH',
+        final_score: finalScore,
+        score_source: source,
+      };
+    });
+
+    try {
+      const res = await fetch('/api/refactor/settlement/execute-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stage: mode === 'live' ? 'LIVE' : 'PREMATCH',
+          items,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLedgerFeedback(`✅ 一键批量核销成功！已批量结算 ${data.settled_count || items.length} 场比赛并同步沉淀 OOS 样本！`);
+        await fetchUniverseLedger();
+        await fetchRefactorLedger();
+        await fetchOosStatus();
+      } else {
+        setLedgerFeedback(`❌ 批量核销失败: ${data.error || '未知错误'}`);
+      }
+    } catch (e: any) {
+      setLedgerFeedback(`❌ 批量核销网络异常: ${e?.message}`);
+    } finally {
+      setIsBatchSettling(false);
     }
   };
 
@@ -1072,11 +1234,16 @@ export const CanonicalMatchCenter: React.FC = () => {
   };
 
   const handleSettleRecord = async (recordId: string) => {
-    const input = settleInputs[recordId];
-    if (!input || input.home === '' || input.away === '') {
-      setLedgerFeedback('⚠️ 请先录入完整完场比分（主队得分 - 客队得分）');
-      return;
-    }
+    const record = formalLedger.find((r: any) => r.record_id === recordId || r.match_id === recordId);
+    const defaultScore = getDefaultScoreForRecord(record);
+    const rawInput = settleInputs[recordId];
+    const homeStr = rawInput?.home !== undefined && rawInput.home !== '' ? rawInput.home : defaultScore.home;
+    const awayStr = rawInput?.away !== undefined && rawInput.away !== '' ? rawInput.away : defaultScore.away;
+    const finalScore = {
+      home: Math.max(0, parseInt(homeStr, 10) || 0),
+      away: Math.max(0, parseInt(awayStr, 10) || 0),
+    };
+
     setSettlingIds((prev) => ({ ...prev, [recordId]: true }));
     setLedgerFeedback('正在执行四分之一盘确定性核销并同步 OOS 校准样本...');
     try {
@@ -1087,7 +1254,7 @@ export const CanonicalMatchCenter: React.FC = () => {
         body: JSON.stringify({
           record_id: recordId,
           stage: mode === 'live' ? 'LIVE' : 'PREMATCH',
-          final_score: { home: Number(input.home), away: Number(input.away) },
+          final_score: finalScore,
           score_verified: true,
           score_source: source,
         }),
@@ -2016,6 +2183,229 @@ export const CanonicalMatchCenter: React.FC = () => {
     }
   };
 
+  /**
+   * 渲染 YBTY 主队名与雷速对照队名
+   * 契约规范：队名以 YBTY 原始队名为单一事实来源 (SSOT)，若匹配到雷速队名则并列展示雷速对照
+   */
+  const renderDualTeamNames = (record: any) => {
+    const linkedMatch = matches.find(
+      (m: any) => m.canonical_id === record.match_id || m.canonical_id === record.canonical_match_id
+    );
+    const ybtyHome = record.teams?.home || linkedMatch?.home_team_name || "主队";
+    const ybtyAway = record.teams?.away || linkedMatch?.away_team_name || "客队";
+    const leisuHome = record.reference_teams?.leisu_home || linkedMatch?.reference?.leisu_home_name;
+    const leisuAway = record.reference_teams?.leisu_away || linkedMatch?.reference?.leisu_away_name;
+    const leisuLeague = record.reference_teams?.leisu_league || linkedMatch?.reference?.leisu_league_name;
+
+    const hasLeisu = !!(leisuHome || leisuAway);
+
+    return (
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-xs font-bold text-slate-100 flex items-center gap-1">
+          <span className="text-[9px] text-amber-400 font-mono bg-amber-950/80 px-1 py-0.2 rounded border border-amber-800" title="YBTY 原始盘口出票队名 (SSOT)">
+            YBTY
+          </span>
+          <span>{ybtyHome} vs {ybtyAway}</span>
+        </span>
+        {hasLeisu && (
+          <span
+            className="text-[10px] text-teal-300 bg-teal-950/70 px-1.5 py-0.5 rounded border border-teal-800 flex items-center gap-1"
+            title="雷速官方匹配队名（交叉校验源）"
+          >
+            <span className="text-[9px] text-teal-400 font-bold">雷速:</span>
+            <span>{leisuHome || ybtyHome} vs {leisuAway || ybtyAway}</span>
+            {leisuLeague && leisuLeague !== record.league_key && (
+              <span className="text-teal-400/80">({leisuLeague})</span>
+            )}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  /**
+   * 渲染 Layer 03 完整量化盘口与博弈推演特征全景矩阵
+   */
+  const renderQuantMarketSnapshot = (record: any) => {
+    const linkedMatch = matches.find(
+      (m: any) => m.canonical_id === record.match_id || m.canonical_id === record.canonical_match_id
+    );
+    const quant = record.quant_snapshot || {};
+    const mkts = quant.markets || {};
+
+    const ahLine = quant.ah_line ?? (linkedMatch?.markets?.full_spread_main as any)?.line ?? linkedMatch?.markets?.full_spread_main?.home_selection;
+    const ahHomeOdds = mkts.ah_home_odds ?? linkedMatch?.markets?.full_spread_main?.home_odds;
+    const ahAwayOdds = mkts.ah_away_odds ?? linkedMatch?.markets?.full_spread_main?.away_odds;
+
+    const ouLine = quant.ou_line ?? linkedMatch?.markets?.full_total_main?.line;
+    const ouOverOdds = mkts.ou_over_odds ?? linkedMatch?.markets?.full_total_main?.over_odds;
+    const ouUnderOdds = mkts.ou_under_odds ?? linkedMatch?.markets?.full_total_main?.under_odds;
+
+    const h2hHome = mkts.h2h_home ?? linkedMatch?.markets?.full_h2h?.home_odds;
+    const h2hDraw = mkts.h2h_draw ?? linkedMatch?.markets?.full_h2h?.draw_odds;
+    const h2hAway = mkts.h2h_away ?? linkedMatch?.markets?.full_h2h?.away_odds;
+
+    const topScores = quant.top_scores || [];
+    const xG = quant.forward_goals_expected != null 
+      ? quant.forward_goals_expected 
+      : ((quant.lambda_home || 0) + (quant.lambda_away || 0));
+
+    const isExpanded = !!expandedLedgerRecordIds[record.record_id];
+
+    return (
+      <div className="space-y-1.5 pt-0.5">
+        {/* 第一行：Layer 03 核心三大交易盘口 (让球、大小球、独赢) 显式全景 */}
+        <div className="flex items-center gap-2 text-xs flex-wrap font-mono">
+          {/* 让球主盘 */}
+          <div className="flex items-center gap-1 bg-slate-900/90 px-2 py-0.5 rounded border border-blue-900/50 text-[11px]" title="全场让球主盘口与主客水位">
+            <span className="text-blue-400 font-bold font-sans">让球:</span>
+            <span className="text-blue-300 font-semibold">{ahLine != null ? (Number(ahLine) > 0 ? `+${ahLine}` : ahLine) : (linkedMatch?.markets?.full_spread_main?.home_selection || '-')}</span>
+            <span className="text-slate-500">|</span>
+            <span className="text-slate-300">主 {ahHomeOdds ?? '-'}</span>
+            <span className="text-slate-500">/</span>
+            <span className="text-slate-300">客 {ahAwayOdds ?? '-'}</span>
+          </div>
+
+          {/* 大小球主盘 */}
+          <div className="flex items-center gap-1 bg-slate-900/90 px-2 py-0.5 rounded border border-emerald-900/50 text-[11px]" title="全场大小球主盘口与大小水位">
+            <span className="text-emerald-400 font-bold font-sans">大小:</span>
+            <span className="text-emerald-300 font-semibold">{ouLine != null ? `${ouLine}球` : '-'}</span>
+            <span className="text-slate-500">|</span>
+            <span className="text-slate-300">大 {ouOverOdds ?? '-'}</span>
+            <span className="text-slate-500">/</span>
+            <span className="text-slate-300">小 {ouUnderOdds ?? '-'}</span>
+          </div>
+
+          {/* 独赢主盘 */}
+          <div className="flex items-center gap-1 bg-slate-900/90 px-2 py-0.5 rounded border border-purple-900/50 text-[11px]" title="全场独赢 (1X2) 胜平负三项赔率">
+            <span className="text-purple-400 font-bold font-sans">独赢:</span>
+            <span className="text-slate-300">主 {h2hHome ?? '-'}</span>
+            <span className="text-slate-500">/</span>
+            <span className="text-slate-300">平 {h2hDraw ?? '-'}</span>
+            <span className="text-slate-500">/</span>
+            <span className="text-slate-300">客 {h2hAway ?? '-'}</span>
+          </div>
+
+          {/* 展开/收起 03 详情按钮 */}
+          <button
+            onClick={() => setExpandedLedgerRecordIds((prev) => ({ ...prev, [record.record_id]: !prev[record.record_id] }))}
+            className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-sans flex items-center gap-0.5 ml-auto cursor-pointer"
+          >
+            <span>{isExpanded ? "收起 03 明细" : "展开 03 推演明细"}</span>
+            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+        </div>
+
+        {/* 第二行：核心预测特征 (方向、首选比分、λ攻防强度、预期进球xG、BDI、Top3比分分布) */}
+        <div className="flex items-center gap-2.5 text-xs text-slate-400 flex-wrap pt-0.5 font-mono">
+          {record.predicted_direction && (
+            <span className="font-semibold text-amber-300 bg-amber-950/60 px-1.5 py-0.2 rounded border border-amber-800/60">
+              推荐方向: {record.predicted_direction.selection} @ {record.predicted_direction.odds}
+            </span>
+          )}
+          <span className="text-purple-300 font-bold">
+            首选预测比分: {quant.projected_final_score || '0-0'}
+          </span>
+          <span className="text-slate-400">
+            λ(主 {quant.lambda_home?.toFixed(2)} / 客 {quant.lambda_away?.toFixed(2)})
+          </span>
+          <span className="text-emerald-400">
+            xG总期望: {Number(xG || 0).toFixed(2)}球
+          </span>
+          {quant.bdi != null && (
+            <span className="text-blue-300">
+              BDI压制: {quant.bdi}
+            </span>
+          )}
+          {quant.ev_direction && (
+            <span className="text-amber-400 font-semibold">
+              +EV信号: {quant.ev_direction} ({((quant.ev_value || 0) * 100).toFixed(1)}%)
+            </span>
+          )}
+        </div>
+
+        {/* 展开面板：Layer 03 完整量化博弈推演全貌 */}
+        {isExpanded && (
+          <div className="mt-2 p-3 bg-slate-950 rounded-lg border border-cyan-900/50 space-y-2.5 text-xs animate-in fade-in">
+            <div className="flex items-center justify-between text-[11px] text-cyan-400 font-semibold border-b border-slate-800 pb-1.5">
+              <span>📊 Layer 03 确定性量化博弈与泊松全矩阵快照 (Deterministic Quant Snapshot)</span>
+              <span className="text-slate-500 font-mono text-[10px]">Candidate: {quant.candidate_pipeline_state || 'INITIAL'}</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+              {/* 让球盘博弈 */}
+              <div className="bg-slate-900/80 p-2 rounded border border-slate-800 space-y-1">
+                <div className="text-[11px] font-bold text-blue-400 flex items-center justify-between">
+                  <span>全场让球盘 (Asian Handicap)</span>
+                  <span className="text-[10px] text-slate-400 font-mono">{ahLine != null ? (Number(ahLine) > 0 ? `+${ahLine}` : ahLine) : '-'}</span>
+                </div>
+                <div className="text-[10px] text-slate-300 flex justify-between font-mono">
+                  <span>主队水位: {ahHomeOdds ?? '-'}</span>
+                  <span>客队水位: {ahAwayOdds ?? '-'}</span>
+                </div>
+                <div className="text-[10px] text-slate-400 pt-0.5">
+                  机构让球主盘，已由 M5 去抽水算法映射至公允期望。
+                </div>
+              </div>
+
+              {/* 大小球博弈 */}
+              <div className="bg-slate-900/80 p-2 rounded border border-slate-800 space-y-1">
+                <div className="text-[11px] font-bold text-emerald-400 flex items-center justify-between">
+                  <span>全场大小球盘 (Over / Under)</span>
+                  <span className="text-[10px] text-slate-400 font-mono">{ouLine != null ? `${ouLine}球` : '-'}</span>
+                </div>
+                <div className="text-[10px] text-slate-300 flex justify-between font-mono">
+                  <span>大球水位: {ouOverOdds ?? '-'}</span>
+                  <span>小球水位: {ouUnderOdds ?? '-'}</span>
+                </div>
+                <div className="text-[10px] text-slate-400 pt-0.5">
+                  基准进球期望 xG = {Number(xG || 0).toFixed(2)}，Forward泊松衰减积分。
+                </div>
+              </div>
+
+              {/* 独赢博弈 */}
+              <div className="bg-slate-900/80 p-2 rounded border border-slate-800 space-y-1">
+                <div className="text-[11px] font-bold text-purple-400 flex items-center justify-between">
+                  <span>全场独赢 (1X2 European)</span>
+                  <span className="text-[10px] text-slate-400 font-mono">三项盘</span>
+                </div>
+                <div className="text-[10px] text-slate-300 flex justify-between font-mono">
+                  <span>主: {h2hHome ?? '-'}</span>
+                  <span>平: {h2hDraw ?? '-'}</span>
+                  <span>客: {h2hAway ?? '-'}</span>
+                </div>
+                <div className="text-[10px] text-slate-400 pt-0.5">
+                  Shin模型反推真实胜平负公允概率。
+                </div>
+              </div>
+            </div>
+
+            {/* Top 5 泊松全比分分布概率矩阵 */}
+            {topScores.length > 0 && (
+              <div className="space-y-1 pt-1 border-t border-slate-800/80">
+                <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                  <span>🎲 泊松推演 Top 完场比分概率分布:</span>
+                  <span className="text-[9px] text-slate-500">已按泊松二维分布联合概率降序排列</span>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {topScores.slice(0, 5).map((ts: any, sIdx: number) => (
+                    <span
+                      key={sIdx}
+                      className="text-[10px] font-mono px-2 py-0.8 rounded border bg-slate-900 border-slate-800 text-slate-300 flex items-center gap-1"
+                    >
+                      <span className="text-amber-300 font-bold">{ts.score}</span>
+                      <span className="text-slate-400">({((ts.probability || 0) * 100).toFixed(1)}%)</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div id="canonical-match-center" className="w-full max-w-7xl mx-auto space-y-6 pb-16">
       {/* 全局别名操作反馈提示 */}
@@ -2502,7 +2892,7 @@ export const CanonicalMatchCenter: React.FC = () => {
               onClick={async () => {
                 setAutoSettlingLeisu(true);
                 try {
-                  const res = await fetch("/api/refactor/match-archive/settle-leisu", {
+                  const res = await fetch("/api/refactor/settlement/execute-leisu", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({}),
@@ -2531,6 +2921,20 @@ export const CanonicalMatchCenter: React.FC = () => {
             </button>
 
             <button
+              onClick={handleBatchSettleAll}
+              disabled={isBatchSettling || (ledgerTrack === 'UNIVERSE' || ledgerTrack === 'REFLECTION' ? universeLedger.filter((r) => !r.settlement?.is_settled).length === 0 : formalLedger.filter((r) => !r.settlement?.is_settled).length === 0)}
+              className="px-2.5 py-1 text-xs rounded border border-blue-600 bg-blue-950/80 text-blue-200 hover:bg-blue-900/80 disabled:opacity-40 transition-colors flex items-center gap-1 font-semibold shadow-xs"
+              title="按当前输入框比分（或智能默认比分）一键批量核销当前全部待核销比赛"
+            >
+              <CheckCheck className={`w-3.5 h-3.5 ${isBatchSettling ? "animate-spin" : "text-cyan-300"}`} />
+              <span>
+                {isBatchSettling
+                  ? "批量核销中..."
+                  : `一键批量核销 (${(ledgerTrack === 'UNIVERSE' || ledgerTrack === 'REFLECTION' ? universeLedger.filter((r) => !r.settlement?.is_settled).length : formalLedger.filter((r) => !r.settlement?.is_settled).length)} 场)`}
+              </span>
+            </button>
+
+            <button
               onClick={() => {
                 fetchUniverseLedger();
                 fetchRefactorLedger();
@@ -2549,6 +2953,21 @@ export const CanonicalMatchCenter: React.FC = () => {
               <Trash2 className="w-3 h-3" />
               <span>清空测试数据</span>
             </button>
+          </div>
+        </div>
+
+        {/* 队名来源规范与核销说明卡片 */}
+        <div className="bg-slate-950/80 p-2.5 px-3 rounded-lg border border-slate-800 text-xs text-slate-300 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-amber-400 font-bold flex items-center gap-1">
+              <span>🏟️ 队名规范:</span>
+            </span>
+            <span className="text-slate-300">
+              队名默认展示 <span className="text-amber-300 font-bold bg-amber-950/80 px-1 py-0.2 rounded border border-amber-800">YBTY 原始盘口队名</span>（作为投注出票与赔率计算 SSOT），同时在队名旁标注 <span className="text-teal-300 font-bold bg-teal-950/80 px-1 py-0.2 rounded border border-teal-800">雷速对照队名</span> 以便交叉核验。
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-slate-400 text-[11px]">
+            <span>💡 批量核销：可直接点击上方 <span className="text-cyan-300 font-semibold">【一键批量核销】</span> 一次性结算当前列表全部待核销比赛（采纳当前填写或智能默认比分），或点击 <span className="text-emerald-300 font-semibold">【雷速完场自动核销】</span>。</span>
           </div>
         </div>
 
@@ -2679,7 +3098,12 @@ export const CanonicalMatchCenter: React.FC = () => {
                   const isSettled = record.settlement?.is_settled;
                   const outcome = record.settlement?.outcome;
                   const attribution = record.settlement?.attribution;
-                  const curInput = settleInputs[record.record_id] || { home: "", away: "" };
+                  const defaultScore = getDefaultScoreForRecord(record);
+                  const rawInput = settleInputs[record.record_id];
+                  const curInput = {
+                    home: rawInput?.home !== undefined ? rawInput.home : defaultScore.home,
+                    away: rawInput?.away !== undefined ? rawInput.away : defaultScore.away,
+                  };
                   const curSource = settleSources[record.record_id] || "雷速比分画布/接口校验";
                   const isSettling = settlingIds[record.record_id];
 
@@ -2699,15 +3123,19 @@ export const CanonicalMatchCenter: React.FC = () => {
                     >
                       <div className="space-y-1.5 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-bold text-slate-100">
-                            {record.teams?.home} vs {record.teams?.away}
-                          </span>
+                          {renderDualTeamNames(record)}
                           <span className="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
                             {record.league_key}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            {record.kickoff_time?.slice(11, 16) || record.minute_or_status}
+                          <span className="text-[10px] text-slate-300 font-mono bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-700/80 flex items-center gap-1 shadow-xs" title={`开赛时间: ${record.kickoff_time || '未标时间'}`}>
+                            <span className="text-slate-400">📅</span>
+                            <span>{formatKickoffDateTime(record.kickoff_time, record.minute_or_status || '赛前')}</span>
                           </span>
+                          {record.minute_or_status && record.minute_or_status !== '赛前' && record.minute_or_status !== formatKickoffDateTime(record.kickoff_time) && (
+                            <span className="text-[10px] text-blue-400 font-mono bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-900">
+                              推演时: {record.minute_or_status}
+                            </span>
+                          )}
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${gateBadgeClass}`}>
                             {record.gate_category === 'QUALIFIED_FORMAL' ? '✅ A/B可实盘' : record.gate_category}
                           </span>
@@ -2718,31 +3146,17 @@ export const CanonicalMatchCenter: React.FC = () => {
                           )}
                         </div>
 
-                        {/* 门禁拦截原因与量化快照 */}
-                        <div className="text-xs text-slate-300 space-y-0.5">
-                          <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                        {/* 门禁拦截原因与量化全盘口快照 */}
+                        <div className="text-xs text-slate-300 space-y-1">
+                          <div className="text-[11px] text-slate-400 flex items-center gap-1.5 flex-wrap">
                             <span className="font-semibold text-slate-300">门禁判定:</span>
-                            <span className={record.gate_category === 'QUALIFIED_FORMAL' ? 'text-emerald-400' : 'text-amber-300'}>
+                            <span className={record.gate_category === 'QUALIFIED_FORMAL' ? 'text-emerald-400 font-medium' : 'text-amber-300 font-medium'}>
                               {record.gate_reason_description}
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-2.5 text-xs text-slate-400 flex-wrap pt-0.5">
-                            {record.predicted_direction && (
-                              <span className="font-semibold text-amber-300">
-                                方向: {record.predicted_direction.selection} @ {record.predicted_direction.odds}
-                              </span>
-                            )}
-                            <span className="font-mono text-purple-300">
-                              首选预测比分: {record.quant_snapshot?.projected_final_score || '0-0'}
-                            </span>
-                            <span className="font-mono text-slate-400">
-                              λ(主 {record.quant_snapshot?.lambda_home?.toFixed(2)} / 客 {record.quant_snapshot?.lambda_away?.toFixed(2)})
-                            </span>
-                            <span className="text-blue-300 font-mono">
-                              BDI: {record.quant_snapshot?.bdi}
-                            </span>
-                          </div>
+                          {/* 渲染完整 Layer 03 全盘口与博弈推演矩阵 */}
+                          {renderQuantMarketSnapshot(record)}
                         </div>
 
                         {/* 赛后归因结论 */}
@@ -2787,12 +3201,13 @@ export const CanonicalMatchCenter: React.FC = () => {
                             <span className="text-[11px] text-slate-400">完场:</span>
                             <input
                               type="number"
-                              placeholder="主"
+                              min="0"
+                              placeholder={defaultScore.home}
                               value={curInput.home}
                               onChange={(e) =>
                                 setSettleInputs((prev) => ({
                                   ...prev,
-                                  [record.record_id]: { ...curInput, home: e.target.value },
+                                  [record.record_id]: { ...curInput, home: sanitizeScoreInput(e.target.value) },
                                 }))
                               }
                               className="w-10 px-1.5 py-0.5 bg-slate-950 text-slate-200 border border-slate-700 rounded text-center text-xs focus:outline-none focus:border-blue-500 font-mono"
@@ -2800,12 +3215,13 @@ export const CanonicalMatchCenter: React.FC = () => {
                             <span className="text-slate-500 text-xs">-</span>
                             <input
                               type="number"
-                              placeholder="客"
+                              min="0"
+                              placeholder={defaultScore.away}
                               value={curInput.away}
                               onChange={(e) =>
                                 setSettleInputs((prev) => ({
                                   ...prev,
-                                  [record.record_id]: { ...curInput, away: e.target.value },
+                                  [record.record_id]: { ...curInput, away: sanitizeScoreInput(e.target.value) },
                                 }))
                               }
                               className="w-10 px-1.5 py-0.5 bg-slate-950 text-slate-200 border border-slate-700 rounded text-center text-xs focus:outline-none focus:border-blue-500 font-mono"
@@ -2860,7 +3276,12 @@ export const CanonicalMatchCenter: React.FC = () => {
                 const isSettled = record.settlement?.is_settled;
                 const outcome = record.settlement?.outcome;
                 const profitLoss = record.settlement?.profit_loss;
-                const curInput = settleInputs[record.record_id] || { home: "", away: "" };
+                const defaultScore = getDefaultScoreForRecord(record);
+                const rawInput = settleInputs[record.record_id];
+                const curInput = {
+                  home: rawInput?.home !== undefined ? rawInput.home : defaultScore.home,
+                  away: rawInput?.away !== undefined ? rawInput.away : defaultScore.away,
+                };
                 const curSource = settleSources[record.record_id] || "雷速比分画布/接口校验";
                 const isSettling = settlingIds[record.record_id];
 
@@ -2871,14 +3292,13 @@ export const CanonicalMatchCenter: React.FC = () => {
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold text-slate-100">
-                          {record.teams?.home} vs {record.teams?.away}
-                        </span>
+                        {renderDualTeamNames(record)}
                         <span className="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
                           {record.league_key || record.league_name || "赛事"}
                         </span>
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          {record.beijing_start_time || "未标时间"}
+                        <span className="text-[10px] text-slate-300 font-mono bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-700/80 flex items-center gap-1 shadow-xs" title={`开赛时间: ${record.kickoff_time || record.beijing_start_time || '未标时间'}`}>
+                          <span className="text-slate-400">📅</span>
+                          <span>{formatKickoffDateTime(record.kickoff_time || record.beijing_start_time || (record as any).match_time, '赛前')}</span>
                         </span>
                         <span className="text-[10px] text-blue-400 font-mono bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-900">
                           {record.condition_snapshot?.match_minute != null ? `第 ${record.condition_snapshot.match_minute}' 分钟` : '赛前'} (推荐时比分: {record.prediction_snapshot?.score_at_recommendation || '0-0'})
@@ -2913,6 +3333,9 @@ export const CanonicalMatchCenter: React.FC = () => {
                           </span>
                         )}
                       </div>
+
+                      {/* 渲染完整 Layer 03 全盘口与博弈推演矩阵 */}
+                      {renderQuantMarketSnapshot(record)}
                     </div>
 
                     {/* 核销结算区 */}
@@ -2949,12 +3372,13 @@ export const CanonicalMatchCenter: React.FC = () => {
                           <span className="text-[11px] text-slate-400">完场:</span>
                           <input
                             type="number"
-                            placeholder="主"
+                            min="0"
+                            placeholder={defaultScore.home}
                             value={curInput.home}
                             onChange={(e) =>
                               setSettleInputs((prev) => ({
                                 ...prev,
-                                [record.record_id]: { ...curInput, home: e.target.value },
+                                [record.record_id]: { ...curInput, home: sanitizeScoreInput(e.target.value) },
                               }))
                             }
                             className="w-10 px-1.5 py-0.5 bg-slate-950 text-slate-200 border border-slate-700 rounded text-center text-xs focus:outline-none focus:border-blue-500 font-mono"
@@ -2962,12 +3386,13 @@ export const CanonicalMatchCenter: React.FC = () => {
                           <span className="text-slate-500 text-xs">-</span>
                           <input
                             type="number"
-                            placeholder="客"
+                            min="0"
+                            placeholder={defaultScore.away}
                             value={curInput.away}
                             onChange={(e) =>
                               setSettleInputs((prev) => ({
                                 ...prev,
-                                [record.record_id]: { ...curInput, away: e.target.value },
+                                [record.record_id]: { ...curInput, away: sanitizeScoreInput(e.target.value) },
                               }))
                             }
                             className="w-10 px-1.5 py-0.5 bg-slate-950 text-slate-200 border border-slate-700 rounded text-center text-xs focus:outline-none focus:border-blue-500 font-mono"
@@ -3036,7 +3461,12 @@ export const CanonicalMatchCenter: React.FC = () => {
                     const isSettled = record.settlement?.is_settled;
                     const reflection = record.settlement?.reflection;
                     const topScores = record.quant_snapshot?.top_scores || [];
-                    const curInput = settleInputs[record.record_id] || { home: "", away: "" };
+                    const defaultScore = getDefaultScoreForRecord(record);
+                    const rawInput = settleInputs[record.record_id];
+                    const curInput = {
+                      home: rawInput?.home !== undefined ? rawInput.home : defaultScore.home,
+                      away: rawInput?.away !== undefined ? rawInput.away : defaultScore.away,
+                    };
                     const curSource = settleSources[record.record_id] || "雷速比分画布/接口校验";
                     const isSettling = settlingIds[record.record_id];
 
@@ -3047,14 +3477,13 @@ export const CanonicalMatchCenter: React.FC = () => {
                       >
                         <div className="space-y-1.5 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-bold text-slate-100">
-                              {record.teams?.home} vs {record.teams?.away}
-                            </span>
+                            {renderDualTeamNames(record)}
                             <span className="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
                               {record.league_key}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              {record.kickoff_time ? record.kickoff_time.slice(0, 16).replace('T', ' ') : '赛前'}
+                            <span className="text-[10px] text-slate-300 font-mono bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-700/80 flex items-center gap-1 shadow-xs" title={`开赛时间: ${record.kickoff_time || '未标时间'}`}>
+                              <span className="text-slate-400">📅</span>
+                              <span>{formatKickoffDateTime(record.kickoff_time, '赛前')}</span>
                             </span>
                             <span className="text-[10px] text-blue-400 font-mono bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-900">
                               推演时: {record.minute_or_status} ({record.score_at_prediction.home}-{record.score_at_prediction.away})
@@ -3148,12 +3577,13 @@ export const CanonicalMatchCenter: React.FC = () => {
                             <div className="flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-lg border border-slate-800">
                               <input
                                 type="number"
-                                placeholder="主"
+                                min="0"
+                                placeholder={defaultScore.home}
                                 value={curInput.home}
                                 onChange={(e) =>
                                   setSettleInputs((prev) => ({
                                     ...prev,
-                                    [record.record_id]: { ...curInput, home: e.target.value },
+                                    [record.record_id]: { ...curInput, home: sanitizeScoreInput(e.target.value) },
                                   }))
                                 }
                                 className="w-10 px-1.5 py-0.5 bg-slate-950 text-slate-200 border border-slate-700 rounded text-center text-xs focus:outline-none focus:border-emerald-500 font-mono"
@@ -3161,12 +3591,13 @@ export const CanonicalMatchCenter: React.FC = () => {
                               <span className="text-slate-500 text-xs">:</span>
                               <input
                                 type="number"
-                                placeholder="客"
+                                min="0"
+                                placeholder={defaultScore.away}
                                 value={curInput.away}
                                 onChange={(e) =>
                                   setSettleInputs((prev) => ({
                                     ...prev,
-                                    [record.record_id]: { ...curInput, away: e.target.value },
+                                    [record.record_id]: { ...curInput, away: sanitizeScoreInput(e.target.value) },
                                   }))
                                 }
                                 className="w-10 px-1.5 py-0.5 bg-slate-950 text-slate-200 border border-slate-700 rounded text-center text-xs focus:outline-none focus:border-emerald-500 font-mono"
@@ -3211,8 +3642,10 @@ export const CanonicalMatchCenter: React.FC = () => {
             )
           )}
       </div>
-
-      {/* 搜索与多维过滤条 */}
+        </div>
+      ) : (
+        <>
+          {/* 搜索与多维过滤条 */}
       <div className="flex flex-col gap-3 bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 shadow-md">
         {/* 第一行：决策状态与开仓风控核心筛选 (用户高频核心操作区) */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-800/80">
@@ -3646,10 +4079,7 @@ export const CanonicalMatchCenter: React.FC = () => {
                       onClick={(e) => {
                         e.stopPropagation();
                         setQuickSettleMatch(m);
-                        setQuickSettleScore({
-                          home: m.score.home_score != null ? String(m.score.home_score) : '',
-                          away: m.score.away_score != null ? String(m.score.away_score) : '',
-                        });
+                        setQuickSettleScore(getDefaultScoreForRecord(m));
                         setShowQuickSettleModal(true);
                       }}
                       className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-950/80 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-700 transition-colors shadow-xs"
@@ -6134,7 +6564,7 @@ export const CanonicalMatchCenter: React.FC = () => {
                       type="number"
                       min="0"
                       value={quickSettleScore.home}
-                      onChange={(e) => setQuickSettleScore(prev => ({ ...prev, home: e.target.value }))}
+                      onChange={(e) => setQuickSettleScore(prev => ({ ...prev, home: sanitizeScoreInput(e.target.value) }))}
                       placeholder="0"
                       className="w-16 h-12 text-center text-xl font-bold bg-slate-950 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500 font-mono"
                     />
@@ -6146,7 +6576,7 @@ export const CanonicalMatchCenter: React.FC = () => {
                       type="number"
                       min="0"
                       value={quickSettleScore.away}
-                      onChange={(e) => setQuickSettleScore(prev => ({ ...prev, away: e.target.value }))}
+                      onChange={(e) => setQuickSettleScore(prev => ({ ...prev, away: sanitizeScoreInput(e.target.value) }))}
                       placeholder="0"
                       className="w-16 h-12 text-center text-xl font-bold bg-slate-950 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500 font-mono"
                     />

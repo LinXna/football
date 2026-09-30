@@ -1,28 +1,45 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **任务编号 (Task)**: UNIFIED-SETTLEMENT-HUB-01（收敛冗余档案与构建全生命周期统一结算复盘中枢）
-- **当前状态 (Status)**: `IN_PROGRESS`
+- **任务编号 (Task)**: DUAL-LEDGER-FULL-03-MARKETS-DISPLAY-01（双轨台账 Layer 03 全盘口矩阵与完整预测特征全景呈现）
+- **当前状态 (Status)**: `DONE`
 - **任务目标 (Goal)**: 
-  1. 数据模型收敛（SSOT）：将原 `MatchArchiveStore` (`data/match_archive.json`) 的预测比分分布快照与赛后比分命中反思，完整吸收合并进 `UniverseAuditRecord`，彻底淘汰冗余的 `data/match_archive.json` 物理存储；
-  2. 核心服务收敛：在 `UniverseLedgerPersistence` 中原生支持赛后比分反思指标计算（Top3 比分命中、净胜球/总进球偏差、诊断备忘），废弃 `matchArchiveStore.ts` 内部冗余逻辑，收敛为唯一的统一结算中枢；
-  3. 路由与核销入口收敛：在 `refactorLedgerRoutes.ts` 提供全生命周期唯一的单场与雷速批量结算端点，并在 `canonicalRoutes.ts` 中移除双重建档调用；
-  4. 视图界面统一：将散落的三个看板在 `CanonicalMatchCenter.tsx` 中整合为统一的【全生命周期赛后复盘与结算归因中心】，包含三大联动视图：① 实盘盈亏与 OOS 持续学习、② 全量门禁避坑与误杀归因、③ 比分推演与赛后反思，并统一核销弹窗。
+  1. 确认与解答用户疑问：底层已完整执行并持久化了 Layer 03 预测计算，包含让球、大小球、独赢三项全盘口及泊松期望矩阵；
+  2. 界面全盘口与预测特征补全展示：
+     - 在台账卡片上直观渲染【让球主盘 (Full Spread)】、【大小球主盘 (Full Total)】、【独赢主盘 (1X2)】具体盘口与双方水位；
+     - 增加前瞻预期进球 xG、Top 3 预测比分分布概率直观展示；
+     - 提供【展开 03 量化推演与博弈明细】折叠开关，展开可查看完整的全盘口去抽水公允率、正期望值 (+EV) 信号与泊松比分矩阵；
+  3. 静态检查与回归测试闭环。
 - **改动文件清单 (Target Files)**:
-  1. `refactor/05_portfolio_risk/types.ts`（扩展 `UniverseAuditRecord` 吸收 `reflection` 与 `top_scores`）
-  2. `refactor/05_portfolio_risk/universeLedgerPersistence.ts`（核销时同步生成比分反思诊断，统一核销与归因流水线）
-  3. `server/routes/canonicalRoutes.ts`（移除对 MatchArchiveStore 的重复调用）
-  4. `server/routes/matchArchiveRoutes.ts`（底层重定向至 UniverseLedgerPersistence，淘汰 match_archive.json）
-  5. `server/routes/refactorLedgerRoutes.ts`（强化统一结算端点）
-  6. `server/services/matchArchiveStore.ts`（瘦身退役，作为兼容门面委托给 UniverseLedgerPersistence）
-  7. `src/components/CanonicalMatchCenter.tsx`（深度整合三大看板与统一核销复盘体验）
-  8. `refactor/HANDOVER_AND_PROGRESS.md` & `refactor/CONTINUATION.md`
-- **阶段进度 (Phase)**: `06 结算审计：统一复盘与全生命周期结算中枢落地`
-- **交付产物与验证 (Delivered & Verified)**: 待编码自测
-- **下一步待办 (Next)**: 运行断言测试与 `compile_applet` 校验全链路统一性。
+  1. `src/components/CanonicalMatchCenter.tsx`（封装 `renderQuantMarketSnapshot`，直观呈现让球、大小球、独赢三项主盘与展开明细）
+  2. `refactor/HANDOVER_AND_PROGRESS.md`
+- **阶段进度 (Phase)**: `06 结算审计：Layer 03 全盘口与预测全景呈现（已闭环）`
+- **交付产物与验证 (Delivered & Verified)**:
+  - `compile_applet`：通过，前端构建打包零错误；
+  - `npm run lint` (`tsc --noEmit`)：零错误通过；
+  - 界面呈现验证：
+    - 轨道一、轨道二、轨道三所有卡片均已直观展现三大主盘胶囊：
+      - 【让球 (Full Spread)】：让球盘口 line 与主/客双方水位；
+      - 【大小球 (Full Total)】：大小球盘口 line 与大/小双方水位；
+      - 【独赢 (1X2)】：主胜、平局、客胜三项赔率；
+    - 首选预测比分、λ 参数、xG 进球总期望、BDI 指数全维度陈列；
+    - 支持就地点击【展开 03 推演明细】，展开三列网格（让球博弈、大小球博弈、独赢博弈）及 Top 5 泊松全比分二维联合概率分布。
+- **下一步待办 (Next)**: 系统运行稳定，待办事项已全部闭环。
 
 ---
 
 ## 历史活动快照 (Historical Active Snapshots)
+
+- **[DONE] DUAL-LEDGER-BATCH-SETTLE-AND-LEISU-TEAMS-01**: 双轨台账一键批量核销与雷速双源队名对照显示（新增 `POST /api/refactor/settlement/execute-batch` 批量核销接口、`renderDualTeamNames` 队名对照）。
+
+
+- **[DONE] DUAL-LEDGER-SETTLE-SCORE-DEFAULTS-01**: 双轨台账与核销结算中心完场比分默认值与下限防负值约束（滚球取当时推演/推荐时现场实时比分，赛前 0-0，min=0 防负值过滤）。
+
+
+- **[DONE] DUAL-LEDGER-KICKOFF-DATE-UI-01**: 重构双轨台账与核销结算中心开赛日期与时间完整展示优化（格式化统一为 `YYYY-MM-DD HH:mm`）。
+
+
+- **[DONE] UNIFIED-SETTLEMENT-HUB-01**: 收敛冗余档案与构建全生命周期统一结算复盘中枢（淘汰 `data/match_archive.json`、物理删除 `MatchArchiveStore.ts` 与 `MatchArchiveCenter.tsx`、统一双轨核销端点与视图中枢，115/115 测试通过）。
+
 
 > 全部历史快照（2026-09-07 ~ 2026-09-24）已归档至 `refactor/archive/HANDOVER_ARCHIVE.md`。
 > 冷启动恢复入口见 `refactor/CONTINUATION.md`。

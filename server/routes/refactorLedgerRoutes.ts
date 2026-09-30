@@ -26,7 +26,7 @@ import { RecommendationGrade } from "../../refactor/04_ai_evaluator/enums.js";
 import { extractAiEvaluationBrief } from "../../refactor/02_canonical_model/canonicalMatchAssembler.js";
 import { CanonicalMatch } from "../../refactor/02_canonical_model/types.js";
 import { QuantitativeFeatures } from "../../refactor/03_quant_engine/types.js";
-import { MatchArchiveStore } from "../services/matchArchiveStore.js";
+import { calculateStrictRawTextSimilarity } from "../../refactor/02_canonical_model/matchAligner.js";
 
 function detectRefactorQuarterCategory(record: FormalRecommendation): QuarterMarketCategory {
   const legDir = String(record.leg?.direction || "").toUpperCase();
@@ -469,17 +469,6 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
         console.warn("[RefactorLedgerRoutes] Universe settle error:", uniErr);
       }
 
-      // 同步核销赛事档案 (MatchArchiveStore)
-      try {
-        MatchArchiveStore.settleSingle(
-          targetRecord.match_id || targetRecord.record_id,
-          validFinalScore,
-          score_source
-        );
-      } catch (archErr) {
-        console.warn("[RefactorLedgerRoutes] MatchArchive settle error:", archErr);
-      }
-
       // 核心闭环：通过 Layer 06 标准适配器转换并抽取真实 OOS 样本
       let oosSampleIngested = false;
       let skippedReason: string | undefined;
@@ -689,6 +678,116 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
   };
 
   /**
+   * 统一雷速完场批量核销执行器 (Unified Leisu Settlement Engine)
+   */
+  const executeUnifiedLeisuSettlement = (payload: any) => {
+    const rawMatches = Array.isArray(payload)
+      ? payload
+      : (Array.isArray(payload?.results) ? payload.results : []);
+
+    if (rawMatches.length === 0) {
+      return { settled_count: 0, settled_matches: [], ledger_settled_count: 0, oos_samples_count: 0 };
+    }
+
+    const leisuFinishedList = rawMatches.map((m: any) => ({
+      home_team: m.home_team_name || m.home_team || m.home || "",
+      away_team: m.away_team_name || m.away_team || m.away || "",
+      score: m.score || (m.home_score != null && m.away_score != null ? { home: Number(m.home_score), away: Number(m.away_score) } : null),
+    })).filter((m: any) => m.score && typeof m.score.home === "number" && typeof m.score.away === "number");
+
+    // 1. 全量归因与反思核销 (UniverseLedger)
+    const uniRes = UniverseLedgerPersistence.settleWithLeisuFinished(leisuFinishedList);
+
+    // 2. 联动正式推荐台账并沉淀真实 OOS
+    let ledgerSettled = 0;
+    let oosCount = 0;
+    const now = new Date().toISOString();
+
+    for (const stage of ["LIVE", "PREMATCH"] as const) {
+      const formalLedger = LedgerPersistence.loadLedger(stage);
+      let changed = false;
+
+      for (const rec of formalLedger) {
+        if (rec.settlement?.is_settled) continue;
+
+        const matchedLeisu = leisuFinishedList.find((m: any) => {
+          const homeSim = calculateStrictRawTextSimilarity(m.home_team, rec.teams.home);
+          const awaySim = calculateStrictRawTextSimilarity(m.away_team, rec.teams.away);
+          return homeSim >= 0.70 && awaySim >= 0.70;
+        });
+
+        if (matchedLeisu && matchedLeisu.score) {
+          const finScore = matchedLeisu.score;
+          const rawLine = rec.prediction_snapshot?.line || rec.leg?.selected_line || 0;
+          const numericLine = parseAsianLine(rawLine);
+          const numericOdds = Number(rec.prediction_snapshot?.odds || rec.leg?.current_odds || 1.95);
+
+          let recScore = { home: 0, away: 0 };
+          if (rec.prediction_snapshot?.score_at_recommendation) {
+            const parts = rec.prediction_snapshot.score_at_recommendation.split(/[-:]/);
+            if (parts.length >= 2) {
+              recScore = { home: parseInt(parts[0], 10) || 0, away: parseInt(parts[1], 10) || 0 };
+            }
+          }
+
+          const isAh = rec.prediction_snapshot?.market?.toUpperCase().includes("HANDICAP") || rec.prediction_snapshot?.market?.toUpperCase().includes("SPREAD");
+          const settlementRes = evaluateQuarterSettlement({
+            market_category: isAh ? "SPREAD_HOME" : "TOTAL_OVER",
+            line: numericLine,
+            odds: numericOdds,
+            is_live: stage === "LIVE",
+            basis: (rec.leg?.basis as any) || (stage === "LIVE" ? "REMAINING_GOALS" : "FULL_MATCH"),
+            score_at_rec: recScore,
+            final_score: finScore,
+            score_verified: true,
+          });
+
+          rec.settlement = {
+            is_settled: true,
+            settled_at: now,
+            outcome: settlementRes.outcome as any,
+            final_score_verified: `${finScore.home}-${finScore.away}`,
+            final_score_source: "雷速完场交叉核销",
+            final_score_verified_at: now,
+            profit_loss: settlementRes.net_profit_unit,
+          };
+
+          if (!rec.leg?.basis || !["FULL_MATCH", "REMAINING_GOALS", "REMAINING_PERIOD_DOMINANCE"].includes(rec.leg.basis)) {
+            rec.leg.basis = stage === "LIVE" ? "REMAINING_GOALS" : "FULL_MATCH";
+          }
+
+          changed = true;
+          ledgerSettled++;
+
+          const { records: converted } = convertFormalLedgerRecords([rec]);
+          if (converted.length > 0) {
+            const ingestRes = ingestSettledRecordsAndPersist(converted);
+            oosCount += ingestRes.accepted_count;
+          }
+        }
+      }
+
+      if (changed) {
+        const filePath = path.join(
+          process.cwd(),
+          "refactor",
+          "runtime",
+          stage === "LIVE" ? "formal_ledger_live.json" : "formal_ledger_prematch.json"
+        );
+        fs.writeFileSync(filePath, JSON.stringify(formalLedger, null, 2), "utf8");
+      }
+    }
+
+    return {
+      settled_count: uniRes.settled_count,
+      avoidance_count: uniRes.avoidance_count,
+      false_negative_count: uniRes.false_negative_count,
+      ledger_settled_count: ledgerSettled,
+      oos_samples_count: oosCount,
+    };
+  };
+
+  /**
    * POST /api/refactor/settlement/execute
    * 全生命周期统一单场核销中枢接口 (Unified Settlement Entrypoint)
    */
@@ -710,6 +809,47 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
     } catch (e: any) {
       console.error("Unified settlement error:", e);
       return res.status(500).json({ success: false, error: e?.message || "统一核销异常" });
+    }
+  });
+
+  /**
+   * POST /api/refactor/settlement/execute-batch
+   * 一键批量核销当前全部录入/默认比分的比赛
+   */
+  app.post("/api/refactor/settlement/execute-batch", (req, res) => {
+    try {
+      const { items, stage = "PREMATCH" } = req.body;
+      if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ success: false, error: "缺少有效的批量核销项 items" });
+      }
+
+      const results: any[] = [];
+      let settledCount = 0;
+
+      for (const item of items) {
+        if (!item.record_id || !item.final_score) continue;
+        const itemStage = item.stage || stage;
+        const finalScore = {
+          home: Math.max(0, Number(item.final_score.home) || 0),
+          away: Math.max(0, Number(item.final_score.away) || 0),
+        };
+        const source = item.score_source || "批量一键核销";
+        const result = executeUnifiedSettlement(itemStage, item.record_id, finalScore, source);
+        results.push(result);
+        if (result.universe_record?.settlement?.is_settled || result.formal_record?.settlement?.is_settled) {
+          settledCount++;
+        }
+      }
+
+      return res.json({
+        success: true,
+        settled_count: settledCount,
+        total_items: items.length,
+        results,
+      });
+    } catch (e: any) {
+      console.error("Batch unified settlement error:", e);
+      return res.status(500).json({ success: false, error: e?.message || "批量核销异常" });
     }
   });
 
@@ -750,7 +890,7 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
         });
       }
 
-      const result = MatchArchiveStore.settleWithLeisuFinished(payloadToUse);
+      const result = executeUnifiedLeisuSettlement(payloadToUse);
       return res.json({
         success: true,
         message: `雷速完场统一核销完成: 已结算 ${result.settled_count} 场推演赛事，联动核销 ${result.ledger_settled_count} 条正式推荐，沉淀 ${result.oos_samples_count} 条真实 OOS 校准样本！`,

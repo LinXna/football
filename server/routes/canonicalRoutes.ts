@@ -476,10 +476,10 @@ export function registerCanonicalRoutes(app: express.Express): void {
         if (needSave) {
           writeJsonFile(runtimePath(mode), runtimeBatch);
           try {
-            MatchArchiveStore.archiveCanonicalMatches(
+            UniverseLedgerPersistence.autoIngestFromCanonicalBatch(
+              mode === "live" ? "LIVE" : "PREMATCH",
               runtimeBatch.matches,
-              runtimeBatch.quantitative_features,
-              mode
+              runtimeBatch.quantitative_features
             );
           } catch (archErr) {
             console.warn("[CanonicalRoutes] Refresh auto-archive warning:", archErr);

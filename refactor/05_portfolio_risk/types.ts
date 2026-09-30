@@ -14,6 +14,11 @@ export interface FormalRecommendation {
   kickoff_time: string;
   league_key: string;
   teams: { home: string, away: string };
+  reference_teams?: {
+    leisu_home?: string;
+    leisu_away?: string;
+    leisu_league?: string;
+  } | null;
   candidate_pipeline_state: 'NO_POSITIVE_EV' | 'OOS_LOCKED' | 'DATA_LOCKED' | 'PRODUCTION_UNLOCKED' | 'TRIAL_UNLOCKED' | 'COLD_START_PERMISSIVE';
   oos_status?: 'PRODUCTION_MATURE' | 'OOS_VALIDATED' | 'OOS_COLD_START_EXEMPT' | 'OOS_REJECTED';
   
@@ -120,6 +125,11 @@ export interface UniverseAuditRecord {
   kickoff_time: string;
   league_key: string;
   teams: { home: string; away: string };
+  reference_teams?: {
+    leisu_home?: string;
+    leisu_away?: string;
+    leisu_league?: string;
+  } | null;
   minute_or_status: string;
   score_at_prediction: { home: number; away: number };
   score_verified: boolean;

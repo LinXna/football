@@ -22,6 +22,14 @@
 
 ## Completed Fixes
 
+- [2026-09-29 冗余档案物理收敛与全生命周期统一结算中枢闭环 (UNIFIED-SETTLEMENT-HUB-01)]:
+  彻底根治重构演进期过渡引入的“双重建档、双向胶水核销、多看板割裂”技术债务：
+  1. 存储与数据模型收敛 (Storage SSOT)：全量数据契约吸收，`UniverseAuditRecord` 完整接管预测比分分布快照 (`quant_snapshot.top_scores`) 与赛后反思梳理 (`settlement.reflection`)，彻底物理废弃淘汰 `data/match_archive.json`，全工程仅存 `formal_ledger_*.json`（实盘）与 `universe_audit_ledger_*.json`（全量）；
+  2. 核心服务与代码收敛 (Service SSOT)：物理删除冗余历史代码 `server/services/matchArchiveStore.ts` 与未引用的 `src/components/MatchArchiveCenter.tsx`，将核销逻辑、归因判定与雷速完场核销 100% 收拢于 `UniverseLedgerPersistence` 与 `refactorLedgerRoutes.ts`，杜绝“你调用我、我又调用你”的双向胶水代码；
+  3. 统一核销入口 (Endpoint SSOT)：核销入口统一为 `/api/refactor/settlement/execute`（单场）与 `/api/refactor/settlement/execute-leisu`（雷速批量完场），自动串联“全量反思+门禁避坑 ➔ 实盘资金盈亏 ➔ 真实 OOS 沉淀 ➔ ESS 监控看板刷新”单向闭环流水线；
+  4. 前端视图融合 (UI SSOT)：在 `CanonicalMatchCenter.tsx` 中整合三轨合一的【全生命周期赛后复盘与核销结算中枢 (SSOT)】（① 实盘盈亏与 OOS 持续学习、② 全量门禁避坑与误杀归因、③ 比分推演与赛后反思），彻底解决用户在多页面、多面板间割裂查找问题。
+  - 验证：`compile_applet` 通过，`npx tsc --noEmit` 0 错误，`npm run test:ts` 115/115 全绿通过。
+
 - [2026-09-29 双轨全量录入与拦截归因架构落地]: 彻底解决重构系统“必须 A/B 级才能入账导致样本为 0、入口隐蔽且到处死锁”的痛点，落地双轨全量归因架构：
   1. 轨道一【实盘正式推荐台账】（`formal_ledger_live.json`/`prematch.json`）：保持 A/B 级且置信度 ≥ 70 门禁，用于实盘真实投注胜率与正式 OOS 样本抽取；
   2. 轨道二【全量预测与拦截归因台账】（`universe_audit_ledger_live.json`/`prematch.json`）：全量自动建档所有完成量化推演或 AI 评估的比赛，记录清晰门禁分类（`BLOCKED_BY_AI_C_GRADE`、`BLOCKED_BY_AI_WATCH`、`BLOCKED_BY_AI_TRAP`、`BLOCKED_BY_LOW_CONF`、`BLOCKED_NO_POSITIVE_EV`、`QUANT_MACHINE_ONLY` 等）；
