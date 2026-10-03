@@ -16,8 +16,8 @@
       "away": 0
     },
     "score_verified": false,
-    "gate_category": "BLOCKED_NO_POSITIVE_EV",
-    "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
+    "gate_category": "BLOCKED_BY_AI_WATCH",
+    "gate_reason_description": "大模型判定为观望拦截 (WATCH)",
     "quant_snapshot": {
       "lambda_home": 0.763,
       "lambda_away": 2.261,
@@ -93,8 +93,8 @@
       "away": 0
     },
     "score_verified": false,
-    "gate_category": "BLOCKED_NO_POSITIVE_EV",
-    "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
+    "gate_category": "QUALIFIED_FORMAL",
+    "gate_reason_description": "A/B 级可投注审核通过 (AI评级: B, 置信度: 79)",
     "quant_snapshot": {
       "lambda_home": 2.877,
       "lambda_away": 0.689,
@@ -170,8 +170,8 @@
       "away": 0
     },
     "score_verified": false,
-    "gate_category": "BLOCKED_NO_POSITIVE_EV",
-    "gate_reason_description": "量化模型无正向价值边际 (EV <= 0)，不具备开仓优势",
+    "gate_category": "BLOCKED_BY_AI_WATCH",
+    "gate_reason_description": "大模型判定为观望拦截 (WATCH)",
     "quant_snapshot": {
       "lambda_home": 2.526,
       "lambda_away": 0.902,

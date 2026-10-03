@@ -111,7 +111,12 @@ export function convertFormalLedgerRecords(
       home_team_key: record.teams.home,
       away_team_key: record.teams.away,
       stage: record.stage,
-      minute: record.prediction_snapshot.minute,
+      minute: record.stage === 'PREMATCH' 
+        ? null 
+        : (record.prediction_snapshot.minute ?? 
+           (record.condition_snapshot?.match_minute 
+             ? (parseInt(record.condition_snapshot.match_minute.replace(/\D/g, ''), 10) || 45) 
+             : 45)),
       score_at_recommendation: recommendationScore,
       final_score: finalScore,
       score_verified: record.prediction_snapshot.score_verified,

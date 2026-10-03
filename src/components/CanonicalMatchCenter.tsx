@@ -454,6 +454,7 @@ export const CanonicalMatchCenter: React.FC = () => {
   const [manualLedgerDefaultMatch, setManualLedgerDefaultMatch] = useState<any>(undefined);
   const [autoSettlingLeisu, setAutoSettlingLeisu] = useState<boolean>(false);
   const [isBatchSettling, setIsBatchSettling] = useState<boolean>(false);
+  const [isSyncingLedger, setIsSyncingLedger] = useState<boolean>(false);
   const [expandedLedgerRecordIds, setExpandedLedgerRecordIds] = useState<Record<string, boolean>>({});
 
   // 持续加载 AI 评估历史（优先重构版专用，回退兼容旧版）
@@ -964,7 +965,13 @@ export const CanonicalMatchCenter: React.FC = () => {
       if (needsReview) {
         const ybtyScore = `${m.score?.home_score ?? 0} - ${m.score?.away_score ?? 0}`;
         const hasLeisu = !!(m.reference?.leisu_home_name || hMatch?.leisu_name);
-        const leisuScore = hasLeisu
+        // 仅当比分来源明确为雷速时才渲染雷速比分，防止 YBTY 比分移花接木到雷速列
+        const leiScoreSource = m.score?.score_source;
+        const isLeisuScore = hasLeisu &&
+          !!leiScoreSource &&
+          leiScoreSource !== 'UNVERIFIED' &&
+          leiScoreSource !== 'YBTY_DIRECT';
+        const leisuScore = isLeisuScore
           ? `${m.score?.home_score ?? 0} - ${m.score?.away_score ?? 0}`
           : "-";
 
@@ -1295,6 +1302,31 @@ export const CanonicalMatchCenter: React.FC = () => {
       setLedgerFeedback(`❌ 批量核销网络异常: ${e?.message}`);
     } finally {
       setIsBatchSettling(false);
+    }
+  };
+
+  const handleSyncUniverseToFormal = async () => {
+    setIsSyncingLedger(true);
+    setLedgerFeedback("正在对齐双轨台账并同步核销正式推荐与沉淀 OOS 样本...");
+    try {
+      const res = await fetch("/api/refactor/settlement/sync-universe-to-formal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: mode === "live" ? "LIVE" : "PREMATCH" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLedgerFeedback(`✅ ${data.message}`);
+        await fetchUniverseLedger();
+        await fetchRefactorLedger();
+        await fetchOosStatus();
+      } else {
+        setLedgerFeedback(`❌ 对齐同步失败: ${data.error || "未知错误"}`);
+      }
+    } catch (e: any) {
+      setLedgerFeedback(`❌ 对齐同步网络异常: ${e?.message}`);
+    } finally {
+      setIsSyncingLedger(false);
     }
   };
 
@@ -3247,6 +3279,16 @@ export const CanonicalMatchCenter: React.FC = () => {
             </button>
 
             <button
+              onClick={handleSyncUniverseToFormal}
+              disabled={isSyncingLedger}
+              className="px-2.5 py-1 text-xs rounded border border-purple-600 bg-purple-950/80 text-purple-200 hover:bg-purple-900/80 disabled:opacity-40 transition-colors flex items-center gap-1 font-semibold shadow-xs"
+              title="将全量归因台账中已核销的比赛比分自动对齐同步到实盘推荐台账，并合规沉淀 OOS 样本"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingLedger ? "animate-spin text-purple-200" : "text-purple-300"}`} />
+              <span>{isSyncingLedger ? "同步核销中..." : "⚡ 双轨对齐同步核销"}</span>
+            </button>
+
+            <button
               onClick={handleBatchSettleAll}
               disabled={isBatchSettling || (ledgerTrack === 'UNIVERSE' || ledgerTrack === 'REFLECTION' ? universeLedger.filter((r) => !r.settlement?.is_settled).length === 0 : formalLedger.filter((r) => !r.settlement?.is_settled).length === 0)}
               className="px-2.5 py-1 text-xs rounded border border-blue-600 bg-blue-950/80 text-blue-200 hover:bg-blue-900/80 disabled:opacity-40 transition-colors flex items-center gap-1 font-semibold shadow-xs"
@@ -3529,7 +3571,7 @@ export const CanonicalMatchCenter: React.FC = () => {
                                 ? 'bg-rose-950/80 text-rose-300 border-rose-600'
                                 : 'bg-slate-900 text-slate-300 border-slate-700'
                             }`}>
-                              {outcome === 'WIN' ? '打出 (WIN)' : outcome === 'LOSE' ? '未打出 (LOSE)' : outcome}
+                              {outcome === 'WIN' ? '全赢' : outcome === 'WIN_HALF' ? '赢半' : outcome === 'LOSE' ? '全输' : outcome === 'LOSE_HALF' ? '输半' : outcome === 'PUSH' ? '走盘' : outcome === 'PENDING' ? '待核销' : outcome === 'INVALID' || outcome === 'INVALID_DATA' ? '无效' : outcome}
                             </span>
                             <span className="text-xs font-mono text-slate-300 bg-slate-900 px-2 py-1 rounded border border-slate-800">
                               完场: {record.settlement?.final_score?.home} - {record.settlement?.final_score?.away}
@@ -3724,7 +3766,7 @@ export const CanonicalMatchCenter: React.FC = () => {
                                 : "bg-slate-900 text-slate-300 border-slate-700"
                             }`}
                           >
-                            {outcome === "WIN" ? "赢" : outcome === "WIN_HALF" ? "赢半" : outcome === "LOSE" ? "输" : outcome === "LOSE_HALF" ? "输半" : "走盘"}
+                            {outcome === "WIN" ? "全赢" : outcome === "WIN_HALF" ? "赢半" : outcome === "LOSE" ? "全输" : outcome === "LOSE_HALF" ? "输半" : outcome === "PUSH" ? "走盘" : outcome === "PENDING" ? "待核销" : outcome === "INVALID" || outcome === "INVALID_DATA" ? "无效" : outcome}
                             {profitLoss != null && ` (${profitLoss > 0 ? "+" : ""}${profitLoss.toFixed(2)}u)`}
                           </span>
                           <span className="text-xs font-mono text-slate-300 bg-slate-900 px-2 py-1 rounded border border-slate-800">

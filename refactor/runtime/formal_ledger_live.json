@@ -62,6 +62,15 @@
       "score_verified": true,
       "score_source": "canonical_score_verification",
       "red_card_state": "1.00/1.00"
+    },
+    "settlement": {
+      "is_settled": true,
+      "settled_at": "2026-10-01T00:14:54.223Z",
+      "outcome": "WIN",
+      "final_score_verified": "2-1",
+      "final_score_source": "全量台账联动核销",
+      "final_score_verified_at": "2026-10-01T00:14:54.223Z",
+      "profit_loss": 0.75
     }
   },
   {
@@ -127,6 +136,15 @@
       "score_verified": true,
       "score_source": "canonical_score_verification",
       "red_card_state": "1.00/1.00"
+    },
+    "settlement": {
+      "is_settled": true,
+      "settled_at": "2026-10-01T00:14:54.223Z",
+      "outcome": "LOSE",
+      "final_score_verified": "3-4",
+      "final_score_source": "全量台账联动核销",
+      "final_score_verified_at": "2026-10-01T00:14:54.223Z",
+      "profit_loss": -1
     }
   },
   {
@@ -192,6 +210,15 @@
       "score_verified": true,
       "score_source": "canonical_score_verification",
       "red_card_state": "1.00/1.00"
+    },
+    "settlement": {
+      "is_settled": true,
+      "settled_at": "2026-10-01T00:14:54.223Z",
+      "outcome": "WIN",
+      "final_score_verified": "3-2",
+      "final_score_source": "全量台账联动核销",
+      "final_score_verified_at": "2026-10-01T00:14:54.223Z",
+      "profit_loss": 0.8700000000000001
     }
   },
   {
@@ -252,6 +279,15 @@
       "score_verified": true,
       "score_source": "YBTY",
       "red_card_state": "0 - 0"
+    },
+    "settlement": {
+      "is_settled": true,
+      "settled_at": "2026-10-01T00:14:54.223Z",
+      "outcome": "WIN_HALF",
+      "final_score_verified": "2-1",
+      "final_score_source": "全量台账联动核销",
+      "final_score_verified_at": "2026-10-01T00:14:54.223Z",
+      "profit_loss": 0.475
     }
   }
 ]

@@ -3,7 +3,7 @@ import path from 'path';
 import { CanonicalMatch } from '../02_canonical_model/types.js';
 import { QuantitativeFeatures } from '../03_quant_engine/types.js';
 import { BettingStage, UniverseAuditRecord, GateCategory, AttributionVerdict } from './types.js';
-import { evaluateQuarterSettlement, parseAsianLine, QuarterMarketCategory } from '../06_settlement_audit/settlementEngine.js';
+import { evaluateQuarterSettlement, parseAsianLine, QuarterMarketCategory, formatSettlementOutcomeCn } from '../06_settlement_audit/settlementEngine.js';
 import { calculateStrictRawTextSimilarity } from '../02_canonical_model/matchAligner.js';
 
 const RUNTIME_DIR = path.resolve(process.cwd(), 'refactor/runtime');
@@ -256,13 +256,15 @@ export class UniverseLedgerPersistence {
     let isFalseNegative = false;
     let notes = '';
 
+    const outcomeCn = formatSettlementOutcomeCn(outcome);
+
     if (target.gate_category === 'QUALIFIED_FORMAL') {
       if (outcome === 'WIN' || outcome === 'WIN_HALF') {
         verdict = 'FORMAL_WIN';
-        notes = '✅ 实盘推荐命中：A/B 级可投注方向打出';
+        notes = `✅ 实盘推荐${outcomeCn}`;
       } else if (outcome === 'LOSE' || outcome === 'LOSE_HALF') {
         verdict = 'FORMAL_LOSE';
-        notes = '❌ 实盘推荐亏损：A/B 级推荐未打出';
+        notes = `❌ 实盘推荐${outcomeCn}`;
       } else {
         verdict = 'PUSH';
         notes = '⚪ 实盘推荐走盘退款';
@@ -271,11 +273,11 @@ export class UniverseLedgerPersistence {
       if (outcome === 'LOSE' || outcome === 'LOSE_HALF') {
         verdict = 'SUCCESSFUL_AVOIDANCE';
         isGateCorrect = true;
-        notes = `🛡️ 避坑成功：门禁【${target.gate_category}】拦截正确，该被拦截比赛实际未打出 (${explanation})`;
+        notes = `🛡️ 避坑成功：门禁【${target.gate_category}】拦截正确，实际${outcomeCn} (${explanation})`;
       } else if (outcome === 'WIN' || outcome === 'WIN_HALF') {
         verdict = 'MODEL_FALSE_NEGATIVE';
         isFalseNegative = true;
-        notes = `⚠️ 模型误杀：门禁【${target.gate_category}】拦截过于保守，该比赛实际打出 (${explanation})`;
+        notes = `⚠️ 模型误杀：门禁【${target.gate_category}】拦截过于保守，实际${outcomeCn} (${explanation})`;
       } else {
         verdict = 'PUSH';
         notes = '⚪ 走盘退款';

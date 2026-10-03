@@ -73,6 +73,24 @@ function detectRefactorQuarterCategory(record: FormalRecommendation): QuarterMar
 
 export function registerRefactorLedgerRoutes(app: express.Express): void {
   /**
+   * GET /api/refactor/oos-status
+   * 获取最新 OOS 样本校准状态指标（支持热加载刷新）
+   */
+  app.get("/api/refactor/oos-status", (_req, res) => {
+    try {
+      const status = getOosStatus();
+      res.json({
+        ok: true,
+        success: true,
+        status
+      });
+    } catch (e: any) {
+      console.error("Get OOS status error:", e);
+      res.status(500).json({ ok: false, success: false, error: e?.message || "获取 OOS 状态失败" });
+    }
+  });
+
+  /**
    * GET /api/refactor/formal-ledger
    * 读取重构系统的正式推荐台账（LIVE + PREMATCH）及 OOS 状态
    */
@@ -609,9 +627,14 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
     let oosSampleIngested = false;
     const formalLedger = LedgerPersistence.loadLedger(bettingStage);
     let formalTarget = formalLedger.find((r) => 
-      r.record_id === record_id || 
-      r.match_id === record_id ||
-      (settledUniverse && r.match_id === settledUniverse.match_id)
+      String(r.record_id) === String(record_id) || 
+      String(r.match_id) === String(record_id) ||
+      (settledUniverse && (
+        String(r.match_id) === String(settledUniverse.match_id) ||
+        (r.teams?.home && settledUniverse.teams?.home &&
+         r.teams.home === settledUniverse.teams.home &&
+         r.teams.away === settledUniverse.teams.away)
+      ))
     );
 
     // 自动桥接机制：若该比赛在门禁中已被确认评定为 QUALIFIED_FORMAL（A/B 级可投注实盘推荐），
@@ -1044,6 +1067,63 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
     } catch (e: any) {
       console.error("Unified Leisu settlement error:", e);
       return res.status(500).json({ success: false, error: e?.message || "雷速统一核销异常" });
+    }
+  });
+
+  /**
+   * POST /api/refactor/settlement/sync-universe-to-formal
+   * 双轨核销状态对齐与 OOS 样本自动补齐同步接口
+   * 自动将全量归因台账中已核销的比赛比分对齐至正式实盘推荐台账，并合规沉淀入 OOS 校准样本库
+   */
+  app.post("/api/refactor/settlement/sync-universe-to-formal", (req, res) => {
+    try {
+      const { stage = "ALL" } = req.body;
+      const stagesToSync: BettingStage[] = 
+        stage === "ALL" ? ["LIVE", "PREMATCH"] 
+        : stage === "PREMATCH" ? ["PREMATCH"] 
+        : ["LIVE"];
+
+      let syncedFormalCount = 0;
+      let oosSampleIngestedCount = 0;
+      const details: any[] = [];
+
+      for (const st of stagesToSync) {
+        const universeList = UniverseLedgerPersistence.loadLedger(st);
+        const settledUniverseRecords = universeList.filter(
+          (u) => u.settlement?.is_settled && u.settlement?.final_score
+        );
+
+        for (const u of settledUniverseRecords) {
+          const finalScore = u.settlement!.final_score!;
+          const source = u.settlement?.final_score_source || "全量台账对齐核销";
+          const resUnified = executeUnifiedSettlement(st, u.record_id, finalScore, source);
+          if (resUnified.formal_record?.settlement?.is_settled) {
+            syncedFormalCount++;
+            if (resUnified.oos_sample_ingested) {
+              oosSampleIngestedCount++;
+            }
+            details.push({
+              match: `${u.teams.home} vs ${u.teams.away}`,
+              stage: st,
+              outcome: resUnified.formal_record.settlement.outcome,
+              oos_ingested: resUnified.oos_sample_ingested,
+            });
+          }
+        }
+      }
+
+      const oosStatus = getOosStatus();
+      return res.json({
+        success: true,
+        message: `成功对齐并核销 ${syncedFormalCount} 条正式推荐，沉淀 ${oosSampleIngestedCount} 条真实 OOS 校准样本！`,
+        synced_formal_count: syncedFormalCount,
+        oos_sample_ingested_count: oosSampleIngestedCount,
+        details,
+        oos_status: oosStatus,
+      });
+    } catch (e: any) {
+      console.error("Sync universe to formal error:", e);
+      return res.status(500).json({ success: false, error: e?.message || "双轨对齐同步核销异常" });
     }
   });
 

@@ -147,7 +147,9 @@ export enum LeisuKnownTeamId {
   ATLETICO_MADRID = 10251,  // 马德里竞技
   ATHLETIC_BILBAO = 10027,  // 毕尔巴鄂竞技
   REAL_BETIS = 10029,       // 皇家贝蒂斯
-  REAL_SOCIEDAD = 10034,    // 皇家社会
+  // WARNING: 10034 已确认为门兴格拉德巴赫 (Borussia Mönchengladbach)，非皇家社会
+  // 皇家社会的正确 ID 需从雷速官方数据确认后补充，暂不硬编码以防污染实时数据
+  GLADBACH = 10034,         // 门兴格拉德巴赫 (Borussia Mönchengladbach)
   ESPANYOL = 10220,         // 西班牙人
   MALLORCA = 10326,         // 皇家马略卡
   OSASUNA = 10749,          // 奥萨苏纳
@@ -186,7 +188,7 @@ export const LEISU_TEAM_NAMES: Record<number, string> = {
   [LeisuKnownTeamId.ATLETICO_MADRID]: "马德里竞技",
   [LeisuKnownTeamId.ATHLETIC_BILBAO]: "毕尔巴鄂竞技",
   [LeisuKnownTeamId.REAL_BETIS]: "皇家贝蒂斯",
-  [LeisuKnownTeamId.REAL_SOCIEDAD]: "皇家社会",
+  [LeisuKnownTeamId.GLADBACH]: "门兴格拉德巴赫",
   [LeisuKnownTeamId.ESPANYOL]: "西班牙人",
   [LeisuKnownTeamId.MALLORCA]: "皇家马略卡",
   [LeisuKnownTeamId.OSASUNA]: "奥萨苏纳",
@@ -462,10 +464,12 @@ class LeisuEnumManager {
 
   /**
    * 智能解析球队 ID 与名称 (附带缺省回退与自动学习)
-   * 1. 若静态字典存在 ID 则取标准名；
-   * 2. 若动态自学习库中存在则直接取用；
-   * 3. 若数据源提供了原始名称，则系统自动吸收登记进动态库，标记为已知球队 (无需人工干预)；
-   * 4. 只有既无静态收录、又无动态收录、且数据源未提供名称时，才作为真正异常上报
+   * 优先级（SSOT 原则，防止本地字典污染实时数据）：
+   * 1. 若数据源提供了官方原始名称 (rawName)，直接以官方原始名为准，同时更新动态学习库；
+   *    — 这确保了雷速实时传来的队名永远不会被本地硬编码字典错误覆盖
+   * 2. 若数据源无原始名称，才尝试静态字典匹配；
+   * 3. 若静态字典也未收录，尝试动态自学习库；
+   * 4. 只有既无原始名称、又无静态收录、又无动态收录时，才作为真正异常上报
    */
   public resolveTeam(
     teamId: number | null | undefined,
@@ -473,16 +477,19 @@ class LeisuEnumManager {
   ): { id: number | null; name: string; is_known: boolean } {
     const rawName = fallbackName ? String(fallbackName).trim() : "";
     if (teamId !== null && teamId !== undefined) {
+      // 官方原始名优先（防止本地字典错误覆盖雷速实时数据）
+      if (rawName) {
+        // 同步更新动态学习库，使后续无名称查询也能取到正确值
+        this.dynamicTeamMap.set(teamId, rawName);
+        return { id: teamId, name: rawName, is_known: true };
+      }
+      // 无原始名称时，退而求其次查询静态字典
       if (LEISU_TEAM_NAMES[teamId]) {
         return { id: teamId, name: LEISU_TEAM_NAMES[teamId], is_known: true };
       }
+      // 再退一步查询动态自学习库
       if (this.dynamicTeamMap.has(teamId)) {
         return { id: teamId, name: this.dynamicTeamMap.get(teamId)!, is_known: false };
-      }
-      // 数据源自带名称：系统自动学习入库，无需用户手动维护
-      if (rawName) {
-        this.dynamicTeamMap.set(teamId, rawName);
-        return { id: teamId, name: rawName, is_known: false };
       }
       // 真正的孤儿未知球队 ID (既未收录又无名称)
       commonEnumRegistry.recordUnknownEnum({

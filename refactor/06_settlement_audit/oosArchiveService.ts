@@ -64,8 +64,8 @@ function atomicWriteJsonSync(targetPath: string, data: unknown): void {
 }
 
 /** 确保 OOS 档案已就绪（仅读取真实存在的持久化文件，严禁伪造） */
-export function ensureOosArchiveInitialized(): OosCalibrationArchive | null {
-  if (cachedArchive) return cachedArchive;
+export function ensureOosArchiveInitialized(forceReload = false): OosCalibrationArchive | null {
+  if (cachedArchive && !forceReload) return cachedArchive;
 
   if (fs.existsSync(oosArchivePath())) {
     try {
@@ -113,6 +113,7 @@ export interface OosStatus {
 
 /** 获取当前 OOS 校准库运行状态指标 */
 export function getOosStatus(): OosStatus {
+  ensureOosArchiveInitialized(true);
   const archive = getLoadedOosArchive();
   if (!archive || cachedSamples.length === 0) {
     return {

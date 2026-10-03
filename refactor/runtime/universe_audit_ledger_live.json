@@ -86,7 +86,7 @@
         "is_gate_correct": true,
         "is_false_negative": false,
         "verdict_label": "SUCCESSFUL_AVOIDANCE",
-        "notes": "🛡️ 避坑成功：门禁【BLOCKED_BY_AI_WATCH】拦截正确，该被拦截比赛实际未打出 (Remaining Spread (Away): Added Away (0) - Added Home (2) = -2. Split: -1 -> LOSE, -0.5 -> LOSE)"
+        "notes": "🛡️ 避坑成功：门禁【BLOCKED_BY_AI_WATCH】拦截正确，实际全输"
       },
       "reflection": {
         "actual_total_goals": 3,
@@ -186,7 +186,7 @@
         "is_gate_correct": false,
         "is_false_negative": false,
         "verdict_label": "FORMAL_LOSE",
-        "notes": "❌ 实盘推荐亏损：A/B 级推荐未打出"
+        "notes": "❌ 实盘推荐全输"
       },
       "reflection": {
         "actual_total_goals": 3,
@@ -286,7 +286,7 @@
         "is_gate_correct": true,
         "is_false_negative": false,
         "verdict_label": "SUCCESSFUL_AVOIDANCE",
-        "notes": "🛡️ 避坑成功：门禁【BLOCKED_BY_AI_WATCH】拦截正确，该被拦截比赛实际未打出 (Remaining Spread (Home): Added Home (0) - Added Away (0) = 0. Split: -0.5 -> LOSE, 0 -> PUSH)"
+        "notes": "🛡️ 避坑成功：门禁【BLOCKED_BY_AI_WATCH】拦截正确，实际输半"
       },
       "reflection": {
         "actual_total_goals": 1,
@@ -386,7 +386,7 @@
         "is_gate_correct": false,
         "is_false_negative": true,
         "verdict_label": "MODEL_FALSE_NEGATIVE",
-        "notes": "⚠️ 模型误杀：门禁【BLOCKED_BY_AI_WATCH】拦截过于保守，该比赛实际打出 (Remaining Spread (Away): Added Away (2) - Added Home (0) = 2. Split: -1 -> WIN, -0.5 -> WIN)"
+        "notes": "⚠️ 模型误杀：门禁【BLOCKED_BY_AI_WATCH】拦截过于保守，实际全赢"
       },
       "reflection": {
         "actual_total_goals": 4,
@@ -491,7 +491,7 @@
         "is_gate_correct": false,
         "is_false_negative": true,
         "verdict_label": "MODEL_FALSE_NEGATIVE",
-        "notes": "⚠️ 模型误杀：门禁【BLOCKED_BY_AI_C_GRADE】拦截过于保守，该比赛实际打出 (Remaining Spread (Away): Added Away (1) - Added Home (0) = 1. Split: -0.5 -> WIN, 0 -> WIN)"
+        "notes": "⚠️ 模型误杀：门禁【BLOCKED_BY_AI_C_GRADE】拦截过于保守，实际全赢"
       },
       "reflection": {
         "actual_total_goals": 4,
@@ -697,7 +697,7 @@
         "is_gate_correct": false,
         "is_false_negative": false,
         "verdict_label": "FORMAL_LOSE",
-        "notes": "❌ 实盘推荐亏损：A/B 级推荐未打出"
+        "notes": "❌ 实盘推荐输半"
       },
       "reflection": {
         "actual_total_goals": 3,
@@ -802,7 +802,7 @@
         "is_gate_correct": false,
         "is_false_negative": false,
         "verdict_label": "FORMAL_WIN",
-        "notes": "✅ 实盘推荐命中：A/B 级可投注方向打出"
+        "notes": "✅ 实盘推荐全赢"
       },
       "reflection": {
         "actual_total_goals": 5,

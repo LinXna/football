@@ -192,7 +192,21 @@ export function evaluateQuarterSettlement(params: QuarterSettlementParams): Quar
       outcome: finalOutcome,
       net_profit_unit: netProfitUnit,
       payout_multiplier: payout,
-      explanation: `${explanation}. Split: ${splits.lineA} -> ${outA}, ${splits.lineB} -> ${outB}`
+      explanation: `${explanation}. 拆盘: ${splits.lineA} -> ${formatSettlementOutcomeCn(outA)}, ${splits.lineB} -> ${formatSettlementOutcomeCn(outB)}`
     };
+  }
+}
+
+export function formatSettlementOutcomeCn(outcome: SettlementOutcome | 'WIN' | 'LOSE' | 'PUSH' | 'WIN_HALF' | 'LOSE_HALF' | string): string {
+  switch (outcome) {
+    case 'WIN': return '全赢';
+    case 'WIN_HALF': return '赢半';
+    case 'PUSH': return '走盘';
+    case 'LOSE_HALF': return '输半';
+    case 'LOSE': return '全输';
+    case 'PENDING': return '待核销';
+    case 'INVALID':
+    case 'INVALID_DATA': return '无效';
+    default: return String(outcome);
   }
 }
