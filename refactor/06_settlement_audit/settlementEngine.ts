@@ -86,6 +86,14 @@ export function evaluateQuarterSettlement(params: QuarterSettlementParams): Quar
 
   if (market_category === 'TOTAL_OVER' || market_category === 'TOTAL_UNDER') {
     if (is_live && basis === 'REMAINING_GOALS') {
+      if (typeof recH !== 'number' || typeof recA !== 'number' || isNaN(recH) || isNaN(recA)) {
+        return {
+          outcome: 'INVALID',
+          net_profit_unit: 0,
+          payout_multiplier: 0,
+          explanation: '核销阻断：滚球大小球剩余进球玩法缺少推荐时比分，严禁隐式回退到全场比分'
+        };
+      }
       const totalFin = finH + finA;
       const totalRec = recH + recA;
       effectiveValue = totalFin - totalRec;
@@ -96,6 +104,14 @@ export function evaluateQuarterSettlement(params: QuarterSettlementParams): Quar
     }
   } else if (market_category === 'SPREAD_HOME' || market_category === 'SPREAD_AWAY') {
     if (is_live && basis === 'REMAINING_PERIOD_DOMINANCE') {
+      if (typeof recH !== 'number' || typeof recA !== 'number' || isNaN(recH) || isNaN(recA)) {
+        return {
+          outcome: 'INVALID',
+          net_profit_unit: 0,
+          payout_multiplier: 0,
+          explanation: '核销阻断：滚球让球盘必须基于推荐时刻现场比分重置为0:0，缺少推荐时比分，严禁隐式回退到全场比分'
+        };
+      }
       const diffH = finH - recH;
       const diffA = finA - recA;
       if (market_category === 'SPREAD_HOME') {

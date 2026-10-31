@@ -58,5 +58,25 @@
     "predicted_probability": 0.5643,
     "predicted_lambda": 1.9169999999999998,
     "observed_goals": 4
+  },
+  {
+    "sample_id": "universe-test-001",
+    "match_id": "leisu-match-88801",
+    "model_version": "refactor-layer03-v1",
+    "prediction_at": "2026-09-01T10:00:00.000Z",
+    "league_key": "英超",
+    "home_team_key": "阿森纳",
+    "away_team_key": "切尔西",
+    "stage": "LIVE",
+    "minute": 65,
+    "score_state": "1-0",
+    "red_card_state": "0 - 0",
+    "market": "ASIAN_HANDICAP_MAIN",
+    "model_probability": 0.62,
+    "outcome": 1,
+    "binary_outcome": 1,
+    "predicted_probability": 0.62,
+    "predicted_lambda": 2.7,
+    "observed_goals": 1
   }
 ]

@@ -38,6 +38,7 @@ export interface DataConsistencyAuditResult {
   event_away_goals: number;
   is_home_goal_mismatch: boolean;
   is_away_goal_mismatch: boolean;
+  is_timeline_empty_with_goals?: boolean;
 
   // 3. 角球事实对账 (主客独立)
   stats_home_corners: number | null;
@@ -92,12 +93,16 @@ export function auditDataConsistency(match: CanonicalMatch): DataConsistencyAudi
   const currentMinute = match.timing?.minute ?? null;
   const momentumPoints = countMomentumPoints(match);
 
-  // 1. 时钟对账：滚球状态下，若提供了危攻时序流，当前分钟数减去时序点数，相差大于 3 分钟即判定为断流
-  // 若赛事本身未提供动量数据（attack_momentum == null），由完整度评级降级处理，不应误判为物理时序断流
+  // 1. 时钟对账：滚球状态下，若提供了危攻时序流，当前分钟数减去时序点数。
+  // 规则：常规时段（1~45', 46~90'）滞后容差为 3 分钟；
+  // 在半场伤停补时或全场补时时段（currentMinute > 45 && currentMinute <= 52 或 currentMinute > 90），
+  // 鉴于雷速点阵虽会追加补时点，但双端抓取存在轮询与接口推送微小延迟，放宽至自适应 5 分钟容差，杜绝误杀终盘。
   const hasMomentumTimeline = (match.reference?.attack_momentum !== null && match.reference?.attack_momentum !== undefined) ||
     (Array.isArray(match.reference?.attack_momentum_timeline) && match.reference.attack_momentum_timeline.length > 0);
+  const isStoppagePhase = currentMinute !== null && ((currentMinute > 45 && currentMinute <= 52) || currentMinute > 90);
+  const allowedStaleLag = isStoppagePhase ? 5 : 3;
   const timelineStaleLag = (currentMinute !== null && hasMomentumTimeline) ? Math.max(0, currentMinute - momentumPoints) : 0;
-  const isTimelineStale = isLive && hasMomentumTimeline && (currentMinute !== null) && (currentMinute - momentumPoints > 3);
+  const isTimelineStale = isLive && hasMomentumTimeline && (currentMinute !== null) && (currentMinute - momentumPoints > allowedStaleLag);
 
   // 2. 提取事件轴统计
   const timelineEvents: CanonicalTimelineEvent[] = match.reference?.timeline_events || [];
@@ -167,11 +172,20 @@ export function auditDataConsistency(match: CanonicalMatch): DataConsistencyAudi
     }
   }
 
-  // 进球事实比对 (主客独立；仅在事件轴已具备事件数据时严格比对，避免事件轴缺省时误报物理事实分裂)
+  // 进球事实比对 (主客独立)
+  // 核心铁律：若记分牌已有进球（> 0），但事件轴空无一物（未采集到任何时序事件），属于严重物理事实缺失/断流，绝对严禁隐式放行！
   const homeScore = match.score?.home_score ?? match.score?.current?.home ?? null;
   const awayScore = match.score?.away_score ?? match.score?.current?.away ?? null;
-  const isHomeGoalMismatch = hasTimelineEvents && (homeScore !== null) && (homeScore !== eventHomeGoals);
-  const isAwayGoalMismatch = hasTimelineEvents && (awayScore !== null) && (awayScore !== eventAwayGoals);
+  const scoreboardTotalGoals = (homeScore ?? 0) + (awayScore ?? 0);
+
+  // 严重物理事实缺失：记分牌显示有进球，但事件轴完全为空
+  const isTimelineEmptyWithGoals = !hasTimelineEvents && scoreboardTotalGoals > 0;
+
+  // 主客进球独立不自洽判定：
+  // 1) 事件轴存在时，严格核验事件轴进球总数与记分牌是否精确相等；
+  // 2) 事件轴为空但记分牌有球时，判定为物理进球事实不自洽（缺失断流）。
+  const isHomeGoalMismatch = (homeScore !== null) && (hasTimelineEvents ? (homeScore !== eventHomeGoals) : (homeScore > 0));
+  const isAwayGoalMismatch = (awayScore !== null) && (hasTimelineEvents ? (awayScore !== eventAwayGoals) : (awayScore > 0));
 
   // 角球事实比对 (主客独立；仅在事件轴已明确包含角球事件时严格比对，避免仅记录关键事件的叙事事件轴误报角球事实分裂)
   const timelineTracksCorners = (eventHomeCorners + eventAwayCorners) > 0;
@@ -191,13 +205,17 @@ export function auditDataConsistency(match: CanonicalMatch): DataConsistencyAudi
   // 一票否决判定
   const blockReasons: string[] = [];
   if (isTimelineStale) {
-    blockReasons.push(`时序严重断流：当前比赛时钟 ${currentMinute}' 但危攻时序仅提供 ${momentumPoints}' 数据（滞后 ${timelineStaleLag} 分钟）`);
+    blockReasons.push(`时序严重断流：当前比赛时钟 ${currentMinute}' 但危攻时序仅提供 ${momentumPoints}' 数据（滞后 ${timelineStaleLag} 分钟，当前时段允许阈值 ${allowedStaleLag} 分钟）`);
   }
-  if (isHomeGoalMismatch) {
-    blockReasons.push(`主队进球不自洽：记分牌显示 ${homeScore} 球，但事件轴仅记录 ${eventHomeGoals} 球`);
-  }
-  if (isAwayGoalMismatch) {
-    blockReasons.push(`客队进球不自洽：记分牌显示 ${awayScore} 球，但事件轴仅记录 ${eventAwayGoals} 球`);
+  if (isTimelineEmptyWithGoals) {
+    blockReasons.push(`物理事实严重缺失：记分牌显示当前比分 ${homeScore}-${awayScore}，但事件轴未采集到任何时序事件，时序流中断`);
+  } else {
+    if (isHomeGoalMismatch) {
+      blockReasons.push(`主队进球不自洽：记分牌显示 ${homeScore} 球，但事件轴仅记录 ${eventHomeGoals} 球`);
+    }
+    if (isAwayGoalMismatch) {
+      blockReasons.push(`客队进球不自洽：记分牌显示 ${awayScore} 球，但事件轴仅记录 ${eventAwayGoals} 球`);
+    }
   }
   if (isHomeCornerMismatch) {
     blockReasons.push(`主队角球不自洽：技术统计显示 ${statsHomeCorners} 个，但事件轴记录 ${eventHomeCorners} 个`);
@@ -229,6 +247,7 @@ export function auditDataConsistency(match: CanonicalMatch): DataConsistencyAudi
     event_away_goals: eventAwayGoals,
     is_home_goal_mismatch: isHomeGoalMismatch,
     is_away_goal_mismatch: isAwayGoalMismatch,
+    is_timeline_empty_with_goals: isTimelineEmptyWithGoals,
 
     stats_home_corners: statsHomeCorners,
     stats_away_corners: statsAwayCorners,

@@ -1,4 +1,4 @@
-import { FormalRecommendation } from '../05_portfolio_risk/types.js';
+import { FormalRecommendation, UniverseAuditRecord } from '../05_portfolio_risk/types.js';
 import { HistoricalBacktestRecord } from './types.js';
 
 export interface FormalLedgerConversionResult {
@@ -104,7 +104,7 @@ export function convertFormalLedgerRecords(
       candidate_pipeline_state: resolvedState,
       oos_status: resolvedOosStatus,
       settled_record_provenance: 'SETTLED_LEDGER_ADAPTER_V1',
-      model_version: record.prediction_snapshot.model_version,
+      model_version: (record.prediction_snapshot.model_version === 'layer03-v1' ? 'refactor-layer03-v1' : record.prediction_snapshot.model_version) || 'refactor-layer03-v1',
       prediction_at: record.prediction_snapshot.prediction_at,
       settled_at: settlement.settled_at,
       league_key: record.league_key,
@@ -127,6 +127,110 @@ export function convertFormalLedgerRecords(
       model_probability: record.prediction_snapshot.model_probability,
       predicted_lambda: record.prediction_snapshot.predicted_lambda.home + record.prediction_snapshot.predicted_lambda.away,
       settlement_market: normalizeOosMarket(record.prediction_snapshot.market),
+      settlement_basis: normalizeSettlementBasis(settlementBasis),
+      settlement_outcome: settlement.outcome
+    });
+  }
+
+  return { records: converted, skipped };
+}
+
+/**
+ * 将轨道二全量归因台账中具备不可逆时间戳、完备量化快照与二元真实核销结果的赛事，
+ * 合规转化为 Layer 06 统一的 HistoricalBacktestRecord，直接沉淀进 OOS 样本库。
+ */
+export function convertUniverseAuditRecords(
+  records: readonly UniverseAuditRecord[]
+): FormalLedgerConversionResult {
+  const converted: HistoricalBacktestRecord[] = [];
+  const skipped: { record_id: string; reason: string }[] = [];
+
+  for (const record of records) {
+    const settlement = record.settlement;
+    if (!settlement?.is_settled || settlement.outcome === 'PENDING' || !settlement.settled_at) {
+      skipped.push({ record_id: record.record_id, reason: 'SETTLEMENT_PENDING' });
+      continue;
+    }
+
+    if (settlement.outcome !== 'WIN' && settlement.outcome !== 'LOSE') {
+      skipped.push({ record_id: record.record_id, reason: 'BINARY_SETTLEMENT_REQUIRED' });
+      continue;
+    }
+
+    if (!record.score_verified || !record.score_at_prediction || !settlement.final_score) {
+      skipped.push({ record_id: record.record_id, reason: 'VERIFIED_SCORES_REQUIRED' });
+      continue;
+    }
+
+    const recScore = parseScore(record.score_at_prediction);
+    const finalScore = parseScore(settlement.final_score);
+    if (!recScore || !finalScore) {
+      skipped.push({ record_id: record.record_id, reason: 'SCORE_PARSE_FAILED' });
+      continue;
+    }
+
+    const direction = record.predicted_direction;
+    if (!direction || !direction.market) {
+      skipped.push({ record_id: record.record_id, reason: 'PREDICTED_DIRECTION_MISSING' });
+      continue;
+    }
+
+    const isAh = direction.market.includes('让球') || direction.market.includes('AH') || direction.market.includes('SPREAD') || direction.market.includes('ASIAN');
+    const rawMarket = isAh ? 'ASIAN_HANDICAP_MAIN' : 'TOTAL_GOALS_MAIN';
+
+    if (!isOosMarket(rawMarket)) {
+      skipped.push({ record_id: record.record_id, reason: 'UNSUPPORTED_OOS_MARKET' });
+      continue;
+    }
+
+    const isLive = record.stage === 'LIVE';
+    const settlementBasis = isLive
+      ? (isAh ? 'REMAINING_PERIOD_DOMINANCE' : 'REMAINING_GOALS')
+      : 'FULL_MATCH';
+
+    const lambdaHome = record.quant_snapshot?.lambda_home;
+    const lambdaAway = record.quant_snapshot?.lambda_away;
+    if (typeof lambdaHome !== 'number' || typeof lambdaAway !== 'number' || isNaN(lambdaHome) || isNaN(lambdaAway)) {
+      skipped.push({ record_id: record.record_id, reason: 'PREDICTED_LAMBDA_INVALID' });
+      continue;
+    }
+
+    const prob = direction.model_probability;
+    if (typeof prob !== 'number' || isNaN(prob) || prob < 0 || prob > 1) {
+      skipped.push({ record_id: record.record_id, reason: 'MODEL_PROBABILITY_INVALID' });
+      continue;
+    }
+
+    const minuteVal = isLive
+      ? (parseInt(String(record.minute_or_status || '45').replace(/\D/g, ''), 10) || 45)
+      : null;
+
+    converted.push({
+      record_id: record.record_id,
+      match_id: record.match_id,
+      record_type: 'formal_ai_recommendation',
+      formal_recommendation: true,
+      candidate_pipeline_state: 'COLD_START_PERMISSIVE',
+      oos_status: 'OOS_COLD_START_EXEMPT',
+      settled_record_provenance: 'SETTLED_LEDGER_ADAPTER_V1',
+      model_version: 'refactor-layer03-v1',
+      prediction_at: record.created_at_utc,
+      settled_at: settlement.settled_at,
+      league_key: record.league_key,
+      home_team_key: record.teams.home,
+      away_team_key: record.teams.away,
+      stage: record.stage,
+      minute: minuteVal,
+      score_at_recommendation: recScore,
+      final_score: finalScore,
+      score_verified: record.score_verified,
+      red_card_state: '0 - 0',
+      market: normalizeOosMarket(rawMarket),
+      line: String(direction.line),
+      odds: direction.odds,
+      model_probability: prob,
+      predicted_lambda: lambdaHome + lambdaAway,
+      settlement_market: normalizeOosMarket(rawMarket),
       settlement_basis: normalizeSettlementBasis(settlementBasis),
       settlement_outcome: settlement.outcome
     });

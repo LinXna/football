@@ -177,7 +177,7 @@ export interface CanonicalLeisuReference {
  */
 export interface CanonicalMatch {
   // 1. 唯一标识与元数据
-  canonical_id: string;                  // 严格确立为雷速赛事 ID (leisu_match_id，如 "4562395")
+  canonical_id: string;                  // 严格确立为雷速赛事 ID (leisu_match_id，如 "4562395")，未匹配时显式为空字符串 ""，禁止伪造临时 ID
   match_slug: string;                    // 业务对阵标识: ${league}_${home}_vs_${away}
   created_at: string;                    // ISO 时间戳（组装/入库时点）
   source_captured_at: string | null;     // 数据源快照采集时点（YBTY 盘口快照 captured_at），OOS 时间口径优先使用此字段

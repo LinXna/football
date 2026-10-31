@@ -19,7 +19,7 @@ import { LedgerPersistence } from "../../refactor/05_portfolio_risk/ledgerPersis
 import { UniverseLedgerPersistence } from "../../refactor/05_portfolio_risk/universeLedgerPersistence.js";
 import { evaluateQuarterSettlement, parseAsianLine, QuarterMarketCategory } from "../../refactor/06_settlement_audit/settlementEngine.js";
 import { convertFormalLedgerRecords } from "../../refactor/06_settlement_audit/formalLedgerAdapter.js";
-import { getOosStatus, ingestSettledRecordsAndPersist, removeSamplesAndRebuildArchive } from "../../refactor/06_settlement_audit/oosArchiveService.js";
+import { getOosStatus, ingestSettledRecordsAndPersist, ingestUniverseAuditRecordsAndPersist, removeSamplesAndRebuildArchive } from "../../refactor/06_settlement_audit/oosArchiveService.js";
 import { BettingStage, FormalRecommendation } from "../../refactor/05_portfolio_risk/types.js";
 import { AiEvaluationResult, EvaluatorPayload, RecommendedLeg } from "../../refactor/04_ai_evaluator/types.js";
 import { RecommendationGrade } from "../../refactor/04_ai_evaluator/enums.js";
@@ -768,6 +768,14 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
       formalSettled = formalTarget;
     }
 
+    // 轨道二合规 OOS 沉淀通道：若正式台账未产生样本，但全量归因记录具备完整量化快照与真实二元核销，直接合规入库
+    if (!oosSampleIngested && settledUniverse && settledUniverse.settlement?.is_settled && settledUniverse.predicted_direction) {
+      const uniOosRes = ingestUniverseAuditRecordsAndPersist([settledUniverse]);
+      if (uniOosRes.accepted_count > 0) {
+        oosSampleIngested = true;
+      }
+    }
+
     return {
       universe_record: settledUniverse,
       formal_record: formalSettled,
@@ -875,6 +883,17 @@ export function registerRefactorLedgerRoutes(app: express.Express): void {
           stage === "LIVE" ? "formal_ledger_live.json" : "formal_ledger_prematch.json"
         );
         fs.writeFileSync(filePath, JSON.stringify(formalLedger, null, 2), "utf8");
+      }
+    }
+
+    // 轨道二全量归因核销结果直接吸纳进 OOS 样本库
+    if (uniRes.settled_count > 0) {
+      const liveUni = UniverseLedgerPersistence.loadLedger("LIVE").filter((r) => r.settlement?.is_settled);
+      const preUni = UniverseLedgerPersistence.loadLedger("PREMATCH").filter((r) => r.settlement?.is_settled);
+      const allSettledUni = [...liveUni, ...preUni];
+      if (allSettledUni.length > 0) {
+        const uniOosRes = ingestUniverseAuditRecordsAndPersist(allSettledUni);
+        oosCount += uniOosRes.accepted_count;
       }
     }
 

@@ -339,6 +339,31 @@ export function matchLeague(
   };
 }
 
+const AUTHORIZED_TRADITIONAL_NICKNAMES: Record<string, string[]> = {
+  '狼队': ['伍尔弗汉普顿', '伍尔弗汉普顿流浪者', 'wolves', 'wolverhampton'],
+  '红魔': ['曼彻斯特联', '曼联', 'manchester united'],
+  '枪手': ['阿森纳', 'arsenal'],
+  '蓝军': ['切尔西', 'chelsea'],
+  '蓝月亮': ['曼彻斯特城', '曼城', 'manchester city'],
+  '太妃糖': ['埃弗顿', 'everton'],
+  '铁锤帮': ['西汉姆联', '西汉姆', 'west ham'],
+  '喜鹊': ['纽卡斯尔联', '纽卡斯尔', 'newcastle'],
+  '大黄蜂': ['多特蒙德', '沃特福德'],
+  '老妇人': ['尤文图斯', 'juventus'],
+  '斑马军团': ['尤文图斯'],
+  '红黑军团': ['ac米兰', 'ac milan'],
+  '蓝黑军团': ['国际米兰', 'inter'],
+  '床单军团': ['马德里竞技', '马竞'],
+  '红军': ['利物浦', 'liverpool'],
+  '潜水艇': ['比利亚雷亚尔', '黄色潜水艇'],
+  '药厂': ['勒沃库森', 'leverkusen'],
+  '狐狸城': ['莱斯特城', 'leicester'],
+  '农场主': ['富勒姆', 'fulham'],
+  '海鸥': ['布莱顿', 'brighton'],
+  '蜜蜂': ['布伦特福德', 'brentford'],
+  '森林': ['诺丁汉森林', 'nottingham forest'],
+};
+
 /**
  * 校验别名在两端真实文本上的合理性，防止对阵双方（如门兴 vs 皇家社会、曼城 vs 布莱克本）因历史错误录入别名库而机械式 100% 误配
  */
@@ -349,6 +374,16 @@ export function verifyAliasLegitimacy(
 ): { isLegitimate: boolean; reason?: string } {
   // 1. 若纯原文字符顺序相似度已达到 0.18 以上，说明存在明显字面重叠或缩写顺序，属于正常别名
   if (rawSimilarity >= 0.18) {
+    return { isLegitimate: true };
+  }
+
+  // 1.1 检查是否为公认的权威传统足球队昵称 (如 狼队 <-> 伍尔弗汉普顿流浪者, 红魔 <-> 曼彻斯特联)
+  const yLower = yTrim.toLowerCase();
+  const lLower = lTrim.toLowerCase();
+  if (
+    AUTHORIZED_TRADITIONAL_NICKNAMES[yLower]?.some((al) => lLower.includes(al) || al.includes(lLower)) ||
+    AUTHORIZED_TRADITIONAL_NICKNAMES[lLower]?.some((al) => yLower.includes(al) || al.includes(yLower))
+  ) {
     return { isLegitimate: true };
   }
 
@@ -438,7 +473,7 @@ export function matchSingleTeam(
       ybty_name: yTrim,
       leisu_name: lTrim,
       is_alias_exact_hit: true,
-      raw_text_similarity: Math.max(0.95, rawSimilarity),
+      raw_text_similarity: 1.0,
       is_corrupted_alias_suspected: false,
     };
   }

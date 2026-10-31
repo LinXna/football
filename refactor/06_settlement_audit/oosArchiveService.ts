@@ -17,7 +17,9 @@ import {
   OosArchiveBuildOptions
 } from '../03_quant_engine/types.js';
 import { buildOosCalibrationArchive } from '../03_quant_engine/oosCalibrationEngine.js';
+import { UniverseAuditRecord } from '../05_portfolio_risk/types.js';
 import { ingestHistoricalBacktestRecords } from './historicalBacktestIngestion.js';
+import { convertUniverseAuditRecords } from './formalLedgerAdapter.js';
 import { HistoricalBacktestRecord } from './types.js';
 
 /** 运行时路径支持环境变量覆盖（测试隔离），默认 refactor/runtime */
@@ -250,8 +252,10 @@ export function ingestSettledRecordsAndPersist(
     const trainEnd = new Date(Date.parse(predStart) - 86400 * 1000).toISOString();
     const trainStart = new Date(Date.parse(trainEnd) - 365 * 86400 * 1000).toISOString();
 
+    const effectiveModelVersion = cachedArchive?.model_version || cachedSamples[0]?.model_version || (records[0]?.model_version === 'layer03-v1' ? 'refactor-layer03-v1' : records[0]?.model_version) || 'refactor-layer03-v1';
+
     const options: OosArchiveBuildOptions = {
-      model_version: records[0]?.model_version || 'layer03-v1',
+      model_version: effectiveModelVersion,
       generated_at: generatedAt,
       training_window_start_at: trainStart,
       training_window_end_at: trainEnd,
@@ -259,8 +263,15 @@ export function ingestSettledRecordsAndPersist(
       prediction_window_end_at: predEnd
     };
 
+    // 确保待吸纳样本与档案的 model_version 严格统一
+    const normalizedRecords = records.map((r) =>
+      r.model_version !== effectiveModelVersion
+        ? { ...r, model_version: effectiveModelVersion }
+        : r
+    );
+
     // OP-06-02 完整校验 + 语义去重 + 时间窗口拦截
-    const result = ingestHistoricalBacktestRecords(records, options);
+    const result = ingestHistoricalBacktestRecords(normalizedRecords, options);
 
     if (result.accepted_samples.length > 0) {
       for (const s of result.accepted_samples) {
@@ -284,6 +295,29 @@ export function ingestSettledRecordsAndPersist(
     console.error('批量合规吸纳 OOS 样本失败:', err);
     return { accepted_count: 0, rejected_count: records.length, rejected_reasons: [message] };
   }
+}
+
+/**
+ * 合规批量吸纳已结算的轨道二全量归因台账记录（走完整 OP-06-02 校验）。
+ */
+export function ingestUniverseAuditRecordsAndPersist(
+  records: readonly UniverseAuditRecord[]
+): { accepted_count: number; rejected_count: number; rejected_reasons: readonly string[] } {
+  const { records: converted, skipped } = convertUniverseAuditRecords(records);
+  const skippedReasons = skipped.map((s) => `${s.record_id}: ${s.reason}`);
+  if (converted.length === 0) {
+    return {
+      accepted_count: 0,
+      rejected_count: skipped.length,
+      rejected_reasons: skippedReasons
+    };
+  }
+  const ingestRes = ingestSettledRecordsAndPersist(converted);
+  return {
+    accepted_count: ingestRes.accepted_count,
+    rejected_count: ingestRes.rejected_count + skipped.length,
+    rejected_reasons: [...skippedReasons, ...ingestRes.rejected_reasons]
+  };
 }
 
 /**

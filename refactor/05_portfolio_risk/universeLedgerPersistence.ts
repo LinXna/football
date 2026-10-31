@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { CanonicalMatch } from '../02_canonical_model/types.js';
+import { MatchAlignmentStatus } from '../02_canonical_model/enums.js';
 import { QuantitativeFeatures } from '../03_quant_engine/types.js';
 import { BettingStage, UniverseAuditRecord, GateCategory, AttributionVerdict } from './types.js';
 import { evaluateQuarterSettlement, parseAsianLine, QuarterMarketCategory, formatSettlementOutcomeCn } from '../06_settlement_audit/settlementEngine.js';
@@ -71,6 +72,11 @@ export class UniverseLedgerPersistence {
     const now = new Date().toISOString();
 
     for (const match of matches) {
+      // 准入门禁加固：未完成实体对齐或无合法雷速真实 ID 的赛事属于待审草稿，绝对严禁建档入库，根绝孤儿台账
+      if (!match.canonical_id || match.canonical_id.trim() === '' || match.alignment?.status === MatchAlignmentStatus.UNMATCHED) {
+        continue;
+      }
+
       const quant = quantMap[match.canonical_id];
       if (!quant) continue; // 仅对具备量化特征的赛事建档
 

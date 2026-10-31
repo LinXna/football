@@ -1,32 +1,40 @@
 ## 一、当前活动工作快照 (Active Snapshot)
 
-- **当前状态 (Status)**: `IDLE`
-- **任务 ID**: `DUAL-LEDGER-OOS-SYNC-FIX-01`
-- **目标**: 彻底打通双轨台账与 OOS 样本校准档案的原子联动核销闭环，将结算展示词全面改用旧系统风格（全赢、赢半、走盘、输半、全输），根治全量台账核销后正式台账未联动核销导致 OOS 看板为 0 场的问题。
+- **当前状态 (Status)**: `IN_PROGRESS`
+- **任务 ID**: `STAGE2-OOS-UNIVERSE-CALIBRATION-TUNNEL-01`
+- **目标**: 
+  1. 开辟全量归因台账 (Universe Audit Ledger) 向 OOS 校准样本池的合规打通通道；
+  2. 在 `formalLedgerAdapter.ts` 增加 `convertUniverseAuditRecords`，严格校验不可逆时间戳、预测时比分、完赛比分与二元核销结果；
+  3. 在 `oosArchiveService.ts` 暴露 `ingestUniverseAuditRecordsAndPersist` 方法，实现轨道二已核销赛事的合规 OOS 增量沉淀与档案原子重建；
+  4. 运行单测验证全量台账向 OOS 训练池的合规转化与 BSS/经验贝叶斯更新。
 - **影响文件**:
-  - `refactor/06_settlement_audit/formalLedgerAdapter.ts`（修复滚球 minute 为 null 时回退安全解析，杜绝 LIVE_MINUTE_INVALID 误拦截）
-  - `refactor/06_settlement_audit/settlementEngine.ts`（增加 `formatSettlementOutcomeCn`，将四分之一盘拆分等解释字符串从英文转为旧系统风格结算词）
-  - `refactor/05_portfolio_risk/universeLedgerPersistence.ts`（全面采用旧系统风格结算词，杜绝“未打出 (LOSE)”等繁琐描述）
-  - `server/routes/refactorLedgerRoutes.ts`（加固双轨单场核销与一键批量核销的双向查找、比分核销、OOS 沉淀与持久化，以及新增双轨台账一键对齐同步核销接口 `POST /api/refactor/settlement/sync-universe-to-formal`）
-  - `src/components/CanonicalMatchCenter.tsx`（新增【⚡ 双轨对齐同步核销】按钮，统一展示旧系统风格结算词）
+  - `refactor/06_settlement_audit/formalLedgerAdapter.ts`
+  - `refactor/06_settlement_audit/oosArchiveService.ts`
+  - `server/routes/refactorLedgerRoutes.ts`
 - **执行步骤**:
-  1. [x] 登记工作快照
-  2. [x] 加固 `refactor/06_settlement_audit/formalLedgerAdapter.ts` 分钟解析逻辑，根治 OOS 样本准入被误拦
-  3. [x] 结算术语全面改用旧系统风格（全赢、赢半、走盘、输半、全输），统一结算解释和归因展示
-  4. [x] 加固 `server/routes/refactorLedgerRoutes.ts` 中的 `executeUnifiedSettlement` 匹配与核销逻辑（支持 string 兼容、队名兜底、双向严格保存并触发 OOS 沉淀）
-  5. [x] 补全对齐已核销的全量台账记录到对应正式台账记录的同步核销逻辑，新增路由与前端触发按钮
-  6. [x] 验证 TypeScript 静态类型检查 `tsc --noEmit` 100% 零错误
-  7. [x] 验证全工程单元测试 71/71 全绿通过
-  8. [x] 闭环归档快照为 DONE
+  1. [x] 登记工作快照 (Status: IN_PROGRESS)
+  2. [ ] 在 `formalLedgerAdapter.ts` 扩展实现 `convertUniverseAuditRecords`
+  3. [ ] 在 `oosArchiveService.ts` 实现 `ingestUniverseAuditRecordsAndPersist`
+  4. [ ] 在 `refactorLedgerRoutes.ts` 联动全量台账核销接口调用 OOS 沉淀
+  5. [ ] 编写/运行单测验证样本转化与 OOS 指标计算
+  6. [ ] 闭环归档快照为 DONE
 
-- **最近完成任务 (Last Completed)**: `DUAL-LEDGER-OOS-SYNC-FIX-01`
+- **最近完成任务 (Last Completed)**: `STAGE1-CANONICAL-ID-GOAL-GATE-HARDENING-01`
+- **交付产物与验证 (Delivered & Verified)**:
+  1. `refactor/02_canonical_model/canonicalMatchAssembler.ts`：彻底废除临时 `ybty_xxx_hash` ID 伪造逻辑，未匹配到雷速时 canonicalId 显式为 `""`，保持 `UNMATCHED` 草稿态，彻底根除 ID 突变与孤儿台账问题。
+  2. `refactor/05_portfolio_risk/universeLedgerPersistence.ts`：台账入库门禁前置硬校验，空 ID 与 `UNMATCHED` 赛事一票否决禁止建档。
+  3. `refactor/02_canonical_model/dataConsistencyAuditor.ts`：拔除 `hasTimelineEvents &&` 隐式掩盖补丁，记分牌有球但事件轴为空判定为 `PHYSICAL_FACTS_EMPTY` 严重物理事实缺失并一票否决阻断量化与推荐；补时时段时钟滞后容差放宽至 5 分钟自适应容差。
+  4. `refactor/06_settlement_audit/settlementEngine.ts`：滚球让球盘与大小球现场比分缺失时严禁回退全场比分，必须返回 `INVALID`。
+  5. `refactor/02_canonical_model/matchAligner.ts`：补齐权威足球传统昵称白名单（狼队/伍尔弗汉普顿、红魔/曼联等），确保别名校验安全与精准。
+  6. 验证：`npx tsc --noEmit` 零报错，全部 5 套测试套件 100% 通过（`verify_canonical_match_assembler`, `verify_data_consistency_circuit_breaker`, `verify_settlement_engine`, `verify_candidate_state_machine`, `verify_common_infrastructure`）。
+- **下一步待办 (Next)**: 完成 STAGE2-OOS-UNIVERSE-CALIBRATION-TUNNEL-01。
 - **交付产物与验证 (Delivered & Verified)**:
   1. `refactor/06_settlement_audit/formalLedgerAdapter.ts`：修复 `record.prediction_snapshot.minute` 为 null 时的回退解析，支持从 `match_minute` 中提取分钟或安全兜底 45'，彻底根除滚球记录被 `LIVE_MINUTE_INVALID` 错杀排斥在 OOS 之外的根本问题。
   2. `refactor/06_settlement_audit/settlementEngine.ts` & `universeLedgerPersistence.ts`：新增 `formatSettlementOutcomeCn`，全面改用旧系统风格结算词（全赢、赢半、走盘、输半、全输），彻底替代繁琐的 `未打出 (LOSE)` / `LOSE_HALF`，底层数据契约与数学计算逻辑零改动，零副作用。
   3. `server/routes/refactorLedgerRoutes.ts`：加固 `executeUnifiedSettlement` 的 `formalTarget` 查找逻辑（支持 String 转换兼容 + 队名双向兜底匹配）；新增 `POST /api/refactor/settlement/sync-universe-to-formal` 接口，一键从全量归因台账同步比分至实盘台账并合规增量沉淀 OOS 校准样本。
   4. `src/components/CanonicalMatchCenter.tsx`：结算中枢操作栏新增【⚡ 双轨对齐同步核销】按钮，点击后一键双轨对齐联动核销并自动拉取最新 OOS 状态指标。
   5. 实机验证：OOS 校准档案成功增量更新，`sample_count` 从 0 增至 3（纽卡斯尔联、门兴格拉德巴赫、云达不莱梅通过 Layer 06 严格核销入库），`tsc --noEmit` 零报错，`npm run test:ts` 71/71 100% 全绿。
-- **下一步待办 (Next)**: 待接管新原子任务。
+- **下一步待办 (Next)**: 执行 STAGE1-CANONICAL-ID-GOAL-GATE-HARDENING-01。
 
 ---
 

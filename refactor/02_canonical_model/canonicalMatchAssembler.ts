@@ -531,16 +531,11 @@ export function assembleCanonicalMatch(
   }
 
   const matchSlug = `${ybtyMatch.league}_${ybtyMatch.home}_vs_${ybtyMatch.away}`;
+  // 严格确立单一事实来源 (SSOT)：canonical_id 必须且只能是雷速官方真实赛事 ID
+  // 未匹配到雷速时，显式保持为空字符串 ""，禁止伪造临时 ybty_xxx ID，保持 UNMATCHED 待审草稿态，严禁入库建档
   let canonicalId = leisuMatch?.match_id ? String(leisuMatch.match_id) : "";
   if (!canonicalId) {
     missingReasons.push(MissingDataReason.NO_LEISU_MATCH);
-    let hash = 0;
-    for (let i = 0; i < matchSlug.length; i++) {
-      hash = ((hash << 5) - hash) + matchSlug.charCodeAt(i);
-      hash |= 0;
-    }
-    const clean = matchSlug.replace(/[^\w\u4e00-\u9fa5]/g, "_").slice(0, 30);
-    canonicalId = `ybty_${clean}_${Math.abs(hash)}`;
   }
 
   const preliminaryMatch: CanonicalMatch = {
