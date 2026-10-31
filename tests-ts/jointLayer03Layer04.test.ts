@@ -81,7 +81,27 @@ describe('Joint Layer 03 and Layer 04 Integration & Hardening Tests', () => {
             confirmed: true,
             home_starters: [{ player_id: 'p1', name: 'Kane', market_value: '9000万欧' }],
             away_starters: [{ player_id: 'p2', name: 'Brandt', market_value: '4000万欧' }]
-          }
+          },
+          timeline_events: [
+            {
+              minute: 12,
+              base_minute: 12,
+              added_minute: null,
+              display_time: "12'",
+              type: 1,
+              type_name: '进球',
+              canonical_type: 'GOAL_REGULAR' as any,
+              category: 'SCORE' as any,
+              side: 'home',
+              text: 'Kane 抽射破门',
+              is_penalty: false,
+              is_own_goal: false,
+              is_cancelled: false,
+              is_var_overturned: false,
+              is_on_pitch: true,
+              player_name: 'Kane'
+            }
+          ]
         } as any
       };
     }

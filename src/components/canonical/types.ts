@@ -4,8 +4,8 @@ import {
   DataCompletenessTier,
   MatchStage,
   MissingDataReason,
-} from "../../refactor/02_canonical_model/enums";
-import { CleanMarketsGroup } from "../../refactor/01_data_ingestion/ybty/types";
+} from "../../../refactor/02_canonical_model/enums";
+import { CleanMarketsGroup } from "../../../refactor/01_data_ingestion/ybty/types";
 
 // 导入对齐向导待审项模型
 export interface ImportPendingMatch {

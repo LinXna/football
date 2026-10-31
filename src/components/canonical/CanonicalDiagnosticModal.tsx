@@ -156,9 +156,13 @@ export const CanonicalDiagnosticModal: React.FC<CanonicalDiagnosticModalProps> =
                   </div>
                 </div>
                 <div>
-                  {match.reference?.stats ? (
+                  {match.reference?.stats && match.reference.stats.possession ? (
                     <span className="px-2.5 py-1 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-medium">
-                      ✅ 具备统计 (控球 {match.reference.stats.possession.home}% : {match.reference.stats.possession.away}%)
+                      ✅ 具备统计 (控球 {match.reference.stats.possession.home ?? '-'}% : {match.reference.stats.possession.away ?? '-'}%)
+                    </span>
+                  ) : match.reference?.stats ? (
+                    <span className="px-2.5 py-1 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-medium">
+                      ✅ 具备统计
                     </span>
                   ) : (
                     <span className="px-2.5 py-1 rounded bg-rose-950/60 text-rose-300 border border-rose-800 font-medium">
@@ -206,7 +210,7 @@ export const CanonicalDiagnosticModal: React.FC<CanonicalDiagnosticModalProps> =
                 <div>
                   {match.reference?.lineups?.confirmed ? (
                     <span className="px-2.5 py-1 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-medium">
-                      ✅ 官方首发已确认 ({match.reference.lineups.formation_home || "未知"} vs {match.reference.lineups.formation_away || "未知"})
+                      ✅ 官方首发已确认 ({match.reference.lineups.home_formation || "未知"} vs {match.reference.lineups.away_formation || "未知"})
                     </span>
                   ) : (match.reference?.lineups?.home_starters?.length || 0) > 0 ? (
                     <span className="px-2.5 py-1 rounded bg-amber-950 text-amber-300 border border-amber-800 font-medium">

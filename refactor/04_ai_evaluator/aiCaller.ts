@@ -117,10 +117,11 @@ export class AiEvaluatorService {
     const userPrompt = buildUserPrompt(payload);
 
     let attempt = 0;
+    const modelName = process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash';
     while (attempt < maxRetries) {
       try {
         const response = await this.ai.models.generateContent({
-          model: 'gemini-2.5-pro',
+          model: modelName,
           contents: userPrompt,
           config: {
             systemInstruction: systemPrompt,
